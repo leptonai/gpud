@@ -89,6 +89,9 @@ sudo rm /usr/sbin/gpud
 sudo rm /etc/systemd/system/gpud.service
 ```
 
+## Integration
+
+For users looking to set up a platform to collect and process data from gpud, please refer to [INTEGRATION](./docs/INTEGRATION.md)
 ## Key Features
 
 - Monitor critical GPU and GPU fabric metrics (power, temperature).
