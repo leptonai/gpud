@@ -1,0 +1,36 @@
+[Unit]
+Description=gpud
+
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#
+Wants=network-pre.target
+After=network-pre.target NetworkManager.service systemd-resolved.service
+
+[Service]
+Slice=runtime.slice
+
+EnvironmentFile=/etc/default/gpud
+ExecStart=/usr/sbin/gpud run $FLAGS
+
+StandardOutput=append:/var/log/gpud.log
+StandardError=append:/var/log/gpud.log
+
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+Type=notify
+
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+Restart=on-failure
+RestartSec=5s
+
+# all remaining processes in the control group of this unit will be killed on unit stop
+# https://www.freedesktop.org/software/systemd/man/latest/systemd.kill.html
+KillMode=control-group
+
+TimeoutStartSec=300
+CPUAccounting=true
+MemoryAccounting=true
+User=root
+Group=root
+LimitNOFILE=40000
+
+[Install]
+WantedBy=multi-user.target

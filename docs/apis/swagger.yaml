@@ -1,0 +1,232 @@
+definitions:
+  components.Event:
+    properties:
+      extra_info:
+        additionalProperties:
+          type: string
+        description: any extra information the component may want to expose
+        type: object
+      message:
+        description: detailed message of the event
+        type: string
+      name:
+        type: string
+      time:
+        type: string
+      type:
+        description: 'optional: ErrCritical, ErrWarning, Info, Resolution, ...'
+        type: string
+    type: object
+  components.Info:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/components.Event'
+        type: array
+      metrics:
+        items:
+          $ref: '#/definitions/components.Metric'
+        type: array
+      states:
+        items:
+          $ref: '#/definitions/components.State'
+        type: array
+    type: object
+  components.Metric:
+    additionalProperties: true
+    type: object
+  components.State:
+    properties:
+      error:
+        description: the unprocessed error returned from the component
+      extra_info:
+        additionalProperties:
+          type: string
+        description: any extra information the component may want to expose
+        type: object
+      healthy:
+        type: boolean
+      name:
+        type: string
+      reason:
+        description: a detailed and processed reason on why the component is not healthy
+        type: string
+    type: object
+  server.UpdateStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    type: integer
+    x-enum-varnames:
+    - updateStatusInit
+    - updateStatusInProgress
+    - updateStatusFailed
+    - updateStatusFinished
+  v1.LeptonComponentEvents:
+    properties:
+      component:
+        type: string
+      endTime:
+        type: string
+      events:
+        items:
+          $ref: '#/definitions/components.Event'
+        type: array
+      startTime:
+        type: string
+    type: object
+  v1.LeptonComponentInfo:
+    properties:
+      component:
+        type: string
+      endTime:
+        type: string
+      info:
+        $ref: '#/definitions/components.Info'
+      startTime:
+        type: string
+    type: object
+  v1.LeptonComponentMetrics:
+    properties:
+      component:
+        type: string
+      metrics:
+        items:
+          $ref: '#/definitions/components.Metric'
+        type: array
+    type: object
+  v1.LeptonComponentStates:
+    properties:
+      component:
+        type: string
+      states:
+        items:
+          $ref: '#/definitions/components.State'
+        type: array
+    type: object
+info:
+  contact: {}
+paths:
+  /v1/components:
+    get:
+      description: get gpud components
+      operationId: getComponents
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Fetch all components in gpud
+  /v1/events:
+    get:
+      description: get component Events interface by component name
+      operationId: getEvents
+      parameters:
+      - description: Component Name, leave empty to query all components
+        in: query
+        name: component
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/v1.LeptonComponentEvents'
+            type: array
+      summary: Query component Events interface in gpud
+  /v1/info:
+    get:
+      description: get component Events/Metrics/States interface by component name
+      operationId: getInfo
+      parameters:
+      - description: Component Name, leave empty to query all components
+        in: query
+        name: component
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/v1.LeptonComponentInfo'
+            type: array
+      summary: Query component Events/Metrics/States interface in gpud
+  /v1/metrics:
+    get:
+      description: get component Metrics interface by component name
+      operationId: getMetrics
+      parameters:
+      - description: Component Name, leave empty to query all components
+        in: query
+        name: component
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/v1.LeptonComponentMetrics'
+            type: array
+      summary: Query component Metrics interface in gpud
+  /v1/states:
+    get:
+      description: get component States interface by component name
+      operationId: getStates
+      parameters:
+      - description: Component Name, leave empty to query all components
+        in: query
+        name: component
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/v1.LeptonComponentStates'
+            type: array
+      summary: Query component States interface in gpud
+  /v1/update/install:
+    post:
+      description: get current update progress
+      operationId: updateInstall
+      parameters:
+      - description: next version to update
+        in: query
+        name: version
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.UpdateStatus'
+      summary: Get current update progress
+  /v1/update/progress:
+    get:
+      description: get current update progress
+      operationId: updateProgress
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.UpdateStatus'
+      summary: Get current update progress
+swagger: "2.0"

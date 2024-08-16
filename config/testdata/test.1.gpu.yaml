@@ -1,0 +1,10 @@
+annotations:
+  machine_id: abcdefg
+
+address: 127.0.0.1:123
+
+components:
+  accelerator-nvidia-info: null
+  accelerator-nvidia-error: null
+  accelerator-nvidia-clock-event: null
+  accelerator-nvidia-temperature: null

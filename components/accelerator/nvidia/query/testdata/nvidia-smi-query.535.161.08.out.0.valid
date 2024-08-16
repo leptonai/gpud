@@ -1,0 +1,1647 @@
+
+==============NVSMI LOG==============
+
+Timestamp                                 : Wed Jul 31 11:22:39 2024
+Driver Version                            : 535.161.08
+CUDA Version                              : 12.2
+
+Attached GPUs                             : 8
+GPU 00000000:19:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124031592
+    GPU UUID                              : GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa
+    Minor Number                          : 0
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0x1900
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 2
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:52:57.891
+        Latest Duration                   : 91568 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0x19
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:19:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 67
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 3875 KB/s
+        Rx Throughput                     : 574 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 29 C
+        GPU T.Limit Temp                  : 56 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 39 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 67.74 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 670.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:3B:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124008135
+    GPU UUID                              : GPU-47daa2ad-a218-6286-252b-af45f0dfaf00
+    Minor Number                          : 1
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0x3b00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 4
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:57.689
+        Latest Duration                   : 87105 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0x3B
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:3B:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 63
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 621 KB/s
+        Rx Throughput                     : 589 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 29 C
+        GPU T.Limit Temp                  : 57 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 38 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 69.52 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 685.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:4C:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124047722
+    GPU UUID                              : GPU-167d8376-ee13-fca4-938a-a05167c43cdc
+    Minor Number                          : 2
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0x4c00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 1
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:34.897
+        Latest Duration                   : 97673 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0x4C
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:4C:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 52
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 636 KB/s
+        Rx Throughput                     : 636 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 30 C
+        GPU T.Limit Temp                  : 56 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 38 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 70.55 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 685.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:5D:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124032506
+    GPU UUID                              : GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99
+    Minor Number                          : 3
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0x5d00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 3
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:23.239
+        Latest Duration                   : 92374 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0x5D
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:5D:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 43
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 687 KB/s
+        Rx Throughput                     : 585 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 30 C
+        GPU T.Limit Temp                  : 57 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 38 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 71.37 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 670.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:9B:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124030635
+    GPU UUID                              : GPU-2b6f61f9-8b00-3b57-d912-b62792120662
+    Minor Number                          : 4
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0x9b00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 7
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:39.200
+        Latest Duration                   : 90671 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0x9B
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:9B:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 49
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 3847 KB/s
+        Rx Throughput                     : 554 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 31 C
+        GPU T.Limit Temp                  : 55 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 38 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 70.33 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 670.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:BB:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124048576
+    GPU UUID                              : GPU-980ea11b-91dc-db7b-72ac-0685abc43658
+    Minor Number                          : 5
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0xbb00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 5
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:54:21.590
+        Latest Duration                   : 93160 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0xBB
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:BB:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 53
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 621 KB/s
+        Rx Throughput                     : 589 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 32 C
+        GPU T.Limit Temp                  : 55 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 39 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 70.21 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 685.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:CB:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124047010
+    GPU UUID                              : GPU-4ef109e9-e925-4834-2b85-0771b4ef696c
+    Minor Number                          : 6
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0xcb00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 6
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:26.531
+        Latest Duration                   : 131095 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0xCB
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:CB:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 82
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 632 KB/s
+        Rx Throughput                     : 562 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 32 C
+        GPU T.Limit Temp                  : 55 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 40 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 71.05 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 685.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None
+
+GPU 00000000:DB:00.0
+    Product Name                          : NVIDIA H100 80GB HBM3
+    Product Brand                         : NVIDIA
+    Product Architecture                  : Hopper
+    Display Mode                          : Enabled
+    Display Active                        : Disabled
+    Persistence Mode                      : Enabled
+    Addressing Mode                       : None
+    MIG Mode
+        Current                           : Disabled
+        Pending                           : Disabled
+    Accounting Mode                       : Disabled
+    Accounting Mode Buffer Size           : 4000
+    Driver Model
+        Current                           : N/A
+        Pending                           : N/A
+    Serial Number                         : 1650124007084
+    GPU UUID                              : GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5
+    Minor Number                          : 7
+    VBIOS Version                         : 96.00.74.00.0D
+    MultiGPU Board                        : No
+    Board ID                              : 0xdb00
+    Board Part Number                     : 692-2G520-0200-000
+    GPU Part Number                       : 2330-885-A1
+    FRU Part Number                       : N/A
+    Module ID                             : 8
+    Inforom Version
+        Image Version                     : G520.0200.00.05
+        OEM Object                        : 2.1
+        ECC Object                        : 7.16
+        Power Management Object           : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                  : 2024/07/31 05:53:14.346
+        Latest Duration                   : 123811 us
+    GPU Operation Mode
+        Current                           : N/A
+        Pending                           : N/A
+    GSP Firmware Version                  : 535.161.08
+    GPU Virtualization Mode
+        Virtualization Mode               : None
+        Host VGPU Mode                    : N/A
+    GPU Reset Status
+        Reset Required                    : No
+        Drain and Reset Recommended       : No
+    IBMNPU
+        Relaxed Ordering Mode             : N/A
+    PCI
+        Bus                               : 0xDB
+        Device                            : 0x00
+        Domain                            : 0x0000
+        Device Id                         : 0x233010DE
+        Bus Id                            : 00000000:DB:00.0
+        Sub System Id                     : 0x16C110DE
+        GPU Link Info
+            PCIe Generation
+                Max                       : 5
+                Current                   : 5
+                Device Current            : 5
+                Device Max                : 5
+                Host Max                  : 5
+            Link Width
+                Max                       : 16x
+                Current                   : 16x
+        Bridge Chip
+            Type                          : N/A
+            Firmware                      : N/A
+        Replays Since Reset               : 67
+        Replay Number Rollovers           : 0
+        Tx Throughput                     : 542 KB/s
+        Rx Throughput                     : 550 KB/s
+        Atomic Caps Inbound               : N/A
+        Atomic Caps Outbound              : FETCHADD_32 FETCHADD_64 SWAP_32 SWAP_64 CAS_32 CAS_64
+    Fan Speed                             : N/A
+    Performance State                     : P0
+    Clocks Event Reasons
+        Idle                              : Not Active
+        Applications Clocks Setting       : Not Active
+        SW Power Cap                      : Not Active
+        HW Slowdown                       : Active
+            HW Thermal Slowdown           : Not Active
+            HW Power Brake Slowdown       : Active
+        Sync Boost                        : Not Active
+        SW Thermal Slowdown               : Not Active
+        Display Clock Setting             : Not Active
+    Sparse Operation Mode                 : Disabled
+    FB Memory Usage
+        Total                             : 81559 MiB
+        Reserved                          : 551 MiB
+        Used                              : 0 MiB
+        Free                              : 81007 MiB
+    BAR1 Memory Usage
+        Total                             : 131072 MiB
+        Used                              : 1 MiB
+        Free                              : 131071 MiB
+    Conf Compute Protected Memory Usage
+        Total                             : 0 MiB
+        Used                              : 0 MiB
+        Free                              : 0 MiB
+    Compute Mode                          : Default
+    Utilization
+        Gpu                               : 0 %
+        Memory                            : 0 %
+        Encoder                           : 0 %
+        Decoder                           : 0 %
+        JPEG                              : 0 %
+        OFA                               : 0 %
+    Encoder Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    FBC Stats
+        Active Sessions                   : 0
+        Average FPS                       : 0
+        Average Latency                   : 0
+    ECC Mode
+        Current                           : Enabled
+        Pending                           : Enabled
+    ECC Errors
+        Volatile
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+        Aggregate
+            SRAM Correctable              : 0
+            SRAM Uncorrectable Parity     : 0
+            SRAM Uncorrectable SEC-DED    : 0
+            DRAM Correctable              : 0
+            DRAM Uncorrectable            : 0
+            SRAM Threshold Exceeded       : No
+        Aggregate Uncorrectable SRAM Sources
+            SRAM L2                       : 0
+            SRAM SM                       : 0
+            SRAM Microcontroller          : 0
+            SRAM PCIE                     : 0
+            SRAM Other                    : 0
+    Retired Pages
+        Single Bit ECC                    : N/A
+        Double Bit ECC                    : N/A
+        Pending Page Blacklist            : N/A
+    Remapped Rows
+        Correctable Error                 : 0
+        Uncorrectable Error               : 0
+        Pending                           : No
+        Remapping Failure Occurred        : No
+        Bank Remap Availability Histogram
+            Max                           : 2560 bank(s)
+            High                          : 0 bank(s)
+            Partial                       : 0 bank(s)
+            Low                           : 0 bank(s)
+            None                          : 0 bank(s)
+    Temperature
+        GPU Current Temp                  : 31 C
+        GPU T.Limit Temp                  : 55 C
+        GPU Shutdown T.Limit Temp         : -8 C
+        GPU Slowdown T.Limit Temp         : -2 C
+        GPU Max Operating T.Limit Temp    : 0 C
+        GPU Target Temperature            : N/A
+        Memory Current Temp               : 38 C
+        Memory Max Operating T.Limit Temp : 0 C
+    GPU Power Readings
+        Power Draw                        : 72.27 W
+        Current Power Limit               : 700.00 W
+        Requested Power Limit             : 700.00 W
+        Default Power Limit               : 700.00 W
+        Min Power Limit                   : 200.00 W
+        Max Power Limit                   : 700.00 W
+    Module Power Readings
+        Power Draw                        : N/A
+        Current Power Limit               : N/A
+        Requested Power Limit             : N/A
+        Default Power Limit               : N/A
+        Min Power Limit                   : N/A
+        Max Power Limit                   : N/A
+    Clocks
+        Graphics                          : 86 MHz
+        SM                                : 86 MHz
+        Memory                            : 2619 MHz
+        Video                             : 765 MHz
+    Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Default Applications Clocks
+        Graphics                          : 1980 MHz
+        Memory                            : 2619 MHz
+    Deferred Clocks
+        Memory                            : N/A
+    Max Clocks
+        Graphics                          : 1980 MHz
+        SM                                : 1980 MHz
+        Memory                            : 2619 MHz
+        Video                             : 1545 MHz
+    Max Customer Boost Clocks
+        Graphics                          : 1980 MHz
+    Clock Policy
+        Auto Boost                        : N/A
+        Auto Boost Default                : N/A
+    Voltage
+        Graphics                          : 725.000 mV
+    Fabric
+        State                             : Completed
+        Status                            : Success
+    Processes                             : None

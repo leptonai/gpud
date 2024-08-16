@@ -1,0 +1,35 @@
+
+# https://github.com/golangci/golangci-lint-action?tab=readme-ov-file#options
+name: golangci-lint.run
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    paths:
+      - .github/workflows/golangci-lint.yml
+      - "**.go"
+      - go.mod
+      - go.sum
+    branches: ["**"]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --config=.golangci.yml -v

@@ -1,0 +1,69 @@
+# https://goreleaser.com/customization/builds/
+builds:
+
+  - id: gpud
+    binary: gpud
+    main: ./cmd/gpud
+    env:
+      - CGO_ENABLED=1
+    flags:
+      - -v
+
+    # TODO: set ".Env.Version" once stable
+    # - -X github.com/leptonai/gpud/cmd/gpud/version.ReleaseVersion={{.Version}}
+    ldflags:
+      - -s -w
+      - -X github.com/leptonai/gpud/version.GitCommit={{.Commit}}
+
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+# https://goreleaser.com/customization/archive/
+archives:
+
+  - id: gpud
+    format: tar.gz
+
+    # "builds" reference which build instances should be archived in this archive
+    builds:
+    - gpud
+
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .Binary }}-
+      {{- .Os }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  draft: false
+  replace_existing_draft: true
+  make_latest: true
+  mode: replace
+
+  github:
+    owner: leptonai
+    name: gpud
+
+  header: |
+    ## Some title ({{ .Date }})
+
+    Welcome to this new release!
+
+  name_template: "{{.ProjectName}}-v{{.Version}} {{.Env.USER}}"

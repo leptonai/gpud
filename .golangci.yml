@@ -1,0 +1,36 @@
+# https://golangci-lint.run/usage/configuration/
+run:
+  concurrency: 4
+  timeout: 15m
+
+  # include test files or not, default is true
+  tests: true
+
+linters-settings:
+  gofmt:
+    # simplify code: gofmt with `-s` option, true by default
+    simplify: true
+  goimports:
+    # put imports beginning with prefix after 3rd-party packages;
+    # it's a comma-separated list of prefixes
+    local-prefixes: lepton.ai/lepton
+  misspell:
+    # Correct spellings using locale preferences for US or UK.
+    # Default is to use a neutral variety of English.
+    # Setting locale to US will correct the British spelling of 'colour' to 'color'.
+    locale: US
+
+linters:
+  fast: false
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert

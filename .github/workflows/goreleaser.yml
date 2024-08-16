@@ -1,0 +1,82 @@
+name: goreleaser
+
+# ref. https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
+    strategy:
+      matrix:
+        job:
+          - os: ubuntu-22.04
+            platform: linux
+            target: linux-x86_64
+
+          # - os: ubuntu-22.04
+          #   platform: linux
+          #   target: linux-arm64
+
+          - os: macos-latest
+            platform: darwin
+            target: darwin-x86_64
+
+          - os: macos-latest
+            platform: darwin
+            target: darwin-arm64
+
+    name: Release ${{ matrix.job.target }} (${{ matrix.job.os }})
+    runs-on: ${{ matrix.job.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install OS dependencies
+        shell: bash
+        run: |
+          case ${{ matrix.job.target }} in
+            linux-arm64) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
+          esac
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Show version information
+        shell: bash
+        run: |
+          gcc --version || true
+          go version
+
+      # https://github.com/goreleaser/goreleaser-action
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --config .goreleaser-${{ matrix.job.target }}.yaml
+          workdir: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release latest
+        uses: softprops/action-gh-release@v1
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          name: Latest release
+          tag_name: latest
+          draft: false
+          prerelease: false
+          body: Latest builds from the last commit
+          files: |
+            ./dist/gpud-${{ matrix.job.target }}.tar.gz
