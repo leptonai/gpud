@@ -58,22 +58,19 @@ To check the logs of the running gpud:
 sudo gpud logs
 ```
 
-You can also start with the self-hosted option and later switch to the managed option:
-
-```bash
-# start without token
-sudo gpud up
-
-# when the token is ready, run the following command
-sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
-```
-
 ### Run GPUd standalone
 
-For linux, run the following command to start the service (self-hosted option):
+For linux, run the following command to start the service:
 
 ```bash
 sudo gpud up
+```
+
+You can also start with the standalone mode and later switch to the managed option:
+
+```bash
+# when the token is ready, run the following command
+sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
 ```
 
 To access the local web UI, open https://localhost:15132 in your browser.
