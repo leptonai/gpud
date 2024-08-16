@@ -36,7 +36,7 @@ Note that the install script doesn't support other architectures (arm64) and OSe
 
 ### Run GPUd with Lepton Platform
 
-Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the "Settings" and "Tokens" page:
+Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the ["Settings" and "Tokens" page](https://dashboard.lepton.ai/workspace-redirect/settings/api-tokens):
 
 <img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
 
@@ -46,17 +46,7 @@ Copy the token in the format of `workspace:token` and pass it to the `gpud up --
 sudo gpud up --token <LEPTON_AI_WORKSPACE:TOKEM>
 ```
 
-To check the status of the running gpud:
-
-```bash
-sudo gpud status
-```
-
-To check the logs of the running gpud:
-
-```bash
-sudo gpud logs
-```
+You can go to the [dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes) to check the self-managed machine status.
 
 ### Run GPUd standalone
 
@@ -75,22 +65,6 @@ sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
 
 To access the local web UI, open https://localhost:15132 in your browser.
 
-To disable the local web UI, pass the `--web-disable` flag in the following file:
-
-```bash
-vi /etc/default/gpud
-```
-
-```bash
-# gpud environment variables are set here
-FLAGS="--log-level=info --web-disable"
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart gpud
-```
-
 #### If your system doesn't have systemd
 
 To run on Mac (without systemd):
@@ -104,12 +78,6 @@ Or
 ```bash
 nohup sudo /usr/sbin/gpud run &>> <your log file path> &
 ```
-
-#### Does GPUd sent information to lepton.ai?
-
-It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive information**.
-
-Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
 
 ### Stop and uninstall
 
@@ -127,3 +95,11 @@ sudo rm /etc/systemd/system/gpud.service
 - Monitor overall system metrics (CPU, memory, disk).
 
 Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components and their features.
+
+## FAQs
+
+### Does GPUd sent information to lepton.ai?
+
+It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive information**.
+
+Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
