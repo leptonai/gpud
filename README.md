@@ -34,48 +34,7 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 
 Note that the install script doesn't support other architectures (arm64) and OSes (macos), yet.
 
-### Run locally (self-hosted option)
-
-For linux, run the following command to start the service (self-hosted option):
-
-```bash
-sudo gpud up
-```
-
-To check the status of the running gpud:
-
-```bash
-sudo gpud status
-```
-
-To check the logs of the running gpud:
-
-```bash
-sudo gpud logs
-```
-
-To access the local web UI, open https://localhost:15132 in your browser, as below:
-
-<img src="./assets/gpud-local-web-ui-1.png" width="80%" alt="GPUd local web UI 1">
-<img src="./assets/gpud-local-web-ui-2.png" width="80%" alt="GPUd local web UI 2">
-
-To disable the local web UI, pass the `--web-disable` flag in the following file:
-
-```bash
-vi /etc/default/gpud
-```
-
-```bash
-# gpud environment variables are set here
-FLAGS="--log-level=info --web-disable"
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart gpud
-```
-
-### Report to lepton.ai (managed option)
+### Run GPUd with Lepton Platform
 
 Optionally you may register your machine with Lepton AI Platform -- the managed option brings several benefits:
 
@@ -95,11 +54,17 @@ Copy the token in the format of `workspace:token` and pass it to the `gpud up --
 sudo gpud up --token <LEPTON_AI_WORKSPACE:TOKEM>
 ```
 
-Then see the "Machines" page to check the status of the machine:
+To check the status of the running gpud:
 
-<img src="./assets/gpud-lepton.ai-machines-view.png" width="80%" alt="GPUd lepton.ai machines view">
+```bash
+sudo gpud status
+```
 
-*The machine identifier is currently auto-generated.*
+To check the logs of the running gpud:
+
+```bash
+sudo gpud logs
+```
 
 You can also start with the self-hosted option and later switch to the managed option:
 
@@ -109,6 +74,32 @@ sudo gpud up
 
 # when the token is ready, run the following command
 sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
+```
+
+### Run GPUd standalone
+
+For linux, run the following command to start the service (self-hosted option):
+
+```bash
+sudo gpud up
+```
+
+To access the local web UI, open https://localhost:15132 in your browser.
+
+To disable the local web UI, pass the `--web-disable` flag in the following file:
+
+```bash
+vi /etc/default/gpud
+```
+
+```bash
+# gpud environment variables are set here
+FLAGS="--log-level=info --web-disable"
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart gpud
 ```
 
 #### If your system doesn't have systemd
@@ -130,10 +121,6 @@ nohup sudo /usr/sbin/gpud run &>> <your log file path> &
 It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive information**.
 
 Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
-
-#### Does my machine need a public IP to report to lepton.ai?
-
-No. Once registered, the GPUd creates a secure channel to the lepton.ai platform for sending metrics information.
 
 ### Stop and uninstall
 
