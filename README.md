@@ -36,14 +36,6 @@ Note that the install script doesn't support other architectures (arm64) and OSe
 
 ### Run GPUd with Lepton Platform
 
-Optionally you may register your machine with Lepton AI Platform -- the managed option brings several benefits:
-
-- Automated GPU health check and repair.
-- Centralized GPU metrics and logs.
-- Real-time GPU failure detection and alerting.
-
-> Please ensure that your machine has a public IP address and that the GPUd port (default 15132) is reachable.
-
 Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the "Settings" and "Tokens" page:
 
 <img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
