@@ -36,7 +36,7 @@ Note that the install script doesn't support other architectures (arm64) and OSe
 
 ### Run GPUd with Lepton Platform
 
-Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the "Settings" and "Tokens" page:
+Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the ["Settings" and "Tokens" page](https://dashboard.lepton.ai/workspace-redirect/settings/api-tokens):
 
 <img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
 
@@ -46,7 +46,7 @@ Copy the token in the format of `workspace:token` and pass it to the `gpud up --
 sudo gpud up --token <LEPTON_AI_WORKSPACE:TOKEM>
 ```
 
-You can go to the [dashboard](https://dashboard.lepton.ai) to check the self-managed machine status.
+You can go to the [dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes) to check the self-managed machine status.
 
 ### Run GPUd standalone
 
