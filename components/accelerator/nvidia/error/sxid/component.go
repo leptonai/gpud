@@ -1,4 +1,5 @@
-// Package sxid implements NVIDIA GPU SXid error monitoring..
+// Package sxid tracks the NVIDIA GPU SXid errors scanning the dmesg.
+// See fabric manager documentation https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf.
 package sxid
 
 import (
@@ -12,12 +13,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-error-sxid"
-	Description = "Tracks the NVIDIA GPU SXid errors scanning the dmesg -- see [fabric manager documentation](https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf)."
-)
-
-var Tags = []string{"nvidia", "gpu", "error", "sxid"}
+const Name = "accelerator-nvidia-error-sxid"
 
 func New() components.Component {
 	return &component{}

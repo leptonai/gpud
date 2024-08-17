@@ -1,3 +1,4 @@
+// Package disk tracks the disk usage of all the mount points specified in the configuration.
 package disk
 
 import (
@@ -14,12 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "disk"
-	Description = "Tracks the disk usage of all the mount points specified the configuration."
-)
-
-var Tags = []string{"disk"}
+const Name = "disk"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

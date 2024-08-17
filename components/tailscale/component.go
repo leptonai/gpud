@@ -1,3 +1,4 @@
+// Package tailscale tracks the tailscale state (e.g., version) if available.
 package tailscale
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "tailscale"
-	Description = "Tracks the tailscale state (e.g., version) if available."
-)
-
-var Tags = []string{"tailscale"}
+const Name = "tailscale"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

@@ -1,4 +1,4 @@
-// Package ecc implements NVIDIA GPU ECC error monitoring.
+// Package ecc tracks the NVIDIA per-GPU ECC errors.
 package ecc
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-ecc"
-	Description = "Tracks the per-GPU ECC errors."
-)
-
-var Tags = []string{"nvidia", "gpu", "ecc"}
+const Name = "accelerator-nvidia-ecc"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

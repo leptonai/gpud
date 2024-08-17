@@ -1,3 +1,4 @@
+// Package os queries the host OS information (e.g., kernel version).
 package os
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "os"
-	Description = "Queries the host OS information (e.g., kernel version)."
-)
-
-var Tags = []string{"os"}
+const Name = "os"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

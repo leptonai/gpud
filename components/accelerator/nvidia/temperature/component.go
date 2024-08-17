@@ -1,4 +1,4 @@
-// Package temperature implements NVIDIA GPU temperature monitoring.
+// Package temperature tracks the NVIDIA per-GPU temperatures.
 package temperature
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-temperature"
-	Description = "Tracks the per-GPU temperatures."
-)
-
-var Tags = []string{"nvidia", "gpu", "temperature"}
+const Name = "accelerator-nvidia-temperature"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

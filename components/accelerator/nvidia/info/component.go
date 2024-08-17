@@ -1,4 +1,4 @@
-// Package info implements static information display.
+// Package info provides relatively static information about the NVIDIA accelerator (e.g., GPU product names).
 package info
 
 import (
@@ -13,12 +13,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-info"
-	Description = "Serves relatively static information about the NVIDIA accelerator (e.g., GPU product names)."
-)
-
-var Tags = []string{"nvidia", "gpu", "info"}
+const Name = "accelerator-nvidia-info"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

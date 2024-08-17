@@ -1,4 +1,4 @@
-// Package utilization implements NVIDIA GPU utilization monitoring.
+// Package utilization tracks the NVIDIA per-GPU utilization.
 package utilization
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-utilization"
-	Description = "Tracks the per-GPU utilization."
-)
-
-var Tags = []string{"nvidia", "gpu", "utilization"}
+const Name = "accelerator-nvidia-utilization"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

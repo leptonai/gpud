@@ -13,12 +13,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-error"
-	Description = "Tracks NVIDIA GPU errors real-time in the SMI queries -- likely requires host restarts."
-)
-
-var Tags = []string{"nvidia", "gpu", "error"}
+const Name = "accelerator-nvidia-error"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

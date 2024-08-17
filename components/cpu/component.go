@@ -1,3 +1,4 @@
+// Package cpu tracks the combined usage of all CPUs (not per-CPU).
 package cpu
 
 import (
@@ -14,12 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "cpu"
-	Description = "Tracks the CPU usage combined all the CPUs (not per-CPU)."
-)
-
-var Tags = []string{"cpu"}
+const Name = "cpu"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

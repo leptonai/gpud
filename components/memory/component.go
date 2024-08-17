@@ -1,3 +1,4 @@
+// Package memory tracks the memory usage of the host.
 package memory
 
 import (
@@ -14,12 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "memory"
-	Description = "Tracks the memory usage of the host."
-)
-
-var Tags = []string{"memory"}
+const Name = "memory"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

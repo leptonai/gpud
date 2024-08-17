@@ -18,7 +18,7 @@ type Config struct {
 	// Basic server annotations (e.g., machine id, host name, etc.).
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// Metrics settings
+	// Address for the server to listen on.
 	Address string `json:"address"`
 
 	// Component specific configurations.
