@@ -98,8 +98,8 @@ Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components
 
 ## FAQs
 
-### Does GPUd sent information to lepton.ai?
+### Does GPUd send data to lepton.ai?
 
-It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive information**.
+It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive data**.
 
 Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
