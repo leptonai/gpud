@@ -31,7 +31,7 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 		return nil, err
 	}
 
-	cmd := exec.Command("bash", file)
+	cmd := exec.CommandContext(ctx, "bash", file)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -138,7 +138,11 @@ func (sr *commandStreamer) waitCommand() {
 	if err := sr.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.ExitCode() == -1 {
-				log.Logger.Infow("command was terminated (exit code -1)", "cmd", sr.cmd.String(), "contextError", sr.ctx.Err())
+				if sr.ctx.Err() != nil {
+					log.Logger.Debugw("command was terminated (exit code -1) by the root context cancellation", "cmd", sr.cmd.String(), "contextError", sr.ctx.Err())
+				} else {
+					log.Logger.Warnw("command was terminated (exit code -1) for unknown reasons", "cmd", sr.cmd.String())
+				}
 			} else {
 				log.Logger.Warnw("command exited with non-zero status", "error", err, "cmd", sr.cmd.String(), "exitCode", exitErr.ExitCode())
 			}
