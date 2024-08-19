@@ -1,3 +1,4 @@
+// Package systemd tracks the systemd state and unit files.
 package systemd
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "systemd"
-	Description = "Tracks the systemd state and unit files."
-)
-
-var Tags = []string{"systemd"}
+const Name = "systemd"
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
 	if err := ConnectDbus(); err != nil {

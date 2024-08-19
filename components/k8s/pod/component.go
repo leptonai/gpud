@@ -1,3 +1,4 @@
+// Package pod tracks the current pods from the kubelet read-only port.
 package pod
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "k8s-pod"
-	Description = "Tracks the current pods from the kubelet read-only port."
-)
-
-var Tags = []string{"k8s", "kubernetes", "pod"}
+const Name = "k8s-pod"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

@@ -1,4 +1,4 @@
-// package clock implements NVIDIA GPU driver clock events detector.
+// Package clock monitors NVIDIA GPU clock events of all GPUs, such as HW Slowdown events
 package clock
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-clock"
-	Description = "Monitors NVIDIA GPU clock events of all GPUs, such as HW Slowdown events."
-)
-
-var Tags = []string{"nvidia", "gpu", "clock", "event"}
+const Name = "accelerator-nvidia-clock"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

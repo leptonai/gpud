@@ -1,3 +1,5 @@
+// Package infiniband monitors the infiniband status of the system.
+// Optional, enabled if the host has NVIDIA GPUs.
 package infiniband
 
 import (
@@ -12,12 +14,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-infiniband"
-	Description = "Monitors the infiniband status of the system. Optional, enabled if the host has NVIDIA GPUs."
-)
-
-var Tags = []string{"nvidia", "gpu", "infiniband", "ibstat"}
+const Name = "accelerator-nvidia-infiniband"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

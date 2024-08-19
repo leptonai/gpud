@@ -1,3 +1,4 @@
+// Package powersupply tracks the power supply/usage on the host.
 package powersupply
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "power-supply"
-	Description = "Tracks the power supply/usage on the host."
-)
-
-var Tags = []string{"power"}
+const Name = "power-supply"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

@@ -1,3 +1,5 @@
+// Package dmesg scans and watches dmesg outputs for errors,
+// as specified in the configuration (e.g., regex match NVIDIA GPU errors).
 package dmesg
 
 import (
@@ -10,12 +12,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "dmesg"
-	Description = "Scans and watches the /var/log/dmesg file for errors, as specified in the configuration (e.g., regex match NVIDIA GPU errors)."
-)
-
-var Tags = []string{"dmesg", "log", "error"}
+const Name = "dmesg"
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
 	if err := cfg.Log.Validate(); err != nil {

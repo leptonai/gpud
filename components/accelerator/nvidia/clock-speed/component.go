@@ -1,4 +1,4 @@
-// Package clockspeed implements NVIDIA GPU clock speed monitoring.
+// Package clockspeed tracks the NVIDIA per-GPU clock speed.
 package clockspeed
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-clock-speed"
-	Description = "Tracks the per-GPU clock speed."
-)
-
-var Tags = []string{"nvidia", "gpu", "clock", "speed"}
+const Name = "accelerator-nvidia-clock-speed"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

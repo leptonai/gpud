@@ -1,4 +1,4 @@
-// Package memory implements NVIDIA GPU memory monitoring.
+// Package memory tracks the NVIDIA per-GPU memory usage.
 package memory
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-memory"
-	Description = "Monitors the per-GPU memory usage."
-)
-
-var Tags = []string{"nvidia", "gpu", "memory"}
+const Name = "accelerator-nvidia-memory"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

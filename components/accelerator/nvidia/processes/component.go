@@ -1,4 +1,4 @@
-// Package processes implements NVIDIA GPU processes monitoring.
+// Package processes tracks the NVIDIA per-GPU processes.
 package processes
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-processes"
-	Description = "Tracks the per-GPU processes."
-)
-
-var Tags = []string{"nvidia", "gpu", "processes"}
+const Name = "accelerator-nvidia-processes"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

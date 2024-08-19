@@ -1,3 +1,4 @@
+// Package pod tracks the current pods from the containerd CRI.
 package pod
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "containerd-pod"
-	Description = "Tracks the current pods from the containerd CRI."
-)
-
-var Tags = []string{"containerd", "pod"}
+const Name = "containerd-pod"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

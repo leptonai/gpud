@@ -1,4 +1,4 @@
-// Package power implements NVIDIA GPU power monitoring.
+// Package power tracks the NVIDIA per-GPU power usage.
 package power
 
 import (
@@ -17,12 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-power"
-	Description = "Tracks the per-GPU power usage."
-)
-
-var Tags = []string{"nvidia", "gpu", "power"}
+const Name = "accelerator-nvidia-power"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

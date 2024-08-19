@@ -1,3 +1,4 @@
+// Package fd tracks the number of file descriptors used on the host.
 package fd
 
 import (
@@ -14,12 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "file-descriptor"
-	Description = "Tracks the number of file descriptors used on the host."
-)
-
-var Tags = []string{"file", "descriptors"}
+const Name = "file-descriptor"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

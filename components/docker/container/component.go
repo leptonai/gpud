@@ -1,3 +1,4 @@
+// Package container tracks the current containers from the docker runtime.
 package container
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "docker-container"
-	Description = "Tracks the current containers from the docker runtime."
-)
-
-var Tags = []string{"docker", "container"}
+const Name = "docker-container"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

@@ -1,3 +1,5 @@
+// Package peermem monitors the peermem module status.
+// Optional, enabled if the host has NVIDIA GPUs.
 package peermem
 
 import (
@@ -12,12 +14,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-peermem"
-	Description = "Monitors the peermem module status. Optional, enabled if the host has NVIDIA GPUs."
-)
-
-var Tags = []string{"nvidia", "gpu", "peermem"}
+const Name = "accelerator-nvidia-peermem"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

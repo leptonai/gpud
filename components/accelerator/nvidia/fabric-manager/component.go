@@ -1,4 +1,5 @@
-// Package fabricmanager implements NVIDIA GPU fabric manager monitoring.
+// Package fabricmanager tracks the NVIDIA fabric manager version and its activeness.
+// And streams the fabric manager logs for any errors and events.
 package fabricmanager
 
 import (
@@ -15,12 +16,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-fabric-manager"
-	Description = "Tracks the fabric manager version and its activeness."
-)
-
-var Tags = []string{"nvidia", "gpu", "fabric-manager"}
+const Name = "accelerator-nvidia-fabric-manager"
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
 	cfg.Query.SetDefaultsIfNotSet()

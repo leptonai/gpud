@@ -1,4 +1,4 @@
-// Package info implements static information display.
+// Package info provides static information about the host (e.g., labels, IDs).
 package info
 
 import (
@@ -12,12 +12,7 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
-const (
-	Name        = "info"
-	Description = "Provides static information about the host (e.g., labels, IDs)."
-)
-
-var Tags = []string{"info"}
+const Name = "info"
 
 func New(annotations map[string]string) components.Component {
 	return &component{

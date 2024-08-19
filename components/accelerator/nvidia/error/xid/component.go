@@ -1,4 +1,6 @@
-// Package xid implements NVIDIA GPU Xid error monitoring..
+// Package xid tracks the NVIDIA GPU Xid errors scanning the dmesg
+// and using the NVIDIA Management Library (NVML).
+// See Xid messages https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages.
 package xid
 
 import (
@@ -14,12 +16,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "accelerator-nvidia-error-xid"
-	Description = "Tracks the NVIDIA GPU Xid errors scanning the dmesg and using the NVIDIA Management Library (NVML) -- see [Xid messages](https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages)."
-)
-
-var Tags = []string{"nvidia", "gpu", "error", "xid"}
+const Name = "accelerator-nvidia-error-xid"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

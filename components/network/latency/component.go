@@ -1,3 +1,4 @@
+// Package latency tracks the global network connectivity statistics.
 package latency
 
 import (
@@ -10,12 +11,7 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const (
-	Name        = "network-latency"
-	Description = "Tracks global network connectivity statistics."
-)
-
-var Tags = []string{"netcheck"}
+const Name = "network-latency"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()

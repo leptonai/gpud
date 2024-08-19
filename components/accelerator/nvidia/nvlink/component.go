@@ -1,4 +1,4 @@
-// Package nvlink implements NVIDIA GPU nvlink monitoring.
+// Package nvlink monitors the NVIDIA per-GPU nvlink devices.
 package nvlink
 
 import (
@@ -16,12 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name        = "accelerator-nvidia-nvlink"
-	Description = "Monitors the per-GPU nvlink devices."
-)
-
-var Tags = []string{"nvidia", "gpu", "nvlink"}
+const Name = "accelerator-nvidia-nvlink"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
