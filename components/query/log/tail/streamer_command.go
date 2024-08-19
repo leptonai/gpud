@@ -135,8 +135,16 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 func (sr *commandStreamer) waitCommand() {
 	defer close(sr.lineC)
 	if err := sr.cmd.Wait(); err != nil {
-		log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", sr.cmd.String())
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == -1 {
+				log.Logger.Infow("command was terminated", "cmd", sr.cmd.String())
+			} else {
+				log.Logger.Warnw("command exited with non-zero status", "error", err, "cmd", sr.cmd.String(), "exitCode", exitErr.ExitCode())
+			}
+		} else {
+			log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", sr.cmd.String())
+		}
 	} else {
-		log.Logger.Debugw("command completed")
+		log.Logger.Debugw("command completed successfully")
 	}
 }
