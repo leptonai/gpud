@@ -70,12 +70,11 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
 	}
 
-	timer := time.NewTimer(op.checkInterval)
-	defer timer.Stop()
-
+	ticker := time.NewTicker(op.checkInterval)
+	defer ticker.Stop()
 	for range 30 {
 		select {
-		case <-timer.C:
+		case <-ticker.C:
 			if err := checkHealthz(op.httpClient, req, exp); err == nil {
 				return nil
 			}

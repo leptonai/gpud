@@ -630,19 +630,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 		return nil, fmt.Errorf("failed to register state metrics: %w", err)
 	}
 	go func() {
-		first := true
-		timer := time.NewTimer(time.Minute)
-		defer timer.Stop()
+		ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-timer.C:
-				if !first {
-					first = false
-				} else {
-					timer.Reset(20 * time.Minute)
-				}
+			case <-ticker.C:
+				ticker.Reset(20 * time.Minute)
 			}
 
 			total, err := metrics.ReadRegisteredTotal(promReg)
@@ -687,15 +682,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 
 	if config.RetentionPeriod.Duration > 0 {
 		go func() {
-			ticker := time.NewTicker(config.RetentionPeriod.Duration)
-			first := false
+			ticker := time.NewTicker(1) // only first run is 1-ns wait
+			defer ticker.Stop()
 			for {
-				if first {
-					ticker.Reset(1)
-					first = false
-				} else {
-					ticker.Reset(config.RetentionPeriod.Duration)
-				}
 				select {
 				case <-ctx.Done():
 					return
@@ -706,6 +695,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 					if err := state.RecordMetrics(ctx, db); err != nil {
 						log.Logger.Errorw("failed to record metrics", "error", err)
 					}
+
+					ticker.Reset(config.RetentionPeriod.Duration)
 				}
 			}
 		}()
