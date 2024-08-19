@@ -3,7 +3,6 @@ package info
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -51,7 +50,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return []components.State{
 			{
 				Healthy: false,
-				Error:   last.Error,
+				Error:   last.Error.Error(),
 				Reason:  "last query failed",
 			},
 		}, nil
@@ -75,7 +74,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			cs = append(cs, components.State{
 				Name:    Name,
 				Healthy: false,
-				Error:   errors.New(e),
+				Error:   e,
 				Reason:  "nvidia-smi query failed with " + e,
 				ExtraInfo: map[string]string{
 					nvidia_query.StateKeySMIExists: fmt.Sprintf("%v", allOutput.SMIExists),

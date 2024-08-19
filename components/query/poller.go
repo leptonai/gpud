@@ -110,7 +110,8 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 				Time:  metav1.Time{Time: time.Now().UTC()},
 				Error: ctx.Err(),
 			}:
-			default: // channel is full, skip this result and continue
+			default:
+				log.Logger.Debugw("channel is full, skip this result and continue")
 			}
 			return
 
@@ -122,6 +123,7 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 
 		output, err := get(ctx)
 		if err != nil {
+			log.Logger.Debugw("polling error", "id", id, "error", err)
 			select {
 			case <-ctx.Done():
 				return
@@ -129,7 +131,8 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 				Time:  metav1.Time{Time: time.Now().UTC()},
 				Error: err,
 			}:
-			default: // channel is full, skip this result and continue
+			default:
+				log.Logger.Debugw("channel is full, skip this result and continue")
 			}
 			continue
 		}
@@ -146,7 +149,8 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 			Time:   metav1.Time{Time: time.Now().UTC()},
 			Output: output,
 		}:
-		default: // channel is full, skip this result and continue
+		default:
+			log.Logger.Debugw("channel is full, skip this result and continue")
 		}
 	}
 }

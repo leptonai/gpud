@@ -55,7 +55,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return []components.State{
 			{
 				Healthy: false,
-				Error:   last.Error,
+				Error:   last.Error.Error(),
 				Reason:  "last query failed",
 			},
 		}, nil
