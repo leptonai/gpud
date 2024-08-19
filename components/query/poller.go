@@ -99,19 +99,10 @@ func startPoll(ctx context.Context, id string, interval time.Duration, get GetFu
 }
 
 func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Duration, get GetFunc) {
-	ticker := time.NewTicker(interval)
+	// to get output very first time and start wait
+	ticker := time.NewTicker(1)
 	defer ticker.Stop()
-
-	first := true
 	for {
-		// to get output very first time and start wait
-		if first {
-			ticker.Reset(1)
-			first = false
-		} else {
-			ticker.Reset(interval)
-		}
-
 		select {
 		case <-ctx.Done():
 			select {
@@ -124,6 +115,7 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 			return
 
 		case <-ticker.C:
+			ticker.Reset(interval)
 		}
 
 		log.Logger.Debugw("polling", "id", id)
