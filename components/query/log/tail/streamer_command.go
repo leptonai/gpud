@@ -137,7 +137,7 @@ func (sr *commandStreamer) waitCommand() {
 	if err := sr.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.ExitCode() == -1 {
-				log.Logger.Infow("command was terminated", "cmd", sr.cmd.String())
+				log.Logger.Infow("command was terminated (exit code -1)", "cmd", sr.cmd.String())
 			} else {
 				log.Logger.Warnw("command exited with non-zero status", "error", err, "cmd", sr.cmd.String(), "exitCode", exitErr.ExitCode())
 			}
