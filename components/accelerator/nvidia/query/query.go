@@ -326,13 +326,15 @@ func (o *Output) PrintInfo(debug bool) {
 		fmt.Printf("%s successfully checked fabric manager\n", checkMark)
 	}
 
-	if len(o.Ibstat.Errors) > 0 {
-		fmt.Printf("%s ibstat check failed with %d error(s)\n", warningSign, len(o.Ibstat.Errors))
-		for _, err := range o.Ibstat.Errors {
-			fmt.Println(err)
+	if o.IbstatExists {
+		if o.Ibstat != nil && len(o.Ibstat.Errors) > 0 {
+			fmt.Printf("%s ibstat check failed with %d error(s)\n", warningSign, len(o.Ibstat.Errors))
+			for _, err := range o.Ibstat.Errors {
+				fmt.Println(err)
+			}
+		} else {
+			fmt.Printf("%s successfully checked ibstat\n", checkMark)
 		}
-	} else {
-		fmt.Printf("%s successfully checked ibstat\n", checkMark)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {

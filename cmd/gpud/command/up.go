@@ -20,7 +20,7 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 				retErr = err
 			}
 		} else {
-			fmt.Printf("visit https://localhost:15132 to view the dashboard")
+			fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
 		}
 	}()
 

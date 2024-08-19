@@ -115,7 +115,6 @@ func (o *Output) States() ([]components.State, error) {
 			{
 				Name:    StateNameHWSlowdown,
 				Healthy: true,
-				Error:   nil,
 				Reason:  rm,
 				ExtraInfo: map[string]string{
 					StateKeyHWSlowdownData:     string(b),

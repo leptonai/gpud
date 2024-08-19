@@ -4,7 +4,6 @@ package fabricmanager
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -68,7 +67,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return []components.State{
 			{
 				Healthy: false,
-				Error:   last.Error,
+				Error:   last.Error.Error(),
 				Reason:  "last query failed",
 			},
 		}, nil
@@ -101,7 +100,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			cs = append(cs, components.State{
 				Name:    Name,
 				Healthy: false,
-				Error:   errors.New(e),
+				Error:   e,
 				Reason:  "fabric manager query failed with " + e,
 				ExtraInfo: map[string]string{
 					nvidia_query.StateKeyFabricManagerExists: fmt.Sprintf("%v", allOutput.FabricManagerExists),

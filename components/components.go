@@ -68,7 +68,7 @@ type State struct {
 	Name      string            `json:"name,omitempty"`
 	Healthy   bool              `json:"healthy,omitempty"`
 	Reason    string            `json:"reason,omitempty"`     // a detailed and processed reason on why the component is not healthy
-	Error     error             `json:"error,omitempty"`      // the unprocessed error returned from the component
+	Error     string            `json:"error,omitempty"`      // the unprocessed error returned from the component
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
 }
 
