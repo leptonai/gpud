@@ -31,7 +31,7 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "bash", file)
+	cmd := exec.Command("bash", file)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
