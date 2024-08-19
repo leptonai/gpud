@@ -65,6 +65,7 @@ func DefaultConfig() Config {
 
 			Commands: [][]string{
 				{"dmesg", "--ctime", "--nopager", "--buffer-size", "163920", "-w"},
+				{"dmesg", "--ctime", "--nopager", "--buffer-size", "163920", "-W"},
 			},
 
 			Scan: &query_log_config.Scan{
