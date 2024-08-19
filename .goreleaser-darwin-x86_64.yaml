@@ -62,8 +62,12 @@ release:
     name: gpud
 
   header: |
-    ## Some title ({{ .Date }})
+    ## GPUd release notes ({{ .Date }})
 
     Welcome to this new release!
 
-  name_template: "{{.ProjectName}}-v{{.Version}} {{.Env.USER}}"
+  name_template: "{{.ProjectName}}-v{{.Version}}"
+
+# ref. https://goreleaser.com/customization/checksum/?h=checksum
+checksum:
+  disable: true
