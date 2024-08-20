@@ -33,60 +33,54 @@ type Response struct {
 }
 
 func (s *Session) serve() {
-	allComponents := components.GetAllComponents()
-	for key := range allComponents {
-		s.components = append(s.components, key)
-	}
-	go func() {
-		for body := range s.reader {
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-			reqId := body.ReqID
-			data := body.Data
-			// 1. unmarshal data
-			var payload Request
-			if err := json.Unmarshal(data, &payload); err != nil {
-				cancel()
-				continue
-			}
-			response := &Response{}
-			switch payload.Method {
-			case "metrics":
-				metrics, err := s.getMetrics(ctx, payload)
-				response.Error = err
-				response.Metrics = metrics
-			case "states":
-				states, err := s.getStates(ctx, payload)
-				response.Error = err
-				response.States = states
-			case "events":
-				events, err := s.getEvents(ctx, payload)
-				response.Error = err
-				response.Events = events
-			case "update":
-				systemdManaged, _ := systemd.IsActive("gpud.service")
-				if !systemdManaged {
-					log.Logger.Debugw("gpud is not managed with systemd")
-					response.Error = fmt.Errorf("gpud is not managed with systemd")
+	for body := range s.reader {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		reqId := body.ReqID
+		data := body.Data
+		// 1. unmarshal data
+		var payload Request
+		if err := json.Unmarshal(data, &payload); err != nil {
+			cancel()
+			continue
+		}
+		response := &Response{}
+		switch payload.Method {
+		case "metrics":
+			metrics, err := s.getMetrics(ctx, payload)
+			response.Error = err
+			response.Metrics = metrics
+		case "states":
+			states, err := s.getStates(ctx, payload)
+			response.Error = err
+			response.States = states
+		case "events":
+			events, err := s.getEvents(ctx, payload)
+			response.Error = err
+			response.Events = events
+		case "update":
+			systemdManaged, _ := systemd.IsActive("gpud.service")
+			if !systemdManaged {
+				log.Logger.Debugw("gpud is not managed with systemd")
+				response.Error = fmt.Errorf("gpud is not managed with systemd")
+			} else {
+				nextVersion := payload.UpdateVersion
+				if nextVersion == "" {
+					response.Error = fmt.Errorf("update_version is empty")
 				} else {
-					nextVersion := payload.UpdateVersion
-					if nextVersion == "" {
-						response.Error = fmt.Errorf("update_version is empty")
-					} else {
-						err := update.Update(nextVersion, update.DefaultUpdateURL)
-						if err != nil {
-							response.Error = err
-						}
+					err := update.Update(nextVersion, update.DefaultUpdateURL)
+					if err != nil {
+						response.Error = err
 					}
 				}
 			}
-			responseRaw, _ := json.Marshal(response)
-			s.writer <- Body{
-				Data:  responseRaw,
-				ReqID: reqId,
-			}
-			cancel()
 		}
-	}()
+		responseRaw, _ := json.Marshal(response)
+		s.writer <- Body{
+			Data:  responseRaw,
+			ReqID: reqId,
+		}
+		cancel()
+	}
 }
 
 func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEvents, error) {
