@@ -134,7 +134,9 @@ func (s *Session) startWriter() {
 		}
 
 		log.Logger.Debugf("session writer: unexpected closed, resp: %v %v, reconnecting...", resp.Status, resp.StatusCode)
-		close(goroutineCloseCh)
+
+		// no need to close goroutineCloseCh
+		// to ensure only one pair of read/write connection is there
 	}
 }
 
