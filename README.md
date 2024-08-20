@@ -24,6 +24,8 @@ Most importantly, GPUd operates with minimal CPU and memory overhead in a non-cr
 
 ## Get Started
 
+![gpud-demo-2024-08-20.gif)](./assets/gpud-demo-2024-08-20.gif)
+
 ### Installation
 
 To install from the official release on Linux and amd64 (x86_64) machine:
