@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,14 +9,20 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/log"
 )
 
 type Session struct {
-	machineID    string
-	endpoint     string
-	serverClosed bool
-	components   []string
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	pipeInterval time.Duration
+
+	machineID string
+	endpoint  string
+
+	components []string
 
 	writer         chan Body
 	writerCloseCh  chan bool
@@ -26,11 +33,26 @@ type Session struct {
 	readerClosedCh chan bool
 }
 
-func NewSession(endpoint string, machineID string) *Session {
+func NewSession(ctx context.Context, endpoint string, machineID string, pipeInterval time.Duration) *Session {
+	cps := make([]string, 0)
+	allComponents := components.GetAllComponents()
+	for key := range allComponents {
+		cps = append(cps, key)
+	}
+
+	cctx, ccancel := context.WithCancel(ctx)
 	s := &Session{
+		ctx:    cctx,
+		cancel: ccancel,
+
+		pipeInterval: pipeInterval,
+
 		endpoint:  endpoint,
 		machineID: machineID,
+
+		components: cps,
 	}
+
 	s.reader = make(chan Body, 20)
 	s.writer = make(chan Body, 20)
 	s.writerCloseCh = make(chan bool, 2)
@@ -38,7 +60,8 @@ func NewSession(endpoint string, machineID string) *Session {
 	s.readerCloseCh = make(chan bool, 2)
 	s.readerClosedCh = make(chan bool)
 	s.keepAlive()
-	s.serve()
+	go s.serve()
+
 	return s
 }
 
@@ -48,144 +71,153 @@ type Body struct {
 }
 
 func (s *Session) keepAlive() {
-	s.startWriter()
-	s.startReader()
+	go s.startWriter()
+	go s.startReader()
 }
 
 func (s *Session) startWriter() {
-	go func() {
-		for {
-			if s.serverClosed {
-				log.Logger.Debugf("session writer: session closed, closing writer...")
-				if s.writerClosedCh != nil {
-					s.writerClosedCh <- true
-					log.Logger.Debugf("session writer: writer chan closed.")
-				}
-				return
-			}
-			serverUrl := fmt.Sprintf("https://%s/api/v1/session", s.endpoint)
+	ticker := time.NewTicker(1)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			log.Logger.Debug("session writer: closing writer")
+			s.writerClosedCh <- true
+			log.Logger.Debug("session writer: closed writer")
+			return
 
-			reader, writer := io.Pipe()
-			req, err := http.NewRequest("POST", serverUrl, reader)
-			if err != nil {
-				log.Logger.Errorf("session writer: error creating request: %v, retrying in 3s...", err)
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			req.Header.Set("machine_id", s.machineID)
-			req.Header.Set("session_type", "write")
+		case <-ticker.C:
+			ticker.Reset(s.pipeInterval)
+		}
 
-			log.Logger.Debugf("session writer: created")
-			goroutineCloseCh := make(chan any)
-			go func() {
-				for {
-					select {
-					case <-s.writerCloseCh:
-						writer.Close()
-					case <-goroutineCloseCh:
-						return
-					case body := <-s.writer:
-						bytes, err := json.Marshal(body)
-						if err != nil {
-							log.Logger.Errorf("session writer: failed to marshal body: %v", err)
-							continue
-						}
-						if _, err := writer.Write(bytes); err != nil {
-							log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
-							continue
-						}
+		reader, writer := io.Pipe()
+		goroutineCloseCh := make(chan any)
+		go func() {
+			log.Logger.Debug("session writer created")
+			for {
+				select {
+				case <-s.writerCloseCh:
+					log.Logger.Debug("session writer closed")
+					writer.Close()
+					return
+				case <-goroutineCloseCh:
+					return
+				case body := <-s.writer:
+					bytes, err := json.Marshal(body)
+					if err != nil {
+						log.Logger.Errorf("session writer: failed to marshal body: %v", err)
+						continue
+					}
+					if _, err := writer.Write(bytes); err != nil {
+						log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+						continue
 					}
 				}
-			}()
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Logger.Errorf("session writer: error making request: %v, retrying", err)
-				time.Sleep(3 * time.Second)
-				close(goroutineCloseCh)
-				continue
 			}
-			log.Logger.Debugf("session writer: unexpected closed, resp: %v %v, reconnecting...", resp.Status, resp.StatusCode)
+		}()
+
+		req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, reader)
+		if err != nil {
+			log.Logger.Errorf("session writer: error creating request: %v, retrying in 3s...", err)
 			close(goroutineCloseCh)
-			time.Sleep(3 * time.Second)
+			continue
 		}
-	}()
+		req.Header.Set("machine_id", s.machineID)
+		req.Header.Set("session_type", "write")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Logger.Errorf("session writer: error making request: %v, retrying", err)
+			close(goroutineCloseCh)
+			continue
+		}
+
+		log.Logger.Debugf("session writer: unexpected closed, resp: %v %v, reconnecting...", resp.Status, resp.StatusCode)
+
+		// no need to close goroutineCloseCh
+		// to ensure only one pair of read/write connection is there
+	}
 }
 
 func (s *Session) startReader() {
-	go func() {
-		for {
-			if s.serverClosed {
-				log.Logger.Debugf("session reader: session closed, closing reader...")
-				if s.readerClosedCh != nil {
-					s.readerClosedCh <- true
-					log.Logger.Debugf("session reader: read chan closed.")
-				}
-				return
-			}
-			serverUrl := fmt.Sprintf("https://%s/api/v1/session", s.endpoint)
+	ticker := time.NewTicker(1)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			log.Logger.Debug("session reader: closing reader")
+			s.readerClosedCh <- true
+			log.Logger.Debug("session reader: closed reader")
+			return
 
-			req, err := http.NewRequest("POST", serverUrl, nil)
-			if err != nil {
-				log.Logger.Errorf("session reader: error creating request: %v, retrying", err)
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			req.Header.Set("machine_id", s.machineID)
-			req.Header.Set("session_type", "read")
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Logger.Errorf("session reader: error making request: %v, retrying", err)
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			if resp.StatusCode != http.StatusOK {
-				log.Logger.Errorf("session reader: error making request: %v %v, retrying", resp.StatusCode, resp.Status)
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			log.Logger.Debugf("session reader: reader channel created!")
-			goroutineCloseCh := make(chan any)
-			go func() {
-				for {
-					select {
-					case <-goroutineCloseCh:
-						return
-					case <-s.readerCloseCh:
-						resp.Body.Close()
-					}
-				}
-			}()
-			decoder := json.NewDecoder(resp.Body)
-			for {
-				var content Body
-				err = decoder.Decode(&content)
-				if err != nil {
-					if !errors.Is(err, io.EOF) {
-						fmt.Println("Error reading response:", err)
-					}
-					s.writerCloseCh <- true
-					time.Sleep(3 * time.Second)
-					break
-				}
-				s.reader <- content
-			}
-			close(goroutineCloseCh)
-			time.Sleep(3 * time.Second)
+		case <-ticker.C:
+			ticker.Reset(s.pipeInterval)
 		}
-	}()
+
+		req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, nil)
+		if err != nil {
+			log.Logger.Errorf("session reader: error creating request: %v, retrying", err)
+			continue
+		}
+		req.Header.Set("machine_id", s.machineID)
+		req.Header.Set("session_type", "read")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Logger.Errorf("session reader: error making request: %v, retrying", err)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			log.Logger.Errorf("session reader: error making request: %v %v, retrying", resp.StatusCode, resp.Status)
+			continue
+		}
+
+		goroutineCloseCh := make(chan any)
+		go func() {
+			log.Logger.Debug("session reader created")
+			for {
+				select {
+				case <-goroutineCloseCh:
+					return
+				case <-s.readerCloseCh:
+					log.Logger.Debug("session reader closed")
+					resp.Body.Close()
+					return
+				}
+			}
+		}()
+
+		decoder := json.NewDecoder(resp.Body)
+		for {
+			var content Body
+			err = decoder.Decode(&content)
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					fmt.Println("Error reading response:", err)
+				}
+
+				s.writerCloseCh <- true
+				break
+			}
+
+			s.reader <- content
+		}
+		close(goroutineCloseCh)
+	}
 }
 
 func (s *Session) Stop() {
-	s.serverClosed = true
+	s.cancel()
+
 	s.writerCloseCh <- true
 	s.readerCloseCh <- true
-	log.Logger.Debugf("waiting for writer and reader to finish connection...")
+
+	log.Logger.Debug("waiting for writer and reader to finish connection...")
 	<-s.writerClosedCh
 	<-s.readerClosedCh
+
 	close(s.reader)
 	close(s.writer)
 }

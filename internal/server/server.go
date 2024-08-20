@@ -945,7 +945,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		userToken = dbToken
 	}
 	if userToken != "" {
-		s.session = session.NewSession(endpoint, uid)
+		s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second)
 	}
 	if _, err := goOS.Stat(pipePath); err == nil {
 		if err = goOS.Remove(pipePath); err != nil {
@@ -979,7 +979,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			if s.session != nil {
 				s.session.Stop()
 			}
-			s.session = session.NewSession(endpoint, uid)
+			s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second)
 		}
 		time.Sleep(1 * time.Second)
 	}
