@@ -73,7 +73,7 @@ main() {
     exit 1
   fi
 
-  DIR=/tmp/gpud_"$VERSION"
+  DIR=/tmp/gpud_"$VERSION"_"$OS"_"$ARCH"
   if [ -d "$DIR" ]; then
     echo "temporal directory $DIR already exists"
     exit 1
