@@ -13,6 +13,9 @@ var (
 	// the program at linking time.
 	Revision = ""
 
+	// BuildTimestamp is the build timestamp.
+	BuildTimestamp = ""
+
 	// GoVersion is Go tree's version.
 	GoVersion = runtime.Version()
 )
