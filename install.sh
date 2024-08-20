@@ -79,9 +79,11 @@ main() {
     exit 1
   fi
 
+  mkdir "$DIR"
+
   DLPATH=/tmp/"$FILENAME"
   curl -fsSL https://pkg.gpud.dev/"$FILENAME" -o "$DLPATH"
-  tar xzf "$DLPATH" -C /tmp
+  tar xzf "$DLPATH" -C "$DIR"
 
   $SUDO cp -f "$DIR"/gpud /usr/sbin
 
