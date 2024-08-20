@@ -41,7 +41,7 @@ archives:
 
 # https://goreleaser.com/customization/changelog/
 changelog:
-  use: github
+  use: github-native
 
 release:
   draft: false
