@@ -13,7 +13,7 @@ import (
 
 func cmdDiagnose(cliContext *cli.Context) error {
 	if os.Geteuid() != 0 {
-		return errors.New("diagnose requires root")
+		return errors.New("requires sudo/root access to diagnose GPU issues")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

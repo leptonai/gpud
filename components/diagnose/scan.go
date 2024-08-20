@@ -2,7 +2,9 @@ package diagnose
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -23,6 +25,10 @@ const (
 
 // Runs the scan operations.
 func Scan(ctx context.Context, lines int, debug bool) error {
+	if os.Geteuid() != 0 {
+		return errors.New("requires sudo/root access in order to scan dmesg errors")
+	}
+
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
 
 	if nvidia_query.SMIExists() {
@@ -45,7 +51,7 @@ func Scan(ctx context.Context, lines int, debug bool) error {
 			} else {
 				output.PrintInfo(debug)
 
-				fmt.Printf("%s checking nvidia xid errors\n", inProgress)
+				fmt.Printf("\n%s checking nvidia xid errors\n", inProgress)
 
 				select {
 				case <-ctx.Done():

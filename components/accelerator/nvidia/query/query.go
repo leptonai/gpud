@@ -298,6 +298,10 @@ func (o *Output) PrintInfo(debug bool) {
 	}
 
 	if o.SMI != nil {
+		if len(o.SMI.GPUs) > 0 {
+			fmt.Printf("%s product name: %s (nvidia-smi)\n", checkMark, o.SMI.GPUs[0].ProductName)
+		}
+
 		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
 			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
 			for _, err := range errs {
@@ -356,6 +360,10 @@ func (o *Output) PrintInfo(debug bool) {
 	}
 
 	if o.NVML != nil {
+		if len(o.NVML.DeviceInfos) > 0 {
+			fmt.Printf("%s name: %s (NVML)\n", checkMark, o.NVML.DeviceInfos[0].Name)
+		}
+
 		for _, dev := range o.NVML.DeviceInfos {
 			fmt.Printf("\n\n##################\nNVML scan results for %s\n\n", dev.UUID)
 

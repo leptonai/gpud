@@ -12,7 +12,7 @@ const peerMemModule = "nvidia_peermem"
 
 func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, error) {
 	if os.Geteuid() != 0 {
-		return nil, errors.New("nvidia_peermem check requires root")
+		return nil, errors.New("requires sudo/root access to check if ib_core is using nvidia_peermem")
 	}
 
 	b, err := exec.CommandContext(ctx, "sudo", "lsmod").CombinedOutput()
