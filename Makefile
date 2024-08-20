@@ -4,6 +4,7 @@ INSTALL ?= install
 # Root directory of the project (absolute path).
 ROOTDIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+BUILD_TIMESTAMP ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 VERSION ?= $(shell git describe --match 'v[0-9]*' --dirty='.m' --always)
 REVISION=$(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo .m; fi)
 PACKAGE=github.com/leptonai/gpud
@@ -52,7 +53,7 @@ RELEASE=gpud-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 
 COMMANDS=gpud swagger
 
-GO_BUILD_FLAGS=-ldflags '-s -X $(PACKAGE)/version.Version=$(VERSION) -X $(PACKAGE)/version.Revision=$(REVISION) -X $(PACKAGE)/version.Package=$(PACKAGE)'
+GO_BUILD_FLAGS=-ldflags '-s -X $(PACKAGE)/version.BuildTimestamp=$(BUILD_TIMESTAMP) -X $(PACKAGE)/version.Version=$(VERSION) -X $(PACKAGE)/version.Revision=$(REVISION) -X $(PACKAGE)/version.Package=$(PACKAGE)'
 
 ifdef BUILDTAGS
     GO_BUILDTAGS = ${BUILDTAGS}
