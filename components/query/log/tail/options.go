@@ -95,9 +95,15 @@ func (op *Op) writeCommands(w io.Writer) error {
 	if _, err := w.Write([]byte(bashScriptHeader)); err != nil {
 		return err
 	}
-	for _, args := range op.commands {
+	for i, args := range op.commands {
 		if _, err := w.Write([]byte(strings.Join(args, " "))); err != nil {
 			return err
+		}
+		if i < len(op.commands)-1 {
+			// run last commands as fallback, in case dmesg flag only works in some machines
+			if _, err := w.Write([]byte(" || true")); err != nil {
+				return err
+			}
 		}
 		if _, err := w.Write([]byte("\n")); err != nil {
 			return err
