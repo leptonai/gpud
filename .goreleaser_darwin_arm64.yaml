@@ -32,7 +32,7 @@ archives:
     - gpud
 
     name_template: >-
-      {{ .Binary }}_{{- .Version }}_{{- .Os }}_{{ .Arch }}
+      {{ .Binary }}_v{{- .Version }}_{{- .Os }}_{{ .Arch }}
 
     # use zip for windows archives
     format_overrides:
