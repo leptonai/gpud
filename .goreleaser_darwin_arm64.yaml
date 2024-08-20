@@ -9,11 +9,12 @@ builds:
     flags:
       - -v
 
+    # NOTE: the "v" prefix from the git tag is stripped for the {{.Version}}
     ldflags:
       - -s -w
       - -X github.com/leptonai/gpud/version.BuildTimestamp={{.CommitTimestamp}}
       - -X github.com/leptonai/gpud/version.Revision={{.Commit}}
-      - -X github.com/leptonai/gpud/version.Version={{.Version}}
+      - -X github.com/leptonai/gpud/version.Version=v{{.Version}}
 
     goos:
       - darwin
@@ -31,7 +32,7 @@ archives:
     - gpud
 
     name_template: >-
-      {{ .Binary }}_v{{- .Version }}_{{- .Os }}_{{ .Arch }}
+      {{ .Binary }}_{{- .Version }}_{{- .Os }}_{{ .Arch }}
 
     # use zip for windows archives
     format_overrides:
