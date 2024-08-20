@@ -9,11 +9,11 @@ builds:
     flags:
       - -v
 
-    # TODO: set ".Env.Version" once stable
-    # - -X github.com/leptonai/gpud/cmd/gpud/version.ReleaseVersion={{.Version}}
     ldflags:
       - -s -w
-      - -X github.com/leptonai/gpud/version.GitCommit={{.Commit}}
+      - -X github.com/leptonai/gpud/version.BuildTimestamp={{.CommitTimestamp}}
+      - -X github.com/leptonai/gpud/version.Revision={{.Commit}}
+      - -X github.com/leptonai/gpud/version.Version={{.Version}}
 
     goos:
       - darwin
@@ -30,26 +30,17 @@ archives:
     builds:
     - gpud
 
-    # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
-      {{ .Binary }}-
-      {{- .Os }}-
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
+      {{ .Binary }}_{{- .Version }}_{{- .Os }}_{{ .Arch }}
 
     # use zip for windows archives
     format_overrides:
       - goos: windows
         format: zip
 
+# https://goreleaser.com/customization/changelog/
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  use: github
 
 release:
   draft: false
