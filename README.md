@@ -45,7 +45,7 @@ Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from 
 Copy the token in the format of `workspace:token` and pass it to the `gpud up --token` flag:
 
 ```bash
-sudo gpud up --token <LEPTON_AI_WORKSPACE:TOKEM>
+sudo gpud up --token <LEPTON_AI_TOKEN>
 ```
 
 You can go to the [dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes) to check the self-managed machine status.
@@ -62,7 +62,7 @@ You can also start with the standalone mode and later switch to the managed opti
 
 ```bash
 # when the token is ready, run the following command
-sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
+sudo gpud login --token <LEPTON_AI_TOKEN>
 ```
 
 To access the local web UI, open https://localhost:15132 in your browser.
