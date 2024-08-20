@@ -24,7 +24,7 @@ builds:
 archives:
 
   - id: gpud
-    format: tar.gz
+    format: tgz
 
     # "builds" reference which build instances should be archived in this archive
     builds:

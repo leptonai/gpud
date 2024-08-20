@@ -82,4 +82,4 @@ jobs:
           prerelease: false
           body: Latest builds from the last commit
           files: |
-            ./dist/gpud_${{steps.get_tag_version.outputs.TAG_VERSION}}_${{ matrix.job.target }}.tar.gz
+            ./dist/gpud_${{steps.get_tag_version.outputs.TAG_VERSION}}_${{ matrix.job.target }}.tgz
