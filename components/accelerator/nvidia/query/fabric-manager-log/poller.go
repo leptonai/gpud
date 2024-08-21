@@ -1,3 +1,4 @@
+// Package fabricmanagerlog implements the fabric manager log poller.
 package fabricmanagerlog
 
 import (

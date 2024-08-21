@@ -1,3 +1,4 @@
+// Package processes provides the NVIDIA processes metrics collection and reporting.
 package processes
 
 import (

@@ -1,3 +1,4 @@
+// Package errdefs provides common error definitions for gpud.
 package errdefs
 
 import (

@@ -1,3 +1,4 @@
+// Package state provides the persistent storage layer for the metrics.
 package state
 
 import (

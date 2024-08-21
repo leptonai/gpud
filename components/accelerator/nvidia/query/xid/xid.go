@@ -1,3 +1,4 @@
+// Package xid provides the NVIDIA XID error details.
 package xid
 
 // Defines the XID error type.

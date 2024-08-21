@@ -1,3 +1,4 @@
+// "sync" syncs the tailscale derp map.
 package main
 
 import (

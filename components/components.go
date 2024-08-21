@@ -1,3 +1,4 @@
+// Package components defines the common interfaces for the components.
 package components
 
 import (

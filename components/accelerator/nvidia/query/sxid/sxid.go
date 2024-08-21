@@ -1,3 +1,4 @@
+// Package sxid provides the NVIDIA SXID error details.
 package sxid
 
 // Defines the SXID error type.

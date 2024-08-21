@@ -1,3 +1,4 @@
+// Package ecc provides the NVIDIA ECC metrics collection and reporting.
 package ecc
 
 import (

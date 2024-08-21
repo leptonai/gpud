@@ -1,3 +1,4 @@
+// Package systemd provides the common systemd helper functions.
 package systemd
 
 import (

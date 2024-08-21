@@ -1,3 +1,4 @@
+// Package metrics implements the file descriptor metrics collection and reporting.
 package metrics
 
 import (

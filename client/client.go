@@ -1,3 +1,4 @@
+// Package client provides the gpud client for the server.
 package client
 
 import (

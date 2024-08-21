@@ -1,3 +1,4 @@
+// Package clockspeed provides the NVIDIA clock speed metrics collection and reporting.
 package clockspeed
 
 import (

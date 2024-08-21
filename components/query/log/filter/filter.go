@@ -1,3 +1,4 @@
+// Package filter provides the log filter implementation.
 package filter
 
 import (

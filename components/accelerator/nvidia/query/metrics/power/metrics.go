@@ -1,3 +1,4 @@
+// Package power provides the NVIDIA power usage metrics collection and reporting.
 package power
 
 import (

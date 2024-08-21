@@ -1,3 +1,4 @@
+// Package memory provides the NVIDIA memory metrics collection and reporting.
 package memory
 
 import (
