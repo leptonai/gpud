@@ -12,6 +12,8 @@ Unlike CPUs, GPU failures and issues are common and can significantly impact tra
 
 GPUd addresses these challenges by automatically identifying, diagnosing, and repairing GPU-related issues, thereby minimizing downtime and maintaining high efficiency.
 
+Read our announcement blog post [here](https://blog.lepton.ai/introducing-gpud-the-missing-gpu-management-for-ai-0f0d026337e3).
+
 ## Why GPUd
 
 GPUd is built on years of experience operating large-scale GPU clusters at Meta, Alibaba Cloud, Uber, and Lepton AI. It is carefully designed to be self-contained and to integrate seamlessly with other systems such as Docker, containerd, Kubernetes, and Nvidia ecosystems.
