@@ -851,12 +851,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 		}
 	}()
 
-	hostname, err := goOS.Hostname()
-	if err != nil {
-		hostname = "UnknownName"
-	}
-	if err = login.Gossip(hostname, endpoint, uid, config.Address); err != nil {
-		log.Logger.Errorf("failed to gossip: %v", err)
+	if err = login.Gossip(endpoint, uid, config.Address); err != nil {
+		log.Logger.Debugf("failed to gossip: %v", err)
 	}
 	return s, nil
 }

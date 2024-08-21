@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -63,10 +65,10 @@ func Login(name string, token string, endpoint string, components string, uid st
 	return nil
 }
 
-func Gossip(name string, endpoint string, uid string, address string) error {
-	ip, err := PublicIP()
-	if err != nil {
-		return fmt.Errorf("failed to fetch public ip: %w", err)
+func Gossip(endpoint string, uid string, address string) error {
+	if os.Getenv("GPUD_NO_USAGE_STATS") == "true" {
+		log.Logger.Debugf("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
+		return nil
 	}
 	type payload struct {
 		Name          string `json:"name"`
@@ -80,9 +82,8 @@ func Gossip(name string, endpoint string, uid string, address string) error {
 		Status string `json:"status"`
 	}
 	content := payload{
-		Name:          name,
+		Name:          uid,
 		ID:            uid,
-		PublicIP:      ip,
 		Provider:      "personal",
 		DaemonVersion: version.Version,
 	}
