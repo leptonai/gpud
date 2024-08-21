@@ -57,13 +57,13 @@ func App() *cli.App {
 			Name:  "login",
 			Usage: "login gpud to lepton.ai (called automatically in gpud up with non-empty --token)",
 			UsageText: `# to login gpud to lepton.ai with an existing, running gpud
-sudo gpud login --token <LEPTON_AI_WORKSPACE:TOKEM>
+sudo gpud login --token <LEPTON_AI_TOKEN>
 `,
 			Action: cmdLogin,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "token",
-					Usage: "lepton.ai workspace token for checking in (format: workspace:token)",
+					Usage: "lepton.ai workspace token for checking in",
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
@@ -81,7 +81,7 @@ sudo gpud up
 # to enable machine monitoring powered by lepton.ai platform
 # sign up here: https://lepton.ai
 # token should be of format 'workspace:token'
-sudo gpud up --token <LEPTON_AI_WORKSPACE:TOKEM>
+sudo gpud up --token <LEPTON_AI_TOKEN>
 
 # to start gpud without a systemd unit (e.g., mac)
 gpud run
@@ -93,7 +93,7 @@ nohup sudo gpud run &>> <your log file path> &
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "token",
-					Usage: "lepton.ai workspace token for checking in (format: workspace:token)",
+					Usage: "lepton.ai workspace token for checking in",
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
