@@ -34,6 +34,7 @@
 - [**`systemd`**](https://pkg.go.dev/github.com/leptonai/gpud/components/systemd): Tracks the systemd state and unit files.
 - [**`dmesg`**](https://pkg.go.dev/github.com/leptonai/gpud/components/dmesg): Scans and watches dmesg outputs for errors,, as specified in the configuration (e.g., regex match NVIDIA GPU errors).
 - [**`file-descriptor`**](https://pkg.go.dev/github.com/leptonai/gpud/components/fd): Tracks the number of file descriptors used on the host.
+- [**`file`**](https://pkg.go.dev/github.com/leptonai/gpud/components/file): Tracks the file status.
 
 ## Misc. components
 

@@ -205,6 +205,7 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
 
+	// TODO: auto-fill "file" components for nvidia lib files
 	if runtime.GOOS == "linux" {
 		if nvidia_query.SMIExists() {
 			log.Logger.Debugw("auto-detected nvidia -- configuring nvidia components")
