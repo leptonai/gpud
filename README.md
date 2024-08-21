@@ -44,7 +44,7 @@ Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from 
 
 <img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
 
-Copy the token in the format of `workspace:token` and pass it to the `gpud up --token` flag:
+Copy the token and pass it to the `gpud up --token` flag:
 
 ```bash
 sudo gpud up --token <LEPTON_AI_TOKEN>
