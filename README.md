@@ -44,7 +44,7 @@ Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from 
 
 <img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
 
-Copy the token in the format of `workspace:token` and pass it to the `gpud up --token` flag:
+Copy the token and pass it to the `gpud up --token` flag:
 
 ```bash
 sudo gpud up --token <LEPTON_AI_TOKEN>
@@ -104,10 +104,9 @@ Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components
 
 ### Does GPUd send data to lepton.ai?
 
-It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive data**.
-You can also disable this behavior by setting `GPUD_NO_USAGE_STATS=true` in /etc/default/gpud
+GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any senstive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file.
 
-Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
+If you opt-in to log in to the Lepton AI platform, to assist you with more helpful GPU health states, GPUd periodically sends system runtime related information about the host to the platform. All these info are system workload and health info, and contain no user data. The data are sent via secure channels.
 
 ## Learn more
 

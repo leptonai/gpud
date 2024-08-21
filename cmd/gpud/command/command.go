@@ -80,7 +80,6 @@ sudo gpud up
 
 # to enable machine monitoring powered by lepton.ai platform
 # sign up here: https://lepton.ai
-# token should be of format 'workspace:token'
 sudo gpud up --token <LEPTON_AI_TOKEN>
 
 # to start gpud without a systemd unit (e.g., mac)
