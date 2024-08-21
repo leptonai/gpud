@@ -15,6 +15,10 @@ jobs:
     strategy:
       matrix:
         job:
+          - os: ubuntu-20.04
+            platform: linux
+            target: linux_amd64
+
           - os: ubuntu-22.04
             platform: linux
             target: linux_amd64
