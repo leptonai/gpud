@@ -67,13 +67,13 @@ func Login(name string, token string, endpoint string, components string, uid st
 
 func Gossip(endpoint string, uid string, address string) error {
 	if os.Getenv("GPUD_NO_USAGE_STATS") == "true" {
-		log.Logger.Debugf("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
+		log.Logger.Debug("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
 		return nil
 	}
+
 	type payload struct {
 		Name          string `json:"name"`
 		ID            string `json:"id"`
-		PublicIP      string `json:"public_ip"`
 		Provider      string `json:"provider"`
 		DaemonVersion string `json:"daemon_version"`
 	}

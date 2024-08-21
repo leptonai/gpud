@@ -104,8 +104,7 @@ Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components
 
 ### Does GPUd send data to lepton.ai?
 
-It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive data**.
-You can also disable this behavior by setting `GPUD_NO_USAGE_STATS=true` in /etc/default/gpud
+It is possible that GPUd sends basic host information to lepton.ai to help understand how GPUd is used (e.g., UUID, hostname). The data is strictly anonymized and **does not contain any senstive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file.
 
 Once you opt-in to the lepton.ai platform, the GPUd periodically sends more detailed information about the host (e.g., GPU model and metrics), via the secure channel.
 
