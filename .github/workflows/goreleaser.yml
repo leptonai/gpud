@@ -18,14 +18,16 @@ jobs:
           - os: ubuntu-20.04
             platform: linux
             target: linux_amd64
+            goreleaser_suffix: _ubuntu20.04
 
           - os: ubuntu-22.04
             platform: linux
             target: linux_amd64
+            goreleaser_suffix: _ubuntu22.04
 
-          # - os: ubuntu-22.04
-          #   platform: linux
-          #   target: linux_arm64
+          - os: ubuntu-22.04
+            platform: linux
+            target: linux_amd64
 
           - os: macos-latest
             platform: darwin
@@ -66,7 +68,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --config .goreleaser_${{ matrix.job.target }}.yaml
+          args: release --config .goreleaser_${{ matrix.job.target }}${{ matrix.job.goreleaser_suffix }}.yaml
           workdir: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,4 +88,4 @@ jobs:
           prerelease: false
           body: Latest builds from the last commit
           files: |
-            ./dist/gpud_v${{steps.get_tag_version.outputs.TAG_VERSION}}_${{ matrix.job.target }}.tgz
+            ./dist/gpud_v${{steps.get_tag_version.outputs.TAG_VERSION}}_${{ matrix.job.target }}${{ matrix.job.goreleaser_suffix }}.tgz
