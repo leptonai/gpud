@@ -67,20 +67,29 @@ main() {
   TRACK="${TRACK:-unstable}"
   VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
 
-  FILENAME=gpud_"$VERSION"_"$OS"_"$ARCH".tgz
+  # e.g., ubuntu20.04, ubuntu22.04, ubuntu24.04
+  OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
+  OS_VERSION=$(lsb_release -r -s 2>/dev/null || echo "")
+  if [ "$OS_NAME" = "ubuntu" ]; then
+    OS_DISTRO="_${OS_NAME}${OS_VERSION}"
+  else
+    OS_DISTRO=""
+  fi
+
+  FILEBASE=gpud_"$VERSION"_"$OS"_"$ARCH""$OS_DISTRO"
+  FILENAME=$FILEBASE.tgz
   if [ -e "$FILENAME" ]; then
     echo "file '$FILENAME' already exists"
     exit 1
   fi
 
-  DIR=/tmp/gpud_"$VERSION"_"$OS"_"$ARCH"
+  DIR=/tmp/$FILEBASE
   if [ -d "$DIR" ]; then
     echo "temporal directory $DIR already exists"
     exit 1
   fi
 
   mkdir "$DIR"
-
   DLPATH=/tmp/"$FILENAME"
   curl -fsSL https://pkg.gpud.dev/"$FILENAME" -o "$DLPATH"
   tar xzf "$DLPATH" -C "$DIR"
