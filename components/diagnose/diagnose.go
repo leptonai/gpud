@@ -20,7 +20,7 @@ import (
 )
 
 type Op struct {
-	disableArchive bool
+	createArchive bool
 }
 
 type OpOption func(*Op)
@@ -32,9 +32,9 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	return nil
 }
 
-func WithDisableArchive(b bool) OpOption {
+func WithCreateArchive(b bool) OpOption {
 	return func(op *Op) {
-		op.disableArchive = b
+		op.createArchive = b
 	}
 }
 
@@ -393,7 +393,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		return err
 	}
 
-	if !op.disableArchive {
+	if op.createArchive {
 		// tar the directory into a single file
 		tarFileName := dir + ".tar"
 		if err := tarDirectory(dir, tarFileName); err != nil {
