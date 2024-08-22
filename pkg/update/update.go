@@ -1,3 +1,4 @@
+// Package update provides the update functionality for the server.
 package update
 
 import (

@@ -7,10 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
+
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
-	"github.com/leptonai/gpud/log"
 	"github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"

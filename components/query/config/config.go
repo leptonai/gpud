@@ -1,3 +1,4 @@
+// Package config provides the query/poller configuration.
 package config
 
 import (

@@ -1,3 +1,4 @@
+// Package config provides the log poller configuration.
 package config
 
 import (

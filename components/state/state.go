@@ -1,3 +1,4 @@
+// Package state provides the persistent storage layer for component states.
 package state
 
 import (

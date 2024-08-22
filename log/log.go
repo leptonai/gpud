@@ -1,3 +1,4 @@
+// Package log provides the logging functionality for gpud.
 package log
 
 import (

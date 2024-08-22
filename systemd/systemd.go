@@ -1,3 +1,4 @@
+// Package systemd provides the systemd artifacts and variables for the gpud server.
 package systemd
 
 import (

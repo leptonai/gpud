@@ -1,3 +1,4 @@
+// Package derpmap provides the tailscale derp map implementation.
 package derpmap
 
 import (

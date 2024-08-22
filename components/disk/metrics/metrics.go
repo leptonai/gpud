@@ -1,3 +1,4 @@
+// Package metrics implements the disk metrics collection and reporting.
 package metrics
 
 import (

@@ -1,3 +1,4 @@
+// Package version provides the version information for the gpud server.
 package version
 
 import "runtime"

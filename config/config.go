@@ -1,3 +1,4 @@
+// Package config provides the gpud configuration data for the server.
 package config
 
 import (

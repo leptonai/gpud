@@ -1,3 +1,4 @@
+// Package nvlink provides the NVIDIA nvlink metrics collection and reporting.
 package nvlink
 
 import (

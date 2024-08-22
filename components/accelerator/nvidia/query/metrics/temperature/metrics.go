@@ -1,3 +1,4 @@
+// Package temperature provides the NVIDIA temperature metrics collection and reporting.
 package temperature
 
 import (

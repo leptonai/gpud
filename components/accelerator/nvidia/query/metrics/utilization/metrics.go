@@ -1,3 +1,4 @@
+// Package utilization provides the NVIDIA GPU utilization metrics collection and reporting.
 package utilization
 
 import (

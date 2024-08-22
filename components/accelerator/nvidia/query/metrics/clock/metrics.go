@@ -1,3 +1,4 @@
+// Package clock provides the NVIDIA clock metrics collection and reporting.
 package clock
 
 import (
