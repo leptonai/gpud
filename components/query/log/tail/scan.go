@@ -42,7 +42,8 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		}
 		out, err := exec.CommandContext(ctx, "bash", file).Output()
 		if err != nil {
-			return 0, fmt.Errorf("failed to execute command: %w (%v, %s)", err, string(out), strings.Join(op.commands[0], " "))
+			log.Logger.Debugw("failed to execute command", "error", err, "command", strings.Join(op.commands[0], " "), "output", string(out))
+			return 0, fmt.Errorf("failed to execute command: %w (%s)", err, strings.Join(op.commands[0], " "))
 		}
 		if _, err := f.Write(out); err != nil {
 			return 0, err
