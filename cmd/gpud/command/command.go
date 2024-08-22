@@ -35,6 +35,8 @@ var (
 
 	tailLines      int
 	disableArchive bool
+
+	enableAutoUpdate bool
 )
 
 const (
@@ -165,6 +167,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
 					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+				},
+				&cli.BoolTFlag{
+					Name:        "enable-auto-update",
+					Usage:       "enable auto update",
+					Destination: &enableAutoUpdate,
 				},
 			},
 		},

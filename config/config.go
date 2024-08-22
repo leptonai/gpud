@@ -38,6 +38,9 @@ type Config struct {
 
 	// Configures the local web configuration.
 	Web *Web `json:"web,omitempty"`
+
+	// Set false to disable auto update
+	EnableAutoUpdate bool `json:"enable_auto_update"`
 }
 
 // Configures the local web configuration.

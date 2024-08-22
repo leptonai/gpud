@@ -31,9 +31,11 @@ type Session struct {
 	reader         chan Body
 	readerCloseCh  chan bool
 	readerClosedCh chan bool
+
+	enableAutoUpdate bool
 }
 
-func NewSession(ctx context.Context, endpoint string, machineID string, pipeInterval time.Duration) *Session {
+func NewSession(ctx context.Context, endpoint string, machineID string, pipeInterval time.Duration, enableAutoUpdate bool) *Session {
 	cps := make([]string, 0)
 	allComponents := components.GetAllComponents()
 	for key := range allComponents {
@@ -51,6 +53,8 @@ func NewSession(ctx context.Context, endpoint string, machineID string, pipeInte
 		machineID: machineID,
 
 		components: cps,
+
+		enableAutoUpdate: enableAutoUpdate,
 	}
 
 	s.reader = make(chan Body, 20)
