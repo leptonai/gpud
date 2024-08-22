@@ -88,6 +88,8 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 			RefreshPeriod: DefaultRefreshPeriod,
 			SincePeriod:   DefaultRetentionPeriod,
 		},
+
+		EnableAutoUpdate: true,
 	}
 
 	if runtime.GOOS == "linux" {

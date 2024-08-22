@@ -62,6 +62,9 @@ func (s *Session) serve() {
 			if !systemdManaged {
 				log.Logger.Debugw("gpud is not managed with systemd")
 				response.Error = fmt.Errorf("gpud is not managed with systemd")
+			} else if !s.enableAutoUpdate {
+				log.Logger.Debugw("auto update is disabled")
+				response.Error = fmt.Errorf("auto update is disabled")
 			} else {
 				nextVersion := payload.UpdateVersion
 				if nextVersion == "" {

@@ -85,6 +85,7 @@ type Server struct {
 	fifoPath              string
 	fifo                  *goOS.File
 	session               *session.Session
+	enableAutoUpdate      bool
 }
 
 func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Server, retErr error) {
@@ -105,8 +106,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
 	}
 	s := &Server{
-		db:       db,
-		fifoPath: fifoPath,
+		db:               db,
+		fifoPath:         fifoPath,
+		enableAutoUpdate: config.EnableAutoUpdate,
 	}
 	defer func() {
 		if retErr != nil {
@@ -941,7 +943,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		userToken = dbToken
 	}
 	if userToken != "" {
-		s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second)
+		s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second, s.enableAutoUpdate)
 	}
 	if _, err := goOS.Stat(pipePath); err == nil {
 		if err = goOS.Remove(pipePath); err != nil {
@@ -975,7 +977,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			if s.session != nil {
 				s.session.Stop()
 			}
-			s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second)
+			s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second, s.enableAutoUpdate)
 		}
 		time.Sleep(1 * time.Second)
 	}

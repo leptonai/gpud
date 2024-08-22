@@ -16,7 +16,7 @@ func TestNewSession(t *testing.T) {
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
 
-	session := NewSession(ctx, endpoint, machineID, time.Second)
+	session := NewSession(ctx, endpoint, machineID, time.Second, true)
 	defer session.Stop()
 
 	if session == nil {
