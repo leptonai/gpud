@@ -69,6 +69,8 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 
 To access the local web UI, open https://localhost:15132 in your browser.
 
+If run with `gpud up`, you may disable this local web UI by setting `FLAGS="--web-enable=false"` to the `/etc/default/gpud` environment file and restart the service.
+
 #### If your system doesn't have systemd
 
 To run on Mac (without systemd):
@@ -91,9 +93,6 @@ sudo rm /usr/sbin/gpud
 sudo rm /etc/systemd/system/gpud.service
 ```
 
-## Integration
-
-For users looking to set up a platform to collect and process data from gpud, please refer to [INTEGRATION](./docs/INTEGRATION.md).
 ## Key Features
 
 - Monitor critical GPU and GPU fabric metrics (power, temperature).
@@ -103,13 +102,21 @@ For users looking to set up a platform to collect and process data from gpud, pl
 
 Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components and their features.
 
+## Integration
+
+For users looking to set up a platform to collect and process data from gpud, please refer to [INTEGRATION](./docs/INTEGRATION.md).
+
 ## FAQs
 
 ### Does GPUd send data to lepton.ai?
 
-GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any senstive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file.
+GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any senstive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add the line `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file and restart the service.
 
 If you opt-in to log in to the Lepton AI platform, to assist you with more helpful GPU health states, GPUd periodically sends system runtime related information about the host to the platform. All these info are system workload and health info, and contain no user data. The data are sent via secure channels.
+
+### How to update GPUd?
+
+GPUd is still in active development, regularly releasing new versions for critical bug fixes and new features. We strongly recommend always being on the latest version of GPUd. When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To enable auto-updates, if GPUd is run with systemd (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
 
 ## Learn more
 

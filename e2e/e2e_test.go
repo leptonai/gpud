@@ -41,7 +41,7 @@ func TestGpudHealthzInfo(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-disable", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
+	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-enable=false", "--enable-auto-update=false", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

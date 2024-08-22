@@ -18,7 +18,7 @@ func cmdDiagnose(cliContext *cli.Context) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	err := diagnose.Run(ctx)
+	err := diagnose.Run(ctx, diagnose.WithCreateArchive(createArchive))
 	if err != nil {
 		return err
 	}

@@ -29,12 +29,12 @@ var (
 
 	retentionPeriod time.Duration
 
-	webDisable       bool
+	webEnable        bool
 	webAdmin         bool
 	webRefreshPeriod time.Duration
 
-	tailLines      int
-	disableArchive bool
+	tailLines     int
+	createArchive bool
 
 	enableAutoUpdate bool
 )
@@ -138,7 +138,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.BoolFlag{
 					Name:        "pprof",
-					Usage:       "enable pprof",
+					Usage:       "enable pprof (default: false)",
 					Destination: &pprof,
 				},
 				&cli.DurationFlag{
@@ -147,14 +147,14 @@ sudo rm /etc/systemd/system/gpud.service
 					Destination: &retentionPeriod,
 					Value:       config.DefaultRetentionPeriod.Duration,
 				},
-				&cli.BoolFlag{
-					Name:        "web-disable",
-					Usage:       "disable local web interface",
-					Destination: &webDisable,
+				&cli.BoolTFlag{
+					Name:        "web-enable",
+					Usage:       "enable local web interface (default: true)",
+					Destination: &webEnable,
 				},
 				&cli.BoolFlag{
 					Name:        "web-admin",
-					Usage:       "enable admin interface",
+					Usage:       "enable admin interface (default: false)",
 					Destination: &webAdmin,
 				},
 				&cli.DurationFlag{
@@ -170,7 +170,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.BoolTFlag{
 					Name:        "enable-auto-update",
-					Usage:       "enable auto update",
+					Usage:       "enable auto update of gpud (default: true)",
 					Destination: &enableAutoUpdate,
 				},
 			},
@@ -210,11 +210,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Action: cmdReleaseGenKey,
 					Flags: []cli.Flag{
 						cli.BoolFlag{
-							Name:  "root",
+							Name:  "root (default: false)",
 							Usage: "generate root key",
 						},
 						cli.BoolFlag{
-							Name:  "signing",
+							Name:  "signing (default: false)",
 							Usage: "generate signing key",
 						},
 						cli.StringFlag{
@@ -339,10 +339,10 @@ cat summary.txt
 			Action:  cmdDiagnose,
 			Aliases: []string{"d"},
 			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:        "disable-archive",
-					Usage:       "disable archive of diagnose information",
-					Destination: &disableArchive,
+				&cli.BoolTFlag{
+					Name:        "create-archive (default: true)",
+					Usage:       "create .tar archive of diagnose information",
+					Destination: &createArchive,
 				},
 			},
 		},
@@ -359,7 +359,7 @@ cat summary.txt
 				},
 				&cli.BoolFlag{
 					Name:        "debug",
-					Usage:       "enable debug mode",
+					Usage:       "enable debug mode (default: false)",
 					Destination: &debug,
 				},
 			},
