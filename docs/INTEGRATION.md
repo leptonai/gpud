@@ -21,6 +21,7 @@ GPUd provides the following primary API endpoints:
 For detailed documentation, visit the [GPUd API Documentation](https://gpud.ai/api/v1/docs).
 
 ## Integration Steps
+
 1.	Install and Start GPUd: Follow the instructions in the [Get Started](../README.md#get-started) guide.
 2.	Access the API: Use a client to interact with the GPUd API. You can find a [sample client](../examples/client/main.go) in the examples directory.
 3.	Import GPUd Client: For deeper integration, import the provided [Client](../client) set into your project.
