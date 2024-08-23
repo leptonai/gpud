@@ -87,7 +87,10 @@ func IsActive(service string) (bool, error) {
 	b, err := exec.CommandContext(ctx, p, "is-active", service).CombinedOutput()
 	cancel()
 	if err != nil {
-		// e.g., "inactive"
+		// e.g., "inactive" with exit status 3
+		if strings.Contains(string(b), "inactive") {
+			return false, nil
+		}
 		return false, err
 	}
 	return strings.TrimSpace(string(b)) == "active", nil
