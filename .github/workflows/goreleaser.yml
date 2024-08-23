@@ -25,9 +25,15 @@ jobs:
             target: linux_amd64
             goreleaser_suffix: _ubuntu22.04
 
+          # default one, for backward compatibility
           - os: ubuntu-22.04
             platform: linux
             target: linux_amd64
+
+          - os: ubuntu-24.04
+            platform: linux
+            target: linux_amd64
+            goreleaser_suffix: _ubuntu24.04
 
           - os: macos-latest
             platform: darwin
