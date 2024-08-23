@@ -116,7 +116,9 @@ If you opt-in to log in to the Lepton AI platform, to assist you with more helpf
 
 ### How to update GPUd?
 
-GPUd is still in active development, regularly releasing new versions for critical bug fixes and new features. We strongly recommend always being on the latest version of GPUd. When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To enable auto-updates, if GPUd is run with systemd (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
+GPUd is still in active development, regularly releasing new versions for critical bug fixes and new features. We strongly recommend always being on the latest version of GPUd.
+
+When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To disable such auto-updates, if GPUd is run with systemd (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
 
 ## Learn more
 
