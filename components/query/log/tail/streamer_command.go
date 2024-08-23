@@ -3,12 +3,12 @@ package tail
 import (
 	"bufio"
 	"context"
-	"os"
-	"os/exec"
+	"fmt"
 	"time"
 
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/nxadm/tail"
 )
@@ -21,38 +21,29 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 		return nil, err
 	}
 
-	f, err := os.CreateTemp(os.TempDir(), "streamer-from-command*.txt")
+	p, err := process.New(op.commands, process.WithRunAsBashScript())
 	if err != nil {
 		return nil, err
 	}
-	file := f.Name()
-
-	if err := op.writeCommands(f); err != nil {
+	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "bash", file)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-p.Wait():
+		return nil, fmt.Errorf("command exited unexpectedly: %w", err)
+	case <-time.After(50 * time.Millisecond):
 	}
-	stdoutScanner := bufio.NewScanner(stdout)
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-	stderrScanner := bufio.NewScanner(stderr)
-
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
+	stdoutScanner := bufio.NewScanner(p.StdoutReader())
+	stderrScanner := bufio.NewScanner(p.StderrReader())
 
 	streamer := &commandStreamer{
 		op:    op,
 		ctx:   ctx,
-		cmd:   cmd,
+		proc:  p,
 		lineC: make(chan Line, 200),
 	}
 	go streamer.pollLoops(stdoutScanner)
@@ -67,7 +58,7 @@ var _ Streamer = (*commandStreamer)(nil)
 type commandStreamer struct {
 	op    *Op
 	ctx   context.Context
-	cmd   *exec.Cmd
+	proc  process.Process
 	lineC chan Line
 }
 
@@ -127,29 +118,15 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 			MatchedFilter: matchedFilter,
 		}:
 		default:
-			log.Logger.Debugw("channel is full -- dropped output", "cmd", sr.cmd.String())
+			log.Logger.Debugw("channel is full -- dropped output", "pid", sr.proc.PID())
 		}
 	}
 }
 
 func (sr *commandStreamer) waitCommand() {
 	defer close(sr.lineC)
-
-	if err := sr.cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.ExitCode() == -1 {
-				if sr.ctx.Err() != nil {
-					log.Logger.Debugw("command was terminated (exit code -1) by the root context cancellation", "cmd", sr.cmd.String(), "contextError", sr.ctx.Err())
-				} else {
-					log.Logger.Warnw("command was terminated (exit code -1) for unknown reasons", "cmd", sr.cmd.String())
-				}
-			} else {
-				log.Logger.Warnw("command exited with non-zero status", "error", err, "cmd", sr.cmd.String(), "exitCode", exitErr.ExitCode())
-			}
-		} else {
-			log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", sr.cmd.String())
-		}
-	} else {
-		log.Logger.Debugw("command completed successfully")
+	select {
+	case <-sr.ctx.Done():
+	case <-sr.proc.Wait():
 	}
 }

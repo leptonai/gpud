@@ -2,8 +2,6 @@ package tail
 
 import (
 	"errors"
-	"io"
-	"strings"
 	"time"
 
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
@@ -75,41 +73,6 @@ func WithCommands(commands [][]string) OpOption {
 	return func(op *Op) {
 		op.commands = commands
 	}
-}
-
-const bashScriptHeader = `
-#!/bin/bash
-
-# do not mask errors in a pipeline
-set -o pipefail
-
-# treat unset variables as an error
-set -o nounset
-
-# exit script whenever it errs
-set -o errexit
-
-`
-
-func (op *Op) writeCommands(w io.Writer) error {
-	if _, err := w.Write([]byte(bashScriptHeader)); err != nil {
-		return err
-	}
-	for i, args := range op.commands {
-		if _, err := w.Write([]byte(strings.Join(args, " "))); err != nil {
-			return err
-		}
-		if i < len(op.commands)-1 {
-			// run last commands as fallback, in case dmesg flag only works in some machines
-			if _, err := w.Write([]byte(" || true")); err != nil {
-				return err
-			}
-		}
-		if _, err := w.Write([]byte("\n")); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Sets the number of lines to tail.

@@ -60,6 +60,8 @@ var (
 )
 
 func DefaultConfig(ctx context.Context) (*Config, error) {
+	asRoot := stdos.Geteuid() == 0 // running as root
+
 	cfg := &Config{
 		APIVersion: DefaultAPIVersion,
 
@@ -163,8 +165,12 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 
 	if runtime.GOOS == "linux" {
 		if dmesg.DmesgExists() {
-			log.Logger.Debugw("auto-detected dmesg -- configuring dmesg component")
-			cfg.Components[dmesg.Name] = dmesg.DefaultConfig()
+			if asRoot {
+				log.Logger.Debugw("auto-detected dmesg -- configuring dmesg component")
+				cfg.Components[dmesg.Name] = dmesg.DefaultConfig()
+			} else {
+				log.Logger.Debugw("auto-detected dmesg but running as root -- skipping")
+			}
 		}
 	} else {
 		log.Logger.Debugw("auto-detect dmesg not supported -- skipping", "os", runtime.GOOS)

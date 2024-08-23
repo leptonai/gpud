@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"sigs.k8s.io/yaml"
 )
@@ -469,25 +469,6 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 		return nil
 	}
 
-	bashFile, err := os.CreateTemp(os.TempDir(), "tmpbash*.bash")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(bashFile.Name())
-
-	if _, err := bashFile.WriteString(bashScriptHeader); err != nil {
-		return err
-	}
-	if _, err := bashFile.WriteString(fmt.Sprintf("%s\n", strings.Join(args, " "))); err != nil {
-		return err
-	}
-	if err := bashFile.Sync(); err != nil {
-		return err
-	}
-	if err := bashFile.Close(); err != nil {
-		return err
-	}
-
 	fileName := strings.Join(args, "-")
 	fileName = strings.ReplaceAll(fileName, "*", "_matchall")
 	fileName = strings.ReplaceAll(fileName, " ", "_")
@@ -506,31 +487,27 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 	}
 	defer f.Close()
 
-	fmt.Printf("%s running %s\n", inProgress, strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, "bash", bashFile.Name())
-	cmd.Stdout = f
-	cmd.Stderr = f
-
-	if cerr := cmd.Run(); cerr != nil {
-		o.Results = append(o.Results, CommandResult{
-			Command: strings.Join(args, " "),
-			Error:   cerr.Error(),
-		})
+	p, err := process.New([][]string{args}, process.WithRunAsBashScript(), process.WithOutputFile(f))
+	if err != nil {
+		return err
+	}
+	if serr := p.Start(ctx); serr != nil {
+		return serr
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-p.Wait():
+		if err != nil {
+			o.Results = append(o.Results, CommandResult{
+				Command: strings.Join(args, " "),
+				Error:   err.Error(),
+			})
+		}
+	}
+	if err := p.Stop(ctx); err != nil {
+		return err
 	}
 
 	return nil
 }
-
-const bashScriptHeader = `
-#!/bin/bash
-
-# do not mask errors in a pipeline
-set -o pipefail
-
-# treat unset variables as an error
-set -o nounset
-
-# exit script whenever it errs
-set -o errexit
-
-`
