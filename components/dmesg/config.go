@@ -64,8 +64,9 @@ func DefaultConfig() Config {
 			BufferSize: query_log_config.DefaultBufferSize,
 
 			Commands: [][]string{
-				{"dmesg", "--ctime", "--nopager", "--buffer-size", "163920", "-w"},
-				{"dmesg", "--ctime", "--nopager", "--buffer-size", "163920", "-W"},
+				// run last commands as fallback, in case dmesg flag only works in some machines
+				{"dmesg --ctime --nopager --buffer-size 163920 -w || true"},
+				{"dmesg --ctime --nopager --buffer-size 163920 -W"},
 			},
 
 			Scan: &query_log_config.Scan{

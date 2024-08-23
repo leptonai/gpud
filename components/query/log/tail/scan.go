@@ -3,13 +3,11 @@ package tail
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 // Scan scans the file or commands output from the end of the file
@@ -37,18 +35,25 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		file = f.Name()
 
 		log.Logger.Debugw("writing commands to file to scan", "commands", op.commands)
-		if err := op.writeCommands(f); err != nil {
-			return 0, err
-		}
-		out, err := exec.CommandContext(ctx, "bash", file).Output()
+		p, err := process.New(op.commands, process.WithRunAsBashScript(), process.WithOutputFile(f))
 		if err != nil {
-			log.Logger.Debugw("failed to execute command", "error", err, "command", strings.Join(op.commands[0], " "), "output", string(out))
-			return 0, fmt.Errorf("failed to execute command: %w (%s)", err, strings.Join(op.commands[0], " "))
-		}
-		if _, err := f.Write(out); err != nil {
 			return 0, err
+		}
+		if err := p.Start(ctx); err != nil {
+			return 0, err
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case err := <-p.Wait():
+			if err != nil {
+				return 0, err
+			}
 		}
 		if err := f.Sync(); err != nil {
+			return 0, err
+		}
+		if err := p.Stop(ctx); err != nil {
 			return 0, err
 		}
 	}
