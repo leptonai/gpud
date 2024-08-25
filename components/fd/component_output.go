@@ -212,9 +212,14 @@ func getUsage() (uint64, error) {
 		if err != nil {
 			// If the error is due to the file descriptor being cleaned up and not used anymore,
 			// skip to the next process ID.
-			if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
+			if os.IsNotExist(err) ||
+				strings.Contains(err.Error(), "no such file or directory") ||
+
+				// e.g., stat /proc/1321147/fd: no such process
+				strings.Contains(err.Error(), "no such process") {
 				continue
 			}
+
 			return 0, err
 		}
 		total += uint64(l)
