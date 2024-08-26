@@ -11,11 +11,16 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 )
 
 type GPMEvent struct {
 	Metrics []GPMMetrics
 	Error   error
+}
+
+func (ev *GPMEvent) YAML() ([]byte, error) {
+	return yaml.Marshal(ev)
 }
 
 func GPMSupported(dev device.Device) (bool, error) {
@@ -83,6 +88,7 @@ type GPMMetrics struct {
 }
 
 // Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
+// Blocks for the duration of the sample interval.
 func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 	if inst.gpmSampleInterval == 0 {
 		return nil, errors.New("gpm sample interval is not set")

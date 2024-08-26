@@ -2,6 +2,7 @@ package nvml
 
 import (
 	"fmt"
+	"time"
 
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/log"
@@ -51,11 +52,16 @@ const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTy
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
 func (inst *instance) pollXidEvents() {
 	log.Logger.Debugw("polling xid events")
+
+	ticker := time.NewTicker(1)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		default:
+		case <-ticker.C:
+			ticker.Reset(inst.xidPollInterval)
 		}
 
 		// waits 5 seconds

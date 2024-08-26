@@ -56,15 +56,18 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
+	xidPollInterval time.Duration
+
 	xidErrorSupported   bool
 	xidEventMask        uint64
 	xidEventSet         nvml.EventSet
 	xidEventCh          chan *XidEvent
 	xidEventChCloseOnce sync.Once
 
-	gpmSampleInterval   time.Duration
-	gpmMetricsIDs       []nvml.GpmMetricId
+	gpmSampleInterval time.Duration
+
 	gpmMetricsSupported bool
+	gpmMetricsIDs       []nvml.GpmMetricId
 	gpmEventCh          chan *GPMEvent
 	gpmEventChCloseOnce sync.Once
 }
@@ -147,15 +150,18 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
 
+		xidPollInterval: time.Minute,
+
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
 		xidEventMask:        defaultXidEventMask,
 		xidEventCh:          make(chan *XidEvent, 100),
 		xidEventChCloseOnce: sync.Once{},
 
-		gpmSampleInterval:   time.Minute,
-		gpmMetricsIDs:       gpmMetricsIDs,
+		gpmSampleInterval: time.Minute,
+
 		gpmMetricsSupported: false,
+		gpmMetricsIDs:       gpmMetricsIDs,
 		gpmEventCh:          make(chan *GPMEvent, 100),
 		gpmEventChCloseOnce: sync.Once{},
 	}, nil
