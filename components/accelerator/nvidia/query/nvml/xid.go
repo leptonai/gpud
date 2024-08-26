@@ -28,6 +28,13 @@ func (ev *XidEvent) YAML() ([]byte, error) {
 	return yaml.Marshal(ev)
 }
 
+func (inst *instance) XidErrorSupported() bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+
+	return inst.xidErrorSupported
+}
+
 func (inst *instance) RecvXidEvents() <-chan *XidEvent {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()

@@ -27,6 +27,7 @@ type Instance interface {
 
 	Start() error
 
+	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
 
 	Shutdown() error
@@ -51,9 +52,11 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
-	xidEventMask uint64
-	xidEventSet  nvml.EventSet
-	xidEventCh   chan *XidEvent
+	xidErrorSupported   bool
+	xidEventMask        uint64
+	xidEventSet         nvml.EventSet
+	xidEventChCloseOnce sync.Once
+	xidEventCh          chan *XidEvent
 }
 
 type DeviceInfo struct {
@@ -123,9 +126,11 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
 
-		xidEventSet:  xidEventSet,
-		xidEventMask: defaultXidEventMask,
-		xidEventCh:   make(chan *XidEvent, 100),
+		xidErrorSupported:   false,
+		xidEventSet:         xidEventSet,
+		xidEventMask:        defaultXidEventMask,
+		xidEventChCloseOnce: sync.Once{},
+		xidEventCh:          make(chan *XidEvent, 100),
 	}, nil
 }
 
@@ -186,7 +191,10 @@ func (inst *instance) Start() error {
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
 		}
-		xidErrorSupported := ret == nvml.ERROR_NOT_SUPPORTED
+		xidErrorSupported := ret != nvml.ERROR_NOT_SUPPORTED
+		if !xidErrorSupported {
+			inst.xidErrorSupported = false
+		}
 
 		inst.devices[uuid] = &DeviceInfo{
 			UUID:              uuid,
@@ -201,7 +209,13 @@ func (inst *instance) Start() error {
 		}
 	}
 
-	go inst.pollXidEvents()
+	if inst.xidErrorSupported {
+		go inst.pollXidEvents()
+	} else {
+		inst.xidEventChCloseOnce.Do(func() {
+			close(inst.xidEventCh)
+		})
+	}
 
 	return nil
 }
