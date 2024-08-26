@@ -1,0 +1,168 @@
+package gpm
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+
+	"github.com/leptonai/gpud/components"
+	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	components_metrics "github.com/leptonai/gpud/components/metrics"
+	"github.com/leptonai/gpud/components/query"
+
+	"sigs.k8s.io/yaml"
+)
+
+type Output struct {
+	NVMLGPMEvent *nvidia_query_nvml.GPMEvent `json:"nvml_gpm_event,omitempty"`
+}
+
+func (o *Output) JSON() ([]byte, error) {
+	return json.Marshal(o)
+}
+
+func ParseOutputJSON(data []byte) (*Output, error) {
+	o := new(Output)
+	if err := json.Unmarshal(data, o); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+func (o *Output) YAML() ([]byte, error) {
+	return yaml.Marshal(o)
+}
+
+func ParseOutputYAML(data []byte) (*Output, error) {
+	o := new(Output)
+	if err := yaml.Unmarshal(data, o); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+type NVMLError struct {
+	Xid   uint64 `json:"xid"`
+	Error error  `json:"error"`
+}
+
+func (nv *NVMLError) JSON() ([]byte, error) {
+	return json.Marshal(nv)
+}
+
+func ParseNVMLErrorJSON(data []byte) (*NVMLError, error) {
+	nv := new(NVMLError)
+	if err := json.Unmarshal(data, nv); err != nil {
+		return nil, err
+	}
+	return nv, nil
+}
+
+func (nv *NVMLError) YAML() ([]byte, error) {
+	return yaml.Marshal(nv)
+}
+
+func ParseNVMLErrorYAML(data []byte) (*NVMLError, error) {
+	nv := new(NVMLError)
+	if err := yaml.Unmarshal(data, nv); err != nil {
+		return nil, err
+	}
+	return nv, nil
+}
+
+const (
+	StateNameGPM = "gpm"
+
+	StateKeyGPMData           = "data"
+	StateKeyGPMEncoding       = "encoding"
+	StateValueGPMEncodingJSON = "json"
+)
+
+func ParseStateGPM(m map[string]string) (*Output, error) {
+	data := m[StateKeyGPMData]
+	return ParseOutputJSON([]byte(data))
+}
+
+func ParseStatesToOutput(states ...components.State) (*Output, error) {
+	for _, state := range states {
+		switch state.Name {
+		case StateNameGPM:
+			o, err := ParseStateGPM(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+			return o, nil
+
+		default:
+			return nil, fmt.Errorf("unknown state name: %s", state.Name)
+		}
+	}
+	return nil, errors.New("no state found")
+}
+
+func (o *Output) States() ([]components.State, error) {
+	b, _ := o.JSON()
+	state := components.State{
+		Name: StateNameGPM,
+		ExtraInfo: map[string]string{
+			StateKeyGPMData:     string(b),
+			StateKeyGPMEncoding: StateValueGPMEncodingJSON,
+		},
+	}
+	return []components.State{state}, nil
+}
+
+func (o *Output) Events() []components.Event {
+	return nil
+}
+
+var (
+	defaultPollerOnce sync.Once
+	defaultPoller     query.Poller
+)
+
+// only set once since it relies on the kube client and specific port
+func setDefaultPoller(cfg Config) {
+	defaultPollerOnce.Do(func() {
+		defaultPoller = query.New(Name, cfg.Query, CreateGet())
+	})
+}
+
+func getDefaultPoller() query.Poller {
+	return defaultPoller
+}
+
+// DO NOT for-loop here
+// the query.GetFunc is already called periodically in a loop by the poller
+func CreateGet() query.GetFunc {
+	return func(ctx context.Context) (_ any, e error) {
+		defer func() {
+			if e != nil {
+				components_metrics.SetGetFailed(Name)
+			} else {
+				components_metrics.SetGetSuccess(Name)
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-nvidia_query_nvml.DefaultInstanceReady():
+		}
+
+		// if there's no registered event, the channel blocks
+		// then just return nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case ev := <-nvidia_query_nvml.DefaultInstance().RecvGPMEvents():
+			return ev, nil
+
+		default:
+			return nil, nil
+		}
+	}
+}
