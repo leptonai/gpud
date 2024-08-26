@@ -11,6 +11,57 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
+// Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
+func (inst *instance) CollectGPMMetrics(ctx context.Context, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) (map[string]map[nvml.GpmMetricId]float64, error) {
+	if len(metricIDs) == 0 {
+		return nil, fmt.Errorf("no metric IDs provided")
+	}
+	if len(metricIDs) > 98 {
+		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(metricIDs))
+	}
+	for uuid, dev := range inst.devices {
+		supported, err := GPMSupported(dev.device)
+		if err != nil {
+			return nil, err
+		}
+		if !supported {
+			return nil, fmt.Errorf("device %s is not supported by GPM", uuid)
+		}
+	}
+
+	type result struct {
+		uuid    string
+		metrics map[nvml.GpmMetricId]float64
+		err     error
+	}
+	rsc := make(chan result, len(inst.devices))
+
+	for _, dev := range inst.devices {
+		go func(dev *DeviceInfo) {
+			ms, err := GetGPMMetrics(ctx, dev.device, sampleDuration, metricIDs...)
+			rsc <- result{
+				uuid:    dev.UUID,
+				metrics: ms,
+				err:     err,
+			}
+		}(dev)
+	}
+
+	metrics := make(map[string]map[nvml.GpmMetricId]float64, len(inst.devices))
+	for i := 0; i < len(inst.devices); i++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case res := <-rsc:
+			if res.err != nil {
+				return nil, res.err
+			}
+			metrics[res.uuid] = res.metrics
+		}
+	}
+	return metrics, nil
+}
+
 func GPMSupported(dev device.Device) (bool, error) {
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
 	if ret != nvml.SUCCESS {
@@ -19,6 +70,8 @@ func GPMSupported(dev device.Device) (bool, error) {
 	return gpuQuerySupport.IsSupportedDevice != 0, nil
 }
 
+// Returns the map from the metrics ID to the value for this device.
+// It blocks for the sample duration and returns the metrics.
 func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
