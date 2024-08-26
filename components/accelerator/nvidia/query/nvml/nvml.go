@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/log"
 
@@ -29,6 +30,9 @@ type Instance interface {
 
 	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
+
+	GPMMetricsSupported() bool
+	RecvGPMEvents() <-chan *GPMEvent
 
 	Shutdown() error
 	Get() (*Output, error)
@@ -55,8 +59,14 @@ type instance struct {
 	xidErrorSupported   bool
 	xidEventMask        uint64
 	xidEventSet         nvml.EventSet
-	xidEventChCloseOnce sync.Once
 	xidEventCh          chan *XidEvent
+	xidEventChCloseOnce sync.Once
+
+	gpmSampleInterval   time.Duration
+	gpmMetricsIDs       []nvml.GpmMetricId
+	gpmMetricsSupported bool
+	gpmEventCh          chan *GPMEvent
+	gpmEventChCloseOnce sync.Once
 }
 
 type DeviceInfo struct {
@@ -77,6 +87,8 @@ type DeviceInfo struct {
 
 	// Set true if the device supports NVML error checks (health checks).
 	XidErrorSupported bool `json:"xid_error_supported"`
+	// Set true if the device supports GPM metrics.
+	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
 	ClockEvents ClockEvents `json:"clock_events"`
 	ClockSpeed  ClockSpeed  `json:"clock_speed"`
@@ -91,7 +103,16 @@ type DeviceInfo struct {
 	device device.Device `json:"-"`
 }
 
-func NewInstance(ctx context.Context) (Instance, error) {
+func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
+	for id := range op.gpmMetricsIDs {
+		gpmMetricsIDs = append(gpmMetricsIDs, id)
+	}
+
 	nvmlLib := nvml.New()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
@@ -129,8 +150,14 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
 		xidEventMask:        defaultXidEventMask,
-		xidEventChCloseOnce: sync.Once{},
 		xidEventCh:          make(chan *XidEvent, 100),
+		xidEventChCloseOnce: sync.Once{},
+
+		gpmSampleInterval:   op.gpmSampleInterval,
+		gpmMetricsIDs:       gpmMetricsIDs,
+		gpmMetricsSupported: false,
+		gpmEventCh:          make(chan *GPMEvent, 100),
+		gpmEventChCloseOnce: sync.Once{},
 	}, nil
 }
 
@@ -151,6 +178,9 @@ func (inst *instance) Start() error {
 	if err != nil {
 		return err
 	}
+
+	inst.xidErrorSupported = true
+	inst.gpmMetricsSupported = true
 
 	inst.devices = make(map[string]*DeviceInfo)
 	for _, d := range devices {
@@ -196,16 +226,28 @@ func (inst *instance) Start() error {
 			inst.xidErrorSupported = false
 		}
 
+		gpmMetricsSpported, err := GPMSupported(d)
+		if err != nil {
+			return err
+		}
+		if !gpmMetricsSpported {
+			inst.gpmMetricsSupported = false
+		}
+
 		inst.devices[uuid] = &DeviceInfo{
-			UUID:              uuid,
-			MinorNumber:       minorNumber,
-			Bus:               pciInfo.Bus,
-			Device:            pciInfo.Device,
-			Name:              name,
-			GPUCores:          cores,
-			SupportedEvents:   supportedEvents,
-			XidErrorSupported: xidErrorSupported,
-			device:            d,
+			UUID: uuid,
+
+			MinorNumber:     minorNumber,
+			Bus:             pciInfo.Bus,
+			Device:          pciInfo.Device,
+			Name:            name,
+			GPUCores:        cores,
+			SupportedEvents: supportedEvents,
+
+			XidErrorSupported:   xidErrorSupported,
+			GPMMetricsSupported: gpmMetricsSpported,
+
+			device: d,
 		}
 	}
 
@@ -214,6 +256,14 @@ func (inst *instance) Start() error {
 	} else {
 		inst.xidEventChCloseOnce.Do(func() {
 			close(inst.xidEventCh)
+		})
+	}
+
+	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
+		go inst.pollGPMEvents()
+	} else {
+		inst.gpmEventChCloseOnce.Do(func() {
+			close(inst.gpmEventCh)
 		})
 	}
 
