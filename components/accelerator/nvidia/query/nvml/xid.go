@@ -7,7 +7,37 @@ import (
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"sigs.k8s.io/yaml"
 )
+
+type XidEvent struct {
+	EventType uint64 `json:"event_type"`
+
+	Xid              uint64 `json:"xid"`
+	XidCriticalError bool   `json:"xid_critical_error"`
+
+	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
+
+	Message string `json:"message,omitempty"`
+
+	// Set if any error happens during NVML calls.
+	Error error `json:"error,omitempty"`
+}
+
+func (ev *XidEvent) YAML() ([]byte, error) {
+	return yaml.Marshal(ev)
+}
+
+func (inst *instance) RecvXidEvents() <-chan *XidEvent {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+
+	if inst.nvmlLib == nil {
+		return nil
+	}
+
+	return inst.xidEventCh
+}
 
 const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
 
@@ -23,7 +53,7 @@ func (inst *instance) pollXidEvents() {
 
 		// waits 5 seconds
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
-		e, ret := inst.eventSet.Wait(5000)
+		e, ret := inst.xidEventSet.Wait(5000)
 
 		if ret == nvml.ERROR_TIMEOUT {
 			log.Logger.Debugw("no event found in wait (timeout) -- retrying...", "error", nvml.ErrorString(ret))
@@ -35,7 +65,7 @@ func (inst *instance) pollXidEvents() {
 			case <-inst.rootCtx.Done():
 				return
 
-			case inst.eventCh <- &XidEvent{
+			case inst.xidEventCh <- &XidEvent{
 				Message: "event set wait returned non-success",
 				Error:   fmt.Errorf("event set wait failed: %v", nvml.ErrorString(ret)),
 			}:
@@ -70,7 +100,7 @@ func (inst *instance) pollXidEvents() {
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		case inst.eventCh <- event:
+		case inst.xidEventCh <- event:
 		}
 	}
 }

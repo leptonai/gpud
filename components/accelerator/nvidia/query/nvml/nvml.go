@@ -9,13 +9,11 @@ import (
 	"sort"
 	"sync"
 
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"sigs.k8s.io/yaml"
 )
 
 type Output struct {
@@ -26,9 +24,11 @@ type Output struct {
 
 type Instance interface {
 	NVMLExists() bool
+
 	Start() error
+
 	RecvXidEvents() <-chan *XidEvent
-	Exists() bool
+
 	Shutdown() error
 	Get() (*Output, error)
 }
@@ -51,10 +51,9 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
-	eventSet  nvml.EventSet
-	eventMask uint64
-
-	eventCh chan *XidEvent
+	xidEventMask uint64
+	xidEventSet  nvml.EventSet
+	xidEventCh   chan *XidEvent
 }
 
 type DeviceInfo struct {
@@ -74,7 +73,7 @@ type DeviceInfo struct {
 	SupportedEvents uint64 `json:"supported_events"`
 
 	// Set true if the device supports NVML error checks (health checks).
-	XidErrorSupported bool `json:"error_supported"`
+	XidErrorSupported bool `json:"xid_error_supported"`
 
 	ClockEvents ClockEvents `json:"clock_events"`
 	ClockSpeed  ClockSpeed  `json:"clock_speed"`
@@ -87,24 +86,6 @@ type DeviceInfo struct {
 	ECCErrors   ECCErrors   `json:"ecc_errors"`
 
 	device device.Device `json:"-"`
-}
-
-type XidEvent struct {
-	EventType uint64 `json:"event_type"`
-
-	Xid              uint64 `json:"xid"`
-	XidCriticalError bool   `json:"xid_critical_error"`
-
-	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
-
-	Message string `json:"message,omitempty"`
-
-	// Set if any error happens during NVML calls.
-	Error error `json:"error,omitempty"`
-}
-
-func (ev *XidEvent) YAML() ([]byte, error) {
-	return yaml.Marshal(ev)
 }
 
 func NewInstance(ctx context.Context) (Instance, error) {
@@ -125,7 +106,7 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
 	}
 
-	eventSet, ret := nvmlLib.EventSetCreate()
+	xidEventSet, ret := nvmlLib.EventSetCreate()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to create event set: %v", nvml.ErrorString(ret))
 	}
@@ -135,19 +116,17 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		rootCtx:    rootCtx,
 		rootCancel: rootCancel,
 
-		nvmlLib:       nvmlLib,
-		deviceLib:     deviceLib,
-		infoLib:       infoLib,
+		nvmlLib:   nvmlLib,
+		deviceLib: deviceLib,
+		infoLib:   infoLib,
+
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
-		eventSet:      eventSet,
-		eventMask:     defaultXidEventMask,
-		eventCh:       make(chan *XidEvent, 100),
-	}, nil
-}
 
-func (inst *instance) NVMLExists() bool {
-	return inst.nvmlExists
+		xidEventSet:  xidEventSet,
+		xidEventMask: defaultXidEventMask,
+		xidEventCh:   make(chan *XidEvent, 100),
+	}, nil
 }
 
 // Starts an NVML instance and starts polling for XID events.
@@ -203,7 +182,7 @@ func (inst *instance) Start() error {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
-		ret = d.RegisterEvents(inst.eventMask&supportedEvents, inst.eventSet)
+		ret = d.RegisterEvents(inst.xidEventMask&supportedEvents, inst.xidEventSet)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
 		}
@@ -227,18 +206,7 @@ func (inst *instance) Start() error {
 	return nil
 }
 
-func (inst *instance) RecvXidEvents() <-chan *XidEvent {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	if inst.nvmlLib == nil {
-		return nil
-	}
-
-	return inst.eventCh
-}
-
-func (inst *instance) Exists() bool {
+func (inst *instance) NVMLExists() bool {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
 
@@ -256,13 +224,13 @@ func (inst *instance) Shutdown() error {
 	log.Logger.Debugw("shutting down NVML")
 	inst.rootCancel()
 
-	if inst.eventSet != nil {
-		ret := inst.eventSet.Free()
+	if inst.xidEventSet != nil {
+		ret := inst.xidEventSet.Free()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to free event set: %v", nvml.ErrorString(ret))
 		}
 	}
-	inst.eventSet = nil
+	inst.xidEventSet = nil
 
 	ret := inst.nvmlLib.Shutdown()
 	if ret != nvml.SUCCESS {
@@ -290,6 +258,7 @@ func (inst *instance) Get() (*Output, error) {
 	}
 
 	for _, devInfo := range inst.devices {
+		// prepare/copy the static device info
 		latestInfo := &DeviceInfo{
 			UUID: devInfo.UUID,
 
@@ -297,9 +266,10 @@ func (inst *instance) Get() (*Output, error) {
 			Bus:         devInfo.Bus,
 			Device:      devInfo.Device,
 
-			Name:              devInfo.Name,
-			GPUCores:          devInfo.GPUCores,
-			SupportedEvents:   devInfo.SupportedEvents,
+			Name:            devInfo.Name,
+			GPUCores:        devInfo.GPUCores,
+			SupportedEvents: devInfo.SupportedEvents,
+
 			XidErrorSupported: devInfo.XidErrorSupported,
 
 			device: devInfo.device,
