@@ -1,14 +1,11 @@
 package nvml
 
 import (
-	"time"
-
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 type Op struct {
-	gpmSampleInteval time.Duration
-	gpmMetricsIDs    map[nvml.GpmMetricId]struct{}
+	gpmMetricsIDs map[nvml.GpmMetricId]struct{}
 }
 
 type OpOption func(*Op)
