@@ -36,6 +36,9 @@ var (
 	tailLines     int
 	createArchive bool
 
+	pollXidEvents bool
+	pollGPMEvents bool
+
 	enableAutoUpdate bool
 )
 
@@ -361,6 +364,16 @@ cat summary.txt
 					Name:        "debug",
 					Usage:       "enable debug mode (default: false)",
 					Destination: &debug,
+				},
+				&cli.BoolFlag{
+					Name:        "poll-xid-events",
+					Usage:       "enable polling xid events (default: false)",
+					Destination: &pollXidEvents,
+				},
+				&cli.BoolFlag{
+					Name:        "poll-gpm-events",
+					Usage:       "enable polling gpm events (default: false)",
+					Destination: &pollGPMEvents,
 				},
 			},
 		},
