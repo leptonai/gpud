@@ -74,7 +74,7 @@ type DeviceInfo struct {
 	SupportedEvents uint64 `json:"supported_events"`
 
 	// Set true if the device supports NVML error checks (health checks).
-	ErrorSupported bool `json:"error_supported"`
+	XidErrorSupported bool `json:"error_supported"`
 
 	ClockEvents ClockEvents `json:"clock_events"`
 	ClockSpeed  ClockSpeed  `json:"clock_speed"`
@@ -203,27 +203,23 @@ func (inst *instance) Start() error {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
-		devInfo := &DeviceInfo{
-			UUID:            uuid,
-			MinorNumber:     minorNumber,
-			Bus:             pciInfo.Bus,
-			Device:          pciInfo.Device,
-			Name:            name,
-			GPUCores:        cores,
-			SupportedEvents: supportedEvents,
-			ErrorSupported:  true,
-			device:          d,
-		}
-
 		ret = d.RegisterEvents(inst.eventMask&supportedEvents, inst.eventSet)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
 		}
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			devInfo.ErrorSupported = false
-		}
+		xidErrorSupported := ret == nvml.ERROR_NOT_SUPPORTED
 
-		inst.devices[uuid] = devInfo
+		inst.devices[uuid] = &DeviceInfo{
+			UUID:              uuid,
+			MinorNumber:       minorNumber,
+			Bus:               pciInfo.Bus,
+			Device:            pciInfo.Device,
+			Name:              name,
+			GPUCores:          cores,
+			SupportedEvents:   supportedEvents,
+			XidErrorSupported: xidErrorSupported,
+			device:            d,
+		}
 	}
 
 	go inst.pollXidEvents()
@@ -301,10 +297,10 @@ func (inst *instance) Get() (*Output, error) {
 			Bus:         devInfo.Bus,
 			Device:      devInfo.Device,
 
-			Name:            devInfo.Name,
-			GPUCores:        devInfo.GPUCores,
-			SupportedEvents: devInfo.SupportedEvents,
-			ErrorSupported:  devInfo.ErrorSupported,
+			Name:              devInfo.Name,
+			GPUCores:          devInfo.GPUCores,
+			SupportedEvents:   devInfo.SupportedEvents,
+			XidErrorSupported: devInfo.XidErrorSupported,
 
 			device: devInfo.device,
 		}
