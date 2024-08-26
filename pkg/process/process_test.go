@@ -229,6 +229,9 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 	if err := p.Stop(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if scanner.Err() != nil {
+		t.Fatal(scanner.Err())
+	}
 }
 
 func TestProcessWithRestarts(t *testing.T) {
