@@ -11,8 +11,17 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
+// GPMMetrics contains the GPM metrics for a device.
+type GPMMetrics struct {
+	// Device UUID that these GPM metrics belong to.
+	UUID string `json:"uuid"`
+
+	// The metrics.
+	Metrics map[nvml.GpmMetricId]float64 `json:"metrics"`
+}
+
 // Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
-func (inst *instance) CollectGPMMetrics(ctx context.Context, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) (map[string]map[nvml.GpmMetricId]float64, error) {
+func (inst *instance) CollectGPMMetrics(ctx context.Context, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) ([]GPMMetrics, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
 	}
@@ -30,33 +39,33 @@ func (inst *instance) CollectGPMMetrics(ctx context.Context, sampleDuration time
 	}
 
 	type result struct {
-		uuid    string
-		metrics map[nvml.GpmMetricId]float64
-		err     error
+		m   GPMMetrics
+		err error
 	}
 	rsc := make(chan result, len(inst.devices))
-
 	for _, dev := range inst.devices {
 		go func(dev *DeviceInfo) {
 			ms, err := GetGPMMetrics(ctx, dev.device, sampleDuration, metricIDs...)
 			rsc <- result{
-				uuid:    dev.UUID,
-				metrics: ms,
-				err:     err,
+				m: GPMMetrics{
+					UUID:    dev.UUID,
+					Metrics: ms,
+				},
+				err: err,
 			}
 		}(dev)
 	}
 
-	metrics := make(map[string]map[nvml.GpmMetricId]float64, len(inst.devices))
+	metrics := make([]GPMMetrics, 0, len(inst.devices))
 	for i := 0; i < len(inst.devices); i++ {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case res := <-rsc:
 			if res.err != nil {
-				return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", res.uuid, res.err)
+				return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", res.m.UUID, res.err)
 			}
-			metrics[res.uuid] = res.metrics
+			metrics = append(metrics, res.m)
 		}
 	}
 	return metrics, nil
