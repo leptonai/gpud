@@ -77,6 +77,8 @@ func (inst *instance) pollXidEvents() {
 				Error:   fmt.Errorf("event set wait failed: %v", nvml.ErrorString(ret)),
 			}:
 				log.Logger.Debugw("event set wait failure notified", "error", nvml.ErrorString(ret))
+			default:
+				log.Logger.Debugw("xid event channel is full, skipping event")
 			}
 
 			continue
@@ -108,6 +110,8 @@ func (inst *instance) pollXidEvents() {
 		case <-inst.rootCtx.Done():
 			return
 		case inst.xidEventCh <- event:
+		default:
+			log.Logger.Debugw("xid event channel is full, skipping event")
 		}
 	}
 }

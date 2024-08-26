@@ -61,6 +61,8 @@ func (inst *instance) pollGPMEvents() {
 			Metrics: mss,
 			Error:   err,
 		}:
+		default:
+			log.Logger.Debugw("gpm event channel is full, skipping event")
 		}
 	}
 }

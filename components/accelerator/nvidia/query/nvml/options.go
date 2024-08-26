@@ -7,8 +7,8 @@ import (
 )
 
 type Op struct {
-	gpmSampleInterval time.Duration
-	gpmMetricsIDs     map[nvml.GpmMetricId]struct{}
+	gpmSampleInteval time.Duration
+	gpmMetricsIDs    map[nvml.GpmMetricId]struct{}
 }
 
 type OpOption func(*Op)
@@ -17,18 +17,7 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
 	}
-
-	if op.gpmSampleInterval == 0 {
-		op.gpmSampleInterval = time.Minute
-	}
-
 	return nil
-}
-
-func WithGPMSampleInterval(d time.Duration) OpOption {
-	return func(op *Op) {
-		op.gpmSampleInterval = d
-	}
 }
 
 func WithGPMMetricsID(id nvml.GpmMetricId) OpOption {

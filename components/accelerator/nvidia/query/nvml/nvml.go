@@ -153,7 +153,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		xidEventCh:          make(chan *XidEvent, 100),
 		xidEventChCloseOnce: sync.Once{},
 
-		gpmSampleInterval:   op.gpmSampleInterval,
+		gpmSampleInterval:   time.Minute,
 		gpmMetricsIDs:       gpmMetricsIDs,
 		gpmMetricsSupported: false,
 		gpmEventCh:          make(chan *GPMEvent, 100),
@@ -334,7 +334,8 @@ func (inst *instance) Get() (*Output, error) {
 			GPUCores:        devInfo.GPUCores,
 			SupportedEvents: devInfo.SupportedEvents,
 
-			XidErrorSupported: devInfo.XidErrorSupported,
+			XidErrorSupported:   devInfo.XidErrorSupported,
+			GPMMetricsSupported: devInfo.GPMMetricsSupported,
 
 			device: devInfo.device,
 		}
@@ -411,7 +412,7 @@ func StartDefaultInstance(ctx context.Context) error {
 	}
 
 	var err error
-	defaultInstance, err = NewInstance(ctx, WithGPMSampleInterval(time.Minute), WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY))
+	defaultInstance, err = NewInstance(ctx, WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY))
 	if err != nil {
 		return err
 	}
