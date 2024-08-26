@@ -411,7 +411,7 @@ func StartDefaultInstance(ctx context.Context) error {
 	}
 
 	var err error
-	defaultInstance, err = NewInstance(ctx)
+	defaultInstance, err = NewInstance(ctx, WithGPMSampleInterval(time.Minute), WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY))
 	if err != nil {
 		return err
 	}

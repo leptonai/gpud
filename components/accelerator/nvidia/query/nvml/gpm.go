@@ -54,7 +54,6 @@ func (inst *instance) pollGPMEvents() {
 		}
 
 		mss, err := inst.collectGPMMetrics()
-
 		select {
 		case <-inst.rootCtx.Done():
 			return
