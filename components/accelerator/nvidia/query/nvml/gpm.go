@@ -54,7 +54,7 @@ func (inst *instance) CollectGPMMetrics(ctx context.Context, sampleDuration time
 			return nil, ctx.Err()
 		case res := <-rsc:
 			if res.err != nil {
-				return nil, res.err
+				return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", res.uuid, res.err)
 			}
 			metrics[res.uuid] = res.metrics
 		}
