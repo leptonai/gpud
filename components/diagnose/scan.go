@@ -39,14 +39,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if nvidia_query.SMIExists() {
 		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
 
-		select {
-		case <-ctx.Done():
-			log.Logger.Warnw("context done")
-			return ctx.Err()
-		case <-nvidia_query_nvml.DefaultInstanceReady():
-			log.Logger.Debugw("nvml instance is ready")
-		}
-
 		outputRaw, err := nvidia_query.Get(ctx)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
