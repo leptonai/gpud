@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -142,9 +143,24 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 	}
 
 	now := time.Now().UTC()
-	for i := range metrics {
+	metrics_gpm.SetLastUpdateUnixSeconds(float64(now.Unix()))
+
+	for i, m := range metrics {
 		metrics[i].Time = metav1.NewTime(now)
+
+		gpuID := m.UUID
+		for gpmMetricsID, v := range m.Metrics {
+			switch gpmMetricsID {
+			case nvml.GPM_METRIC_SM_OCCUPANCY:
+				if err := metrics_gpm.SetGPUSMOccupancyPercent(inst.rootCtx, gpuID, v, now); err != nil {
+					return nil, fmt.Errorf("failed to set gpm metric %v for gpu %s: %w", gpmMetricsID, gpuID, err)
+				}
+			default:
+				log.Logger.Warnw("unsupported gpm metric id", "id", gpmMetricsID)
+			}
+		}
 	}
+
 	return metrics, nil
 }
 

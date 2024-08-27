@@ -3,10 +3,12 @@ package gpm
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_query_metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -49,7 +51,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return nil, err
 	}
 	if last == nil || last.Output == nil { // no data
-		log.Logger.Debugw("no xid data -- this is normal when nvml has not received any registered xid events yet")
+		log.Logger.Debugw("no gpm event data -- this is normal when nvml has not received any registered gpm event events yet")
 	} else {
 		gpmEvent, ok := last.Output.(*nvidia_query_nvml.GPMEvent)
 		if !ok {
@@ -70,7 +72,22 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
-	return nil, nil
+	smOccupancies, err := nvidia_query_metrics_gpm.ReadGPUSMOccupancyPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read total bytes: %w", err)
+	}
+
+	ms := make([]components.Metric, 0, len(smOccupancies))
+	for _, m := range smOccupancies {
+		ms = append(ms, components.Metric{
+			Metric: m,
+			ExtraInfo: map[string]string{
+				"gpu_id": m.MetricSecondaryName,
+			},
+		})
+	}
+
+	return ms, nil
 }
 
 func (c *component) Close() error {
@@ -80,4 +97,11 @@ func (c *component) Close() error {
 	c.poller.Stop(Name)
 
 	return nil
+}
+
+var _ components.PromRegisterer = (*component)(nil)
+
+func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+	c.gatherer = reg
+	return nvidia_query_metrics_gpm.Register(reg, db, tableName)
 }

@@ -152,8 +152,6 @@ func CreateGet() query.GetFunc {
 		case <-nvidia_query_nvml.DefaultInstanceReady():
 		}
 
-		// if there's no registered event, the channel blocks
-		// then just return nil
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

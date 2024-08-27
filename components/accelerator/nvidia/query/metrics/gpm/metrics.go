@@ -40,7 +40,7 @@ func InitAveragers(db *sql.DB, tableName string) {
 	gpuSMOccupancyPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_sm_occupancy_percent")
 }
 
-func ReadGPUUtilPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
+func ReadGPUSMOccupancyPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return gpuSMOccupancyPercentAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
@@ -48,12 +48,12 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
-func SetGPUSMOccupancy(ctx context.Context, gpuID string, pct uint32, currentTime time.Time) error {
-	gpuSMOccupancyPercent.WithLabelValues(gpuID).Set(float64(pct))
+func SetGPUSMOccupancyPercent(ctx context.Context, gpuID string, pct float64, currentTime time.Time) error {
+	gpuSMOccupancyPercent.WithLabelValues(gpuID).Set(pct)
 
 	if err := gpuSMOccupancyPercentAverager.Observe(
 		ctx,
-		float64(pct),
+		pct,
 		components_metrics.WithCurrentTime(currentTime),
 		components_metrics.WithMetricSecondaryName(gpuID),
 	); err != nil {

@@ -16,6 +16,7 @@ import (
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
+	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -228,6 +229,7 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 
 			cfg.Components[nvidia_clockspeed.Name] = nil
 			cfg.Components[nvidia_memory.Name] = nil
+			cfg.Components[nvidia_gpm.Name] = nil
 			cfg.Components[nvidia_nvlink.Name] = nil
 			cfg.Components[nvidia_power.Name] = nil
 			cfg.Components[nvidia_temperature.Name] = nil
