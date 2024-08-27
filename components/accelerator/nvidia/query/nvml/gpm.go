@@ -52,11 +52,16 @@ func (inst *instance) RecvGPMEvents() <-chan *GPMEvent {
 
 func (inst *instance) pollGPMEvents() {
 	log.Logger.Debugw("polling gpm metrics events")
+
+	ticker := time.NewTicker(1)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		default:
+		case <-ticker.C:
+			ticker.Reset(inst.gpmSampleInterval)
 		}
 
 		mss, err := inst.collectGPMMetrics()
@@ -110,36 +115,17 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		}
 	}
 
-	type result struct {
-		m   GPMMetrics
-		err error
-	}
-	rsc := make(chan result, len(inst.devices))
-	for _, dev := range inst.devices {
-		go func(dev *DeviceInfo) {
-			ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmSampleInterval, inst.gpmMetricsIDs...)
-			rsc <- result{
-				m: GPMMetrics{
-					UUID:           dev.UUID,
-					SampleDuration: metav1.Duration{Duration: inst.gpmSampleInterval},
-					Metrics:        ms,
-				},
-				err: err,
-			}
-		}(dev)
-	}
-
 	metrics := make([]GPMMetrics, 0, len(inst.devices))
-	for i := 0; i < len(inst.devices); i++ {
-		select {
-		case <-inst.rootCtx.Done():
-			return nil, inst.rootCtx.Err()
-		case res := <-rsc:
-			if res.err != nil {
-				return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", res.m.UUID, res.err)
-			}
-			metrics = append(metrics, res.m)
+	for _, dev := range inst.devices {
+		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmSampleInterval, inst.gpmMetricsIDs...)
+		if err != nil {
+			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
 		}
+		metrics = append(metrics, GPMMetrics{
+			UUID:           dev.UUID,
+			SampleDuration: metav1.Duration{Duration: inst.gpmSampleInterval},
+			Metrics:        ms,
+		})
 	}
 
 	now := time.Now().UTC()
@@ -198,7 +184,7 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-time.After(sampleDuration):
+	case <-time.After(time.Second):
 		log.Logger.Debugw("waited for sample duration", "duration", sampleDuration)
 	}
 
