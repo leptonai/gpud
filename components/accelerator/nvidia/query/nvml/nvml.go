@@ -64,7 +64,7 @@ type instance struct {
 	xidEventCh          chan *XidEvent
 	xidEventChCloseOnce sync.Once
 
-	gpmSampleInterval time.Duration
+	gpmPollInterval time.Duration
 
 	gpmMetricsSupported bool
 	gpmMetricsIDs       []nvml.GpmMetricId
@@ -158,7 +158,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		xidEventCh:          make(chan *XidEvent, 100),
 		xidEventChCloseOnce: sync.Once{},
 
-		gpmSampleInterval: time.Minute,
+		gpmPollInterval: time.Minute,
 
 		gpmMetricsSupported: false,
 		gpmMetricsIDs:       gpmMetricsIDs,
@@ -261,6 +261,7 @@ func (inst *instance) Start() error {
 		go inst.pollXidEvents()
 	} else {
 		inst.xidEventChCloseOnce.Do(func() {
+			log.Logger.Warnw("xid error not supported")
 			close(inst.xidEventCh)
 		})
 	}
@@ -269,6 +270,7 @@ func (inst *instance) Start() error {
 		go inst.pollGPMEvents()
 	} else {
 		inst.gpmEventChCloseOnce.Do(func() {
+			log.Logger.Warnw("gpm metrics not supported")
 			close(inst.gpmEventCh)
 		})
 	}

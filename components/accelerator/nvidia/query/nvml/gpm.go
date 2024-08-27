@@ -16,8 +16,8 @@ import (
 )
 
 type GPMEvent struct {
-	Metrics []GPMMetrics
-	Error   error
+	Metrics []GPMMetrics `json:"metrics"`
+	Error   error        `json:"error"`
 }
 
 func (ev *GPMEvent) YAML() ([]byte, error) {
@@ -61,7 +61,7 @@ func (inst *instance) pollGPMEvents() {
 		case <-inst.rootCtx.Done():
 			return
 		case <-ticker.C:
-			ticker.Reset(inst.gpmSampleInterval)
+			ticker.Reset(inst.gpmPollInterval)
 		}
 
 		mss, err := inst.collectGPMMetrics()
@@ -96,7 +96,7 @@ type GPMMetrics struct {
 // Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
 // Blocks for the duration of the sample interval.
 func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
-	if inst.gpmSampleInterval == 0 {
+	if inst.gpmPollInterval == 0 {
 		return nil, errors.New("gpm sample interval is not set")
 	}
 	if len(inst.gpmMetricsIDs) == 0 {
@@ -115,16 +115,29 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		}
 	}
 
-	metrics := make([]GPMMetrics, 0, len(inst.devices))
+	type result struct {
+		dev *DeviceInfo
+		ms  map[nvml.GpmMetricId]float64
+		err error
+	}
+	results := make(chan result, len(inst.devices))
 	for _, dev := range inst.devices {
-		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmSampleInterval, inst.gpmMetricsIDs...)
-		if err != nil {
-			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
+		go func(dev *DeviceInfo) {
+			ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
+			results <- result{dev: dev, ms: ms, err: err}
+		}(dev)
+	}
+
+	metrics := make([]GPMMetrics, 0, len(inst.devices))
+	for range inst.devices {
+		r := <-results
+		if r.err != nil {
+			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", r.dev.UUID, r.err)
 		}
 		metrics = append(metrics, GPMMetrics{
-			UUID:           dev.UUID,
-			SampleDuration: metav1.Duration{Duration: inst.gpmSampleInterval},
-			Metrics:        ms,
+			UUID:           r.dev.UUID,
+			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
+			Metrics:        r.ms,
 		})
 	}
 
@@ -151,8 +164,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 }
 
 // Returns the map from the metrics ID to the value for this device.
-// It blocks for the sample duration and returns the metrics.
-func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
+func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
 	}
@@ -180,12 +192,12 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 		return nil, fmt.Errorf("could not get sample: %v", nvml.ErrorString(ret))
 	}
 
-	log.Logger.Debugw("waiting for sample duration", "duration", sampleDuration)
+	log.Logger.Debugw("waiting for sample interval")
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-time.After(time.Second):
-		log.Logger.Debugw("waited for sample duration", "duration", sampleDuration)
+	case <-time.After(5 * time.Second):
+		log.Logger.Debugw("waited for sample interval")
 	}
 
 	if ret := dev.GpmSampleGet(sample2); ret != nvml.SUCCESS {

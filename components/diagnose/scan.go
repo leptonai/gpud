@@ -39,6 +39,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if nvidia_query.SMIExists() {
 		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
 
+		select {
+		case <-ctx.Done():
+			log.Logger.Warnw("context done")
+			return ctx.Err()
+		case <-nvidia_query_nvml.DefaultInstanceReady():
+			log.Logger.Debugw("nvml instance is ready")
+		}
+
 		outputRaw, err := nvidia_query.Get(ctx)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
@@ -70,7 +78,11 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 						if event.Error != nil {
 							fmt.Printf("%s received the xid event with an error %v\n", checkMark, event.Error)
 						} else {
-							fmt.Printf("%s successfully received the xid event with no error\n", warningSign)
+							if nvidia_query_nvml.DefaultInstance().XidErrorSupported() {
+								fmt.Printf("%s successfully received the xid event with no error\n", warningSign)
+							} else {
+								fmt.Printf("%s xid error not supported\n", warningSign)
+							}
 						}
 
 						yb, _ := event.YAML()
@@ -90,10 +102,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 						fmt.Printf("%s no gpm events found after 70 seconds\n", checkMark)
 
 					case event := <-nvidia_query_nvml.DefaultInstance().RecvGPMEvents():
-						if event.Error != nil {
+						if event != nil && event.Error != nil {
 							fmt.Printf("%s received the gpm event with an error %v\n", checkMark, event.Error)
 						} else {
-							fmt.Printf("%s successfully received the gpm event with no error\n", warningSign)
+							if nvidia_query_nvml.DefaultInstance().GPMMetricsSupported() {
+								fmt.Printf("%s successfully received the gpm event with no error\n", checkMark)
+							} else {
+								fmt.Printf("%s gpm metrics not supported\n", checkMark)
+							}
 						}
 
 						yb, _ := event.YAML()
