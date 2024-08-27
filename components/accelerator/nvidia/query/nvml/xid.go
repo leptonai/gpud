@@ -8,10 +8,16 @@ import (
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
 type XidEvent struct {
+	// Time is the time the metrics were collected.
+	Time metav1.Time `json:"time"`
+	// The duration of the sample.
+	SampleDuration metav1.Duration `json:"sample_duration"`
+
 	EventType uint64 `json:"event_type"`
 
 	Xid              uint64 `json:"xid"`
@@ -79,6 +85,7 @@ func (inst *instance) pollXidEvents() {
 				return
 
 			case inst.xidEventCh <- &XidEvent{
+				Time:    metav1.Time{Time: time.Now().UTC()},
 				Message: "event set wait returned non-success",
 				Error:   fmt.Errorf("event set wait failed: %v", nvml.ErrorString(ret)),
 			}:
@@ -103,6 +110,9 @@ func (inst *instance) pollXidEvents() {
 		}
 
 		event := &XidEvent{
+			Time:           metav1.Time{Time: time.Now().UTC()},
+			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
+
 			EventType: e.EventType,
 
 			Xid:              xid,

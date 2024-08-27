@@ -115,29 +115,16 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		}
 	}
 
-	type result struct {
-		dev *DeviceInfo
-		ms  map[nvml.GpmMetricId]float64
-		err error
-	}
-	results := make(chan result, len(inst.devices))
-	for _, dev := range inst.devices {
-		go func(dev *DeviceInfo) {
-			ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
-			results <- result{dev: dev, ms: ms, err: err}
-		}(dev)
-	}
-
 	metrics := make([]GPMMetrics, 0, len(inst.devices))
-	for range inst.devices {
-		r := <-results
-		if r.err != nil {
-			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", r.dev.UUID, r.err)
+	for _, dev := range inst.devices {
+		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
+		if err != nil {
+			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
 		}
 		metrics = append(metrics, GPMMetrics{
-			UUID:           r.dev.UUID,
+			UUID:           dev.UUID,
 			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
-			Metrics:        r.ms,
+			Metrics:        ms,
 		})
 	}
 
@@ -164,6 +151,8 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 }
 
 // Returns the map from the metrics ID to the value for this device.
+// Don't call these in parallel for multiple devices.
+// It "SIGSEGV: segmentation violation" in cgo execution.
 func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
