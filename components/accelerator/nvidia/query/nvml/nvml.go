@@ -232,7 +232,7 @@ func (inst *instance) Start() error {
 			inst.xidErrorSupported = false
 		}
 
-		gpmMetricsSpported, err := GPMSupported(d)
+		gpmMetricsSpported, err := GPMSupportedByDevice(d)
 		if err != nil {
 			return err
 		}

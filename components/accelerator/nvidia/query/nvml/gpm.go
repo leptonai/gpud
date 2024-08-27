@@ -15,6 +15,33 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Returns true if GPM is supported by all devices.
+// Returns false if any device does not support GPM.
+func GPMSupported() (bool, error) {
+	nvmlLib := nvml.New()
+	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
+		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	}
+	log.Logger.Debugw("successfully initialized NVML")
+
+	deviceLib := device.New(nvmlLib)
+	devices, err := deviceLib.GetDevices()
+	if err != nil {
+		return false, err
+	}
+
+	for _, dev := range devices {
+		supported, err := GPMSupportedByDevice(dev)
+		if err != nil {
+			return false, err
+		}
+		if !supported {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 type GPMEvent struct {
 	Metrics []GPMMetrics `json:"metrics"`
 	Error   error        `json:"error"`
@@ -24,7 +51,7 @@ func (ev *GPMEvent) YAML() ([]byte, error) {
 	return yaml.Marshal(ev)
 }
 
-func GPMSupported(dev device.Device) (bool, error) {
+func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
@@ -106,7 +133,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(inst.gpmMetricsIDs))
 	}
 	for uuid, dev := range inst.devices {
-		supported, err := GPMSupported(dev.device)
+		supported, err := GPMSupportedByDevice(dev.device)
 		if err != nil {
 			return nil, err
 		}

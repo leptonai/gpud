@@ -25,6 +25,7 @@ import (
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
@@ -229,7 +230,19 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 
 			cfg.Components[nvidia_clockspeed.Name] = nil
 			cfg.Components[nvidia_memory.Name] = nil
-			cfg.Components[nvidia_gpm.Name] = nil
+
+			gpmSupported, err := nvidia_query_nvml.GPMSupported()
+			if err == nil {
+				if gpmSupported {
+					log.Logger.Infow("auto-detected gpm supported")
+					cfg.Components[nvidia_gpm.Name] = nil
+				} else {
+					log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
+				}
+			} else {
+				log.Logger.Warnw("failed to check gpm supported or not", "error", err)
+			}
+
 			cfg.Components[nvidia_nvlink.Name] = nil
 			cfg.Components[nvidia_power.Name] = nil
 			cfg.Components[nvidia_temperature.Name] = nil
