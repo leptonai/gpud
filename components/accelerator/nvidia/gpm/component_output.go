@@ -43,35 +43,6 @@ func ParseOutputYAML(data []byte) (*Output, error) {
 	return o, nil
 }
 
-type NVMLError struct {
-	Xid   uint64 `json:"xid"`
-	Error error  `json:"error"`
-}
-
-func (nv *NVMLError) JSON() ([]byte, error) {
-	return json.Marshal(nv)
-}
-
-func ParseNVMLErrorJSON(data []byte) (*NVMLError, error) {
-	nv := new(NVMLError)
-	if err := json.Unmarshal(data, nv); err != nil {
-		return nil, err
-	}
-	return nv, nil
-}
-
-func (nv *NVMLError) YAML() ([]byte, error) {
-	return yaml.Marshal(nv)
-}
-
-func ParseNVMLErrorYAML(data []byte) (*NVMLError, error) {
-	nv := new(NVMLError)
-	if err := yaml.Unmarshal(data, nv); err != nil {
-		return nil, err
-	}
-	return nv, nil
-}
-
 const (
 	StateNameGPM = "gpm"
 
