@@ -1,4 +1,4 @@
-// Package gpm tracks the NVIDIA GPU GPM metrics.
+// Package gpm tracks the NVIDIA per-GPU GPM metrics.
 package gpm
 
 import (
