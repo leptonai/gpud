@@ -110,7 +110,7 @@ For users looking to set up a platform to collect and process data from gpud, pl
 
 ### Does GPUd send data to lepton.ai?
 
-GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any senstive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add the line `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file and restart the service.
+GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any sensitive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add the line `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file and restart the service.
 
 If you opt-in to log in to the Lepton AI platform, to assist you with more helpful GPU health states, GPUd periodically sends system runtime related information about the host to the platform. All these info are system workload and health info, and contain no user data. The data are sent via secure channels.
 
