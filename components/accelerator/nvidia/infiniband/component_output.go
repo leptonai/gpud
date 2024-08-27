@@ -44,8 +44,6 @@ const (
 	StateKeyIbstatData           = "data"
 	StateKeyIbstatEncoding       = "encoding"
 	StateValueIbstatEncodingJSON = "json"
-
-	// TODO: support compressed gzip
 )
 
 func ParseStateIbstat(m map[string]string) (*Output, error) {

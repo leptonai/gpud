@@ -19,25 +19,6 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-type Op struct {
-	createArchive bool
-}
-
-type OpOption func(*Op)
-
-func (op *Op) applyOpts(opts []OpOption) error {
-	for _, opt := range opts {
-		opt(op)
-	}
-	return nil
-}
-
-func WithCreateArchive(b bool) OpOption {
-	return func(op *Op) {
-		op.createArchive = b
-	}
-}
-
 type output struct {
 	dir        string `json:"-"`
 	rawDataDir string `json:"-"`

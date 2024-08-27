@@ -16,6 +16,7 @@ import (
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
+	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -24,6 +25,7 @@ import (
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
@@ -228,6 +230,19 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 
 			cfg.Components[nvidia_clockspeed.Name] = nil
 			cfg.Components[nvidia_memory.Name] = nil
+
+			gpmSupported, err := nvidia_query_nvml.GPMSupported()
+			if err == nil {
+				if gpmSupported {
+					log.Logger.Infow("auto-detected gpm supported")
+					cfg.Components[nvidia_gpm.Name] = nil
+				} else {
+					log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
+				}
+			} else {
+				log.Logger.Warnw("failed to check gpm supported or not", "error", err)
+			}
+
 			cfg.Components[nvidia_nvlink.Name] = nil
 			cfg.Components[nvidia_power.Name] = nil
 			cfg.Components[nvidia_temperature.Name] = nil

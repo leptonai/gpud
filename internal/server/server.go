@@ -38,6 +38,7 @@ import (
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
+	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -58,7 +59,6 @@ import (
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	"github.com/leptonai/gpud/components/memory"
-	memory_metrics "github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/components/metrics"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
@@ -273,8 +273,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 			allComponents = append(allComponents, info.New(config.Annotations))
 
 		case memory.Name:
-			memory_metrics.InitAveragers(db, components_metrics_state.DefaultTableName)
-
 			cfg := memory.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := memory.ParseConfig(configValue, db)
@@ -445,6 +443,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_memory.New(ctx, cfg))
+
+		case nvidia_gpm.Name:
+			cfg := nvidia_gpm.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_gpm.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
 
 		case nvidia_nvlink.Name:
 			cfg := nvidia_nvlink.Config{Query: defaultQueryCfg}

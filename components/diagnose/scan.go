@@ -24,9 +24,14 @@ const (
 )
 
 // Runs the scan operations.
-func Scan(ctx context.Context, lines int, debug bool) error {
+func Scan(ctx context.Context, opts ...OpOption) error {
 	if os.Geteuid() != 0 {
 		return errors.New("requires sudo/root access in order to scan dmesg errors")
+	}
+
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return err
 	}
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
@@ -49,39 +54,85 @@ func Scan(ctx context.Context, lines int, debug bool) error {
 			if !ok {
 				log.Logger.Warnf("expected *nvidia_query.Output, got %T", outputRaw)
 			} else {
-				output.PrintInfo(debug)
+				output.PrintInfo(op.debug)
 
-				fmt.Printf("\n%s checking nvidia xid errors\n", inProgress)
+				if op.pollXidEvents {
+					fmt.Printf("\n%s checking nvidia xid errors\n", inProgress)
 
-				select {
-				case <-ctx.Done():
-					log.Logger.Warnw("context done")
+					select {
+					case <-ctx.Done():
+						log.Logger.Warnw("context done")
 
-				case <-time.After(7 * time.Second):
-					fmt.Printf("%s no xid events found after 7 seconds\n", checkMark)
+					case <-time.After(7 * time.Second):
+						fmt.Printf("%s no xid events found after 7 seconds\n", checkMark)
 
-				case event := <-nvidia_query_nvml.DefaultInstance().RecvXidEvents():
-					if event.Error != nil {
-						fmt.Printf("%s received the xid event with an error %v\n", checkMark, event.Error)
+					case event := <-nvidia_query_nvml.DefaultInstance().RecvXidEvents():
+						if event.Error != nil {
+							fmt.Printf("%s received the xid event with an error %v\n", checkMark, event.Error)
+						} else {
+							if nvidia_query_nvml.DefaultInstance().XidErrorSupported() {
+								fmt.Printf("%s successfully received the xid event with no error\n", warningSign)
+							} else {
+								fmt.Printf("%s xid error not supported\n", warningSign)
+							}
+						}
+
+						yb, _ := event.YAML()
+						fmt.Println(string(yb))
+						println()
+					}
+				}
+
+				if op.pollGPMEvents {
+					fmt.Printf("\n%s checking nvidia GPM events\n", inProgress)
+
+					gpmSupported, err := nvidia_query_nvml.GPMSupported()
+					if err == nil {
+						if gpmSupported {
+							log.Logger.Infow("auto-detected gpm supported")
+						} else {
+							log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
+						}
 					} else {
-						fmt.Printf("%s successfully received the xid event with no error\n", warningSign)
+						log.Logger.Warnw("failed to check gpm supported or not", "error", err)
 					}
 
-					yb, _ := event.YAML()
-					fmt.Println(string(yb))
-					println()
+					if gpmSupported {
+						select {
+						case <-ctx.Done():
+							log.Logger.Warnw("context done")
+
+						case <-time.After(time.Minute + 10*time.Second):
+							fmt.Printf("%s no gpm events found after 70 seconds\n", checkMark)
+
+						case event := <-nvidia_query_nvml.DefaultInstance().RecvGPMEvents():
+							if event != nil && event.Error != nil {
+								fmt.Printf("%s received the gpm event with an error %v\n", checkMark, event.Error)
+							} else {
+								if nvidia_query_nvml.DefaultInstance().GPMMetricsSupported() {
+									fmt.Printf("%s successfully received the gpm event with no error\n", checkMark)
+								} else {
+									fmt.Printf("%s gpm metrics not supported\n", checkMark)
+								}
+							}
+
+							yb, _ := event.YAML()
+							fmt.Println(string(yb))
+							println()
+						}
+					}
 				}
 			}
 		}
 	}
 	println()
 
-	fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, lines)
+	fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
 	defaultDmesgCfg := dmesg.DefaultConfig()
 	matched, err := query_log_tail.Scan(
 		ctx,
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
-		query_log_tail.WithLinesToTail(lines),
+		query_log_tail.WithLinesToTail(op.lines),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
 		query_log_tail.WithParseTime(dmesg.ExtractTimeFromLogLine),
 		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_filter.Filter) {

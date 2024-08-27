@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"sigs.k8s.io/yaml"
 )
 
 type Output struct {
@@ -26,9 +25,15 @@ type Output struct {
 
 type Instance interface {
 	NVMLExists() bool
+
 	Start() error
+
+	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
-	Exists() bool
+
+	GPMMetricsSupported() bool
+	RecvGPMEvents() <-chan *GPMEvent
+
 	Shutdown() error
 	Get() (*Output, error)
 }
@@ -51,10 +56,20 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
-	eventSet  nvml.EventSet
-	eventMask uint64
+	xidPollInterval time.Duration
 
-	eventCh chan *XidEvent
+	xidErrorSupported   bool
+	xidEventMask        uint64
+	xidEventSet         nvml.EventSet
+	xidEventCh          chan *XidEvent
+	xidEventChCloseOnce sync.Once
+
+	gpmPollInterval time.Duration
+
+	gpmMetricsSupported bool
+	gpmMetricsIDs       []nvml.GpmMetricId
+	gpmEventCh          chan *GPMEvent
+	gpmEventChCloseOnce sync.Once
 }
 
 type DeviceInfo struct {
@@ -74,7 +89,9 @@ type DeviceInfo struct {
 	SupportedEvents uint64 `json:"supported_events"`
 
 	// Set true if the device supports NVML error checks (health checks).
-	ErrorSupported bool `json:"error_supported"`
+	XidErrorSupported bool `json:"xid_error_supported"`
+	// Set true if the device supports GPM metrics.
+	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
 	ClockEvents ClockEvents `json:"clock_events"`
 	ClockSpeed  ClockSpeed  `json:"clock_speed"`
@@ -89,25 +106,16 @@ type DeviceInfo struct {
 	device device.Device `json:"-"`
 }
 
-type XidEvent struct {
-	EventType uint64 `json:"event_type"`
+func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
+	for id := range op.gpmMetricsIDs {
+		gpmMetricsIDs = append(gpmMetricsIDs, id)
+	}
 
-	Xid              uint64 `json:"xid"`
-	XidCriticalError bool   `json:"xid_critical_error"`
-
-	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
-
-	Message string `json:"message,omitempty"`
-
-	// Set if any error happens during NVML calls.
-	Error error `json:"error,omitempty"`
-}
-
-func (ev *XidEvent) YAML() ([]byte, error) {
-	return yaml.Marshal(ev)
-}
-
-func NewInstance(ctx context.Context) (Instance, error) {
 	nvmlLib := nvml.New()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
@@ -125,7 +133,7 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
 	}
 
-	eventSet, ret := nvmlLib.EventSetCreate()
+	xidEventSet, ret := nvmlLib.EventSetCreate()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to create event set: %v", nvml.ErrorString(ret))
 	}
@@ -135,22 +143,29 @@ func NewInstance(ctx context.Context) (Instance, error) {
 		rootCtx:    rootCtx,
 		rootCancel: rootCancel,
 
-		nvmlLib:       nvmlLib,
-		deviceLib:     deviceLib,
-		infoLib:       infoLib,
+		nvmlLib:   nvmlLib,
+		deviceLib: deviceLib,
+		infoLib:   infoLib,
+
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
-		eventSet:      eventSet,
-		eventMask:     defaultEventMask,
-		eventCh:       make(chan *XidEvent, 100),
+
+		xidPollInterval: time.Minute,
+
+		xidErrorSupported:   false,
+		xidEventSet:         xidEventSet,
+		xidEventMask:        defaultXidEventMask,
+		xidEventCh:          make(chan *XidEvent, 100),
+		xidEventChCloseOnce: sync.Once{},
+
+		gpmPollInterval: time.Minute,
+
+		gpmMetricsSupported: false,
+		gpmMetricsIDs:       gpmMetricsIDs,
+		gpmEventCh:          make(chan *GPMEvent, 100),
+		gpmEventChCloseOnce: sync.Once{},
 	}, nil
 }
-
-func (inst *instance) NVMLExists() bool {
-	return inst.nvmlExists
-}
-
-const defaultEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
 
 // Starts an NVML instance and starts polling for XID events.
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
@@ -169,6 +184,9 @@ func (inst *instance) Start() error {
 	if err != nil {
 		return err
 	}
+
+	inst.xidErrorSupported = true
+	inst.gpmMetricsSupported = true
 
 	inst.devices = make(map[string]*DeviceInfo)
 	for _, d := range devices {
@@ -205,110 +223,62 @@ func (inst *instance) Start() error {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
-		devInfo := &DeviceInfo{
-			UUID:            uuid,
+		ret = d.RegisterEvents(inst.xidEventMask&supportedEvents, inst.xidEventSet)
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
+		}
+		xidErrorSupported := ret != nvml.ERROR_NOT_SUPPORTED
+		if !xidErrorSupported {
+			inst.xidErrorSupported = false
+		}
+
+		gpmMetricsSpported, err := GPMSupportedByDevice(d)
+		if err != nil {
+			return err
+		}
+		if !gpmMetricsSpported {
+			inst.gpmMetricsSupported = false
+		}
+
+		inst.devices[uuid] = &DeviceInfo{
+			UUID: uuid,
+
 			MinorNumber:     minorNumber,
 			Bus:             pciInfo.Bus,
 			Device:          pciInfo.Device,
 			Name:            name,
 			GPUCores:        cores,
 			SupportedEvents: supportedEvents,
-			ErrorSupported:  true,
-			device:          d,
-		}
 
-		ret = d.RegisterEvents(inst.eventMask&supportedEvents, inst.eventSet)
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
-		}
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			devInfo.ErrorSupported = false
-		}
+			XidErrorSupported:   xidErrorSupported,
+			GPMMetricsSupported: gpmMetricsSpported,
 
-		inst.devices[uuid] = devInfo
+			device: d,
+		}
 	}
 
-	go inst.pollXidEvents()
+	if inst.xidErrorSupported {
+		go inst.pollXidEvents()
+	} else {
+		inst.xidEventChCloseOnce.Do(func() {
+			log.Logger.Warnw("xid error not supported")
+			close(inst.xidEventCh)
+		})
+	}
+
+	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
+		go inst.pollGPMEvents()
+	} else {
+		inst.gpmEventChCloseOnce.Do(func() {
+			log.Logger.Warnw("gpm metrics not supported")
+			close(inst.gpmEventCh)
+		})
+	}
 
 	return nil
 }
 
-// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
-func (inst *instance) pollXidEvents() {
-	log.Logger.Debugw("polling xid events")
-	for {
-		select {
-		case <-inst.rootCtx.Done():
-			return
-		default:
-		}
-
-		// waits 5 seconds
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
-		e, ret := inst.eventSet.Wait(5000)
-
-		if ret == nvml.ERROR_TIMEOUT {
-			log.Logger.Debugw("no event found in wait (timeout) -- retrying...", "error", nvml.ErrorString(ret))
-			continue
-		}
-
-		if ret != nvml.SUCCESS {
-			select {
-			case <-inst.rootCtx.Done():
-				return
-
-			case inst.eventCh <- &XidEvent{
-				Message: "event set wait returned non-success",
-				Error:   fmt.Errorf("event set wait failed: %v", nvml.ErrorString(ret)),
-			}:
-				log.Logger.Debugw("event set wait failure notified", "error", nvml.ErrorString(ret))
-			}
-
-			continue
-		}
-
-		xid := e.EventData
-
-		var xidDetail *nvidia_query_xid.Detail
-		msg := "received event but xid unknown"
-		if xid > 0 {
-			var ok bool
-			xidDetail, ok = nvidia_query_xid.GetDetail(int(xid))
-			if ok {
-				msg = "received event with a known xid"
-			}
-		}
-
-		event := &XidEvent{
-			EventType: e.EventType,
-
-			Xid:              xid,
-			XidCriticalError: e.EventType == nvml.EventTypeXidCriticalError,
-
-			Detail: xidDetail,
-
-			Message: msg,
-		}
-		select {
-		case <-inst.rootCtx.Done():
-			return
-		case inst.eventCh <- event:
-		}
-	}
-}
-
-func (inst *instance) RecvXidEvents() <-chan *XidEvent {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	if inst.nvmlLib == nil {
-		return nil
-	}
-
-	return inst.eventCh
-}
-
-func (inst *instance) Exists() bool {
+func (inst *instance) NVMLExists() bool {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
 
@@ -326,13 +296,13 @@ func (inst *instance) Shutdown() error {
 	log.Logger.Debugw("shutting down NVML")
 	inst.rootCancel()
 
-	if inst.eventSet != nil {
-		ret := inst.eventSet.Free()
+	if inst.xidEventSet != nil {
+		ret := inst.xidEventSet.Free()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to free event set: %v", nvml.ErrorString(ret))
 		}
 	}
-	inst.eventSet = nil
+	inst.xidEventSet = nil
 
 	ret := inst.nvmlLib.Shutdown()
 	if ret != nvml.SUCCESS {
@@ -360,6 +330,7 @@ func (inst *instance) Get() (*Output, error) {
 	}
 
 	for _, devInfo := range inst.devices {
+		// prepare/copy the static device info
 		latestInfo := &DeviceInfo{
 			UUID: devInfo.UUID,
 
@@ -370,7 +341,9 @@ func (inst *instance) Get() (*Output, error) {
 			Name:            devInfo.Name,
 			GPUCores:        devInfo.GPUCores,
 			SupportedEvents: devInfo.SupportedEvents,
-			ErrorSupported:  devInfo.ErrorSupported,
+
+			XidErrorSupported:   devInfo.XidErrorSupported,
+			GPMMetricsSupported: devInfo.GPMMetricsSupported,
 
 			device: devInfo.device,
 		}
@@ -447,7 +420,7 @@ func StartDefaultInstance(ctx context.Context) error {
 	}
 
 	var err error
-	defaultInstance, err = NewInstance(ctx)
+	defaultInstance, err = NewInstance(ctx, WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY))
 	if err != nil {
 		return err
 	}

@@ -116,6 +116,7 @@ func Get(ctx context.Context) (output any, err error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-nvml.DefaultInstanceReady():
+		log.Logger.Debugw("default nvml instance ready")
 	}
 
 	o.NVML, err = nvml.DefaultInstance().Get()
