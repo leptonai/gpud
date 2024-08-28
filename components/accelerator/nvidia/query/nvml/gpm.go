@@ -180,6 +180,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 // Returns the map from the metrics ID to the value for this device.
 // Don't call these in parallel for multiple devices.
 // It "SIGSEGV: segmentation violation" in cgo execution.
+// ref. https://github.com/NVIDIA/go-nvml/blob/main/examples/gpm-metrics/main.go
 func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")

@@ -411,6 +411,11 @@ var (
 	defaultInstanceReadyc         = make(chan any)
 )
 
+// Starts the default NVML instance.
+//
+// By default, it tracks the SM occupancy metric, with nvml.GPM_METRIC_SM_OCCUPANCY.
+// NVML_GPM_METRIC_SM_OCCUPANCY is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
 func StartDefaultInstance(ctx context.Context) error {
 	defaultInstanceMu.Lock()
 	defer defaultInstanceMu.Unlock()
