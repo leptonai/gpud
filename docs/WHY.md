@@ -30,6 +30,7 @@ By addressing these challenges, GPUd simplifies GPU management, reduces human er
 - NVIDIA GPU errors: scans dmesg, NVML, and nvidia-smi for identifying the real-time and historical GPU errors.
 - NVIDIA GPU ECC errors: queries nvidia-smi and NVML APIs.
 - NVIDIA GPU clock: scans nvidia-smi and NVML for hardware slowdown.
+- NVIDIA GPU utilization: GPU memory, GPU utilization, GPU streaming multiprocessors (SM) occupancy, etc..
 - NVIDIA GPU temperature: scans nvidia-smi and NVML for critical temperature thresholds and data.
 - NVIDIA GPU power: scans nvidia-smi and NVML for current power draw and limits.
 - NVIDIA GPU processes: uses NVML to list running processes.
@@ -40,3 +41,12 @@ By addressing these challenges, GPUd simplifies GPU management, reduces human er
 - CPU, OS, memory, disk, file descriptor usage monitoring.
 - Regex-based dmesg streaming and scanning.
 - Workloads monitoring: supports containerd, docker, kubelet.
+
+## System comparisons
+
+Many open source projects and studies informed and inspired this project:
+
+- [prometheus/node_exporter](https://github.com/prometheus/node_exporter) is a Prometheus metrics exporter for machine level metrics.
+- [NVIDIA/dcgm-exporter](https://github.com/NVIDIA/dcgm-exporter) is a Prometheus metrics exporter for NVIDIA GPU machines, integrates with [NVIDIA DCGM](https://developer.nvidia.com/dcgm).
+
+**[GPUd](https://github.com/leptonai/gpud) complements both [node_exporter](https://github.com/prometheus/node_exporter) and [dcgm-exporter](https://github.com/NVIDIA/dcgm-exporter)** focusing on the easy user experience and end-to-end solutions: GPUd is a single binary, whereas dcgm-exporter requires >500 MB of container images (as of [August 2024](https://hub.docker.com/r/nvidia/dcgm-exporter)). While GPUd provides all the critical metrics and health checks using NVML, DCGM supports much more comprehensive set of metrics.
