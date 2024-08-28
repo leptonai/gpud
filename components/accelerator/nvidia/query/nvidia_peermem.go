@@ -1,11 +1,15 @@
 package query
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 const peerMemModule = "nvidia_peermem"
@@ -15,15 +19,30 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 		return nil, errors.New("requires sudo/root access to check if ib_core is using nvidia_peermem")
 	}
 
-	b, err := exec.CommandContext(ctx, "sudo", "lsmod").CombinedOutput()
+	proc, err := process.New(
+		[][]string{{"sudo lsmod"}},
+		process.WithRunAsBashScript(),
+		process.WithRestartConfig(
+			process.RestartConfig{
+				OnError:  true,
+				Limit:    10,
+				Interval: 5 * time.Second,
+			},
+		))
 	if err != nil {
 		return nil, err
 	}
+	if err := proc.Start(ctx); err != nil {
+		return nil, err
+	}
+	rd := proc.StdoutReader()
 
 	// e.g.,
 	// sudo lsmod | grep nvidia_peermem
+	scanner := bufio.NewScanner(rd)
 	lines := make([]string, 0, 10)
-	for _, line := range strings.Split(string(b), "\n") {
+	for scanner.Scan() {
+		line := scanner.Text()
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -32,6 +51,20 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 			continue
 		}
 		lines = append(lines, line)
+
+		select {
+		case err = <-proc.Wait():
+			if err != nil {
+				log.Logger.Warnw("lsmod return error", "error", err)
+			}
+		default:
+		}
+	}
+	if scanner.Err() != nil {
+		return nil, scanner.Err()
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	o := &LsmodPeermemModuleOutput{
