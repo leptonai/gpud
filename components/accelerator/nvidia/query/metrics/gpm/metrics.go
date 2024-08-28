@@ -24,12 +24,17 @@ var (
 		},
 	)
 
+	// gpuSMOccupancyPercent is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
+	// It's defined as NVML_GPM_METRIC_SM_OCCUPANCY or DCGM_FI_PROF_SM_OCCUPANCY in DCGM exporter.
+	// It's the ratio of number of warps resident on an SM.
+	// It's the number of resident as a ratio of the theoretical maximum number of warps per elapsed cycle.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
 	gpuSMOccupancyPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "gpu_sm_occupancy_percent",
-			Help:      "tracks the current GPU SM occupancy percent",
+			Help:      "tracks the current GPU SM occupancy, as a percentage of warps that were active vs theoretical maximum",
 		},
 		[]string{"gpu_id"},
 	)
