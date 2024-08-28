@@ -34,7 +34,7 @@ var (
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "gpu_sm_occupancy_percent",
-			Help:      "tracks the current GPU SM occupancy percent",
+			Help:      "tracks the current GPU SM occupancy, as a percentage of warps that were active vs theoretical maximum",
 		},
 		[]string{"gpu_id"},
 	)
