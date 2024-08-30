@@ -53,13 +53,13 @@ func DefaultConfig() Config {
 
 		// some old dmesg versions don't support --since, thus fall back to the one without --since and tail the last 200 lines
 		// ref. https://github.com/leptonai/gpud/issues/32
-		{"dmesg --ctime --nopager --buffer-size 163920 --since '7 hours ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
+		{"dmesg --ctime --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
 	}
 	if _, err := os.Stat(DefaultDmesgFile); os.IsNotExist(err) {
 		scanCommands = [][]string{
 			// some old dmesg versions don't support --since, thus fall back to the one without --since and tail the last 200 lines
 			// ref. https://github.com/leptonai/gpud/issues/32
-			{"dmesg --ctime --nopager --buffer-size 163920 --since '7 hours ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
+			{"dmesg --ctime --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
 		}
 	}
 
