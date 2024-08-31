@@ -118,3 +118,55 @@ log_item:
     Parameter'
   time: null
 ```
+
+> [Sat Aug 31 07:06:03 2024] NVRM: Xid (PCI:0000:cb:00): 31, pid=626486, name=pt_main_thread, Ch 00000008, intr 00000000. MMU Fault: ENGINE GRAPHICS GPCCLIENT_T1_14 faulted @ 0x7f2f_cca58000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_READ
+> [Sat Aug 31 07:54:50 2024] perf: interrupt took too long (4931 > 4921), lowering kernel.perf_event_max_sample_rate to 40500
+> [Sat Aug 31 08:01:31 2024] hrtimer: interrupt took 1263236 ns
+> [Sat Aug 31 08:53:21 2024] NVRM: Xid (PCI:0000:cb:00): 109, pid=1158578, name=pt_main_thread, Ch 00000008, errorString CTX SWITCH TIMEOUT, Info 0x58005
+> [Sat Aug 31 08:53:22 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+
+```yaml
+# {"level":"warn","ts":"2024-08-31T09:01:20Z","caller":"diagnose/scan.go:145","msg":"known xid","line":"[Sat Aug 31 08:53:21 2024] NVRM: Xid (PCI:0000:cb:00): 109, pid=1158578, name=pt_main_thread, Ch 00000008, errorString CTX SWITCH TIMEOUT, Info 0x58005"}
+detail:
+  bus_error: true
+  description: ""
+  driver_error: true
+  fb_corruption: true
+  hw_error: true
+  id: 109
+  name: Context Switch Timeout Error
+  system_memory_corruption: true
+  thermal_issue: true
+  user_app_error: true
+detail_found: true
+log_item:
+  line: '[Sat Aug 31 08:53:21 2024] NVRM: Xid (PCI:0000:cb:00): 109, pid=1158578,
+    name=pt_main_thread, Ch 00000008, errorString CTX SWITCH TIMEOUT, Info 0x58005'
+  time: null
+
+name: nvidia_nvrm_xid
+owner_references:
+- accelerator-nvidia-error
+regex: 'NVRM: Xid.*?: (\d+),'
+
+# {"level":"warn","ts":"2024-08-31T09:01:20Z","caller":"diagnose/scan.go:145","msg":"known xid","line":"[Sat Aug 31 07:06:03 2024] NVRM: Xid (PCI:0000:cb:00): 31, pid=626486, name=pt_main_thread, Ch 00000008, intr 00000000. MMU Fault: ENGINE GRAPHICS GPCCLIENT_T1_14 faulted @ 0x7f2f_cca58000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_READ"}
+detail:
+  bus_error: false
+  description: Debug the user application unless the issue is new and there have been
+    no changes to the application but there has been changes to GPU driver or other
+    GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
+  driver_error: true
+  fb_corruption: false
+  hw_error: true
+  id: 31
+  name: GPU memory page fault
+  system_memory_corruption: false
+  thermal_issue: false
+  user_app_error: true
+detail_found: true
+log_item:
+  line: '[Sat Aug 31 07:06:03 2024] NVRM: Xid (PCI:0000:cb:00): 31, pid=626486, name=pt_main_thread,
+    Ch 00000008, intr 00000000. MMU Fault: ENGINE GRAPHICS GPCCLIENT_T1_14 faulted
+    @ 0x7f2f_cca58000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_READ'
+  time: null
+```
