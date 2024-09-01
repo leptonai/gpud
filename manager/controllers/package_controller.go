@@ -1,0 +1,247 @@
+package controllers
+
+import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/manager/packages"
+	"github.com/leptonai/gpud/pkg/process"
+)
+
+type PackageController struct {
+	fileWatcher   chan packages.PackageInfo
+	packageStatus map[string]*packages.PackageStatus
+	syncPeriod    time.Duration
+	sync.RWMutex
+}
+
+func NewPackageController(watcher chan packages.PackageInfo) *PackageController {
+	r := &PackageController{
+		fileWatcher:   watcher,
+		packageStatus: make(map[string]*packages.PackageStatus),
+		syncPeriod:    3 * time.Second,
+	}
+	return r
+}
+
+func (c *PackageController) Run(ctx context.Context) error {
+	go c.reconcileLoop(ctx)
+	go c.updateRunner(ctx)
+	go c.installRunner(ctx)
+	go c.statusRunner(ctx)
+	return nil
+}
+
+func (c *PackageController) reconcileLoop(ctx context.Context) {
+	for {
+		select {
+		case packageInfo := <-c.fileWatcher:
+			c.Lock()
+			log.Logger.Infof("[package controller]: received package info: %v", packageInfo)
+			if _, ok := c.packageStatus[packageInfo.Name]; !ok {
+				c.packageStatus[packageInfo.Name] = &packages.PackageStatus{
+					Name:           packageInfo.Name,
+					IsInstalled:    false,
+					Installing:     false,
+					Status:         false,
+					TargetVersion:  packageInfo.TargetVersion,
+					CurrentVersion: "",
+					ScriptPath:     "",
+					Dependency:     packageInfo.Dependency,
+				}
+			}
+			c.packageStatus[packageInfo.Name].ScriptPath = packageInfo.ScriptPath
+			c.Unlock()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (c *PackageController) updateRunner(ctx context.Context) {
+	ticker := time.NewTicker(c.syncPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(c.syncPeriod)
+		}
+		for _, pkg := range c.packageStatus {
+			if !pkg.IsInstalled {
+				continue
+			}
+			var version string
+			err := runCommand(ctx, pkg.ScriptPath, "version", &version)
+			if err != nil || version == "" {
+				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
+				continue
+			}
+			log.Logger.Infof("[package controller]: %v verison is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
+			c.Lock()
+			c.packageStatus[pkg.Name].CurrentVersion = version
+			c.Unlock()
+			if version == pkg.TargetVersion {
+				continue
+			}
+			err = runCommand(ctx, pkg.ScriptPath, "upgrade", nil)
+			if err != nil {
+				log.Logger.Errorf("[package controller]: %v unexpected upgrade failure: %v", pkg.Name, err)
+			}
+		}
+	}
+}
+
+func (c *PackageController) installRunner(ctx context.Context) {
+	ticker := time.NewTicker(c.syncPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(c.syncPeriod)
+		}
+		for _, pkg := range c.packageStatus {
+			var skipCheck bool
+			for _, dep := range pkg.Dependency {
+				if _, ok := c.packageStatus[dep[0]]; !ok {
+					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
+					skipCheck = true
+					break
+				}
+				if !c.packageStatus[dep[0]].IsInstalled {
+					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
+					skipCheck = true
+					break
+				}
+				if c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1] {
+					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
+					skipCheck = true
+					break
+				}
+			}
+			if skipCheck {
+				continue
+			}
+			if pkg.Installing {
+				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
+				continue
+			}
+			// if installing, then skip
+			err := runCommand(ctx, pkg.ScriptPath, "isInstalled", nil)
+			if err == nil {
+				c.Lock()
+				c.packageStatus[pkg.Name].IsInstalled = true
+				c.Unlock()
+				log.Logger.Infof("[package controller]: %v already installed", pkg.Name)
+				continue
+			}
+			log.Logger.Errorf("[package controller]: %v not installed, installing", pkg.Name)
+			go func() {
+				c.Lock()
+				c.packageStatus[pkg.Name].Installing = true
+				c.Unlock()
+				err = runCommand(ctx, pkg.ScriptPath, "install", nil)
+				if err != nil {
+					log.Logger.Errorf("[package controller]: %v unexpected install failure: %v", pkg.Name, err)
+				} else {
+					if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
+						log.Logger.Errorf("[package controller]: %v failed to start after installing: %v", pkg.Name, err)
+					}
+				}
+				c.Lock()
+				c.packageStatus[pkg.Name].Installing = false
+				c.Unlock()
+			}()
+		}
+	}
+}
+
+func (c *PackageController) statusRunner(ctx context.Context) {
+	ticker := time.NewTicker(c.syncPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(c.syncPeriod)
+		}
+		for _, pkg := range c.packageStatus {
+			if !pkg.IsInstalled {
+				continue
+			}
+			err := runCommand(ctx, pkg.ScriptPath, "status", nil)
+			if err == nil {
+				c.Lock()
+				c.packageStatus[pkg.Name].Status = true
+				c.Unlock()
+				log.Logger.Infof("[package controller]: %v status ok", pkg.Name)
+				continue
+			}
+			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)
+			if err = runCommand(ctx, pkg.ScriptPath, "stop", nil); err != nil {
+				log.Logger.Errorf("[package controller]: %v unexpected stop failure: %v", pkg.Name, err)
+				continue
+			}
+			if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
+				log.Logger.Errorf("[package controller]: %v unexpected start failure: %v", pkg.Name, err)
+			}
+		}
+	}
+}
+
+func runCommand(ctx context.Context, script, arg string, result *string) error {
+	var ops []process.OpOption
+	if result == nil {
+		f, err := os.OpenFile(filepath.Join(filepath.Dir(script), arg+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		ops = append(ops, process.WithOutputFile(f))
+	}
+
+	p, err := process.New(append(ops, process.WithCommand("bash", script, arg))...)
+	if err != nil {
+		return err
+	}
+	if result != nil {
+		go func() {
+			stdoutReader := p.StdoutReader()
+			if stdoutReader == nil {
+				log.Logger.Errorf("failed to read stdout: %v", err)
+				return
+			}
+			rawResult, err := io.ReadAll(p.StdoutReader())
+			if err != nil {
+				log.Logger.Errorf("failed to read stout: %v", err)
+				return
+			}
+			*result = strings.TrimSpace(string(rawResult))
+		}()
+	}
+	if err = p.Start(ctx); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-p.Wait():
+		if err != nil {
+			return err
+		}
+	}
+	if err := p.Abort(ctx); err != nil {
+		return err
+	}
+	return nil
+}

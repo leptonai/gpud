@@ -116,6 +116,37 @@ nohup sudo gpud run &>> <your log file path> &
 			},
 		},
 		{
+			Name:   "kubeconfig",
+			Usage:  "Writes the kubeconfig with gpud.",
+			Action: cmdKubeConfig,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "file",
+					Usage: "file path to output the kubelet config",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "region of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "cluster",
+					Usage: "name of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "role",
+					Usage: "role arn",
+				},
+				cli.StringFlag{
+					Name:  "session",
+					Usage: "cluster session name",
+				},
+				cli.StringFlag{
+					Name:  "cluster-ca",
+					Usage: "cluster ca file path",
+				},
+			},
+		},
+		{
 			Name:  "down",
 			Usage: "stop gpud systemd unit",
 			UsageText: `# to stop the existing gpud systemd unit
