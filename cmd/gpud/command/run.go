@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/config"
 	lepServer "github.com/leptonai/gpud/internal/server"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/manager"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 
@@ -96,6 +97,11 @@ func cmdRun(cliContext *cli.Context) error {
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
 	signal.Notify(signals, handledSignals...)
+	m, err := manager.New()
+	if err != nil {
+		return err
+	}
+	m.Start(rootCtx)
 
 	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, configOpts...)
 	if err != nil {
