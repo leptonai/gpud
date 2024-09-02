@@ -8,7 +8,7 @@ Each component implements its own collector to be called by the shared poller, a
 
 ## Code structure
 
-- Each component implements the [`Component`](./components/components.go) interface (see [file descriptor](./components/fd/component.go) for an example).
+- Each component implements the [`Component`](../components/components.go) interface (see [file descriptor](../components/fd/component.go) for an example).
 - Each component has a unique name, description, and tags.
 - Each component defines its own configuration.
 - Each component implements its own "get" function to collect data.
