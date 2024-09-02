@@ -80,7 +80,7 @@ FORCE:
 
 define BUILD_BINARY
 @echo "$(WHALE) $@"
-@$(GO) build ${GO_BUILD_FLAGS} ${DEBUG_GO_GCFLAGS} -o $@ ${GO_TAGS}  ./$<
+@CGO_ENABLED=1 $(GO) build ${GO_BUILD_FLAGS} ${DEBUG_GO_GCFLAGS} -o $@ ${GO_TAGS}  ./$<
 endef
 
 # Build a binary from a cmd.
