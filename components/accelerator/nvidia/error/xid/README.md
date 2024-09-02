@@ -20,7 +20,7 @@ dmesg --ctime --nopager --buffer-size 163920
 > [Fri Aug 30 11:43:09 2024] NVRM: Xid (PCI:0000:cb:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x57c730=0xc04000b 0x57c734=0x24 0x57c728=0x1f81fb60 0x57c72c=0x1174
 > [Fri Aug 30 11:43:14 2024] NVRM: Xid (PCI:0000:cb:00): 109, pid=1797828, name=pt_main_thread, Ch 00000008, errorString CTX SWITCH TIMEOUT, Info 0x58005
 
-The xid error code will be extracted as follows:
+The xid error code will be extracted as follows, and the `Detail` data is defined [here](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/query/xid#Detail):
 
 ```yaml
 detail:
