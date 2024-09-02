@@ -2,6 +2,7 @@
 
 ## GPU components
 
+- [**`accelerator-nvidia-clock`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/clock): Monitors NVIDIA GPU clock events of all GPUs, such as HW Slowdown events.
 - [**`accelerator-nvidia-clock-speed`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed): Tracks the per-GPU clock speed.
 - [**`accelerator-nvidia-ecc`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/ecc): Tracks the NVIDIA per-GPU ECC errors.
 - [**`accelerator-nvidia-error`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/error): Tracks NVIDIA GPU errors real-time in the SMI queries -- likely requires host restarts.
