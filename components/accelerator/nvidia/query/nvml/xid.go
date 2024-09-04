@@ -20,6 +20,7 @@ type XidEvent struct {
 
 	EventType uint64 `json:"event_type"`
 
+	DeviceUUID       string `json:"device_uuid"`
 	Xid              uint64 `json:"xid"`
 	XidCriticalError bool   `json:"xid_critical_error"`
 
@@ -109,18 +110,30 @@ func (inst *instance) pollXidEvents() {
 			}
 		}
 
+		var deviceUUID string
+		var deviceUUIDErr error
+		deviceUUID, ret = e.Device.GetUUID()
+		if ret != nvml.SUCCESS {
+			// "If we cannot reliably determine the device UUID, we mark all devices as unhealthy."
+			// ref. nvidia/k8s-device-plugin/internal/rm/health.go
+			deviceUUIDErr = fmt.Errorf("failed to get device UUID: %v", nvml.ErrorString(ret))
+		}
+
 		event := &XidEvent{
 			Time:           metav1.Time{Time: time.Now().UTC()},
 			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
 
 			EventType: e.EventType,
 
+			DeviceUUID:       deviceUUID,
 			Xid:              xid,
 			XidCriticalError: e.EventType == nvml.EventTypeXidCriticalError,
 
 			Detail: xidDetail,
 
 			Message: msg,
+
+			Error: deviceUUIDErr,
 		}
 		select {
 		case <-inst.rootCtx.Done():
