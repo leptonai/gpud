@@ -70,6 +70,8 @@ func (inst *instance) pollXidEvents() {
 		// ok to for-loop with infinite 5-second retry
 		// because the below wait call blocks 5-second anyways
 		// and we do not want to miss the events between retries
+		// the event is only sent to the "xidEventCh" channel
+		// if it's an Xid event thus safe to retry in the for-loop
 
 		// waits 5 seconds
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
