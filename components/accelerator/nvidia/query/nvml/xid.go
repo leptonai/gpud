@@ -60,20 +60,27 @@ const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTy
 func (inst *instance) pollXidEvents() {
 	log.Logger.Debugw("polling xid events")
 
-	ticker := time.NewTicker(1)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		case <-ticker.C:
-			ticker.Reset(inst.xidPollInterval)
+		default:
 		}
+
+		// ok to for-loop with infinite 5-second retry
+		// because the below wait call blocks 5-second anyways
+		// and we do not want to miss the events between retries
+		// the event is only sent to the "xidEventCh" channel
+		// if it's an Xid event thus safe to retry in the for-loop
 
 		// waits 5 seconds
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
 		e, ret := inst.xidEventSet.Wait(5000)
+
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Warnw("xid events not supported -- skipping", "error", nvml.ErrorString(ret))
+			return
+		}
 
 		if ret == nvml.ERROR_TIMEOUT {
 			log.Logger.Debugw("no event found in wait (timeout) -- retrying...", "error", nvml.ErrorString(ret))
@@ -135,12 +142,15 @@ func (inst *instance) pollXidEvents() {
 
 			Error: deviceUUIDErr,
 		}
+
+		log.Logger.Warnw("detected xid event", "event", event)
 		select {
 		case <-inst.rootCtx.Done():
 			return
 		case inst.xidEventCh <- event:
+			log.Logger.Warnw("notified xid event", "event", event)
 		default:
-			log.Logger.Debugw("xid event channel is full, skipping event")
+			log.Logger.Warnw("xid event channel is full, skipping event")
 		}
 	}
 }

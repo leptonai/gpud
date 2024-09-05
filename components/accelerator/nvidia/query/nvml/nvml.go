@@ -56,8 +56,6 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
-	xidPollInterval time.Duration
-
 	xidErrorSupported   bool
 	xidEventMask        uint64
 	xidEventSet         nvml.EventSet
@@ -149,8 +147,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
-
-		xidPollInterval: time.Minute,
 
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
