@@ -13,9 +13,11 @@ import (
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
-	clockEvents := make([]nvidia_query_nvml.ClockEvents, len(i.NVML.DeviceInfos))
-	for idx, devInfo := range i.NVML.DeviceInfos {
-		clockEvents[idx] = devInfo.ClockEvents
+	var clockEvents []nvidia_query_nvml.ClockEvents = nil
+	for _, devInfo := range i.NVML.DeviceInfos {
+		if devInfo.ClockEvents != nil {
+			clockEvents = append(clockEvents, *devInfo.ClockEvents)
+		}
 	}
 	return &Output{
 		HWSlowdownSMI: HWSlowdownSMI{

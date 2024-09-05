@@ -217,9 +217,33 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 
 	if runtime.GOOS == "linux" {
 		if nvidia_query.SMIExists() {
+			driverVersion, err := nvidia_query_nvml.GetDriverVersion()
+			if err != nil {
+				return nil, err
+			}
+			major, minor, patch, err := nvidia_query_nvml.ParseDriverVersion(driverVersion)
+			if err != nil {
+				return nil, err
+			}
+
 			log.Logger.Debugw("auto-detected nvidia -- configuring nvidia components")
 
-			cfg.Components[nvidia_clock.Name] = nil
+			if nvidia_query_nvml.ClockEventsSupportedVersion(major, minor, patch) {
+				clockEventsSupported, err := nvidia_query_nvml.ClockEventsSupported()
+				if err == nil {
+					if clockEventsSupported {
+						log.Logger.Infow("auto-detected clock events supported")
+						cfg.Components[nvidia_clock.Name] = nil
+					} else {
+						log.Logger.Infow("auto-detected clock events not supported -- skipping", "error", err)
+					}
+				} else {
+					log.Logger.Warnw("failed to check clock events supported or not", "error", err)
+				}
+			} else {
+				log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
+			}
+
 			cfg.Components[nvidia_ecc.Name] = nil
 			cfg.Components[nvidia_error.Name] = nil
 			if _, ok := cfg.Components[dmesg.Name]; ok {

@@ -140,14 +140,16 @@ func Get(ctx context.Context) (output any, err error) {
 		for _, dev := range o.NVML.DeviceInfos {
 			log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.Bus, "device", dev.Device, "minorNumber", dev.MinorNumber)
 
-			if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
-				return nil, err
-			}
-			if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
-				return nil, err
-			}
-			if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-				return nil, err
+			if dev.ClockEvents != nil {
+				if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
+					return nil, err
+				}
+				if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
+					return nil, err
+				}
+				if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
+					return nil, err
+				}
 			}
 
 			if err := metrics_clockspeed.SetGraphicsMHz(ctx, dev.UUID, dev.ClockSpeed.GraphicsMHz, now); err != nil {
@@ -368,16 +370,18 @@ func (o *Output) PrintInfo(debug bool) {
 		for _, dev := range o.NVML.DeviceInfos {
 			fmt.Printf("\n\n##################\nNVML scan results for %s\n\n", dev.UUID)
 
-			if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
-				fmt.Printf("%s NVML found hw slowdown error(s)\n", warningSign)
-				yb, err := dev.ClockEvents.YAML()
-				if err != nil {
-					log.Logger.Warnw("failed to marshal clock events", "error", err)
+			if dev.ClockEvents != nil {
+				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
+					fmt.Printf("%s NVML found hw slowdown error(s)\n", warningSign)
+					yb, err := dev.ClockEvents.YAML()
+					if err != nil {
+						log.Logger.Warnw("failed to marshal clock events", "error", err)
+					} else {
+						fmt.Printf("clock events:\n%s\n\n", string(yb))
+					}
 				} else {
-					fmt.Printf("clock events:\n%s\n\n", string(yb))
+					fmt.Printf("%s NVML found no hw slowdown error\n", checkMark)
 				}
-			} else {
-				fmt.Printf("%s NVML found no hw slowdown error\n", checkMark)
 			}
 
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
