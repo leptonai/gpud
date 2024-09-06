@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -227,10 +226,12 @@ func getUsage() (uint64, error) {
 	return total, nil
 }
 
+// returns the current file descriptor limit for the host, not for the current process.
+// for the current process, use syscall.Getrlimit.
 func getLimit() (uint64, error) {
-	var rlimit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
+	data, err := os.ReadFile("/proc/sys/fs/file-max")
+	if err != nil {
 		return 0, err
 	}
-	return rlimit.Cur, nil
+	return strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
 }
