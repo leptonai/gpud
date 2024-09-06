@@ -36,7 +36,7 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 // DefaultThresholdLimit is some high number, in case fd-max is unlimited
 const DefaultThresholdLimit = 1048576
 
-func (cfg Config) Validate() error {
+func (cfg *Config) Validate() error {
 	if cfg.ThresholdLimit == 0 {
 		cfg.ThresholdLimit = DefaultThresholdLimit
 	}
