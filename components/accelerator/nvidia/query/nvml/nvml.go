@@ -131,6 +131,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
 	}
 
+	// it is ok to create and register the same/shared event set across multiple devices
+	// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
 	xidEventSet, ret := nvmlLib.EventSetCreate()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to create event set: %v", nvml.ErrorString(ret))

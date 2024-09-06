@@ -164,7 +164,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		gpuID := m.UUID
 		for gpmMetricsID, v := range m.Metrics {
 			switch gpmMetricsID {
-			case nvml.GPM_METRIC_SM_OCCUPANCY:
+			case nvml.GPM_METRIC_SM_OCCUPANCY: // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmEnums.html#group__nvmlGpmEnums
 				if err := metrics_gpm.SetGPUSMOccupancyPercent(inst.rootCtx, gpuID, v, now); err != nil {
 					return nil, fmt.Errorf("failed to set gpm metric %v for gpu %s: %w", gpmMetricsID, gpuID, err)
 				}

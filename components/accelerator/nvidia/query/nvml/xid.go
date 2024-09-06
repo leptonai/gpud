@@ -54,6 +54,7 @@ func (inst *instance) RecvXidEvents() <-chan *XidEvent {
 	return inst.xidEventCh
 }
 
+// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
 const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
 
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
