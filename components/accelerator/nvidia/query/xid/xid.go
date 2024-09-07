@@ -176,12 +176,16 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	13: {
-		ID:                     13,
-		Name:                   "Graphics Engine Exception",
-		Description:            `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
-		HWError:                true,
-		DriverError:            true,
-		UserAppError:           true, // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		ID:          13,
+		Name:        "Graphics Engine Exception",
+		Description: `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
+		HWError:     true,
+		DriverError: true,
+
+		// May skip marking the GPU device as unhealthy if the error is the application error
+		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		UserAppError: true,
+
 		SystemMemoryCorruption: true,
 		BusError:               true,
 		ThermalIssue:           true,
@@ -392,12 +396,16 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	31: {
-		ID:                     31,
-		Name:                   "GPU memory page fault",
-		Description:            `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
-		HWError:                true,
-		DriverError:            true,
-		UserAppError:           true, // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		ID:          31,
+		Name:        "GPU memory page fault",
+		Description: `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
+		HWError:     true,
+		DriverError: true,
+
+		// May skip marking the GPU device as unhealthy if the error is the application error
+		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		UserAppError: true,
+
 		SystemMemoryCorruption: false,
 		BusError:               false,
 		ThermalIssue:           false,
@@ -536,12 +544,16 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	43: {
-		ID:                     43,
-		Name:                   "GPU stopped processing",
-		Description:            "",
-		HWError:                false,
-		DriverError:            true,
-		UserAppError:           true, // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		ID:          43,
+		Name:        "GPU stopped processing",
+		Description: "",
+		HWError:     false,
+		DriverError: true,
+
+		// May skip marking the GPU device as unhealthy if the error is the application error
+		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		UserAppError: true,
+
 		SystemMemoryCorruption: false,
 		BusError:               false,
 		ThermalIssue:           false,
@@ -560,12 +572,16 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	45: {
-		ID:                     45,
-		Name:                   "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
-		Description:            "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
-		HWError:                false,
-		DriverError:            true,
-		UserAppError:           false, // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		ID:          45,
+		Name:        "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
+		Description: "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
+		HWError:     false,
+		DriverError: true,
+
+		// May skip marking the GPU device as unhealthy if the error is the application error
+		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		UserAppError: true,
+
 		SystemMemoryCorruption: false,
 		BusError:               false,
 		ThermalIssue:           false,
@@ -869,12 +885,17 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	68: {
-		ID:                     68,
-		Name:                   "NVDEC0 Exception",
-		Description:            "",
-		HWError:                true,
-		DriverError:            true,
-		UserAppError:           false,
+		ID:          68,
+		Name:        "NVDEC0 Exception",
+		Description: "Video processor exception",
+		HWError:     true,
+		DriverError: true,
+
+		// May skip marking the GPU device as unhealthy if the error is the application error
+		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+		// TODO: verify whether this is still true https://github.com/NVIDIA/k8s-device-plugin/issues/945
+		UserAppError: true,
+
 		SystemMemoryCorruption: false,
 		BusError:               false,
 		ThermalIssue:           false,
