@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -21,15 +20,31 @@ import (
 )
 
 type Output struct {
-	RunningPIDs uint64   `json:"running_pids"`
-	Usage       uint64   `json:"usage"`
-	Limit       uint64   `json:"limit"`
-	UsedPercent string   `json:"used_percent"`
-	Errors      []string `json:"errors,omitempty"`
+	RunningPIDs uint64 `json:"running_pids"`
+	Usage       uint64 `json:"usage"`
+
+	Limit uint64 `json:"limit"`
+	// UsedPercent is the percentage of file descriptors that are currently in use,
+	// based on the current file descriptor limit on the host (not per process).
+	UsedPercent string `json:"used_percent"`
+
+	// Set to true if the file /proc/sys/fs/file-max exists.
+	FDMaxFileExists bool `json:"fd_max_file_exists"`
+
+	ThresholdLimit uint64 `json:"threshold_limit"`
+	// ThresholdUsedPercent is the percentage of file descriptors that are currently in use,
+	// based on the threshold file descriptor limit.
+	ThresholdUsedPercent string `json:"threshold_used_percent"`
+
+	Errors []string `json:"errors,omitempty"`
 }
 
 func (o Output) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(o.UsedPercent, 64)
+}
+
+func (o Output) GetThresholdUsedPercent() (float64, error) {
+	return strconv.ParseFloat(o.ThresholdUsedPercent, 64)
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -48,10 +63,13 @@ const (
 	StateNameFileDescriptors = "file_descriptors"
 
 	// The number of running PIDs returned by https://pkg.go.dev/github.com/shirou/gopsutil/v4/process#Pids.
-	StateKeyRunningPIDs = "running_pids"
-	StateKeyUsage       = "usage"
-	StateKeyLimit       = "limit"
-	StateKeyUsedPercent = "used_percent"
+	StateKeyRunningPIDs          = "running_pids"
+	StateKeyUsage                = "usage"
+	StateKeyLimit                = "limit"
+	StateKeyUsedPercent          = "used_percent"
+	StateKeyFDMaxFileExists      = "fd_max_file_exists"
+	StateKeyThresholdLimit       = "threshold_limit"
+	StateKeyThresholdUsedPercent = "threshold_used_percent"
 )
 
 func ParseStateFileDescriptors(m map[string]string) (*Output, error) {
@@ -66,11 +84,18 @@ func ParseStateFileDescriptors(m map[string]string) (*Output, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	o.Limit, err = strconv.ParseUint(m[StateKeyLimit], 10, 64)
 	if err != nil {
 		return nil, err
 	}
 	o.UsedPercent = m[StateKeyUsedPercent]
+
+	o.ThresholdLimit, err = strconv.ParseUint(m[StateKeyThresholdLimit], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	o.ThresholdUsedPercent = m[StateKeyThresholdUsedPercent]
 
 	return o, nil
 }
@@ -92,17 +117,31 @@ func (o *Output) States() ([]components.State, error) {
 	state := components.State{
 		Name:    StateNameFileDescriptors,
 		Healthy: true,
-		Reason:  fmt.Sprintf("running_pids: %d, usage: %d, limit: %d, used_percent: %s", o.RunningPIDs, o.Usage, o.Limit, o.UsedPercent),
+		Reason:  fmt.Sprintf("running_pids: %d, usage: %d, limit: %d, threshold_limit: %d, used_percent: %s, threshold_used_percent: %s", o.RunningPIDs, o.Usage, o.Limit, o.ThresholdLimit, o.UsedPercent, o.ThresholdUsedPercent),
 		ExtraInfo: map[string]string{
 			StateKeyRunningPIDs: fmt.Sprintf("%d", o.RunningPIDs),
 			StateKeyUsage:       fmt.Sprintf("%d", o.Usage),
+
 			StateKeyLimit:       fmt.Sprintf("%d", o.Limit),
 			StateKeyUsedPercent: o.UsedPercent,
+
+			StateKeyFDMaxFileExists: fmt.Sprintf("%v", o.FDMaxFileExists),
+
+			StateKeyThresholdLimit:       fmt.Sprintf("%d", o.ThresholdLimit),
+			StateKeyThresholdUsedPercent: o.ThresholdUsedPercent,
 		},
 	}
+
 	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > 95.0 {
 		state.Healthy = false
 		state.Reason += "-- used_percent is greater than 95"
+	}
+
+	if o.FDMaxFileExists && o.ThresholdLimit > 0 {
+		if thresholdUsedPercent, err := o.GetThresholdUsedPercent(); err == nil && thresholdUsedPercent > 95.0 {
+			state.Healthy = false
+			state.Reason += "-- threshold_used_percent is greater than 95"
+		}
 	}
 
 	// may fail on Mac OS
@@ -122,7 +161,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, Get)
+		defaultPoller = query.New(Name, cfg.Query, CreateGet(cfg))
 	})
 }
 
@@ -130,64 +169,86 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func Get(ctx context.Context) (_ any, e error) {
-	defer func() {
-		if e != nil {
-			components_metrics.SetGetFailed(Name)
-		} else {
-			components_metrics.SetGetSuccess(Name)
+func CreateGet(cfg Config) query.GetFunc {
+	return func(ctx context.Context) (_ any, e error) {
+		defer func() {
+			if e != nil {
+				components_metrics.SetGetFailed(Name)
+			} else {
+				components_metrics.SetGetSuccess(Name)
+			}
+		}()
+
+		now := time.Now().UTC()
+		nowUTC := float64(now.Unix())
+		metrics.SetLastUpdateUnixSeconds(nowUTC)
+
+		runningPIDs, err := getRunningPids()
+		if err != nil {
+			return nil, err
 		}
-	}()
+		if err := metrics.SetRunningPIDs(ctx, float64(runningPIDs), now); err != nil {
+			return nil, err
+		}
 
-	now := time.Now().UTC()
-	nowUTC := float64(now.Unix())
-	metrics.SetLastUpdateUnixSeconds(nowUTC)
+		var errs []string = nil
 
-	runningPIDs, err := getRunningPids()
-	if err != nil {
-		return nil, err
-	}
-	if err := metrics.SetRunningPIDs(ctx, float64(runningPIDs), now); err != nil {
-		return nil, err
-	}
+		// may fail for mac
+		// e.g.,
+		// stat /proc: no such file or directory
+		usage, uerr := getUsage()
+		if uerr != nil {
+			errs = append(errs, uerr.Error())
+		}
 
-	var errs []string = nil
+		limit, err := getLimit()
+		if err != nil {
+			return nil, err
+		}
+		if err := metrics.SetLimit(ctx, float64(limit), now); err != nil {
+			return nil, err
+		}
 
-	// may fail for mac
-	// e.g.,
-	// stat /proc: no such file or directory
-	usage, uerr := getUsage()
-	if uerr != nil {
-		errs = append(errs, uerr.Error())
-	}
-
-	limit, err := getLimit()
-	if err != nil {
-		return nil, err
-	}
-	if err := metrics.SetLimit(ctx, float64(limit), now); err != nil {
-		return nil, err
-	}
-
-	var usedPct float64
-	if limit > 0 {
 		usageVal := runningPIDs // for mac
 		if usage > 0 {
 			usageVal = usage
 		}
-		usedPct = float64(usageVal) / float64(limit) * 100
-	}
-	if err := metrics.SetUsedPercent(ctx, usedPct, now); err != nil {
-		return nil, err
-	}
+		usedPct := calculateUsedPercent(usageVal, limit)
+		if err := metrics.SetUsedPercent(ctx, usedPct, now); err != nil {
+			return nil, err
+		}
 
-	return &Output{
-		RunningPIDs: runningPIDs,
-		Usage:       usage,
-		Limit:       limit,
-		UsedPercent: fmt.Sprintf("%.2f", usedPct),
-		Errors:      errs,
-	}, nil
+		fdMaxFileExists := false
+		if _, err := os.Stat(fileMaxFile); err == nil {
+			fdMaxFileExists = true
+		}
+
+		var thresholdUsedPct float64
+		if fdMaxFileExists && cfg.ThresholdLimit > 0 {
+			thresholdUsedPct = calculateUsedPercent(usage, cfg.ThresholdLimit)
+		}
+		if err := metrics.SetThresholdLimit(ctx, float64(cfg.ThresholdLimit)); err != nil {
+			return nil, err
+		}
+		if err := metrics.SetThresholdUsedPercent(ctx, thresholdUsedPct, now); err != nil {
+			return nil, err
+		}
+
+		return &Output{
+			RunningPIDs: runningPIDs,
+			Usage:       usage,
+
+			Limit:       limit,
+			UsedPercent: fmt.Sprintf("%.2f", usedPct),
+
+			FDMaxFileExists: fdMaxFileExists,
+
+			ThresholdLimit:       cfg.ThresholdLimit,
+			ThresholdUsedPercent: fmt.Sprintf("%.2f", thresholdUsedPct),
+
+			Errors: errs,
+		}, nil
+	}
 }
 
 func getRunningPids() (uint64, error) {
@@ -227,10 +288,21 @@ func getUsage() (uint64, error) {
 	return total, nil
 }
 
+const fileMaxFile = "/proc/sys/fs/file-max"
+
+// returns the current file descriptor limit for the host, not for the current process.
+// for the current process, use syscall.Getrlimit.
 func getLimit() (uint64, error) {
-	var rlimit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
+	data, err := os.ReadFile(fileMaxFile)
+	if err != nil {
 		return 0, err
 	}
-	return rlimit.Cur, nil
+	return strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+}
+
+func calculateUsedPercent(usage, limit uint64) float64 {
+	if limit > 0 {
+		return float64(usage) / float64(limit) * 100
+	}
+	return 0
 }

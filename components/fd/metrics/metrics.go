@@ -14,9 +14,6 @@ import (
 
 const SubSystem = "fd"
 
-// Used for tracking the past x-minute averages + EMAs.
-var defaultPeriods = []time.Duration{5 * time.Minute}
-
 var (
 	lastUpdateUnixSeconds = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -36,15 +33,6 @@ var (
 		},
 	)
 	runningPIDsAverager = components_metrics.NewNoOpAverager()
-	runningPIDsAverage  = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "running_pids_avg",
-			Help:      "tracks the total number of running pids with average for the last period",
-		},
-		[]string{"last_period"},
-	)
 
 	limit = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -65,21 +53,31 @@ var (
 		},
 	)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
-	usedPercentAverage  = prometheus.NewGaugeVec(
+
+	thresholdLimit = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
-			Name:      "used_percent_avg",
-			Help:      "tracks the file descriptor usage percentage with average for the last period",
+			Name:      "threshold_limit",
+			Help:      "tracks the current file descriptor threshold limit",
 		},
-		[]string{"last_period"},
 	)
+	thresholdUsedPercent = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: SubSystem,
+			Name:      "threshold_used_percent",
+			Help:      "tracks the current file descriptor threshold usage percentage",
+		},
+	)
+	thresholdUsedPercentAverager = components_metrics.NewNoOpAverager()
 )
 
 func InitAveragers(db *sql.DB, tableName string) {
 	runningPIDsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_running_pids")
 	limitAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_limit")
 	usedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_used_percent")
+	thresholdUsedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_threshold_used_percent")
 }
 
 func ReadRunningPIDs(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -94,6 +92,10 @@ func ReadUsedPercents(ctx context.Context, since time.Time) (components_metrics_
 	return usedPercentAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
+func ReadThresholdUsedPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
+	return thresholdUsedPercentAverager.Read(ctx, components_metrics.WithSince(since))
+}
+
 func SetLastUpdateUnixSeconds(unixSeconds float64) {
 	lastUpdateUnixSeconds.Set(unixSeconds)
 }
@@ -106,17 +108,6 @@ func SetRunningPIDs(ctx context.Context, pids float64, currentTime time.Time) er
 		pids,
 	); err != nil {
 		return err
-	}
-
-	for _, duration := range defaultPeriods {
-		avg, err := runningPIDsAverager.Avg(
-			ctx,
-			components_metrics.WithSince(currentTime.Add(-duration)),
-		)
-		if err != nil {
-			return err
-		}
-		runningPIDsAverage.WithLabelValues(duration.String()).Set(avg)
 	}
 
 	return nil
@@ -147,15 +138,23 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 		return err
 	}
 
-	for _, duration := range defaultPeriods {
-		avg, err := usedPercentAverager.Avg(
-			ctx,
-			components_metrics.WithSince(currentTime.Add(-duration)),
-		)
-		if err != nil {
-			return err
-		}
-		usedPercentAverage.WithLabelValues(duration.String()).Set(avg)
+	return nil
+}
+
+func SetThresholdLimit(ctx context.Context, limit float64) error {
+	thresholdLimit.Set(limit)
+	return nil
+}
+
+func SetThresholdUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
+	thresholdUsedPercent.Set(pct)
+
+	if err := thresholdUsedPercentAverager.Observe(
+		ctx,
+		pct,
+		components_metrics.WithCurrentTime(currentTime),
+	); err != nil {
+		return err
 	}
 
 	return nil
@@ -170,16 +169,16 @@ func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
 	if err := reg.Register(runningPIDs); err != nil {
 		return err
 	}
-	if err := reg.Register(runningPIDsAverage); err != nil {
-		return err
-	}
 	if err := reg.Register(limit); err != nil {
 		return err
 	}
 	if err := reg.Register(usedPercent); err != nil {
 		return err
 	}
-	if err := reg.Register(usedPercentAverage); err != nil {
+	if err := reg.Register(thresholdLimit); err != nil {
+		return err
+	}
+	if err := reg.Register(thresholdUsedPercent); err != nil {
 		return err
 	}
 	return nil

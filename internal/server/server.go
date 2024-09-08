@@ -256,7 +256,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 			allComponents = append(allComponents, c)
 
 		case fd.Name:
-			cfg := fd.Config{Query: defaultQueryCfg}
+			cfg := fd.Config{Query: defaultQueryCfg, ThresholdLimit: fd.DefaultThresholdLimit}
 			if configValue != nil {
 				parsed, err := fd.ParseConfig(configValue, db)
 				if err != nil {

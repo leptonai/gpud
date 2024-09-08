@@ -9,6 +9,12 @@ import (
 
 type Config struct {
 	Query query_config.Config `json:"query"`
+
+	// ThresholdLimit is the number of file descriptor limit at which
+	// we consider the system to be under high file descriptor usage.
+	// This is useful for triggering alerts when the system is under high load.
+	// And useful when the actual system fd-max is set to unlimited.
+	ThresholdLimit uint64 `json:"threshold_limit"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {
@@ -27,6 +33,12 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 	return cfg, nil
 }
 
-func (cfg Config) Validate() error {
+// DefaultThresholdLimit is some high number, in case fd-max is unlimited
+const DefaultThresholdLimit = 1048576
+
+func (cfg *Config) Validate() error {
+	if cfg.ThresholdLimit == 0 {
+		cfg.ThresholdLimit = DefaultThresholdLimit
+	}
 	return nil
 }
