@@ -4,10 +4,56 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/leptonai/gpud/log"
+
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"sigs.k8s.io/yaml"
 )
+
+// Returns true if clock events is supported by all devices.
+// Returns false if any device does not support clock events.
+// ref. undefined symbol: nvmlDeviceGetCurrentClocksEventReasons for older nvidia drivers
+func ClockEventsSupported() (bool, error) {
+	nvmlLib := nvml.New()
+	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
+		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	}
+	log.Logger.Debugw("successfully initialized NVML")
+
+	deviceLib := device.New(nvmlLib)
+	devices, err := deviceLib.GetDevices()
+	if err != nil {
+		return false, err
+	}
+
+	for _, dev := range devices {
+		supported, err := ClockEventsSupportedByDevice(dev)
+		if err != nil {
+			return false, err
+		}
+		if !supported {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// Returns true if clock events is supported by this device.
+func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
+	// clock events are supported in versions 535 and above
+	// otherwise, CGO call just exits with
+	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
+	_, ret := dev.GetCurrentClocksEventReasons()
+	if ret != nvml.ERROR_NOT_SUPPORTED {
+		return false, nil
+	}
+	if ret != nvml.SUCCESS {
+		return false, fmt.Errorf("could not get current clock events: %v", nvml.ErrorString(ret))
+	}
+	return true, nil
+}
 
 // ClockEvents represents the current clock events from the nvmlDeviceGetCurrentClocksEventReasons API.
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
@@ -50,6 +96,9 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 		UUID: uuid,
 	}
 
+	// clock events are supported in versions 535 and above
+	// otherwise, CGO call just exits with
+	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	reasons, ret := dev.GetCurrentClocksEventReasons()
 	if ret != nvml.SUCCESS {

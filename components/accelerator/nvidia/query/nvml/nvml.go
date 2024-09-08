@@ -43,6 +43,9 @@ var _ Instance = (*instance)(nil)
 type instance struct {
 	mu sync.RWMutex
 
+	driverVersion        string
+	clockEventsSupported bool
+
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
 
@@ -91,17 +94,51 @@ type DeviceInfo struct {
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
-	ClockEvents ClockEvents `json:"clock_events"`
-	ClockSpeed  ClockSpeed  `json:"clock_speed"`
-	Memory      Memory      `json:"memory"`
-	NVLink      NVLink      `json:"nvlink"`
-	Power       Power       `json:"power"`
-	Temperature Temperature `json:"temperature"`
-	Utilization Utilization `json:"utilization"`
-	Processes   Processes   `json:"processes"`
-	ECCErrors   ECCErrors   `json:"ecc_errors"`
+	ClockEvents *ClockEvents `json:"clock_events,omitempty"`
+	ClockSpeed  ClockSpeed   `json:"clock_speed"`
+	Memory      Memory       `json:"memory"`
+	NVLink      NVLink       `json:"nvlink"`
+	Power       Power        `json:"power"`
+	Temperature Temperature  `json:"temperature"`
+	Utilization Utilization  `json:"utilization"`
+	Processes   Processes    `json:"processes"`
+	ECCErrors   ECCErrors    `json:"ecc_errors"`
 
 	device device.Device `json:"-"`
+}
+
+func GetDriverVersion() (string, error) {
+	nvmlLib := nvml.New()
+	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	}
+
+	ver, ret := nvmlLib.SystemGetDriverVersion()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
+	}
+
+	// e.g.,
+	// 525.85.12  == does not support clock events
+	// 535.161.08 == supports clock events
+	return ver, nil
+}
+
+func ParseDriverVersion(version string) (major, minor, patch int, err error) {
+	var parsed [3]int
+	if _, err = fmt.Sscanf(version, "%d.%d.%d", &parsed[0], &parsed[1], &parsed[2]); err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version: %v", err)
+	}
+
+	major, minor, patch = parsed[0], parsed[1], parsed[2]
+	return major, minor, patch, nil
+}
+
+// clock events are supported in versions 535 and above
+// otherwise, CGO call just exits with
+// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
+func ClockEventsSupportedVersion(major int) bool {
+	return major >= 535
 }
 
 func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
@@ -118,7 +155,20 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
-	log.Logger.Debugw("successfully initialized NVML")
+	driverVersion, err := GetDriverVersion()
+	if err != nil {
+		return nil, err
+	}
+	major, _, _, err := ParseDriverVersion(driverVersion)
+	if err != nil {
+		return nil, err
+	}
+	clockEventsSupported := ClockEventsSupportedVersion(major)
+	if !clockEventsSupported {
+		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
+	}
+
+	log.Logger.Debugw("successfully initialized NVML", "driverVersion", driverVersion)
 
 	deviceLib := device.New(nvmlLib)
 	infoLib := nvinfo.New(
@@ -142,6 +192,9 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	return &instance{
 		rootCtx:    rootCtx,
 		rootCancel: rootCancel,
+
+		driverVersion:        driverVersion,
+		clockEventsSupported: clockEventsSupported,
 
 		nvmlLib:   nvmlLib,
 		deviceLib: deviceLib,
@@ -347,12 +400,15 @@ func (inst *instance) Get() (*Output, error) {
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
-		var err error
-		latestInfo.ClockEvents, err = GetClockEvents(devInfo.UUID, devInfo.device)
-		if err != nil {
-			return st, err
+		if inst.clockEventsSupported {
+			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
+			if err != nil {
+				return st, err
+			}
+			latestInfo.ClockEvents = &clockEvents
 		}
 
+		var err error
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
 		if err != nil {
 			return st, err
