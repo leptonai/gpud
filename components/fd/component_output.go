@@ -209,14 +209,11 @@ func CreateGet(cfg Config) query.GetFunc {
 			return nil, err
 		}
 
-		var usedPct float64
-		if limit > 0 {
-			usageVal := runningPIDs // for mac
-			if usage > 0 {
-				usageVal = usage
-			}
-			usedPct = float64(usageVal) / float64(limit) * 100
+		usageVal := runningPIDs // for mac
+		if usage > 0 {
+			usageVal = usage
 		}
+		usedPct := calculateUsedPercent(usageVal, limit)
 		if err := metrics.SetUsedPercent(ctx, usedPct, now); err != nil {
 			return nil, err
 		}
@@ -228,7 +225,7 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		var thresholdUsedPct float64
 		if fdMaxFileExists && cfg.ThresholdLimit > 0 {
-			thresholdUsedPct = float64(usage) / float64(cfg.ThresholdLimit) * 100
+			thresholdUsedPct = calculateUsedPercent(usage, cfg.ThresholdLimit)
 		}
 		if err := metrics.SetThresholdLimit(ctx, float64(cfg.ThresholdLimit)); err != nil {
 			return nil, err
@@ -301,4 +298,11 @@ func getLimit() (uint64, error) {
 		return 0, err
 	}
 	return strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+}
+
+func calculateUsedPercent(usage, limit uint64) float64 {
+	if limit > 0 {
+		return float64(usage) / float64(limit) * 100
+	}
+	return 0
 }
