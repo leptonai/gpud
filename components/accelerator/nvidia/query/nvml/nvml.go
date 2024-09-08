@@ -137,7 +137,7 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 // clock events are supported in versions 535 and above
 // otherwise, CGO call just exits with
 // undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
-func ClockEventsSupportedVersion(major, minor, patch int) bool {
+func ClockEventsSupportedVersion(major int) bool {
 	return major >= 535
 }
 
@@ -159,11 +159,11 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	if err != nil {
 		return nil, err
 	}
-	major, minor, patch, err := ParseDriverVersion(driverVersion)
+	major, _, _, err := ParseDriverVersion(driverVersion)
 	if err != nil {
 		return nil, err
 	}
-	clockEventsSupported := ClockEventsSupportedVersion(major, minor, patch)
+	clockEventsSupported := ClockEventsSupportedVersion(major)
 	if !clockEventsSupported {
 		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 	}

@@ -221,14 +221,14 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 			if err != nil {
 				return nil, err
 			}
-			major, minor, patch, err := nvidia_query_nvml.ParseDriverVersion(driverVersion)
+			major, _, _, err := nvidia_query_nvml.ParseDriverVersion(driverVersion)
 			if err != nil {
 				return nil, err
 			}
 
 			log.Logger.Debugw("auto-detected nvidia -- configuring nvidia components")
 
-			if nvidia_query_nvml.ClockEventsSupportedVersion(major, minor, patch) {
+			if nvidia_query_nvml.ClockEventsSupportedVersion(major) {
 				clockEventsSupported, err := nvidia_query_nvml.ClockEventsSupported()
 				if err == nil {
 					if clockEventsSupported {
