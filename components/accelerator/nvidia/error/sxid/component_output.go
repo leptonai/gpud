@@ -115,6 +115,7 @@ func (o *Output) Events() []components.Event {
 	for _, de := range o.DmesgErrors {
 		b, _ := de.JSON()
 		des = append(des, components.Event{
+			Time: de.LogItem.Time,
 			Name: EventNameErroSXid,
 			ExtraInfo: map[string]string{
 				EventKeyErroSXidUnixSeconds: strconv.FormatInt(de.LogItem.Time.Unix(), 10),
