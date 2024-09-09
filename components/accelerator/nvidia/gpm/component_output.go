@@ -76,7 +76,8 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 	state := components.State{
-		Name: StateNameGPM,
+		Name:    StateNameGPM,
+		Healthy: true,
 		ExtraInfo: map[string]string{
 			StateKeyGPMData:     string(b),
 			StateKeyGPMEncoding: StateValueGPMEncodingJSON,
