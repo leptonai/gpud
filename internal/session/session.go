@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -109,11 +108,14 @@ func (s *Session) startWriter() {
 				case body := <-s.writer:
 					bytes, err := json.Marshal(body)
 					if err != nil {
-						log.Logger.Errorf("session writer: failed to marshal body: %v", err)
+						log.Logger.Debugf("session writer: failed to marshal body: %v", err)
 						continue
 					}
 					if _, err := writer.Write(bytes); err != nil {
-						log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+						log.Logger.Debugf("session writer: failed to write to pipe: %v", err)
+						if errors.Is(err, io.ErrClosedPipe) {
+							return
+						}
 						continue
 					}
 				}
@@ -122,7 +124,7 @@ func (s *Session) startWriter() {
 
 		req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, reader)
 		if err != nil {
-			log.Logger.Errorf("session writer: error creating request: %v, retrying in 3s...", err)
+			log.Logger.Debugf("session writer: error creating request: %v, retrying in 3s...", err)
 			close(goroutineCloseCh)
 			continue
 		}
@@ -132,7 +134,7 @@ func (s *Session) startWriter() {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Logger.Errorf("session writer: error making request: %v, retrying", err)
+			log.Logger.Debugf("session writer: error making request: %v, retrying", err)
 			close(goroutineCloseCh)
 			continue
 		}
@@ -161,7 +163,7 @@ func (s *Session) startReader() {
 
 		req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, nil)
 		if err != nil {
-			log.Logger.Errorf("session reader: error creating request: %v, retrying", err)
+			log.Logger.Debugf("session reader: error creating request: %v, retrying", err)
 			continue
 		}
 		req.Header.Set("machine_id", s.machineID)
@@ -170,11 +172,11 @@ func (s *Session) startReader() {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Logger.Errorf("session reader: error making request: %v, retrying", err)
+			log.Logger.Debugf("session reader: error making request: %v, retrying", err)
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Logger.Errorf("session reader: error making request: %v %v, retrying", resp.StatusCode, resp.Status)
+			log.Logger.Debugf("session reader: error making request: %v %v, retrying", resp.StatusCode, resp.Status)
 			continue
 		}
 
@@ -199,7 +201,7 @@ func (s *Session) startReader() {
 			err = decoder.Decode(&content)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					fmt.Println("Error reading response:", err)
+					log.Logger.Debugf("Error reading response: %v", err)
 				}
 
 				s.writerCloseCh <- true
