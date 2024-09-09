@@ -103,6 +103,9 @@ func Get(ctx context.Context) (output any, err error) {
 	if o.IbstatExists {
 		o.Ibstat, err = RunIbstat(cctx)
 		if err != nil {
+			if o.Ibstat == nil {
+				o.Ibstat = &IbstatOutput{}
+			}
 			o.Ibstat.Errors = append(o.Ibstat.Errors, err.Error())
 		}
 	}
