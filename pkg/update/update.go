@@ -130,6 +130,26 @@ func SystemctlExists() error {
 	return nil
 }
 
+func EnableSystemdUnit() error {
+	if err := SystemctlExists(); err != nil {
+		return err
+	}
+	if out, err := exec.Command("systemctl", "enable", "gpud.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl enable failed: %w output: %s", err, out)
+	}
+	return nil
+}
+
+func DisableSystemdUnit() error {
+	if err := SystemctlExists(); err != nil {
+		return err
+	}
+	if out, err := exec.Command("systemctl", "disable", "gpud.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl disable failed: %w output: %s", err, out)
+	}
+	return nil
+}
+
 func RestartSystemdUnit() error {
 	if err := SystemctlExists(); err != nil {
 		return err
