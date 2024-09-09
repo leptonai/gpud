@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/leptonai/gpud/client"
+	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"

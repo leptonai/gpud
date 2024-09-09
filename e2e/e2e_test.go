@@ -17,6 +17,8 @@ import (
 	"time"
 
 	v1 "github.com/leptonai/gpud/api/v1"
+	client_v1 "github.com/leptonai/gpud/client/v1"
+	"github.com/leptonai/gpud/internal/server"
 )
 
 func TestGpudHealthzInfo(t *testing.T) {
@@ -38,7 +40,7 @@ func TestGpudHealthzInfo(t *testing.T) {
 	randVal := randStr(t, 10)
 
 	// start gpud command
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-enable=false", "--enable-auto-update=false", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
@@ -131,8 +133,8 @@ func TestGpudHealthzInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
-	req2CompressGzip.Header.Set("Content-Type", "application/json")
-	req2CompressGzip.Header.Set("Accept-Encoding", "gzip")
+	req2CompressGzip.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
+	req2CompressGzip.Header.Set(server.RequestHeaderAcceptEncoding, server.RequestHeaderEncodingGzip)
 	resp2CompressGzip, err := client.Do(req2CompressGzip)
 	if err != nil {
 		t.Errorf("failed to make request to /v1/states: %v", err)
@@ -278,6 +280,37 @@ func TestGpudHealthzInfo(t *testing.T) {
 		t.Fatalf("failed to read response body: %v", err)
 	}
 	t.Logf("respMetrics size:\n%s", string(metricsBytes))
+
+	t.Log("now testing with client/v1")
+	components, err := client_v1.GetComponents(ctx, ep, client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip())
+	if err != nil {
+		t.Errorf("failed to get components: %v", err)
+	}
+	t.Logf("components: %v", components)
+
+	info, err := client_v1.GetInfo(ctx, ep, client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip())
+	if err != nil {
+		t.Errorf("failed to get info: %v", err)
+	}
+	t.Logf("info: %v", info)
+
+	states, err := client_v1.GetStates(ctx, ep, client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip())
+	if err != nil {
+		t.Errorf("failed to get states: %v", err)
+	}
+	t.Logf("states: %v", states)
+
+	events, err := client_v1.GetEvents(ctx, ep, client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip())
+	if err != nil {
+		t.Errorf("failed to get events: %v", err)
+	}
+	t.Logf("events: %v", events)
+
+	metricsV1, err := client_v1.GetMetrics(ctx, ep, client_v1.WithAcceptEncodingGzip())
+	if err != nil {
+		t.Errorf("failed to get metricsV1: %v", err)
+	}
+	t.Logf("metricsV1: %v", metricsV1)
 }
 
 func randStr(t *testing.T, length int) string {
