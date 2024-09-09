@@ -282,35 +282,42 @@ func TestGpudHealthzInfo(t *testing.T) {
 	t.Logf("respMetrics size:\n%s", string(metricsBytes))
 
 	t.Log("now testing with client/v1")
-	components, err := client_v1.GetComponents(ctx, "https://"+ep, client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip())
-	if err != nil {
-		t.Errorf("failed to get components: %v", err)
-	}
-	t.Logf("components: %v", components)
+	for _, opts := range [][]client_v1.OpOption{
+		{client_v1.WithRequestContentTypeJSON()},
+		{client_v1.WithRequestContentTypeYAML()},
+		{client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip()},
+		{client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip()},
+	} {
+		components, err := client_v1.GetComponents(ctx, "https://"+ep, opts...)
+		if err != nil {
+			t.Errorf("failed to get components: %v", err)
+		}
+		t.Logf("components: %v", components)
 
-	info, err := client_v1.GetInfo(ctx, "https://"+ep, client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip())
-	if err != nil {
-		t.Errorf("failed to get info: %v", err)
-	}
-	t.Logf("info: %v", info)
+		info, err := client_v1.GetInfo(ctx, "https://"+ep, opts...)
+		if err != nil {
+			t.Errorf("failed to get info: %v", err)
+		}
+		t.Logf("info: %v", info)
 
-	states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip())
-	if err != nil {
-		t.Errorf("failed to get states: %v", err)
-	}
-	t.Logf("states: %v", states)
+		states, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
+		if err != nil {
+			t.Errorf("failed to get states: %v", err)
+		}
+		t.Logf("states: %v", states)
 
-	events, err := client_v1.GetEvents(ctx, "https://"+ep, client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip())
-	if err != nil {
-		t.Errorf("failed to get events: %v", err)
-	}
-	t.Logf("events: %v", events)
+		events, err := client_v1.GetEvents(ctx, "https://"+ep, opts...)
+		if err != nil {
+			t.Errorf("failed to get events: %v", err)
+		}
+		t.Logf("events: %v", events)
 
-	metricsV1, err := client_v1.GetMetrics(ctx, "https://"+ep, client_v1.WithAcceptEncodingGzip())
-	if err != nil {
-		t.Errorf("failed to get metricsV1: %v", err)
+		metricsV1, err := client_v1.GetMetrics(ctx, "https://"+ep, opts...)
+		if err != nil {
+			t.Errorf("failed to get metricsV1: %v", err)
+		}
+		t.Logf("metricsV1: %v", metricsV1)
 	}
-	t.Logf("metricsV1: %v", metricsV1)
 }
 
 func randStr(t *testing.T, length int) string {
