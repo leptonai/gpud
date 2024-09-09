@@ -1,8 +1,12 @@
 <img src="./assets/gpud.svg" height="100" alt="GPUd logo">
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/leptonai/gpud)](https://goreportcard.com/report/github.com/leptonai/gpud)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/leptonai/gpud?sort=semver)
+[![Go Reference](https://pkg.go.dev/badge/github.com/leptonai/gpud.svg)](https://pkg.go.dev/github.com/leptonai/gpud)
+
 ## Overview
 
-GPUd is designed to ensure GPU efficiency and reliability by actively monitoring GPUs and effectively managing AI/ML workloads.
+[GPUd](https://www.gpud.ai) is designed to ensure GPU efficiency and reliability by actively monitoring GPUs and effectively managing AI/ML workloads.
 
 Unlike CPUs, GPU failures and issues are common and can significantly impact training and inference efficiency.
 
