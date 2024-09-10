@@ -36,8 +36,32 @@ func downloadURLToFile(pathSrc, fileDst, pkgAddr string) (ret error) {
 	return c.Download(context.Background(), pathSrc, fileDst)
 }
 
+func detectUbuntuVersion() string {
+	outputBytes, err := exec.Command("lsb_release", "-i", "-s").Output()
+	if err != nil {
+		return ""
+	}
+	osName := strings.TrimSpace(strings.ToLower(string(outputBytes)))
+	if osName != "ubuntu" {
+		return ""
+	}
+	outputBytes, err = exec.Command("lsb_release", "-r", "-s").Output()
+	if err != nil {
+		return ""
+	}
+	version := strings.TrimSpace(string(outputBytes))
+	if version == "20.04" || version == "22.04" || version == "24.04" {
+		return "ubuntu" + version
+	}
+	return ""
+}
+
 func tarballName(ver, os, arch string) string {
-	return fmt.Sprintf("gpud_%s_%s_%s.tgz", ver, os, arch)
+	ubuntuVersion := detectUbuntuVersion()
+	if ubuntuVersion == "" {
+		return fmt.Sprintf("gpud_%s_%s_%s.tgz", ver, os, arch)
+	}
+	return fmt.Sprintf("gpud_%s_%s_%s_%s.tgz", ver, os, arch, ubuntuVersion)
 }
 
 func downloadLinuxTarball(ver, pkgAddr string) (string, error) {
