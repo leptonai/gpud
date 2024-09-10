@@ -59,7 +59,7 @@ func ParseStateDockerContainer(m map[string]string) ([]DockerContainer, error) {
 
 func (o *Output) describeReason() string {
 	if o.IsErrDockerClientVersionNewerThanDaemon {
-		return "docker client version is newer than the daemon version (needs downgrading docker client in GPUd or upgrading docker daemon in the host)"
+		return "not supported; docker client version is newer than the daemon version (needs downgrading docker client in GPUd or upgrading docker daemon in the host)"
 	}
 	return fmt.Sprintf("total %d containers", len(o.Containers))
 }
