@@ -12,7 +12,6 @@ import (
 	"github.com/leptonai/gpud/components/query"
 
 	docker_types "github.com/docker/docker/api/types"
-	docker_container "github.com/docker/docker/api/types/container"
 	docker_client "github.com/docker/docker/client"
 )
 
@@ -151,7 +150,7 @@ func ListContainers(ctx context.Context) ([]docker_types.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	containers, err := cli.ContainerList(ctx, docker_container.ListOptions{})
+	containers, err := cli.ContainerList(ctx, docker_types.ContainerListOptions{})
 	if err != nil {
 		return nil, err
 	}
