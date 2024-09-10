@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -60,8 +61,12 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 		default:
 		}
 	}
-	if scanner.Err() != nil {
-		return nil, scanner.Err()
+	if serr := scanner.Err(); serr != nil {
+		if serr != io.EOF &&
+			// process already dead, thus ignore
+			!strings.Contains(serr.Error(), "read |0: file already closed") {
+			return nil, serr
+		}
 	}
 	if err != nil {
 		return nil, err
