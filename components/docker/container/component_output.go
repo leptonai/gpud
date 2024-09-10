@@ -18,6 +18,12 @@ import (
 
 type Output struct {
 	Containers []DockerContainer `json:"containers,omitempty"`
+
+	// Sets true if the docker client calls due to the version incompatibility issue.
+	// e.g.,
+	// "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
+	IsErrDockerClientVersionNewerThanDaemon bool   `json:"is_err_docker_client_version_newer_than_daemon,omitempty"`
+	DockerClientError                       string `json:"docker_client_error,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -53,6 +59,12 @@ func ParseStateDockerContainer(m map[string]string) ([]DockerContainer, error) {
 }
 
 func (o *Output) describeReason() string {
+	if o.IsErrDockerClientVersionNewerThanDaemon {
+		if o.DockerClientError == "" {
+			return "not supported; docker client version is newer than the daemon version (needs upgrading docker daemon in the host)"
+		}
+		return fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", o.DockerClientError)
+	}
 	return fmt.Sprintf("total %d containers", len(o.Containers))
 }
 
@@ -115,8 +127,15 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		dockerContainers, err := ListContainers(ctx)
 		if err != nil {
+			if IsErrDockerClientVersionNewerThanDaemon(err) {
+				return &Output{
+					IsErrDockerClientVersionNewerThanDaemon: true,
+					DockerClientError:                       err.Error(),
+				}, nil
+			}
 			return nil, err
 		}
+
 		var containers []DockerContainer
 		for _, c := range dockerContainers {
 			containers = append(containers, ConvertToDockerContainer(c))
@@ -181,4 +200,14 @@ type DockerContainer struct {
 	State        string `json:"state,omitempty"`
 	PodName      string `json:"pod_name,omitempty"`
 	PodNamespace string `json:"pod_namespace,omitempty"`
+}
+
+// IsErrDockerClientVersionNewerThanDaemon returns true if the docker client version is newer than the daemon version.
+// e.g.,
+// "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
+func IsErrDockerClientVersionNewerThanDaemon(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "client version") && strings.Contains(err.Error(), "is too new")
 }
