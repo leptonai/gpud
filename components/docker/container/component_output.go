@@ -22,7 +22,8 @@ type Output struct {
 	// Sets true if the docker client calls due to the version incompatibility issue.
 	// e.g.,
 	// "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
-	IsErrDockerClientVersionNewerThanDaemon bool `json:"is_err_docker_client_version_newer_than_daemon,omitempty"`
+	IsErrDockerClientVersionNewerThanDaemon bool   `json:"is_err_docker_client_version_newer_than_daemon,omitempty"`
+	DockerClientError                       string `json:"docker_client_error,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -59,7 +60,10 @@ func ParseStateDockerContainer(m map[string]string) ([]DockerContainer, error) {
 
 func (o *Output) describeReason() string {
 	if o.IsErrDockerClientVersionNewerThanDaemon {
-		return "not supported; docker client version is newer than the daemon version (needs downgrading docker client in GPUd or upgrading docker daemon in the host)"
+		if o.DockerClientError == "" {
+			return "not supported; docker client version is newer than the daemon version (needs downgrading docker client in GPUd or upgrading docker daemon in the host)"
+		}
+		return fmt.Sprintf("not supported; %s (needs downgrading docker client in GPUd or upgrading docker daemon in the host)", o.DockerClientError)
 	}
 	return fmt.Sprintf("total %d containers", len(o.Containers))
 }
@@ -124,7 +128,10 @@ func CreateGet(cfg Config) query.GetFunc {
 		dockerContainers, err := ListContainers(ctx)
 		if err != nil {
 			if IsErrDockerClientVersionNewerThanDaemon(err) {
-				return &Output{IsErrDockerClientVersionNewerThanDaemon: true}, err
+				return &Output{
+					IsErrDockerClientVersionNewerThanDaemon: true,
+					DockerClientError:                       err.Error(),
+				}, nil
 			}
 			return nil, err
 		}
