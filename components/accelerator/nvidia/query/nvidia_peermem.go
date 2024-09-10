@@ -64,7 +64,8 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	if serr := scanner.Err(); serr != nil {
 		if serr != io.EOF &&
 			// process already dead, thus ignore
-			!strings.Contains(serr.Error(), "read |0: file already closed") {
+			// e.g., "read |0: file already closed"
+			!strings.Contains(serr.Error(), "file already closed") {
 			return nil, serr
 		}
 	}
