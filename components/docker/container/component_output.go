@@ -151,7 +151,9 @@ func ListContainers(ctx context.Context) ([]docker_types.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	containers, err := cli.ContainerList(ctx, docker_container.ListOptions{})
+	containers, err := cli.ContainerList(ctx, docker_container.ListOptions{
+		All: true,
+	})
 	if err != nil {
 		return nil, err
 	}
