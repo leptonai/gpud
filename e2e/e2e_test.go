@@ -298,7 +298,21 @@ func TestGpudHealthzInfo(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to get info: %v", err)
 		}
-		t.Logf("info: %v", info)
+		t.Logf("info: %+v", info)
+
+		t.Log("component information:")
+		for _, i := range info {
+			t.Logf("component: %s", i.Component)
+			for _, event := range i.Info.Events {
+				t.Logf("event: %s - %s", event.Name, event.Message)
+			}
+			for _, metric := range i.Info.Metrics {
+				t.Logf("metric: %s - value: %f", metric.MetricName, metric.Value)
+			}
+			for _, state := range i.Info.States {
+				t.Logf("state: %s - healthy: %t", state.Name, state.Healthy)
+			}
+		}
 
 		states, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
 		if err != nil {
