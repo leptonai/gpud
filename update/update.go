@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/log"
+	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/third_party/tailscale/distsign"
 )
 
@@ -146,17 +147,9 @@ func unpackLinuxTarball(path string) error {
 	return nil
 }
 
-func SystemctlExists() error {
-	if _, err := exec.LookPath("systemctl"); err != nil {
-		// Likely not a systemd-managed distro.
-		return errors.ErrUnsupported
-	}
-	return nil
-}
-
 func EnableSystemdUnit() error {
-	if err := SystemctlExists(); err != nil {
-		return err
+	if !pkd_systemd.SystemctlExists() {
+		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "enable", "gpud.service").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl enable failed: %w output: %s", err, out)
@@ -165,8 +158,8 @@ func EnableSystemdUnit() error {
 }
 
 func DisableSystemdUnit() error {
-	if err := SystemctlExists(); err != nil {
-		return err
+	if !pkd_systemd.SystemctlExists() {
+		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "disable", "gpud.service").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl disable failed: %w output: %s", err, out)
@@ -175,8 +168,8 @@ func DisableSystemdUnit() error {
 }
 
 func RestartSystemdUnit() error {
-	if err := SystemctlExists(); err != nil {
-		return err
+	if !pkd_systemd.SystemctlExists() {
+		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl daemon-reload failed: %w output: %s", err, out)
@@ -188,8 +181,8 @@ func RestartSystemdUnit() error {
 }
 
 func StopSystemdUnit() error {
-	if err := SystemctlExists(); err != nil {
-		return err
+	if !pkd_systemd.SystemctlExists() {
+		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "stop", "gpud.service").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl stop failed: %w output: %s", err, out)
