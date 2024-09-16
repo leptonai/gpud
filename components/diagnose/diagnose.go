@@ -15,6 +15,7 @@ import (
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
+	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 
 	"sigs.k8s.io/yaml"
 )
@@ -250,7 +251,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 	if err := o.runCommand(ctx, "nvidia", "which", "nvidia-uninstall"); err != nil {
 		return err
 	}
-	if commandExists("systemctl") {
+	if pkd_systemd.SystemctlExists() {
 		if err := o.runCommand(ctx, "systemd", "systemctl", "list-dependencies"); err != nil {
 			return err
 		}

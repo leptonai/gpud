@@ -11,7 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/systemd"
-	"github.com/leptonai/gpud/pkg/update"
+	"github.com/leptonai/gpud/update"
 )
 
 const DefaultQuerySince = 30 * time.Minute
