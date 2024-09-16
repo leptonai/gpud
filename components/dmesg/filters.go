@@ -14,6 +14,11 @@ const (
 	EventOOMKillRegex = `Out of memory:`
 
 	// e.g.,
+	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
+	EventOOMKillConstraint      = "oom_kill_constraint"
+	EventOOMKillConstraintRegex = `oom-kill:constraint=`
+
+	// e.g.,
 	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
 	EventOOMKiller      = "oom_killer"
 	EventOOMKillerRegex = `(?i)\b(invoked|triggered) oom-killer\b`
@@ -28,6 +33,11 @@ var defaultFilters = []*query_log_filter.Filter{
 	{
 		Name:            EventOOMKill,
 		Regex:           ptr.To(EventOOMKillRegex),
+		OwnerReferences: []string{memory.Name},
+	},
+	{
+		Name:            EventOOMKillConstraint,
+		Regex:           ptr.To(EventOOMKillConstraintRegex),
 		OwnerReferences: []string{memory.Name},
 	},
 	{
