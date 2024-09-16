@@ -487,7 +487,7 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 			})
 		}
 	}
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		return err
 	}
 

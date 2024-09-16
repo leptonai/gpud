@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -42,7 +41,7 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	// sudo lsmod | grep nvidia_peermem
 	scanner := bufio.NewScanner(rd)
 	lines := make([]string, 0, 10)
-	for scanner.Scan() {
+	for scanner.Scan() { // returns false at the end of the output
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -62,14 +61,16 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 		}
 	}
 	if serr := scanner.Err(); serr != nil {
-		if serr != io.EOF &&
-			// process already dead, thus ignore
-			// e.g., "read |0: file already closed"
-			!strings.Contains(serr.Error(), "file already closed") {
+		// process already dead, thus ignore
+		// e.g., "read |0: file already closed"
+		if !strings.Contains(serr.Error(), "file already closed") {
 			return nil, serr
 		}
 	}
 	if err != nil {
+		return nil, err
+	}
+	if perr := proc.Abort(ctx); perr != nil {
 		return nil, err
 	}
 
