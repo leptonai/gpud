@@ -39,11 +39,20 @@ func (cfg Config) Validate() error {
 const (
 	fabricManagerLogFilePath = "/var/log/fabricmanager.log"
 
-	eventNVSwitchFatailSXid    = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-fatal"
-	eventNVSwitchNonFatailSXid = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-non-fatal"
+	// e.g.,
+	// [Jul 23 2024 07:53:55] [ERROR] [tid 841] detected NVSwitch fatal error 20034 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33
+	eventNVSwitchFatailSXid       = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-fatal"
+	regexNVSwitchFatalSXidFromLog = `.+detected NVSwitch fatal error (\d+)`
 
-	regexNVSwitchFatalSXidFromLog    = `.+detected NVSwitch fatal error (\d+)`
+	// e.g.,
+	// [Jul 09 2024 18:14:07] [ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61
+	eventNVSwitchNonFatailSXid       = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-non-fatal"
 	regexNVSwitchNonFatalSXidFromLog = `.+detected NVSwitch non-fatal error (\d+)`
+
+	// e.g.,
+	// [Sep 17 2024 06:01:46] [ERROR] [tid 1230079] failed to find the GPU handle 5410063385821516767 in the multicast team request setup 6130285411925746235.
+	eventNVSwitchNVLinkFailure        = "accelerator-nvidia-fabric-manager-nvlink-failure"
+	regexNVSwitchNVLinkFailureFromLog = `.+failed to find the GPU handle \d+ in the multicast team .*`
 )
 
 var (
@@ -56,6 +65,11 @@ var (
 		{
 			Name:            eventNVSwitchNonFatailSXid,
 			Regex:           ptr.To(regexNVSwitchNonFatalSXidFromLog),
+			OwnerReferences: []string{Name},
+		},
+		{
+			Name:            eventNVSwitchNVLinkFailure,
+			Regex:           ptr.To(regexNVSwitchNVLinkFailureFromLog),
 			OwnerReferences: []string{Name},
 		},
 	}
