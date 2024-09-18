@@ -94,33 +94,8 @@ func (s *Session) startWriter() {
 		}
 
 		reader, writer := io.Pipe()
-		goroutineCloseCh := make(chan any)
-		go func() {
-			log.Logger.Debug("session writer created")
-			for {
-				select {
-				case <-s.writerCloseCh:
-					log.Logger.Debug("session writer closed")
-					writer.Close()
-					return
-				case <-goroutineCloseCh:
-					return
-				case body := <-s.writer:
-					bytes, err := json.Marshal(body)
-					if err != nil {
-						log.Logger.Debugf("session writer: failed to marshal body: %v", err)
-						continue
-					}
-					if _, err := writer.Write(bytes); err != nil {
-						log.Logger.Debugf("session writer: failed to write to pipe: %v", err)
-						if errors.Is(err, io.ErrClosedPipe) {
-							return
-						}
-						continue
-					}
-				}
-			}
-		}()
+		goroutineCloseCh := make(chan struct{})
+		go s.handleWriterPipe(writer, goroutineCloseCh)
 
 		req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, reader)
 		if err != nil {
@@ -143,6 +118,34 @@ func (s *Session) startWriter() {
 
 		// no need to close goroutineCloseCh
 		// to ensure only one pair of read/write connection is there
+	}
+}
+
+func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec <-chan struct{}) {
+	defer writer.Close()
+	log.Logger.Debug("session writer pipe handler started")
+	for {
+		select {
+		case <-s.writerCloseCh:
+			log.Logger.Debug("session writer closed")
+			return
+
+		case <-closec:
+			return
+
+		case body := <-s.writer:
+			bytes, err := json.Marshal(body)
+			if err != nil {
+				log.Logger.Errorf("session writer: failed to marshal body: %v", err)
+				continue
+			}
+			if _, err := writer.Write(bytes); err != nil {
+				log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+				if errors.Is(err, io.ErrClosedPipe) {
+					return
+				}
+			}
+		}
 	}
 }
 
