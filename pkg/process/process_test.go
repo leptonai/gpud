@@ -54,8 +54,11 @@ func TestProcess(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if err := p.Abort(ctx); err == nil {
+		t.Fatal("exected error")
 	}
 }
 
@@ -88,7 +91,7 @@ func TestProcessWithBash(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -129,7 +132,7 @@ func TestProcessWithTempFile(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,7 +188,7 @@ func TestProcessWithStdoutReader(t *testing.T) {
 	}
 	t.Logf("stdout: %q", output)
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -231,7 +234,7 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if scanner.Err() != nil {
@@ -281,7 +284,7 @@ func TestProcessWithRestarts(t *testing.T) {
 		}
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -304,7 +307,7 @@ func TestProcessSleep(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -354,7 +357,7 @@ func TestProcessStream(t *testing.T) {
 		t.Logf("stdout: %q", output)
 	}
 
-	if err := p.Stop(ctx); err != nil {
+	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
 }

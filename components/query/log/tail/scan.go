@@ -53,7 +53,7 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		if err := f.Sync(); err != nil {
 			return 0, err
 		}
-		if err := p.Stop(ctx); err != nil {
+		if err := p.Abort(ctx); err != nil {
 			return 0, err
 		}
 	}
