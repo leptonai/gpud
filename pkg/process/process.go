@@ -315,7 +315,7 @@ func (p *process) Stop(ctx context.Context) error {
 	}
 
 	if p.cmd.Cancel != nil { // if created with CommandContext
-		p.cmd.Cancel()
+		_ = p.cmd.Cancel()
 	}
 
 	// do not set p.cmd to nil
