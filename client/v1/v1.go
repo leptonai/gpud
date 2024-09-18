@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/internal/server"
@@ -103,7 +104,17 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo,
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/v1/info", addr), nil)
+	queryURL, err := url.Parse(fmt.Sprintf("%s/v1/info", addr))
+	if err != nil {
+		return nil, err
+	}
+	q := queryURL.Query()
+	if op.component != "" {
+		q.Add("component", op.component)
+	}
+	queryURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

@@ -14,6 +14,7 @@ type Op struct {
 	checkInterval         time.Duration
 	requestContentType    string
 	requestAcceptEncoding string
+	component             string
 }
 
 type OpOption func(*Op)
@@ -68,5 +69,11 @@ func WithRequestContentTypeJSON() OpOption {
 func WithAcceptEncodingGzip() OpOption {
 	return func(op *Op) {
 		op.requestAcceptEncoding = server.RequestHeaderEncodingGzip
+	}
+}
+
+func WithComponent(component string) OpOption {
+	return func(op *Op) {
+		op.component = component
 	}
 }
