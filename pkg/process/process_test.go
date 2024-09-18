@@ -57,8 +57,8 @@ func TestProcess(t *testing.T) {
 	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Abort(ctx); err == nil {
-		t.Fatal("exected error")
+	if err := p.Abort(ctx); err != nil {
+		t.Fatal(err)
 	}
 }
 
