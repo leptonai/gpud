@@ -280,8 +280,8 @@ func (p *process) Abort(ctx context.Context) error {
 
 	p.cancel()
 
-	finished := false
 	if p.cmd.Process != nil {
+		finished := false
 		if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			if err.Error() == "os: process already finished" {
 				finished = true
@@ -289,10 +289,7 @@ func (p *process) Abort(ctx context.Context) error {
 				log.Logger.Warnw("failed to send SIGTERM to process", "error", err)
 			}
 		}
-	}
-
-	if !finished {
-		if p.cmd.Process != nil {
+		if !finished {
 			select {
 			case <-p.ctx.Done():
 			case <-time.After(3 * time.Second):
