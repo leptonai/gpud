@@ -19,7 +19,7 @@ import (
 
 type Process interface {
 	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
+	Abort(ctx context.Context) error
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
@@ -45,9 +45,12 @@ type process struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	cmdMu       sync.RWMutex
-	cmd         *exec.Cmd
-	errc        chan error
+	cmdMu sync.RWMutex
+	cmd   *exec.Cmd
+
+	// error streaming channel, closed on command exit
+	errc chan error
+
 	pid         int32
 	commandArgs []string
 	envs        []string
@@ -56,8 +59,6 @@ type process struct {
 	outputFile   *os.File
 	stdoutReader io.ReadCloser
 	stderrReader io.ReadCloser
-
-	wg sync.WaitGroup
 
 	restartConfig *RestartConfig
 }
@@ -143,10 +144,8 @@ func (p *process) Start(ctx context.Context) error {
 		return err
 	}
 
-	p.wg.Add(1)
 	go func() {
-		defer p.wg.Done()
-		p.cmdWait()
+		p.watchCmd()
 	}()
 
 	return nil
@@ -182,11 +181,17 @@ func (p *process) startCommand() error {
 	return nil
 }
 
+// Returns a channel where the command watcher sends the error if any.
+// The channel is closed on the command exit.
 func (p *process) Wait() <-chan error {
 	return p.errc
 }
 
-func (p *process) cmdWait() {
+func (p *process) watchCmd() {
+	defer func() {
+		close(p.errc)
+	}()
+
 	restartCount := 0
 	for {
 		errc := make(chan error)
@@ -250,7 +255,7 @@ func (p *process) cmdWait() {
 	}
 }
 
-func (p *process) Stop(ctx context.Context) error {
+func (p *process) Abort(ctx context.Context) error {
 	p.cmdMu.Lock()
 	defer p.cmdMu.Unlock()
 
