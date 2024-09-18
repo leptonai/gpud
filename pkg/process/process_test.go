@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -11,13 +12,10 @@ import (
 )
 
 func TestProcess(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"echo", "hello"},
 		},
-		WithOutputFile(os.Stderr),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +29,22 @@ func TestProcess(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
+	b, err := io.ReadAll(p.StderrReader())
+	if err != nil {
+		if !strings.Contains(err.Error(), "file already closed") {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("stderr: %q", string(b))
+
+	b, err = io.ReadAll(p.StdoutReader())
+	if err != nil {
+		if !strings.Contains(err.Error(), "file already closed") {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("stdout: %q", string(b))
+
 	select {
 	case err := <-p.Wait():
 		if err != nil {
@@ -43,20 +57,17 @@ func TestProcess(t *testing.T) {
 	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Abort(ctx); err == nil {
-		t.Fatal("exected error")
+	if err := p.Abort(ctx); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestProcessWithBash(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"echo", "hello"},
 			{"echo hello && echo 111 | grep 1"},
 		},
-		WithOutputFile(os.Stderr),
 		WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -86,8 +97,6 @@ func TestProcessWithBash(t *testing.T) {
 }
 
 func TestProcessWithTempFile(t *testing.T) {
-	t.Parallel()
-
 	// create a temporary file
 	tmpFile, err := os.CreateTemp("", "process-test-*.txt")
 	if err != nil {
@@ -140,8 +149,6 @@ func TestProcessWithTempFile(t *testing.T) {
 }
 
 func TestProcessWithStdoutReader(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"echo hello && sleep 1000"},
@@ -187,8 +194,6 @@ func TestProcessWithStdoutReader(t *testing.T) {
 }
 
 func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"echo hello 1 && sleep 1"},
@@ -238,14 +243,11 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 }
 
 func TestProcessWithRestarts(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"echo hello"},
 			{"echo 111 && exit 1"},
 		},
-		WithOutputFile(os.Stderr),
 		WithRunAsBashScript(),
 		WithRestartConfig(RestartConfig{
 			OnError:  true,
@@ -288,13 +290,10 @@ func TestProcessWithRestarts(t *testing.T) {
 }
 
 func TestProcessSleep(t *testing.T) {
-	t.Parallel()
-
 	p, err := New(
 		[][]string{
 			{"sleep", "9999"},
 		},
-		WithOutputFile(os.Stderr),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -324,8 +323,6 @@ func TestProcessSleep(t *testing.T) {
 }
 
 func TestProcessStream(t *testing.T) {
-	t.Parallel()
-
 	cmds := make([][]string, 0, 100)
 	for i := 0; i < 100; i++ {
 		cmds = append(cmds, []string{fmt.Sprintf("echo hello %d && sleep 1", i)})

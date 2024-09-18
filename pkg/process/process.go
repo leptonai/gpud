@@ -161,6 +161,9 @@ func (p *process) startCommand() error {
 		p.cmd.Stdout = p.outputFile
 		p.cmd.Stderr = p.outputFile
 
+		p.stdoutReader = p.outputFile
+		p.stderrReader = p.outputFile
+
 	default:
 		var err error
 		p.stdoutReader, err = p.cmd.StdoutPipe()
@@ -188,12 +191,24 @@ func (p *process) Wait() <-chan error {
 }
 
 func (p *process) watchCmd() {
+	if p.cmd == nil {
+		return
+	}
 	defer func() {
 		close(p.errc)
 	}()
 
 	restartCount := 0
 	for {
+		if p.cmd.Process == nil { // Wait cannot be called if the process is not started yet
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+			continue
+		}
+
 		errc := make(chan error)
 		go func() {
 			errc <- p.cmd.Wait()
@@ -265,22 +280,22 @@ func (p *process) Abort(ctx context.Context) error {
 
 	p.cancel()
 
-	finished := false
-	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		if err.Error() == "os: process already finished" {
-			finished = true
-		} else {
-			log.Logger.Warnw("failed to send SIGTERM to process", "error", err)
+	if p.cmd.Process != nil {
+		finished := false
+		if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			if err.Error() == "os: process already finished" {
+				finished = true
+			} else {
+				log.Logger.Warnw("failed to send SIGTERM to process", "error", err)
+			}
 		}
-	}
-
-	if !finished {
-		select {
-		case <-p.ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-			if err := p.cmd.Process.Kill(); err != nil {
-				log.Logger.Warnw("failed to send SIGKILL to process", "error", err)
+		if !finished {
+			select {
+			case <-p.ctx.Done():
+			case <-time.After(3 * time.Second):
+				if err := p.cmd.Process.Kill(); err != nil {
+					log.Logger.Warnw("failed to send SIGKILL to process", "error", err)
+				}
 			}
 		}
 	}
@@ -291,7 +306,23 @@ func (p *process) Abort(ctx context.Context) error {
 		return os.RemoveAll(p.runBashFile.Name())
 	}
 
-	p.cmd = nil
+	if p.stdoutReader != nil {
+		_ = p.stdoutReader.Close()
+		p.stdoutReader = nil
+	}
+	if p.stderrReader != nil {
+		_ = p.stderrReader.Close()
+		p.stderrReader = nil
+	}
+
+	if p.cmd.Cancel != nil { // if created with CommandContext
+		_ = p.cmd.Cancel()
+	}
+
+	// do not set p.cmd to nil
+	// as Wait is still waiting for the process to exit
+	// p.cmd = nil
+
 	return nil
 }
 
