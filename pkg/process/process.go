@@ -194,7 +194,7 @@ func (p *process) watchCmd() {
 	if p.cmd == nil {
 		return
 	}
-  defer func() {
+	defer func() {
 		close(p.errc)
 	}()
 
