@@ -93,9 +93,16 @@ func Get(ctx context.Context) (output any, err error) {
 			if err != nil {
 				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager active: %v", err))
 			}
+
+			journalOut, err := GetLatestFabricManagerOutput(cctx)
+			if err != nil {
+				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to get fabric manager journal output: %v", err))
+			}
+
 			o.FabricManager = &FabricManagerOutput{
-				Version: ver,
-				Active:  active,
+				Version:       ver,
+				Active:        active,
+				JournalOutput: journalOut,
 			}
 		}
 	}
