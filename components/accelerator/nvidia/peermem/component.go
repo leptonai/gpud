@@ -5,10 +5,12 @@ package peermem
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
@@ -85,8 +87,66 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
+const (
+	// repeated messages may indicate more persistent issue on the inter-GPU communication
+	// e.g.,
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	EventNamePeermemInvalidContextFromDmesg = "peermem_invalid_context_from_dmesg"
+
+	EventKeyPeermemInvalidContextFromDmesgUnixSeconds = "unix_seconds"
+	EventKeyPeermemInvalidContextFromDmesgLogLine     = "log_line"
+)
+
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return nil, nil
+	dmesgC, err := components.GetComponent(dmesg.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	var dmesgComponent *dmesg.Component
+	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
+		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
+			dmesgComponent = unwrapped
+		} else {
+			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
+		}
+	}
+	dmesgState, err := dmesgComponent.State()
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]components.Event, 0)
+	for i, logItem := range dmesgState.TailScanMatched {
+		if logItem.Error != nil {
+			continue
+		}
+		if logItem.Matched == nil {
+			continue
+		}
+		if logItem.Matched.Name != dmesg.EventNvidiaPeermemInvalidContext {
+			continue
+		}
+
+		// "TailScanMatched" are sorted by the time from new to old
+		// thus keeping the first 30 latest, to prevent too many events
+		if i > 30 {
+			break
+		}
+
+		events = append(events, components.Event{
+			Time: logItem.Time,
+			Name: EventNamePeermemInvalidContextFromDmesg,
+			ExtraInfo: map[string]string{
+				EventKeyPeermemInvalidContextFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
+				EventKeyPeermemInvalidContextFromDmesgLogLine:     logItem.Line,
+			},
+		})
+	}
+
+	return events, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
