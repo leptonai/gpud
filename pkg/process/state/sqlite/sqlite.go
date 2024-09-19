@@ -31,9 +31,17 @@ func New(ctx context.Context, db *sql.DB, tableName string) (state.Interface, er
 	}, nil
 }
 
-func (s *State) RecordStart(ctx context.Context, scriptHash string, scriptName string) error {
-	now := time.Now().Unix()
-	return RecordStart(ctx, s.db, s.tableName, scriptHash, scriptName, now)
+// RecordStart records the start of a script in UTC time.
+func (s *State) RecordStart(ctx context.Context, scriptHash string, opts ...state.OpOption) error {
+	op := state.Op{}
+	if err := op.ApplyOpts(opts); err != nil {
+		return err
+	}
+
+	if op.StartTimeUnixSeconds == 0 {
+		op.StartTimeUnixSeconds = time.Now().UTC().Unix()
+	}
+	return RecordStart(ctx, s.db, s.tableName, scriptHash, op.ScriptName, op.StartTimeUnixSeconds)
 }
 
 func (s *State) UpdateExitCode(ctx context.Context, scriptHash string, scriptExitCode int) error {
@@ -44,7 +52,8 @@ func (s *State) UpdateOutput(ctx context.Context, scriptHash string, scriptOutpu
 	return UpdateOutput(ctx, s.db, s.tableName, scriptHash, scriptOutput)
 }
 
-func (s *State) Get(ctx context.Context, scriptHash string) (*schema.Row, error) {
+// Returns status nil, error nil if the row does not exist.
+func (s *State) Get(ctx context.Context, scriptHash string) (*schema.Status, error) {
 	return Get(ctx, s.db, s.tableName, scriptHash)
 }
 
@@ -68,7 +77,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-// Records the start of a script execution.
+// Records the start of a script execution in UTC time.
 func RecordStart(ctx context.Context, db *sql.DB, tableName string, scriptHash string, scriptName string, scriptStartUnixSeconds int64) error {
 	insertQuery := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s) VALUES (?, ?, ?);
@@ -127,9 +136,9 @@ INSERT INTO %s (%s, %s) VALUES (?, ?);
 	return err
 }
 
-// Reads a row from the table using the script hash as the key.
-// Returns nil, nil if the row does not exist.
-func Get(ctx context.Context, db *sql.DB, tableName string, scriptHash string) (*schema.Row, error) {
+// Reads the status from the table using the script hash as the key.
+// Returns status nil, error nil if the row does not exist.
+func Get(ctx context.Context, db *sql.DB, tableName string, scriptHash string) (*schema.Status, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
 `,
@@ -143,12 +152,13 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
 	)
 	row := db.QueryRowContext(ctx, query, scriptHash)
 
-	var result schema.Row
+	var result schema.Status
 	err := row.Scan(&result.ScriptHash, &result.LastStartedUnixSeconds, &result.ScriptName, &result.LastExitCode, &result.LastOutput)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
+
 		return nil, err
 	}
 	return &result, nil

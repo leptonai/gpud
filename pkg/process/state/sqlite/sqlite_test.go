@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/process/state"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestCommand(t *testing.T) {
@@ -31,7 +35,7 @@ func TestCommand(t *testing.T) {
 	scriptName := "test_script"
 	startTime := time.Now().Unix()
 
-	if err := s.RecordStart(ctx, scriptHash, scriptName); err != nil {
+	if err := s.RecordStart(ctx, scriptHash, state.WithScriptName(scriptName)); err != nil {
 		t.Fatal("failed to record start:", err)
 	}
 
