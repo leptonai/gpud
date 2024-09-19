@@ -41,8 +41,7 @@ func TestServerWithoutMinimumRetryIntervalSeconds(t *testing.T) {
 	}
 	t.Logf("started script: %s", id)
 
-	id, err = srv.Start(ctx, "echo 12345")
-	if err != nil {
+	if _, err = srv.Start(ctx, "echo 12345"); err != nil {
 		t.Fatal("failed to start script:", err)
 	}
 }
@@ -79,15 +78,13 @@ func TestServerWithMinimumRetryIntervalSeconds(t *testing.T) {
 	}
 	t.Logf("started script: %s", id)
 
-	id, err = srv.Start(ctx, "echo 12345")
-	if err != ErrQPSLimitExceeded {
+	if _, err = srv.Start(ctx, "echo 12345"); err != ErrQPSLimitExceeded {
 		t.Fatalf("expected error, got %v", err)
 	}
 
 	time.Sleep(time.Second)
 
-	id, err = srv.Start(ctx, "echo 12345")
-	if err != ErrMinimumRetryInterval {
+	if _, err = srv.Start(ctx, "echo 12345"); err != ErrMinimumRetryInterval {
 		t.Fatalf("expected error, got %v", err)
 	}
 }
