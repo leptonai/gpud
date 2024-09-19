@@ -68,7 +68,7 @@ func New(commands [][]string, opts ...OpOption) (Process, error) {
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
-	if len(commands) == 0 {
+	if op.bashScriptContentsToRun == "" && len(commands) == 0 {
 		return nil, errors.New("no commands provided")
 	}
 	if len(commands) > 1 && !op.runAsBashScript {
@@ -89,8 +89,15 @@ func New(commands [][]string, opts ...OpOption) (Process, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
-			return nil, err
+
+		if op.bashScriptContentsToRun != "" { // assume the bash script provided by the user is a complete script
+			if _, err := bashFile.Write([]byte(op.bashScriptContentsToRun)); err != nil {
+				return nil, err
+			}
+		} else {
+			if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
+				return nil, err
+			}
 		}
 		defer func() {
 			_ = bashFile.Sync()

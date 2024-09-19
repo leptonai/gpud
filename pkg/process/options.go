@@ -10,9 +10,11 @@ import (
 type OpOption func(*Op)
 
 type Op struct {
-	envs            []string
-	outputFile      *os.File
-	runAsBashScript bool
+	envs       []string
+	outputFile *os.File
+
+	bashScriptContentsToRun string
+	runAsBashScript         bool
 
 	restartConfig *RestartConfig
 }
@@ -38,6 +40,10 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		op.restartConfig.Interval = 5 * time.Second
 	}
 
+	if op.bashScriptContentsToRun != "" && !op.runAsBashScript {
+		op.runAsBashScript = true
+	}
+
 	return nil
 }
 
@@ -56,6 +62,14 @@ func WithEnvs(envs ...string) OpOption {
 func WithOutputFile(file *os.File) OpOption {
 	return func(op *Op) {
 		op.outputFile = file
+	}
+}
+
+// Sets the bash script contents to run.
+// This is useful for running multiple/complicated commands.
+func WithBashScriptContentsToRun(script string) OpOption {
+	return func(op *Op) {
+		op.bashScriptContentsToRun = script
 	}
 }
 

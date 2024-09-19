@@ -62,6 +62,62 @@ func TestProcess(t *testing.T) {
 	}
 }
 
+func TestProcessRunBashScriptContents(t *testing.T) {
+	p, err := New(
+		nil,
+		WithBashScriptContentsToRun(`#!/bin/bash
+
+# do not mask errors in a pipeline
+set -o pipefail
+
+echo "hello"
+`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := p.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("pid: %d", p.PID())
+
+	b, err := io.ReadAll(p.StderrReader())
+	if err != nil {
+		if !strings.Contains(err.Error(), "file already closed") {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("stderr: %q", string(b))
+
+	b, err = io.ReadAll(p.StdoutReader())
+	if err != nil {
+		if !strings.Contains(err.Error(), "file already closed") {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("stdout: %q", string(b))
+
+	select {
+	case err := <-p.Wait():
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout")
+	}
+
+	if err := p.Abort(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Abort(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProcessWithBash(t *testing.T) {
 	p, err := New(
 		[][]string{
