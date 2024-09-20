@@ -97,6 +97,9 @@ func WithBashScriptContentsToRun(script string) OpOption {
 // For instance, you can set it to os.Stderr to pipe all the sub-process
 // stderr and stdout to the parent process's stderr.
 // Default is to set the os.Pipe to forward its output via io.ReadCloser.
+//
+// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+// If retry configuration is specified, specify the output file to read all the output.
 func WithOutputFile(file *os.File) OpOption {
 	return func(op *Op) {
 		op.outputFile = file
@@ -112,6 +115,7 @@ func WithRunAsBashScript() OpOption {
 }
 
 // Configures the process restart behavior.
+// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
 func WithRestartConfig(config RestartConfig) OpOption {
 	return func(op *Op) {
 		op.restartConfig = &config

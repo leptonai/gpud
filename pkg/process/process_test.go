@@ -27,21 +27,25 @@ func TestProcess(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
-	b, err := io.ReadAll(p.StderrReader())
-	if err != nil {
-		if !strings.Contains(err.Error(), "file already closed") {
-			t.Fatal(err)
+	scanner := bufio.NewScanner(p.StdoutReader())
+	for scanner.Scan() { // returns false at the end of the output
+		line := scanner.Text()
+		t.Logf("stdout: %q", line)
+		select {
+		case err := <-p.Wait():
+			if err != nil {
+				t.Fatal(err)
+			}
+		default:
 		}
 	}
-	t.Logf("stderr: %q", string(b))
-
-	b, err = io.ReadAll(p.StdoutReader())
-	if err != nil {
-		if !strings.Contains(err.Error(), "file already closed") {
-			t.Fatal(err)
+	if serr := scanner.Err(); serr != nil {
+		// process already dead, thus ignore
+		// e.g., "read |0: file already closed"
+		if !strings.Contains(serr.Error(), "file already closed") {
+			t.Fatal(serr)
 		}
 	}
-	t.Logf("stdout: %q", string(b))
 
 	select {
 	case err := <-p.Wait():

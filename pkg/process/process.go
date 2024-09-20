@@ -27,11 +27,26 @@ type Process interface {
 
 	PID() int32
 
+	// Returns the stdout reader.
+	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
+	// Use bufio.NewScanner(p.StdoutReader()) instead.
+	//
+	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// If retry configuration is specified, specify the output file to read all the output.
 	StdoutReader() io.Reader
+
+	// Returns the stderr reader.
+	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
+	// Use bufio.NewScanner(p.StderrReader()) instead.
+	//
+	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// If retry configuration is specified, specify the output file to read all the output.
 	StderrReader() io.Reader
 }
 
 // RestartConfig is the configuration for the process restart.
+// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+// If retry configuration is specified, specify the output file to read all the output.
 type RestartConfig struct {
 	// Set true to restart the process on error exit.
 	OnError bool
