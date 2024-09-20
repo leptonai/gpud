@@ -67,7 +67,7 @@ func main() {
 		TableName: tableName,
 
 		// add this new requirement
-		MinimumRetryIntervalSeconds: 120,
+		MinimumRetrySeconds: 120,
 	})
 	if err != nil {
 		panic(err)

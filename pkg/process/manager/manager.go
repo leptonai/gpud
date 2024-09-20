@@ -24,9 +24,9 @@ type Config struct {
 	// QPS is the maximum number of requests per second.
 	QPS int
 
-	// MinimumRetryIntervalSeconds is the minimum number of seconds between retries.
+	// MinimumRetrySeconds is the minimum number of seconds between retries of the same script.
 	// If the same script is requested to start within this interval, the request will be rejected.
-	MinimumRetryIntervalSeconds int64
+	MinimumRetrySeconds int64
 }
 
 type Manager interface {
@@ -72,7 +72,7 @@ func New(cfg Config) (Manager, error) {
 
 var (
 	ErrQPSLimitExceeded     = errors.New("qps limit exceeded")
-	ErrMinimumRetryInterval = errors.New("minimum retry interval not yet met -- try again later")
+	ErrMinimumRetryInterval = errors.New("the script has exceeded minimum retry interval -- try again later")
 )
 
 // Starts the script and returns the id and the created process.
@@ -89,7 +89,7 @@ func (s *manager) StartBashScript(ctx context.Context, scriptContents string, op
 	if prev != nil {
 		now := time.Now().UTC().Unix()
 		elapsed := now - prev.LastStartedUnixSeconds
-		if elapsed < s.cfg.MinimumRetryIntervalSeconds {
+		if elapsed < s.cfg.MinimumRetrySeconds {
 			return "", nil, ErrMinimumRetryInterval
 		}
 		// same command has been run before, but enough interval has elapsed

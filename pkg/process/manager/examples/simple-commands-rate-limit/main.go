@@ -21,10 +21,10 @@ func main() {
 	defer cancel()
 
 	mngr, err := manager.New(manager.Config{
-		SQLite:                      db,
-		TableName:                   "test",
-		QPS:                         1,
-		MinimumRetryIntervalSeconds: 30,
+		SQLite:              db,
+		TableName:           "test",
+		QPS:                 1,
+		MinimumRetrySeconds: 30,
 	})
 	if err != nil {
 		panic(err)

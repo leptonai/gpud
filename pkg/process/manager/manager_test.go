@@ -74,10 +74,10 @@ func TestManagerStartScriptWithMinimumRetryIntervalSeconds(t *testing.T) {
 	tableName := "test"
 
 	cfg := Config{
-		SQLite:                      db,
-		TableName:                   tableName,
-		QPS:                         1,
-		MinimumRetryIntervalSeconds: 60,
+		SQLite:              db,
+		TableName:           tableName,
+		QPS:                 1,
+		MinimumRetrySeconds: 60,
 	}
 
 	mngr, err := New(cfg)
@@ -135,9 +135,9 @@ func TestManagerPreventSameCommandsAfterReboot(t *testing.T) {
 	defer db2.Close()
 
 	mngr2, err := New(Config{
-		SQLite:                      db2,
-		TableName:                   tableName,
-		MinimumRetryIntervalSeconds: 120, // add this new requirement
+		SQLite:              db2,
+		TableName:           tableName,
+		MinimumRetrySeconds: 120, // add this new requirement
 	})
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
