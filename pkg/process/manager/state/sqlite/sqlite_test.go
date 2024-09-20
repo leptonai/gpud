@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/process/state"
+	"github.com/leptonai/gpud/pkg/process/manager/state"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -31,19 +31,19 @@ func TestCommand(t *testing.T) {
 		t.Fatal("failed to create state:", err)
 	}
 
-	scriptHash := "hash123"
+	scriptID := "hash123"
 	scriptName := "test_script"
 	startTime := time.Now().Unix()
 
-	if err := s.RecordStart(ctx, scriptHash, state.WithScriptName(scriptName)); err != nil {
+	if err := s.RecordStart(ctx, scriptID, state.WithScriptName(scriptName)); err != nil {
 		t.Fatal("failed to record start:", err)
 	}
 
-	row, err := s.Get(ctx, scriptHash)
+	row, err := s.Get(ctx, scriptID)
 	if err != nil {
 		t.Fatal("failed to get row:", err)
 	}
-	if row.ScriptHash != scriptHash {
+	if row.ScriptHash != scriptID {
 		t.Fatalf("script hash does not match: %s", row.ScriptHash)
 	}
 	if row.LastStartedUnixSeconds != startTime {
@@ -53,10 +53,10 @@ func TestCommand(t *testing.T) {
 		t.Fatalf("script name does not match: %s", *row.ScriptName)
 	}
 
-	if err = s.UpdateExitCode(ctx, scriptHash, 0); err != nil {
+	if err = s.UpdateExitCode(ctx, scriptID, 0); err != nil {
 		t.Fatal("failed to record exit code:", err)
 	}
-	row, err = s.Get(ctx, scriptHash)
+	row, err = s.Get(ctx, scriptID)
 	if err != nil {
 		t.Fatal("failed to get row:", err)
 	}
@@ -65,10 +65,10 @@ func TestCommand(t *testing.T) {
 	}
 
 	output := "Test output"
-	if err = s.UpdateOutput(ctx, scriptHash, output); err != nil {
+	if err = s.UpdateOutput(ctx, scriptID, output); err != nil {
 		t.Fatal("failed to record output:", err)
 	}
-	row, err = s.Get(ctx, scriptHash)
+	row, err = s.Get(ctx, scriptID)
 	if err != nil {
 		t.Fatal("failed to get row:", err)
 	}

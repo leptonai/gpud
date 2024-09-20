@@ -1,5 +1,5 @@
-// Package server implements a process run server.
-package server
+// Package manager implements a process run manager.
+package manager
 
 import (
 	"context"
@@ -9,15 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/process/state"
-	"github.com/leptonai/gpud/pkg/process/state/schema"
-	state_sqlite "github.com/leptonai/gpud/pkg/process/state/sqlite"
-	"tailscale.com/tstime/rate"
-)
+	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/process/manager/state"
+	"github.com/leptonai/gpud/pkg/process/manager/state/schema"
+	state_sqlite "github.com/leptonai/gpud/pkg/process/manager/state/sqlite"
 
-var (
-	ErrQPSLimitExceeded     = errors.New("qps limit exceeded")
-	ErrMinimumRetryInterval = errors.New("minimum retry interval not yet met -- try again later")
+	"tailscale.com/tstime/rate"
 )
 
 type Config struct {
@@ -32,13 +29,18 @@ type Config struct {
 	MinimumRetryIntervalSeconds int64
 }
 
-type Server struct {
+type Manager interface {
+	StartScript(ctx context.Context, scriptContents string) (string, process.Process, error)
+	Check(ctx context.Context, id string) (*schema.Status, error)
+}
+
+type manager struct {
 	state       state.Interface
 	rateLimiter *rate.Limiter
 	cfg         Config
 }
 
-func New(cfg Config) (*Server, error) {
+func New(cfg Config) (Manager, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	state, err := state_sqlite.New(ctx, cfg.SQLite, cfg.TableName)
 	cancel()
@@ -46,46 +48,58 @@ func New(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	srv := &Server{
+	mngr := &manager{
 		state: state,
 		cfg:   cfg,
 	}
 	if cfg.QPS > 0 {
-		srv.rateLimiter = rate.NewLimiter(rate.Limit(cfg.QPS), cfg.QPS)
+		mngr.rateLimiter = rate.NewLimiter(rate.Limit(cfg.QPS), cfg.QPS)
 	}
 
-	return srv, nil
+	return mngr, nil
 }
 
+var (
+	ErrQPSLimitExceeded     = errors.New("qps limit exceeded")
+	ErrMinimumRetryInterval = errors.New("minimum retry interval not yet met -- try again later")
+)
+
 // Starts the script and returns the id.
-func (s *Server) Start(ctx context.Context, script string) (string, error) {
+func (s *manager) StartScript(ctx context.Context, scriptContents string) (string, process.Process, error) {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
-		return "", ErrQPSLimitExceeded
+		return "", nil, ErrQPSLimitExceeded
 	}
 
-	id := CreateID(script)
+	id := CreateID(scriptContents)
 	prev, err := s.state.Get(ctx, id)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if prev != nil {
 		now := time.Now().UTC().Unix()
 		elapsed := now - prev.LastStartedUnixSeconds
 		if elapsed < s.cfg.MinimumRetryIntervalSeconds {
-			return "", ErrMinimumRetryInterval
+			return "", nil, ErrMinimumRetryInterval
 		}
+		// same command has been run before, but enough interval has elapsed
+		// so we can run it again
 	}
 
 	if rerr := s.state.RecordStart(ctx, id); rerr != nil {
-		return id, rerr
+		return id, nil, rerr
+	}
+
+	proc, err := process.New(process.WithBashScriptContentsToRun(scriptContents))
+	if err != nil {
+		return "", nil, err
 	}
 
 	// TODO: run the script in the background
 
-	return id, nil
+	return id, proc, nil
 }
 
-func (s *Server) Check(ctx context.Context, id string) (*schema.Status, error) {
+func (s *manager) Check(ctx context.Context, id string) (*schema.Status, error) {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		return nil, ErrQPSLimitExceeded
 	}

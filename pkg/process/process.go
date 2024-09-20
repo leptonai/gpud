@@ -63,22 +63,10 @@ type process struct {
 	restartConfig *RestartConfig
 }
 
-func New(commands [][]string, opts ...OpOption) (Process, error) {
+func New(opts ...OpOption) (Process, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
-	}
-	if op.bashScriptContentsToRun == "" && len(commands) == 0 {
-		return nil, errors.New("no commands provided")
-	}
-	if len(commands) > 1 && !op.runAsBashScript {
-		return nil, errors.New("cannot run multiple commands without a bash script mode")
-	}
-	for _, args := range commands {
-		cmd := strings.Split(args[0], " ")[0]
-		if !commandExists(cmd) {
-			return nil, fmt.Errorf("command not found: %q", cmd)
-		}
 	}
 
 	var cmdArgs []string
@@ -105,7 +93,7 @@ func New(commands [][]string, opts ...OpOption) (Process, error) {
 		cmdArgs = []string{"bash", bashFile.Name()}
 	}
 
-	for _, args := range commands {
+	for _, args := range op.commandsToRun {
 		if bashFile == nil {
 			cmdArgs = args
 			continue
@@ -369,11 +357,3 @@ set -o nounset
 set -o errexit
 
 `
-
-func commandExists(name string) bool {
-	p, err := exec.LookPath(name)
-	if err != nil {
-		return false
-	}
-	return p != ""
-}

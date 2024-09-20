@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/process/state"
-	"github.com/leptonai/gpud/pkg/process/state/schema"
+	"github.com/leptonai/gpud/pkg/process/manager/state"
+	"github.com/leptonai/gpud/pkg/process/manager/state/schema"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -32,7 +32,7 @@ func New(ctx context.Context, db *sql.DB, tableName string) (state.Interface, er
 }
 
 // RecordStart records the start of a script in UTC time.
-func (s *State) RecordStart(ctx context.Context, scriptHash string, opts ...state.OpOption) error {
+func (s *State) RecordStart(ctx context.Context, scriptID string, opts ...state.OpOption) error {
 	op := state.Op{}
 	if err := op.ApplyOpts(opts); err != nil {
 		return err
@@ -41,20 +41,20 @@ func (s *State) RecordStart(ctx context.Context, scriptHash string, opts ...stat
 	if op.StartTimeUnixSeconds == 0 {
 		op.StartTimeUnixSeconds = time.Now().UTC().Unix()
 	}
-	return RecordStart(ctx, s.db, s.tableName, scriptHash, op.ScriptName, op.StartTimeUnixSeconds)
+	return RecordStart(ctx, s.db, s.tableName, scriptID, op.ScriptName, op.StartTimeUnixSeconds)
 }
 
-func (s *State) UpdateExitCode(ctx context.Context, scriptHash string, scriptExitCode int) error {
-	return UpdateExitCode(ctx, s.db, s.tableName, scriptHash, scriptExitCode)
+func (s *State) UpdateExitCode(ctx context.Context, scriptID string, scriptExitCode int) error {
+	return UpdateExitCode(ctx, s.db, s.tableName, scriptID, scriptExitCode)
 }
 
-func (s *State) UpdateOutput(ctx context.Context, scriptHash string, scriptOutput string) error {
-	return UpdateOutput(ctx, s.db, s.tableName, scriptHash, scriptOutput)
+func (s *State) UpdateOutput(ctx context.Context, scriptID string, scriptOutput string) error {
+	return UpdateOutput(ctx, s.db, s.tableName, scriptID, scriptOutput)
 }
 
 // Returns status nil, error nil if the row does not exist.
-func (s *State) Get(ctx context.Context, scriptHash string) (*schema.Status, error) {
-	return Get(ctx, s.db, s.tableName, scriptHash)
+func (s *State) Get(ctx context.Context, scriptID string) (*schema.Status, error) {
+	return Get(ctx, s.db, s.tableName, scriptID)
 }
 
 const (
@@ -78,20 +78,20 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 // Records the start of a script execution in UTC time.
-func RecordStart(ctx context.Context, db *sql.DB, tableName string, scriptHash string, scriptName string, scriptStartUnixSeconds int64) error {
+func RecordStart(ctx context.Context, db *sql.DB, tableName string, scriptID string, scriptName string, scriptStartUnixSeconds int64) error {
 	insertQuery := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s) VALUES (?, ?, ?);
 `, tableName, ColumnScriptHash, ColumnLastStartedUnixSeconds, ColumnScriptName)
-	_, err := db.ExecContext(ctx, insertQuery, scriptHash, scriptStartUnixSeconds, scriptName)
+	_, err := db.ExecContext(ctx, insertQuery, scriptID, scriptStartUnixSeconds, scriptName)
 	return err
 }
 
 // Records the command exit code from a script execution.
-func UpdateExitCode(ctx context.Context, db *sql.DB, tableName string, scriptHash string, scriptExitCode int) error {
+func UpdateExitCode(ctx context.Context, db *sql.DB, tableName string, scriptID string, scriptExitCode int) error {
 	updateQuery := fmt.Sprintf(`
 UPDATE %s SET %s = ? WHERE %s = ?;
 `, tableName, ColumnLastExitCode, ColumnScriptHash)
-	result, err := db.ExecContext(ctx, updateQuery, scriptExitCode, scriptHash)
+	result, err := db.ExecContext(ctx, updateQuery, scriptExitCode, scriptID)
 	if err != nil {
 		return err
 	}
@@ -105,18 +105,18 @@ UPDATE %s SET %s = ? WHERE %s = ?;
 		insertQuery := fmt.Sprintf(`
 INSERT INTO %s (%s, %s) VALUES (?, ?);
 `, tableName, ColumnScriptHash, ColumnLastExitCode)
-		_, err = db.ExecContext(ctx, insertQuery, scriptHash, scriptExitCode)
+		_, err = db.ExecContext(ctx, insertQuery, scriptID, scriptExitCode)
 	}
 
 	return err
 }
 
 // Records the command output from a script execution.
-func UpdateOutput(ctx context.Context, db *sql.DB, tableName string, scriptHash string, scriptOutput string) error {
+func UpdateOutput(ctx context.Context, db *sql.DB, tableName string, scriptID string, scriptOutput string) error {
 	updateQuery := fmt.Sprintf(`
 UPDATE %s SET %s = ? WHERE %s = ?;
 `, tableName, ColumnLastOutput, ColumnScriptHash)
-	result, err := db.ExecContext(ctx, updateQuery, scriptOutput, scriptHash)
+	result, err := db.ExecContext(ctx, updateQuery, scriptOutput, scriptID)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ UPDATE %s SET %s = ? WHERE %s = ?;
 		insertQuery := fmt.Sprintf(`
 INSERT INTO %s (%s, %s) VALUES (?, ?);
 `, tableName, ColumnScriptHash, ColumnLastOutput)
-		_, err = db.ExecContext(ctx, insertQuery, scriptHash, scriptOutput)
+		_, err = db.ExecContext(ctx, insertQuery, scriptID, scriptOutput)
 	}
 
 	return err
@@ -138,7 +138,7 @@ INSERT INTO %s (%s, %s) VALUES (?, ?);
 
 // Reads the status from the table using the script hash as the key.
 // Returns status nil, error nil if the row does not exist.
-func Get(ctx context.Context, db *sql.DB, tableName string, scriptHash string) (*schema.Status, error) {
+func Get(ctx context.Context, db *sql.DB, tableName string, scriptID string) (*schema.Status, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
 `,
@@ -150,7 +150,7 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
 		tableName,
 		ColumnScriptHash,
 	)
-	row := db.QueryRowContext(ctx, query, scriptHash)
+	row := db.QueryRowContext(ctx, query, scriptID)
 
 	var result schema.Status
 	err := row.Scan(&result.ScriptHash, &result.LastStartedUnixSeconds, &result.ScriptName, &result.LastExitCode, &result.LastOutput)

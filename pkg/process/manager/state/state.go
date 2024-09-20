@@ -6,20 +6,20 @@ package state
 import (
 	"context"
 
-	"github.com/leptonai/gpud/pkg/process/state/schema"
+	"github.com/leptonai/gpud/pkg/process/manager/state/schema"
 )
 
 type Interface interface {
 	// RecordStart records the start of a script in UTC time.
-	RecordStart(ctx context.Context, scriptHash string, opts ...OpOption) error
+	RecordStart(ctx context.Context, scriptID string, opts ...OpOption) error
 	// UpdateExitCode updates the exit code of a script.
-	UpdateExitCode(ctx context.Context, scriptHash string, scriptExitCode int) error
+	UpdateExitCode(ctx context.Context, scriptID string, scriptExitCode int) error
 	// UpdateOutput updates the output of a script.
-	UpdateOutput(ctx context.Context, scriptHash string, scriptOutput string) error
+	UpdateOutput(ctx context.Context, scriptID string, scriptOutput string) error
 
 	// Get gets the state of a script.
 	// Returns row nil, error nil if the script hash does not exist.
-	Get(ctx context.Context, scriptHash string) (*schema.Status, error)
+	Get(ctx context.Context, scriptID string) (*schema.Status, error)
 }
 
 type OpOption func(*Op)

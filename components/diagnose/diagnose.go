@@ -469,7 +469,7 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 	}
 	defer f.Close()
 
-	p, err := process.New([][]string{args}, process.WithRunAsBashScript(), process.WithOutputFile(f))
+	p, err := process.New(process.WithCommand(args...), process.WithRunAsBashScript(), process.WithOutputFile(f))
 	if err != nil {
 		return err
 	}

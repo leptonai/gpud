@@ -13,9 +13,7 @@ import (
 
 func TestProcess(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"echo", "hello"},
-		},
+		WithCommand("echo", "hello"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +62,6 @@ func TestProcess(t *testing.T) {
 
 func TestProcessRunBashScriptContents(t *testing.T) {
 	p, err := New(
-		nil,
 		WithBashScriptContentsToRun(`#!/bin/bash
 
 # do not mask errors in a pipeline
@@ -120,10 +117,8 @@ echo "hello"
 
 func TestProcessWithBash(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"echo", "hello"},
-			{"echo hello && echo 111 | grep 1"},
-		},
+		WithCommand("echo", "hello"),
+		WithCommand("echo hello && echo 111 | grep 1"),
 		WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -162,9 +157,7 @@ func TestProcessWithTempFile(t *testing.T) {
 	defer tmpFile.Close()
 
 	p, err := New(
-		[][]string{
-			{"echo", "hello"},
-		},
+		WithCommand("echo", "hello"),
 		WithOutputFile(tmpFile),
 	)
 	if err != nil {
@@ -206,9 +199,7 @@ func TestProcessWithTempFile(t *testing.T) {
 
 func TestProcessWithStdoutReader(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"echo hello && sleep 1000"},
-		},
+		WithCommand("echo hello && sleep 1000"),
 		WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -251,11 +242,9 @@ func TestProcessWithStdoutReader(t *testing.T) {
 
 func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"echo hello 1 && sleep 1"},
-			{"echo hello 2 && sleep 1"},
-			{"echo hello 3 && sleep 1"},
-		},
+		WithCommand("echo hello 1 && sleep 1"),
+		WithCommand("echo hello 2 && sleep 1"),
+		WithCommand("echo hello 3 && sleep 1"),
 		WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -300,10 +289,8 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 
 func TestProcessWithRestarts(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"echo hello"},
-			{"echo 111 && exit 1"},
-		},
+		WithCommand("echo hello"),
+		WithCommand("echo 111 && exit 1"),
 		WithRunAsBashScript(),
 		WithRestartConfig(RestartConfig{
 			OnError:  true,
@@ -347,9 +334,7 @@ func TestProcessWithRestarts(t *testing.T) {
 
 func TestProcessSleep(t *testing.T) {
 	p, err := New(
-		[][]string{
-			{"sleep", "9999"},
-		},
+		WithCommand("sleep", "99999"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -379,12 +364,14 @@ func TestProcessSleep(t *testing.T) {
 }
 
 func TestProcessStream(t *testing.T) {
-	cmds := make([][]string, 0, 100)
+	opts := []OpOption{
+		WithRunAsBashScript(),
+	}
 	for i := 0; i < 100; i++ {
-		cmds = append(cmds, []string{fmt.Sprintf("echo hello %d && sleep 1", i)})
+		opts = append(opts, WithCommand(fmt.Sprintf("echo hello %d && sleep 1", i)))
 	}
 
-	p, err := New(cmds, WithRunAsBashScript())
+	p, err := New(opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

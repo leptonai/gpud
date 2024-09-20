@@ -1,8 +1,10 @@
 package process
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -13,6 +15,7 @@ type Op struct {
 	envs       []string
 	outputFile *os.File
 
+	commandsToRun           [][]string
 	bashScriptContentsToRun string
 	runAsBashScript         bool
 
@@ -22,6 +25,19 @@ type Op struct {
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
+	}
+
+	if len(op.commandsToRun) == 0 && op.bashScriptContentsToRun == "" {
+		return errors.New("no command(s) or bash script contents provided")
+	}
+	if !op.runAsBashScript && len(op.commandsToRun) > 1 {
+		return errors.New("cannot run multiple commands without a bash script mode")
+	}
+	for _, args := range op.commandsToRun {
+		cmd := strings.Split(args[0], " ")[0]
+		if !commandExists(cmd) {
+			return fmt.Errorf("command not found: %q", cmd)
+		}
 	}
 
 	foundEnvs := make(map[string]any)
@@ -55,13 +71,17 @@ func WithEnvs(envs ...string) OpOption {
 	}
 }
 
-// Sets the file to which stderr and stdout will be written.
-// For instance, you can set it to os.Stderr to pipe all the sub-process
-// stderr and stdout to the parent process's stderr.
-// Default is to set the os.Pipe to forward its output via io.ReadCloser.
-func WithOutputFile(file *os.File) OpOption {
+// Add a new command to run.
+func WithCommand(args ...string) OpOption {
 	return func(op *Op) {
-		op.outputFile = file
+		op.commandsToRun = append(op.commandsToRun, args)
+	}
+}
+
+// Sets/overwrites the commands to run.
+func WithCommands(commands [][]string) OpOption {
+	return func(op *Op) {
+		op.commandsToRun = commands
 	}
 }
 
@@ -70,6 +90,16 @@ func WithOutputFile(file *os.File) OpOption {
 func WithBashScriptContentsToRun(script string) OpOption {
 	return func(op *Op) {
 		op.bashScriptContentsToRun = script
+	}
+}
+
+// Sets the file to which stderr and stdout will be written.
+// For instance, you can set it to os.Stderr to pipe all the sub-process
+// stderr and stdout to the parent process's stderr.
+// Default is to set the os.Pipe to forward its output via io.ReadCloser.
+func WithOutputFile(file *os.File) OpOption {
+	return func(op *Op) {
+		op.outputFile = file
 	}
 }
 
@@ -86,4 +116,12 @@ func WithRestartConfig(config RestartConfig) OpOption {
 	return func(op *Op) {
 		op.restartConfig = &config
 	}
+}
+
+func commandExists(name string) bool {
+	p, err := exec.LookPath(name)
+	if err != nil {
+		return false
+	}
+	return p != ""
 }

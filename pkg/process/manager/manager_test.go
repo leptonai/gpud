@@ -1,4 +1,4 @@
-package server
+package manager
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestServerWithoutMinimumRetryIntervalSeconds(t *testing.T) {
+func TestManagerStartScriptWithNoRateLimit(t *testing.T) {
 	t.Parallel()
 
 	db, err := openDB(":memory:")
@@ -30,23 +30,23 @@ func TestServerWithoutMinimumRetryIntervalSeconds(t *testing.T) {
 		QPS:       5,
 	}
 
-	srv, err := New(cfg)
+	mngr, err := New(cfg)
 	if err != nil {
-		t.Fatal("failed to create server:", err)
+		t.Fatal("failed to create manager:", err)
 	}
 
-	id, err := srv.Start(ctx, "echo 12345")
+	id, _, err := mngr.StartScript(ctx, "echo 12345")
 	if err != nil {
 		t.Fatal("failed to start script:", err)
 	}
 	t.Logf("started script: %s", id)
 
-	if _, err = srv.Start(ctx, "echo 12345"); err != nil {
+	if _, _, err = mngr.StartScript(ctx, "echo 12345"); err != nil {
 		t.Fatal("failed to start script:", err)
 	}
 }
 
-func TestServerWithMinimumRetryIntervalSeconds(t *testing.T) {
+func TestManagerStartScriptWithMinimumRetryIntervalSeconds(t *testing.T) {
 	t.Parallel()
 
 	db, err := openDB(":memory:")
@@ -67,24 +67,24 @@ func TestServerWithMinimumRetryIntervalSeconds(t *testing.T) {
 		MinimumRetryIntervalSeconds: 60,
 	}
 
-	srv, err := New(cfg)
+	mngr, err := New(cfg)
 	if err != nil {
-		t.Fatal("failed to create server:", err)
+		t.Fatal("failed to create manager:", err)
 	}
 
-	id, err := srv.Start(ctx, "echo 12345")
+	id, _, err := mngr.StartScript(ctx, "echo 12345")
 	if err != nil {
 		t.Fatal("failed to start script:", err)
 	}
 	t.Logf("started script: %s", id)
 
-	if _, err = srv.Start(ctx, "echo 12345"); err != ErrQPSLimitExceeded {
+	if _, _, err = mngr.StartScript(ctx, "echo 12345"); err != ErrQPSLimitExceeded {
 		t.Fatalf("expected error, got %v", err)
 	}
 
 	time.Sleep(time.Second)
 
-	if _, err = srv.Start(ctx, "echo 12345"); err != ErrMinimumRetryInterval {
+	if _, _, err = mngr.StartScript(ctx, "echo 12345"); err != ErrMinimumRetryInterval {
 		t.Fatalf("expected error, got %v", err)
 	}
 }
