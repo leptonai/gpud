@@ -5,9 +5,12 @@ package state
 
 import (
 	"context"
+	"errors"
 
 	"github.com/leptonai/gpud/pkg/process/manager/state/schema"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Interface interface {
 	// RecordStart records the start of a script in UTC time.
@@ -18,7 +21,7 @@ type Interface interface {
 	UpdateOutput(ctx context.Context, scriptID string, scriptOutput string) error
 
 	// Get gets the state of a script.
-	// Returns row nil, error nil if the script hash does not exist.
+	// Returns status nil, error ErrNotFound if the script id does not exist.
 	Get(ctx context.Context, scriptID string) (*schema.Status, error)
 }
 

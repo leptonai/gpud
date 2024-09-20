@@ -52,7 +52,7 @@ func (s *State) UpdateOutput(ctx context.Context, scriptID string, scriptOutput 
 	return UpdateOutput(ctx, s.db, s.tableName, scriptID, scriptOutput)
 }
 
-// Returns status nil, error nil if the row does not exist.
+// Returns status nil, error ErrNotFound if the row does not exist.
 func (s *State) Get(ctx context.Context, scriptID string) (*schema.Status, error) {
 	return Get(ctx, s.db, s.tableName, scriptID)
 }
@@ -80,9 +80,19 @@ CREATE TABLE IF NOT EXISTS %s (
 // Records the start of a script execution in UTC time.
 func RecordStart(ctx context.Context, db *sql.DB, tableName string, scriptID string, scriptName string, scriptStartUnixSeconds int64) error {
 	insertQuery := fmt.Sprintf(`
+INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
+`, tableName, ColumnScriptHash, ColumnLastStartedUnixSeconds)
+	args := []any{scriptID, scriptStartUnixSeconds}
+
+	if scriptName != "" {
+		insertQuery = fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s) VALUES (?, ?, ?);
 `, tableName, ColumnScriptHash, ColumnLastStartedUnixSeconds, ColumnScriptName)
-	_, err := db.ExecContext(ctx, insertQuery, scriptID, scriptStartUnixSeconds, scriptName)
+
+		args = append(args, scriptName)
+	}
+
+	_, err := db.ExecContext(ctx, insertQuery, args...)
 	return err
 }
 
@@ -137,7 +147,7 @@ INSERT INTO %s (%s, %s) VALUES (?, ?);
 }
 
 // Reads the status from the table using the script hash as the key.
-// Returns status nil, error nil if the row does not exist.
+// Returns status nil, error ErrNotFound if the row does not exist.
 func Get(ctx context.Context, db *sql.DB, tableName string, scriptID string) (*schema.Status, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
@@ -156,7 +166,7 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ?;
 	err := row.Scan(&result.ScriptHash, &result.LastStartedUnixSeconds, &result.ScriptName, &result.LastExitCode, &result.LastOutput)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, state.ErrNotFound
 		}
 
 		return nil, err

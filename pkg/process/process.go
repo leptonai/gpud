@@ -18,13 +18,17 @@ import (
 )
 
 type Process interface {
+	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
+
+	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
 	Wait() <-chan error
 
+	// Returns the current pid of the process.
 	PID() int32
 
 	// Returns the stdout reader.

@@ -30,8 +30,12 @@ type Config struct {
 }
 
 type Manager interface {
-	StartScript(ctx context.Context, scriptContents string) (string, process.Process, error)
-	Check(ctx context.Context, id string) (*schema.Status, error)
+	// Starts the script and returns the id and the created process.
+	StartBashScript(ctx context.Context, scriptContents string, opts ...process.OpOption) (string, process.Process, error)
+
+	// Get returns the status of the process with the given id.
+	// Returns status nil, error ErrNotFound if the script id does not exist.
+	Get(ctx context.Context, id string) (*schema.Status, error)
 }
 
 type manager struct {
@@ -41,15 +45,22 @@ type manager struct {
 }
 
 func New(cfg Config) (Manager, error) {
+	if cfg.SQLite == nil {
+		return nil, errors.New("sqlite is not set")
+	}
+	if cfg.TableName == "" {
+		return nil, errors.New("table name is not set")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	state, err := state_sqlite.New(ctx, cfg.SQLite, cfg.TableName)
+	stateInterface, err := state_sqlite.New(ctx, cfg.SQLite, cfg.TableName)
 	cancel()
 	if err != nil {
 		return nil, err
 	}
 
 	mngr := &manager{
-		state: state,
+		state: stateInterface,
 		cfg:   cfg,
 	}
 	if cfg.QPS > 0 {
@@ -64,15 +75,15 @@ var (
 	ErrMinimumRetryInterval = errors.New("minimum retry interval not yet met -- try again later")
 )
 
-// Starts the script and returns the id.
-func (s *manager) StartScript(ctx context.Context, scriptContents string) (string, process.Process, error) {
+// Starts the script and returns the id and the created process.
+func (s *manager) StartBashScript(ctx context.Context, scriptContents string, opts ...process.OpOption) (string, process.Process, error) {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		return "", nil, ErrQPSLimitExceeded
 	}
 
 	id := CreateID(scriptContents)
 	prev, err := s.state.Get(ctx, id)
-	if err != nil {
+	if err != nil && err != state.ErrNotFound {
 		return "", nil, err
 	}
 	if prev != nil {
@@ -89,21 +100,24 @@ func (s *manager) StartScript(ctx context.Context, scriptContents string) (strin
 		return id, nil, rerr
 	}
 
-	proc, err := process.New(process.WithBashScriptContentsToRun(scriptContents))
+	// append "WithBashScriptContentsToRun" at the end to overwrie any conflicting options before
+	opts = append(opts, process.WithBashScriptContentsToRun(scriptContents))
+	proc, err := process.New(opts...)
 	if err != nil {
 		return "", nil, err
 	}
-
-	// TODO: run the script in the background
-
+	if err := proc.Start(ctx); err != nil {
+		return "", proc, err
+	}
 	return id, proc, nil
 }
 
-func (s *manager) Check(ctx context.Context, id string) (*schema.Status, error) {
+// Get returns the status of the process with the given id.
+// Returns status nil, error ErrNotFound if the script id does not exist.
+func (s *manager) Get(ctx context.Context, id string) (*schema.Status, error) {
 	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
 		return nil, ErrQPSLimitExceeded
 	}
-
 	return s.state.Get(ctx, id)
 }
 
