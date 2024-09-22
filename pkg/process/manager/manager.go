@@ -33,9 +33,14 @@ type Manager interface {
 	// Starts the script and returns the id and the created process.
 	StartBashScript(ctx context.Context, scriptContents string, opts ...process.OpOption) (string, process.Process, error)
 
+	// UpdateExitCode updates the exit code of a script.
+	UpdateExitCode(ctx context.Context, scriptID string, scriptExitCode int) error
+	// UpdateOutput updates the output of a script.
+	UpdateOutput(ctx context.Context, scriptID string, scriptOutput string) error
+
 	// Get returns the status of the process with the given id.
 	// Returns status nil, error ErrNotFound if the script id does not exist.
-	Get(ctx context.Context, id string) (*schema.Status, error)
+	Get(ctx context.Context, scriptID string) (*schema.Status, error)
 }
 
 type manager struct {
@@ -107,9 +112,29 @@ func (s *manager) StartBashScript(ctx context.Context, scriptContents string, op
 		return "", nil, err
 	}
 	if err := proc.Start(ctx); err != nil {
-		return "", proc, err
+		if rerr := s.state.UpdateExitCode(ctx, id, -1); rerr != nil {
+			return id, nil, rerr
+		}
+		return id, nil, err
 	}
+
 	return id, proc, nil
+}
+
+// UpdateExitCode updates the exit code of a script.
+func (s *manager) UpdateExitCode(ctx context.Context, scriptID string, scriptExitCode int) error {
+	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
+		return ErrQPSLimitExceeded
+	}
+	return s.state.UpdateExitCode(ctx, scriptID, scriptExitCode)
+}
+
+// UpdateOutput updates the output of a script.
+func (s *manager) UpdateOutput(ctx context.Context, scriptID string, scriptOutput string) error {
+	if s.rateLimiter != nil && !s.rateLimiter.Allow() {
+		return ErrQPSLimitExceeded
+	}
+	return s.state.UpdateOutput(ctx, scriptID, scriptOutput)
 }
 
 // Get returns the status of the process with the given id.

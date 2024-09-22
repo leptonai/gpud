@@ -15,6 +15,7 @@ var ErrNotFound = errors.New("not found")
 type Interface interface {
 	// RecordStart records the start of a script in UTC time.
 	RecordStart(ctx context.Context, scriptID string, opts ...OpOption) error
+
 	// UpdateExitCode updates the exit code of a script.
 	UpdateExitCode(ctx context.Context, scriptID string, scriptExitCode int) error
 	// UpdateOutput updates the output of a script.

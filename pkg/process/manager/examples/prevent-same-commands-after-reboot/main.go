@@ -44,7 +44,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	db1.Close()
 
 	select {
 	case err := <-proc.Wait():
@@ -55,6 +54,18 @@ func main() {
 		panic("timeout")
 	}
 	fmt.Println("script finished, id", id)
+
+	content, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("content: %q\n", string(content))
+	if err := mngr1.UpdateOutput(ctx, id, string(content)); err != nil {
+		panic(err)
+	}
+
+	// reboot here
+	db1.Close()
 
 	db2, err := openDB(dbFile)
 	if err != nil {
@@ -81,12 +92,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("status: %+v\n", status)
-
-	content, err := os.ReadFile(tmpFile.Name())
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("content: %q\n", string(content))
+	fmt.Printf("status.LastOutput: %s\n", *status.LastOutput)
 }
 
 func openDB(file string) (*sql.DB, error) {

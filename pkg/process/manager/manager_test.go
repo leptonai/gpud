@@ -1,10 +1,12 @@
 package manager
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,20 +44,58 @@ func TestManagerStartScriptWithNoRateLimit(t *testing.T) {
 		t.Fatalf("expected error, got %v", err)
 	}
 
-	id, _, err := mngr.StartBashScript(ctx, "echo 12345")
+	id, p, err := mngr.StartBashScript(ctx, "echo 12345")
 	if err != nil {
 		t.Fatal("failed to start script:", err)
 	}
 	t.Logf("started script: %s", id)
 
-	if _, _, err = mngr.StartBashScript(ctx, "echo 12345"); err != nil {
-		t.Fatal("failed to start script:", err)
+	outputs := []string{}
+	scanner := bufio.NewScanner(p.StdoutReader())
+	for scanner.Scan() { // returns false at the end of the output
+		line := scanner.Text()
+		outputs = append(outputs, line)
+		select {
+		case err := <-p.Wait():
+			if err != nil {
+				panic(err)
+			}
+		default:
+		}
+	}
+	if serr := scanner.Err(); serr != nil {
+		// process already dead, thus ignore
+		// e.g., "read |0: file already closed"
+		if !strings.Contains(serr.Error(), "file already closed") {
+			panic(serr)
+		}
+	}
+	select {
+	case err := <-p.Wait():
+		if err != nil {
+			panic(err)
+		}
+	case <-time.After(2 * time.Second):
+		panic("timeout")
+	}
+	if err := mngr.UpdateOutput(ctx, id, strings.Join(outputs, "\n")); err != nil {
+		t.Fatalf("failed to update output: %v", err)
 	}
 
-	if status, err := mngr.Get(ctx, id); err != nil {
+	status, err := mngr.Get(ctx, id)
+	if err != nil {
 		t.Fatalf("failed to get script: %v", err)
 	} else {
 		t.Logf("script status: %+v", status)
+		t.Logf("script output: %s", *status.LastOutput)
+	}
+
+	if *status.LastOutput != strings.Join(outputs, "\n") {
+		t.Fatalf("expected output %q, got %q", strings.Join(outputs, "\n"), *status.LastOutput)
+	}
+
+	if _, _, err = mngr.StartBashScript(ctx, "echo 12345"); err != nil {
+		t.Fatal("failed to start script:", err)
 	}
 }
 
