@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -52,6 +53,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 	}
 
+	_, err = os.Stat("/var/lib/gpud/manual")
+
 	return []components.State{
 		{
 			Name:    StateNameDaemon,
@@ -64,7 +67,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		},
 		{
 			Name:      StateNameAnnotations,
-			Healthy:   true,
+			Healthy:   err == nil,
 			Reason:    fmt.Sprintf("annotations: %v", c.annotations),
 			ExtraInfo: c.annotations,
 		},
