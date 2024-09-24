@@ -5,11 +5,15 @@ import (
 	"strconv"
 
 	"github.com/dustin/go-humanize"
+
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil || i.SMI == nil {
+		return &Output{}
+	}
 	var totalMem uint64
 	var totalMemHumanized string
 	parsed, err := i.SMI.GPUs[0].FBMemoryUsage.Parse()

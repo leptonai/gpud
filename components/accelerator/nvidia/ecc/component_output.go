@@ -13,19 +13,20 @@ import (
 
 func ToOutput(i *nvidia_query.Output) *Output {
 	o := &Output{}
-	for _, g := range i.SMI.GPUs {
-		if g.ECCErrors == nil {
-			continue
-		}
+	if i != nil && i.SMI == nil {
+		for _, g := range i.SMI.GPUs {
+			if g.ECCErrors == nil {
+				continue
+			}
 
-		o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
+			o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
 
-		if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
-			o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
+			if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
+				o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
+			}
 		}
 	}
-
-	if i.NVML != nil {
+	if i != nil && i.NVML != nil {
 		for _, dev := range i.NVML.DeviceInfos {
 			o.ErrorCountsNVML = append(o.ErrorCountsNVML, dev.ECCErrors)
 

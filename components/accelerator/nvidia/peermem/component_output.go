@@ -13,6 +13,9 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	o := &Output{
 		LsmodPeermem: *i.LsmodPeermem,
 	}
+	if i.SMI == nil {
+		return o
+	}
 	if len(i.SMI.GPUs) > 0 {
 		o.ProductName = i.SMI.GPUs[0].ProductName
 	}

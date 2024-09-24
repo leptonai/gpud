@@ -10,6 +10,9 @@ import (
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
 	o := &Output{
 		FabricManager: *i.FabricManager,
 	}

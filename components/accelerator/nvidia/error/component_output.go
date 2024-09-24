@@ -12,6 +12,9 @@ import (
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil || i.SMI == nil {
+		return &Output{}
+	}
 	return &Output{
 		Errors: i.SMI.FindGPUErrs(),
 	}
