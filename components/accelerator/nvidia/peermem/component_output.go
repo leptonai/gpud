@@ -10,14 +10,13 @@ import (
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return nil
+	}
 	o := &Output{
 		LsmodPeermem: *i.LsmodPeermem,
-	}
-	if i != nil {
-		o.GPUCounts = i.GPUCounts()
-		if len(i.SMI.GPUs) > 0 {
-			o.ProductName = i.SMI.GPUs[0].ProductName
-		}
+		GPUCounts:    i.GPUCounts(),
+		ProductName:  i.GPUProductName(),
 	}
 	return o
 }

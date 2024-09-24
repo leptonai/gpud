@@ -305,6 +305,13 @@ func (o *Output) GPUCounts() int {
 	return cnts
 }
 
+func (o *Output) GPUProductName() string {
+	if o == nil || len(o.SMI.GPUs) == 0 {
+		return ""
+	}
+	return o.SMI.GPUs[0].ProductName
+}
+
 const (
 	inProgress  = "\033[33m⌛\033[0m"
 	checkMark   = "\033[32m✔\033[0m"
