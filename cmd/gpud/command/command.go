@@ -469,6 +469,47 @@ cat summary.txt
 				},
 			},
 		},
+		{
+			Name:  "join",
+			Usage: "join gpud machine into a lepton cluster",
+			UsageText: `# to join gpud into a lepton cluster
+sudo gpud join
+`,
+			Action: cmdJoin,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:  "cluster-name",
+					Usage: "cluster name for control plane (e.g.: lepton-production)",
+					Value: "lepton-production",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "public ip of the machine",
+				},
+				cli.StringFlag{
+					Name:  "provider",
+					Usage: "provider of the machine",
+					Value: "personal",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.BoolFlag{
+					Name:  "xray-needed",
+					Usage: "enable xray for the machine",
+				},
+				cli.StringFlag{
+					Name:  "extra-info",
+					Usage: "base64 encoded extra info to pass to control plane",
+				},
+			},
+		},
 	}
 
 	return app
