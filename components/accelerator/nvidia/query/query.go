@@ -294,6 +294,17 @@ func (o *Output) YAML() ([]byte, error) {
 	return yaml.Marshal(o)
 }
 
+func (o *Output) GPUCounts() int {
+	if o == nil {
+		return 0
+	}
+	cnts := o.SMI.AttachedGPUs
+	if cnts == 0 { // in case of "nvidia-smi" failure
+		cnts = len(o.NVML.DeviceInfos)
+	}
+	return cnts
+}
+
 const (
 	inProgress  = "\033[33m⌛\033[0m"
 	checkMark   = "\033[32m✔\033[0m"
