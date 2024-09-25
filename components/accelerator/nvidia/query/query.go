@@ -313,7 +313,7 @@ func (o *Output) GPUCounts() int {
 }
 
 func (o *Output) GPUProductName() string {
-	if o == nil || len(o.SMI.GPUs) == 0 {
+	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
 	return o.SMI.GPUs[0].ProductName
