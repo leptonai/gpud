@@ -298,10 +298,17 @@ func (o *Output) GPUCounts() int {
 	if o == nil {
 		return 0
 	}
+	if o.SMI == nil {
+		return 0
+	}
+
 	cnts := o.SMI.AttachedGPUs
-	if cnts == 0 { // in case of "nvidia-smi" failure
+
+	// in case of "nvidia-smi" failure
+	if cnts == 0 && o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
 		cnts = len(o.NVML.DeviceInfos)
 	}
+
 	return cnts
 }
 
