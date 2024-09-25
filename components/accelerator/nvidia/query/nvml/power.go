@@ -12,9 +12,6 @@ type Power struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
 
-	// Represents the GPU ID.
-	GPUID uint32 `json:"gpu_id"`
-
 	UsageMilliWatts           uint32 `json:"usage_milli_watts"`
 	EnforcedLimitMilliWatts   uint32 `json:"enforced_limit_milli_watts"`
 	ManagementLimitMilliWatts uint32 `json:"management_limit_milli_watts"`
