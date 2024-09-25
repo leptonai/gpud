@@ -13,7 +13,14 @@ import (
 )
 
 func ToOutput(i *nvidia_query.Output) *Output {
-	o := &Output{}
+	if i == nil {
+		return nil
+	}
+
+	o := &Output{
+		MemoryErrorManagementCapabilities: i.MemoryErrorManagementCapabilities,
+	}
+
 	for _, g := range i.SMI.GPUs {
 		if g.RemappedRows == nil {
 			continue
@@ -25,17 +32,20 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 		o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
 	}
+
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.RemappedRowsNVML = append(o.RemappedRowsNVML, device.RemappedRows)
 		}
 	}
+
 	return o
 }
 
 type Output struct {
-	RemappedRowsSMI  []nvidia_query.ParsedSMIRemappedRows `json:"remapped_rows_smi"`
-	RemappedRowsNVML []nvidia_query_nvml.RemappedRows     `json:"remapped_rows_nvml"`
+	MemoryErrorManagementCapabilities nvidia_query.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
+	RemappedRowsSMI                   []nvidia_query.ParsedSMIRemappedRows           `json:"remapped_rows_smi"`
+	RemappedRowsNVML                  []nvidia_query_nvml.RemappedRows               `json:"remapped_rows_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -82,6 +92,14 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
+	if o == nil {
+		return "no data", true, nil
+	}
+
+	if !o.MemoryErrorManagementCapabilities.RowRemapping {
+		return "row remapping is not supported", true, nil
+	}
+
 	healthy := true
 	reasons := []string{}
 
