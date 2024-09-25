@@ -79,8 +79,8 @@ type ParsedSMIRemappedRows struct {
 
 	RemappedDueToCorrectableErrors   string `json:"remapped_due_to_correctable_errors"`
 	RemappedDueToUncorrectableErrors string `json:"remapped_due_to_uncorrectable_errors"`
-	Pending                          string `json:"pending"`
-	RemappingFailureOccurred         string `json:"remapping_failure_occurred"`
+	RemappingPending                 string `json:"remapping_pending"`
+	RemappingFailed                  string `json:"remapping_failed"`
 }
 
 func (rw *SMIRemappedRows) Parse() (ParsedSMIRemappedRows, error) {
@@ -88,37 +88,65 @@ func (rw *SMIRemappedRows) Parse() (ParsedSMIRemappedRows, error) {
 		ID:                               rw.ID,
 		RemappedDueToCorrectableErrors:   rw.CorrectableError,
 		RemappedDueToUncorrectableErrors: rw.UncorrectableError,
-		Pending:                          rw.Pending,
-		RemappingFailureOccurred:         rw.RemappingFailureOccurred,
+		RemappingPending:                 rw.Pending,
+		RemappingFailed:                  rw.RemappingFailureOccurred,
 	}, nil
 }
 
-func (rw ParsedSMIRemappedRows) GetRemappedRowsDueToCorrectableError() (int64, error) {
+func (rw ParsedSMIRemappedRows) GetRemappedDueToCorrectableError() (int64, error) {
 	return strconv.ParseInt(rw.RemappedDueToCorrectableErrors, 10, 64)
 }
 
-func (rw ParsedSMIRemappedRows) GetRemappedRowsDueToUncorrectableError() (int64, error) {
+func (rw ParsedSMIRemappedRows) GetRemappedDueToUncorrectableError() (int64, error) {
 	return strconv.ParseInt(rw.RemappedDueToUncorrectableErrors, 10, 64)
 }
 
-func (rw ParsedSMIRemappedRows) GetPending() (bool, error) {
-	if rw.Pending == "Yes" || rw.Pending == "true" {
+func (rw ParsedSMIRemappedRows) GetRemappingPending() (bool, error) {
+	if rw.RemappingPending == "Yes" || rw.RemappingPending == "true" {
 		return true, nil
 	}
-	if rw.Pending == "No" || rw.Pending == "false" {
+	if rw.RemappingPending == "No" || rw.RemappingPending == "false" {
 		return false, nil
 	}
-	return false, fmt.Errorf("invalid pending value: %q", rw.Pending)
+	return false, fmt.Errorf("invalid pending value: %q", rw.RemappingPending)
 }
 
-func (rw ParsedSMIRemappedRows) GetRemappingFailureOccurred() (bool, error) {
-	if rw.RemappingFailureOccurred == "Yes" || rw.RemappingFailureOccurred == "true" {
+func (rw ParsedSMIRemappedRows) GetRemappingFailured() (bool, error) {
+	if rw.RemappingFailed == "Yes" || rw.RemappingFailed == "true" {
 		return true, nil
 	}
-	if rw.RemappingFailureOccurred == "No" || rw.RemappingFailureOccurred == "false" {
+	if rw.RemappingFailed == "No" || rw.RemappingFailed == "false" {
 		return false, nil
 	}
-	return false, fmt.Errorf("invalid remapping failure occurred value: %q", rw.RemappingFailureOccurred)
+	return false, fmt.Errorf("invalid remapping failure occurred value: %q", rw.RemappingFailed)
+}
+
+// Returns true if a GPU qualifies for RMA.
+// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds-for-row-remapping
+func (rw ParsedSMIRemappedRows) QualifiesForRMA() (bool, error) {
+	failureOccurred, err := rw.GetRemappingFailured()
+	if err != nil {
+		return false, err
+	}
+
+	uncorrectableErrors, err := rw.GetRemappedDueToUncorrectableError()
+	if err != nil {
+		return false, err
+	}
+
+	// "remapping attempt for an uncorrectable memory error on a bank that already has eight uncorrectable error rows remapped."
+	if failureOccurred && uncorrectableErrors >= 8 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (rw ParsedSMIRemappedRows) RequiresReset() (bool, error) {
+	pending, err := rw.GetRemappingPending()
+	if err != nil {
+		return false, err
+	}
+	return pending, nil
 }
 
 type SMIECCErrorAggregate struct {
