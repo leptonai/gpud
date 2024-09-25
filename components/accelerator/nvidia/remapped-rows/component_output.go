@@ -130,7 +130,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 	for _, r := range o.RemappedRowsNVML {
 		if r.QualifiesForRMA() {
 			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvml GPU %s qualifies for RMA (failure occured %v, uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
+			reasons = append(reasons, fmt.Sprintf("nvml GPU %s qualifies for RMA (failure occurred %v, uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
 		}
 		if r.RequiresReset() {
 			healthy = false
