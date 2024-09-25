@@ -39,31 +39,41 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
-			Name:      "pending",
+			Name:      "remapping_pending",
 			Help:      "set to 1 if this GPU requires a reset to actually remap the row",
 		},
 		[]string{"gpu_id"},
 	)
 	remappingPendingAverager = components_metrics.NewNoOpAverager()
 
-	failureOccured = prometheus.NewGaugeVec(
+	remappingFailed = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
-			Name:      "failure_occurred",
+			Name:      "remapping_failed",
 			Help:      "set to 1 if a remapping has failed in the past",
 		},
 		[]string{"gpu_id"},
 	)
-	failureOccuredAverager = components_metrics.NewNoOpAverager()
+	remappingFailedAverager = components_metrics.NewNoOpAverager()
 )
 
 func InitAveragers(db *sql.DB, tableName string) {
-	uncorrectableErrorsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_graphics_mhz")
+	uncorrectableErrorsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_due_to_uncorrectable_errors")
+	remappingPendingAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_remapping_pending")
+	remappingFailedAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_remapping_failed")
 }
 
 func ReadRemappedDueToUncorrectableErrors(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return uncorrectableErrorsAverager.Read(ctx, components_metrics.WithSince(since))
+}
+
+func ReadRemappingPending(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
+	return remappingPendingAverager.Read(ctx, components_metrics.WithSince(since))
+}
+
+func ReadRemappingFailed(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
+	return remappingFailedAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
 func SetLastUpdateUnixSeconds(unixSeconds float64) {
@@ -85,7 +95,7 @@ func SetRemappedDueToUncorrectableErrors(ctx context.Context, gpuID string, cnt 
 	return nil
 }
 
-func SetPending(ctx context.Context, gpuID string, pending bool, currentTime time.Time) error {
+func SetRemappingPending(ctx context.Context, gpuID string, pending bool, currentTime time.Time) error {
 	v := float64(0)
 	if pending {
 		v = float64(1)
@@ -104,14 +114,14 @@ func SetPending(ctx context.Context, gpuID string, pending bool, currentTime tim
 	return nil
 }
 
-func SetFailureOccured(ctx context.Context, gpuID string, failed bool, currentTime time.Time) error {
+func SetRemappingFailed(ctx context.Context, gpuID string, failed bool, currentTime time.Time) error {
 	v := float64(0)
 	if failed {
 		v = float64(1)
 	}
-	failureOccured.WithLabelValues(gpuID).Set(v)
+	remappingFailed.WithLabelValues(gpuID).Set(v)
 
-	if err := failureOccuredAverager.Observe(
+	if err := remappingFailedAverager.Observe(
 		ctx,
 		v,
 		components_metrics.WithCurrentTime(currentTime),
@@ -135,7 +145,7 @@ func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
 	if err := reg.Register(remappingPending); err != nil {
 		return err
 	}
-	if err := reg.Register(failureOccured); err != nil {
+	if err := reg.Register(remappingFailed); err != nil {
 		return err
 	}
 	return nil

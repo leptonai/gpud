@@ -48,6 +48,7 @@ import (
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
@@ -527,6 +528,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_processes.New(ctx, cfg))
+
+		case nvidia_remapped_rows.Name:
+			cfg := nvidia_remapped_rows.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_remapped_rows.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_remapped_rows.New(ctx, cfg))
 
 		case nvidia_fabric_manager.Name:
 			cfg := nvidia_fabric_manager.Config{Query: defaultQueryCfg, Log: nvidia_fabric_manager.DefaultLogConfig()}

@@ -9,14 +9,14 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
+	nvidia_query_metrics_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/remapped-rows"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const Name = "accelerator-nvidia-clock-speed"
+const Name = "accelerator-nvidia-remapped-rows"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
@@ -99,17 +99,21 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
-	graphicsMHzs, err := nvidia_query_metrics_clockspeed.ReadGraphicsMHzs(ctx, since)
+	remappedDueToUncorrectableErrors, err := nvidia_query_metrics_remapped_rows.ReadRemappedDueToUncorrectableErrors(ctx, since)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read graphics clock speed: %w", err)
+		return nil, fmt.Errorf("failed to read remapped due to uncorrectable errors: %w", err)
 	}
-	memoryMHzs, err := nvidia_query_metrics_clockspeed.ReadMemoryMHzs(ctx, since)
+	remappingPending, err := nvidia_query_metrics_remapped_rows.ReadRemappingPending(ctx, since)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read memory clock speed: %w", err)
+		return nil, fmt.Errorf("failed to read remapping pending: %w", err)
+	}
+	remappingFailed, err := nvidia_query_metrics_remapped_rows.ReadRemappingFailed(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read remapping failed: %w", err)
 	}
 
-	ms := make([]components.Metric, 0, len(graphicsMHzs)+len(memoryMHzs))
-	for _, m := range graphicsMHzs {
+	ms := make([]components.Metric, 0, len(remappedDueToUncorrectableErrors)+len(remappingPending)+len(remappingFailed))
+	for _, m := range remappedDueToUncorrectableErrors {
 		ms = append(ms, components.Metric{
 			Metric: m,
 			ExtraInfo: map[string]string{
@@ -117,7 +121,15 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 			},
 		})
 	}
-	for _, m := range memoryMHzs {
+	for _, m := range remappingPending {
+		ms = append(ms, components.Metric{
+			Metric: m,
+			ExtraInfo: map[string]string{
+				"gpu_id": m.MetricSecondaryName,
+			},
+		})
+	}
+	for _, m := range remappingFailed {
 		ms = append(ms, components.Metric{
 			Metric: m,
 			ExtraInfo: map[string]string{
@@ -142,5 +154,5 @@ var _ components.PromRegisterer = (*component)(nil)
 
 func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return nvidia_query_metrics_clockspeed.Register(reg, db, tableName)
+	return nvidia_query_metrics_remapped_rows.Register(reg, db, tableName)
 }

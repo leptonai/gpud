@@ -15,6 +15,7 @@ import (
 	metrics_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/nvlink"
 	metrics_power "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/power"
 	metrics_processes "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/processes"
+	metrics_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/remapped-rows"
 	metrics_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/temperature"
 	metrics_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/utilization"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
@@ -160,6 +161,7 @@ func Get(ctx context.Context) (output any, err error) {
 		metrics_temperature.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_utilization.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_processes.SetLastUpdateUnixSeconds(nowUnix)
+		metrics_remapped_rows.SetLastUpdateUnixSeconds(nowUnix)
 
 		for _, dev := range o.NVML.DeviceInfos {
 			log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.Bus, "device", dev.Device, "minorNumber", dev.MinorNumber)
@@ -270,6 +272,16 @@ func Get(ctx context.Context) (output any, err error) {
 			}
 
 			if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
+				return nil, err
+			}
+
+			if err := metrics_remapped_rows.SetRemappedDueToUncorrectableErrors(ctx, dev.UUID, uint32(dev.RemappedRows.RemappedDueToCorrectableErrors), now); err != nil {
+				return nil, err
+			}
+			if err := metrics_remapped_rows.SetRemappingPending(ctx, dev.UUID, dev.RemappedRows.RemappingPending, now); err != nil {
+				return nil, err
+			}
+			if err := metrics_remapped_rows.SetRemappingFailed(ctx, dev.UUID, dev.RemappedRows.RemappingFailed, now); err != nil {
 				return nil, err
 			}
 		}
