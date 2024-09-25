@@ -17,6 +17,7 @@
 - [**`accelerator-nvidia-peermem`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/peermem): Monitors the peermem module status. Optional, enabled if the host has NVIDIA GPUs.
 - [**`accelerator-nvidia-power`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/power): Tracks the NVIDIA per-GPU power usage.
 - [**`accelerator-nvidia-processes`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/processes): Tracks the NVIDIA per-GPU processes.
+- [**`accelerator-nvidia-remapped-rows`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows): Tracks the NVIDIA per-GPU remapped rows (which indicates whether to reset the GPU or not).
 - [**`accelerator-nvidia-temperature`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/temperature): Tracks the NVIDIA per-GPU temperatures.
 - [**`accelerator-nvidia-utilization`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/utilization): Tracks the NVIDIA per-GPU utilization.
 
