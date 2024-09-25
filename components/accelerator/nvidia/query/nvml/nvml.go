@@ -94,15 +94,16 @@ type DeviceInfo struct {
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
-	ClockEvents *ClockEvents `json:"clock_events,omitempty"`
-	ClockSpeed  ClockSpeed   `json:"clock_speed"`
-	Memory      Memory       `json:"memory"`
-	NVLink      NVLink       `json:"nvlink"`
-	Power       Power        `json:"power"`
-	Temperature Temperature  `json:"temperature"`
-	Utilization Utilization  `json:"utilization"`
-	Processes   Processes    `json:"processes"`
-	ECCErrors   ECCErrors    `json:"ecc_errors"`
+	ClockEvents  *ClockEvents `json:"clock_events,omitempty"`
+	ClockSpeed   ClockSpeed   `json:"clock_speed"`
+	Memory       Memory       `json:"memory"`
+	NVLink       NVLink       `json:"nvlink"`
+	Power        Power        `json:"power"`
+	Temperature  Temperature  `json:"temperature"`
+	Utilization  Utilization  `json:"utilization"`
+	Processes    Processes    `json:"processes"`
+	ECCErrors    ECCErrors    `json:"ecc_errors"`
+	RemappedRows RemappedRows `json:"remapped_rows"`
 
 	device device.Device `json:"-"`
 }
@@ -445,6 +446,11 @@ func (inst *instance) Get() (*Output, error) {
 		}
 
 		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device)
+		if err != nil {
+			return st, err
+		}
+
+		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
 		if err != nil {
 			return st, err
 		}
