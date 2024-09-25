@@ -77,28 +77,28 @@ type SMIRemappedRows struct {
 type ParsedSMIRemappedRows struct {
 	ID string `json:"id"`
 
-	CorrectableErrors        string `json:"correctable_errors"`
-	UncorrectableErrors      string `json:"uncorrectable_errors"`
-	Pending                  string `json:"pending"`
-	RemappingFailureOccurred string `json:"remapping_failure_occurred"`
+	RemappedDueToCorrectableErrors   string `json:"remapped_due_to_correctable_errors"`
+	RemappedDueToUncorrectableErrors string `json:"remapped_due_to_uncorrectable_errors"`
+	Pending                          string `json:"pending"`
+	RemappingFailureOccurred         string `json:"remapping_failure_occurred"`
 }
 
 func (rw *SMIRemappedRows) Parse() (ParsedSMIRemappedRows, error) {
 	return ParsedSMIRemappedRows{
-		ID:                       rw.ID,
-		CorrectableErrors:        rw.CorrectableError,
-		UncorrectableErrors:      rw.UncorrectableError,
-		Pending:                  rw.Pending,
-		RemappingFailureOccurred: rw.RemappingFailureOccurred,
+		ID:                               rw.ID,
+		RemappedDueToCorrectableErrors:   rw.CorrectableError,
+		RemappedDueToUncorrectableErrors: rw.UncorrectableError,
+		Pending:                          rw.Pending,
+		RemappingFailureOccurred:         rw.RemappingFailureOccurred,
 	}, nil
 }
 
-func (rw ParsedSMIRemappedRows) GetCorrectableError() (int64, error) {
-	return strconv.ParseInt(rw.CorrectableErrors, 10, 64)
+func (rw ParsedSMIRemappedRows) GetRemappedRowsDueToCorrectableError() (int64, error) {
+	return strconv.ParseInt(rw.RemappedDueToCorrectableErrors, 10, 64)
 }
 
-func (rw ParsedSMIRemappedRows) GetUncorrectableError() (int64, error) {
-	return strconv.ParseInt(rw.UncorrectableErrors, 10, 64)
+func (rw ParsedSMIRemappedRows) GetRemappedRowsDueToUncorrectableError() (int64, error) {
+	return strconv.ParseInt(rw.RemappedDueToUncorrectableErrors, 10, 64)
 }
 
 func (rw ParsedSMIRemappedRows) GetPending() (bool, error) {

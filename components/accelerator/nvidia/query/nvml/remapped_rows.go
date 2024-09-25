@@ -17,10 +17,10 @@ type RemappedRows struct {
 	UUID string `json:"uuid"`
 
 	// The number of rows remapped due to correctable errors.
-	CorrectableErrors int `json:"correctable_errors"`
+	RemappedDueToCorrectableErrors int `json:"remapped_due_to_correctable_errors"`
 
 	// The number of rows remapped due to uncorrectable errors.
-	UncorrectableErrors int `json:"uncorrectable_errors"`
+	RemappedDueToUncorrectableErrors int `json:"remapped_due_to_uncorrectable_errors"`
 
 	// Indicates whether or not remappings are pending.
 	// If true, GPU requires a reset to actually remap the row.
@@ -45,8 +45,8 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	if ret != nvml.SUCCESS {
 		return RemappedRows{}, fmt.Errorf("failed to get device remapped rows: %v", nvml.ErrorString(ret))
 	}
-	remRws.CorrectableErrors = corrRows
-	remRws.UncorrectableErrors = uncRows
+	remRws.RemappedDueToCorrectableErrors = corrRows
+	remRws.RemappedDueToUncorrectableErrors = uncRows
 	remRws.IsPending = isPending
 	remRws.FailureOccurred = failureOccurred
 
@@ -57,7 +57,7 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 // ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds-for-row-remapping
 func (r RemappedRows) QualifiesForRMA() bool {
 	// "remapping attempt for an uncorrectable memory error on a bank that already has eight uncorrectable error rows remapped."
-	if r.FailureOccurred && r.UncorrectableErrors >= 8 {
+	if r.FailureOccurred && r.RemappedDueToUncorrectableErrors >= 8 {
 		return true
 	}
 	return false
