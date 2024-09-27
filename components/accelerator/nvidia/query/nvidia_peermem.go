@@ -20,7 +20,7 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	}
 
 	proc, err := process.New(
-		[][]string{{"sudo lsmod"}},
+		process.WithCommand("sudo lsmod"),
 		process.WithRunAsBashScript(),
 		process.WithRestartConfig(
 			process.RestartConfig{

@@ -18,20 +18,39 @@ import (
 )
 
 type Process interface {
+	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
+
+	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
 	Wait() <-chan error
 
+	// Returns the current pid of the process.
 	PID() int32
 
+	// Returns the stdout reader.
+	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
+	// Use bufio.NewScanner(p.StdoutReader()) instead.
+	//
+	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// If retry configuration is specified, specify the output file to read all the output.
 	StdoutReader() io.Reader
+
+	// Returns the stderr reader.
+	// stderr/stdout piping sometimes doesn't work well on latest mac with io.ReadAll
+	// Use bufio.NewScanner(p.StderrReader()) instead.
+	//
+	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+	// If retry configuration is specified, specify the output file to read all the output.
 	StderrReader() io.Reader
 }
 
 // RestartConfig is the configuration for the process restart.
+// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
+// If retry configuration is specified, specify the output file to read all the output.
 type RestartConfig struct {
 	// Set true to restart the process on error exit.
 	OnError bool
@@ -63,22 +82,10 @@ type process struct {
 	restartConfig *RestartConfig
 }
 
-func New(commands [][]string, opts ...OpOption) (Process, error) {
+func New(opts ...OpOption) (Process, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
-	}
-	if len(commands) == 0 {
-		return nil, errors.New("no commands provided")
-	}
-	if len(commands) > 1 && !op.runAsBashScript {
-		return nil, errors.New("cannot run multiple commands without a bash script mode")
-	}
-	for _, args := range commands {
-		cmd := strings.Split(args[0], " ")[0]
-		if !commandExists(cmd) {
-			return nil, fmt.Errorf("command not found: %q", cmd)
-		}
 	}
 
 	var cmdArgs []string
@@ -89,8 +96,15 @@ func New(commands [][]string, opts ...OpOption) (Process, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
-			return nil, err
+
+		if op.bashScriptContentsToRun != "" { // assume the bash script provided by the user is a complete script
+			if _, err := bashFile.Write([]byte(op.bashScriptContentsToRun)); err != nil {
+				return nil, err
+			}
+		} else {
+			if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
+				return nil, err
+			}
 		}
 		defer func() {
 			_ = bashFile.Sync()
@@ -98,7 +112,7 @@ func New(commands [][]string, opts ...OpOption) (Process, error) {
 		cmdArgs = []string{"bash", bashFile.Name()}
 	}
 
-	for _, args := range commands {
+	for _, args := range op.commandsToRun {
 		if bashFile == nil {
 			cmdArgs = args
 			continue
@@ -362,11 +376,3 @@ set -o nounset
 set -o errexit
 
 `
-
-func commandExists(name string) bool {
-	p, err := exec.LookPath(name)
-	if err != nil {
-		return false
-	}
-	return p != ""
-}

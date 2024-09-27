@@ -21,7 +21,7 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 		return nil, err
 	}
 
-	p, err := process.New(op.commands, process.WithRunAsBashScript())
+	p, err := process.New(process.WithCommands(op.commands), process.WithRunAsBashScript())
 	if err != nil {
 		return nil, err
 	}

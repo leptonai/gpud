@@ -35,7 +35,7 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		file = f.Name()
 
 		log.Logger.Debugw("writing commands to file to scan", "commands", op.commands)
-		p, err := process.New(op.commands, process.WithRunAsBashScript(), process.WithOutputFile(f))
+		p, err := process.New(process.WithCommands(op.commands), process.WithRunAsBashScript(), process.WithOutputFile(f))
 		if err != nil {
 			return 0, err
 		}

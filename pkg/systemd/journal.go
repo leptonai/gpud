@@ -32,7 +32,7 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 	}
 	cmd := fmt.Sprintf("journalctl -xeu %s --no-pager", svcName)
 
-	proc, err := process.New([][]string{{cmd}}, process.WithRunAsBashScript())
+	proc, err := process.New(process.WithCommand(cmd), process.WithRunAsBashScript())
 	if err != nil {
 		return "", err
 	}
