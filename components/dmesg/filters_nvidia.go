@@ -3,6 +3,7 @@ package dmesg
 import (
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
@@ -39,6 +40,13 @@ const (
 	// "D.4 Non-Fatal NVSwitch SXid Errors"
 	// https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 	EventNvidiaNVSwitchSXid = "nvidia_nvswitch_sxid"
+
+	// repeated messages may indicate more persistent issue on the inter-GPU communication
+	// e.g.,
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+	EventNvidiaPeermemInvalidContext = "nvidia_peermem_invalid_context"
 )
 
 func DefaultDmesgFiltersForNvidia() []*query_log_filter.Filter {
@@ -52,6 +60,13 @@ func DefaultDmesgFiltersForNvidia() []*query_log_filter.Filter {
 			Name:            EventNvidiaNVSwitchSXid,
 			Regex:           ptr.To(nvidia_query_sxid.RegexNVSwitchSXidDmesg),
 			OwnerReferences: []string{nvidia_error.Name},
+		},
+		{
+			Name:  EventNvidiaPeermemInvalidContext,
+			Regex: ptr.To(nvidia_query_peermem.RegexNvidiaPeermemInvalidContext),
+
+			// to prevent circular dependency, do not import "nvidia_peermem.Name"
+			OwnerReferences: []string{"accelerator-nvidia-peermem"},
 		},
 	}
 }

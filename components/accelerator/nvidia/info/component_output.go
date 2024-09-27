@@ -24,7 +24,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	o := &Output{
 		Driver: Driver{Version: i.SMI.DriverVersion},
 		CUDA:   CUDA{Version: i.SMI.CUDAVersion},
-		GPU:    GPU{Attached: i.SMI.AttachedGPUs},
+		GPU:    GPU{Attached: i.GPUCounts()},
 		Memory: Memory{
 			TotalBytes:     totalMem,
 			TotalHumanized: totalMemHumanized,

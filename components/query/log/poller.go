@@ -38,6 +38,7 @@ type Poller interface {
 
 	// Tails the last N lines without polling, just by reading the file
 	// from the end of the file.
+	// Thus, the returned items are sorted by the time from new to old.
 	//
 	// Useful for investing the old dmesg logs.
 	// Use this to backfill events for the old logs.

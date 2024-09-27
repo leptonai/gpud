@@ -14,15 +14,20 @@ import (
 
 func ToOutput(i *nvidia_query.Output) *Output {
 	o := &Output{}
-	for _, g := range i.SMI.GPUs {
-		if g.GPUPowerReadings == nil {
-			continue
+	if i == nil {
+		return o
+	}
+	if i.SMI != nil {
+		for _, g := range i.SMI.GPUs {
+			if g.GPUPowerReadings == nil {
+				continue
+			}
+			parsed, err := g.GPUPowerReadings.Parse()
+			if err != nil {
+				continue
+			}
+			o.UsagesSMI = append(o.UsagesSMI, parsed)
 		}
-		parsed, err := g.GPUPowerReadings.Parse()
-		if err != nil {
-			continue
-		}
-		o.UsagesSMI = append(o.UsagesSMI, parsed)
 	}
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
