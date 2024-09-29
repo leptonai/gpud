@@ -10,13 +10,21 @@ import (
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
+
 	o := &Output{}
+
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.NVLinkDevices = append(o.NVLinkDevices, device.NVLink)
 		}
 	}
+
 	return o
 }
 

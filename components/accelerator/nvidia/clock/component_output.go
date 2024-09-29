@@ -12,19 +12,30 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
-	var clockEvents []nvidia_query_nvml.ClockEvents = nil
-	for _, devInfo := range i.NVML.DeviceInfos {
-		if devInfo.ClockEvents != nil {
-			clockEvents = append(clockEvents, *devInfo.ClockEvents)
+	if i == nil {
+		return &Output{}
+	}
+
+	o := &Output{}
+
+	if i.NVML != nil {
+		for _, devInfo := range i.NVML.DeviceInfos {
+			if devInfo.ClockEvents != nil {
+				o.ClockEventsNVML = append(o.ClockEventsNVML, *devInfo.ClockEvents)
+			}
 		}
 	}
-	return &Output{
-		HWSlowdownSMI: HWSlowdownSMI{
+
+	if i.SMI != nil {
+		o.HWSlowdownSMI = HWSlowdownSMI{
 			Errors: i.SMI.FindHWSlowdownErrs(),
-		},
-		ClockEventsNVML: clockEvents,
+		}
 	}
+
+	return o
 }
 
 type Output struct {

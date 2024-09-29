@@ -9,10 +9,19 @@ import (
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
-	o := &Output{
-		FabricManager: *i.FabricManager,
+	if i == nil {
+		return &Output{}
 	}
+
+	o := &Output{}
+
+	if i.FabricManager != nil {
+		o.FabricManager = *i.FabricManager
+	}
+
 	return o
 }
 

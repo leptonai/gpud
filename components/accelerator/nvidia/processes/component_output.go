@@ -12,13 +12,21 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
+
 	o := &Output{}
+
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.Processes = append(o.Processes, device.Processes)
 		}
 	}
+
 	return o
 }
 

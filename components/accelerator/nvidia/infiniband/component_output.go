@@ -11,12 +11,21 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
+
 	o := &Output{
 		InfinibandClassExists: i.InfinibandClassExists,
 		IbstatExists:          i.IbstatExists,
-		Ibstat:                *i.Ibstat,
 	}
+	if i.Ibstat != nil {
+		o.Ibstat = *i.Ibstat
+	}
+
 	return o
 }
 

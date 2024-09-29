@@ -9,35 +9,49 @@ import (
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
+
 	var totalMem uint64
 	var totalMemHumanized string
-	parsed, err := i.SMI.GPUs[0].FBMemoryUsage.Parse()
-	if err == nil {
-		totalMem = parsed.TotalBytes
-		totalMemHumanized = parsed.TotalHumanized
-	} else if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
-		totalMem = i.NVML.DeviceInfos[0].Memory.TotalBytes
-		totalMemHumanized = humanize.Bytes(i.NVML.DeviceInfos[0].Memory.TotalBytes)
+
+	if i.SMI != nil && len(i.SMI.GPUs) > 0 {
+		parsed, err := i.SMI.GPUs[0].FBMemoryUsage.Parse()
+		if err == nil {
+			totalMem = parsed.TotalBytes
+			totalMemHumanized = parsed.TotalHumanized
+		} else if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
+			totalMem = i.NVML.DeviceInfos[0].Memory.TotalBytes
+			totalMemHumanized = humanize.Bytes(i.NVML.DeviceInfos[0].Memory.TotalBytes)
+		}
 	}
 
 	o := &Output{
-		Driver: Driver{Version: i.SMI.DriverVersion},
-		CUDA:   CUDA{Version: i.SMI.CUDAVersion},
-		GPU:    GPU{Attached: i.GPUCounts()},
+		GPU: GPU{Attached: i.GPUCounts()},
 		Memory: Memory{
 			TotalBytes:     totalMem,
 			TotalHumanized: totalMemHumanized,
 		},
 	}
-	for _, g := range i.SMI.GPUs {
-		o.Product = Product{
-			Name:         g.ProductName,
-			Brand:        g.ProductBrand,
-			Architecture: g.ProductArchitecture,
+
+	if i.SMI != nil {
+		o.Driver.Version = i.SMI.DriverVersion
+		o.CUDA.Version = i.SMI.CUDAVersion
+
+		for _, g := range i.SMI.GPUs {
+			o.Product = Product{
+				Name:         g.ProductName,
+				Brand:        g.ProductBrand,
+				Architecture: g.ProductArchitecture,
+			}
+			break
 		}
-		break
 	}
+
 	return o
 }
 
