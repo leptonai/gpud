@@ -11,17 +11,26 @@ import (
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
+	if i == nil {
+		return &Output{}
+	}
+
 	o := &Output{}
-	for _, g := range i.SMI.GPUs {
-		if g.ECCErrors == nil {
-			continue
-		}
 
-		o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
+	if i.SMI != nil {
+		for _, g := range i.SMI.GPUs {
+			if g.ECCErrors == nil {
+				continue
+			}
 
-		if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
-			o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
+			o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
+
+			if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
+				o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
+			}
 		}
 	}
 

@@ -12,11 +12,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// ToOutput converts nvidia_query.Output to Output.
+// It returns an empty non-nil object, if the input or the required field is nil (e.g., i.SMI).
 func ToOutput(i *nvidia_query.Output) *Output {
-	o := &Output{}
 	if i == nil {
-		return o
+		return &Output{}
 	}
+
+	o := &Output{}
+
 	if i.SMI != nil {
 		for _, g := range i.SMI.GPUs {
 			if g.GPUPowerReadings == nil {
@@ -29,11 +33,13 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			o.UsagesSMI = append(o.UsagesSMI, parsed)
 		}
 	}
+
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.UsagesNVML = append(o.UsagesNVML, device.Power)
 		}
 	}
+
 	return o
 }
 
