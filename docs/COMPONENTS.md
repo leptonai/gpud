@@ -4,7 +4,7 @@
 
 - [**`accelerator-nvidia-clock`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/clock): Monitors NVIDIA GPU clock events of all GPUs, such as HW Slowdown events.
 - [**`accelerator-nvidia-clock-speed`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed): Tracks the per-GPU clock speed.
-- [**`accelerator-nvidia-ecc`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/ecc): Tracks the NVIDIA per-GPU ECC errors.
+- [**`accelerator-nvidia-ecc`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/ecc): Tracks the NVIDIA per-GPU ECC errors and other ECC related information.
 - [**`accelerator-nvidia-error`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/error): Tracks NVIDIA GPU errors real-time in the SMI queries -- likely requires host restarts.
 - [**`accelerator-nvidia-error-sxid`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid): Tracks the NVIDIA GPU SXid errors scanning the dmesg -- see [fabric manager documentation](https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf).
 - [**`accelerator-nvidia-error-xid`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/error/xid): Tracks the NVIDIA GPU Xid errors scanning the dmesg and using the NVIDIA Management Library (NVML) -- see [Xid messages](https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages).
