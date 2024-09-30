@@ -21,16 +21,18 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		MemoryErrorManagementCapabilities: i.MemoryErrorManagementCapabilities,
 	}
 
-	for _, g := range i.SMI.GPUs {
-		if g.RemappedRows == nil {
-			continue
+	if i.SMI != nil {
+		for _, g := range i.SMI.GPUs {
+			if g.RemappedRows == nil {
+				continue
+			}
+			parsed, err := g.RemappedRows.Parse()
+			if err != nil {
+				log.Logger.Warnw("failed to parse temperature", "error", err)
+				continue
+			}
+			o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
 		}
-		parsed, err := g.RemappedRows.Parse()
-		if err != nil {
-			log.Logger.Warnw("failed to parse temperature", "error", err)
-			continue
-		}
-		o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
 	}
 
 	if i.NVML != nil {
