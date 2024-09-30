@@ -9,6 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/log"
 )
@@ -61,6 +62,25 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil {
+			if ev.Detail.RequiredActions.ResetGPU {
+				if o.RequiredActions == nil {
+					o.RequiredActions = &common.RequiredActions{}
+				}
+				o.RequiredActions.ResetGPU = true
+				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
+					fmt.Sprintf("GPU reset required due to SXID %d (name %s)", ev.Detail.SXID, ev.Detail.Name))
+			}
+			if ev.Detail.RequiredActions.RebootSystem {
+				if o.RequiredActions == nil {
+					o.RequiredActions = &common.RequiredActions{}
+				}
+				o.RequiredActions.RebootSystem = true
+				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
+					fmt.Sprintf("system reboot required due to SXID %d (name %s)", ev.Detail.SXID, ev.Detail.Name))
+			}
+		}
 	}
 	return o.States()
 }
@@ -101,6 +121,42 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil {
+			if ev.Detail.RequiredActions.ResetGPU {
+				if o.RequiredActionsPerLogLine == nil {
+					o.RequiredActionsPerLogLine = make(map[string]*common.RequiredActions)
+				}
+
+				actions := &common.RequiredActions{}
+				if v, ok := o.RequiredActionsPerLogLine[ev.LogItem.Line]; ok {
+					actions = v
+				}
+
+				actions.ResetGPU = true
+				actions.Descriptions = append(actions.Descriptions,
+					fmt.Sprintf("GPU reset required due to SXID %d (name %s)", ev.Detail.SXID, ev.Detail.Name))
+
+				o.RequiredActionsPerLogLine[ev.LogItem.Line] = actions
+			}
+
+			if ev.Detail.RequiredActions.RebootSystem {
+				if o.RequiredActionsPerLogLine == nil {
+					o.RequiredActionsPerLogLine = make(map[string]*common.RequiredActions)
+				}
+
+				actions := &common.RequiredActions{}
+				if v, ok := o.RequiredActionsPerLogLine[ev.LogItem.Line]; ok {
+					actions = v
+				}
+
+				actions.RebootSystem = true
+				actions.Descriptions = append(actions.Descriptions,
+					fmt.Sprintf("system reboot required due to SXID %d (name %s)", ev.Detail.SXID, ev.Detail.Name))
+
+				o.RequiredActionsPerLogLine[ev.LogItem.Line] = actions
+			}
+		}
 	}
 	return o.Events(), nil
 }

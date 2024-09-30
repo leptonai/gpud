@@ -8,4 +8,7 @@ type RequiredActions struct {
 	ResetGPU bool `json:"reset_gpu"`
 	// Set to true if the error requires a system reboot.
 	RebootSystem bool `json:"reboot_system"`
+
+	// A list of descriptions for the required actions.
+	Descriptions []string `json:"descriptions"`
 }
