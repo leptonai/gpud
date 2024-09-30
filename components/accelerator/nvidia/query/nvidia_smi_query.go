@@ -32,6 +32,9 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
+// Make sure to call this with a timeout, as a broken GPU may block the command.
+// e.g.,
+// nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from pRmApi->Control(pRmApi, RES_GET_CLIENT_HANDLE(pKernelChannel), RES_GET_HANDLE(pKernelChannel),
 func GetSMIOutput(ctx context.Context) (*SMIOutput, error) {
 	qb, err := RunSMI(ctx, "--query")
 	if err != nil {

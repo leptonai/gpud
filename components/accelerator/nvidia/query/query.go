@@ -61,9 +61,6 @@ func Get(ctx context.Context) (output any, err error) {
 		IbstatExists:          IbstatExists(),
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer ccancel()
-
 	defer func() {
 		getSuccessOnceCloseOnce.Do(func() {
 			close(getSuccessOnce)
@@ -71,7 +68,10 @@ func Get(ctx context.Context) (output any, err error) {
 	}()
 
 	if o.SMIExists {
+		// call this with a timeout, as a broken GPU may block the command.
+		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 		o.SMI, err = GetSMIOutput(cctx)
+		ccancel()
 		if err != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
 		}
@@ -81,7 +81,9 @@ func Get(ctx context.Context) (output any, err error) {
 	}
 
 	if o.FabricManagerExists {
+		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		ver, err := CheckFabricManagerVersion(cctx)
+		ccancel()
 		if err != nil {
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager version: %v", err))
 		}
@@ -89,12 +91,16 @@ func Get(ctx context.Context) (output any, err error) {
 		if err := systemd.ConnectDbus(); err != nil {
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to connect to dbus: %v", err))
 		} else {
+			cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 			active, err := CheckFabricManagerActive(cctx, systemd.GetDefaultDbusConn())
+			ccancel()
 			if err != nil {
 				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager active: %v", err))
 			}
 
+			cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
 			journalOut, err := GetLatestFabricManagerOutput(cctx)
+			ccancel()
 			if err != nil {
 				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to get fabric manager journal output: %v", err))
 			}
@@ -108,7 +114,9 @@ func Get(ctx context.Context) (output any, err error) {
 	}
 
 	if o.IbstatExists {
+		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		o.Ibstat, err = RunIbstat(cctx)
+		ccancel()
 		if err != nil {
 			if o.Ibstat == nil {
 				o.Ibstat = &IbstatOutput{}
@@ -117,7 +125,9 @@ func Get(ctx context.Context) (output any, err error) {
 		}
 	}
 
+	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = CheckLsmodPeermemModule(cctx)
+	ccancel()
 	if err != nil {
 		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
 	}
@@ -129,6 +139,10 @@ func Get(ctx context.Context) (output any, err error) {
 		log.Logger.Debugw("default nvml instance ready")
 	}
 
+	// TODO
+	// this may timeout when the GPU is broken
+	// e.g.,
+	// "nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT]"
 	o.NVML, err = nvml.DefaultInstance().Get()
 	if err != nil {
 		log.Logger.Warnw("nvml get failed", "error", err)
