@@ -14,9 +14,6 @@ type Temperature struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
 
-	// Represents the GPU ID.
-	GPUID uint32 `json:"gpu_id"`
-
 	CurrentCelsiusGPUCore uint32 `json:"current_celsius_gpu_core"`
 
 	// Threshold at which the GPU starts to shut down to prevent hardware damage.
