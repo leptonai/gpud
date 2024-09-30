@@ -17,7 +17,7 @@ type Output struct {
 	DmesgErrors []nvidia_query_sxid.DmesgError `json:"dmesg_errors,omitempty"`
 
 	// Recommended course of actions for any of the GPUs with a known issue.
-	// For invididual GPU details, see each per-GPU states.
+	// For individual GPU details, see each per-GPU states.
 	// Used for states calls.
 	RequiredActions *common.RequiredActions `json:"required_actions,omitempty"`
 

@@ -93,7 +93,7 @@ type Output struct {
 	RemappedRowsNVML                  []nvidia_query_nvml.RemappedRows               `json:"remapped_rows_nvml"`
 
 	// Recommended course of actions for any of the GPUs with a known issue.
-	// For invididual GPU details, see each per-GPU states.
+	// For individual GPU details, see each per-GPU states.
 	RequiredActions *common.RequiredActions `json:"required_actions,omitempty"`
 }
 
