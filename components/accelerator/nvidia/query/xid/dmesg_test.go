@@ -40,6 +40,23 @@ func TestExtractNVRMXid(t *testing.T) {
 			input:    "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
 			expected: 14,
 		},
+
+		// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#id3
+		{
+			name:     "Contained error with MIG enabled",
+			input:    "NVRM: Xid (PCI:0000:01:00 GPU-I:05): 94, pid=7194, Contained: CE User Channel (0x9). RST: No, D-RST: No",
+			expected: 94,
+		},
+		{
+			name:     "Contained error with MIG disabled",
+			input:    "NVRM: Xid (PCI:0000:01:00): 94, pid=7062, Contained: CE User Channel (0x9). RST: No, D-RST: No",
+			expected: 94,
+		},
+		{
+			name:     "Uncontained error",
+			input:    "NVRM: Xid (PCI:0000:01:00): 95, pid=7062, Uncontained: LTC TAG (0x2,0x0). RST: Yes, D-RST: No",
+			expected: 95,
+		},
 	}
 
 	for _, tt := range tests {

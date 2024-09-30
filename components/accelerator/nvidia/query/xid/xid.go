@@ -1,15 +1,22 @@
 // Package xid provides the NVIDIA XID error details.
 package xid
 
+import "github.com/leptonai/gpud/components/common"
+
 // Defines the XID error type.
+//
 // ref. https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
+// ref. https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/common/sdk/nvidia/inc/nverror.h
+//
 // ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-error-listing
 // ref. https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages
 // ref. https://docs.nvidia.com/deploy/xid-errors/index.html
 // ref. https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/common/sdk/nvidia/inc/nverror.h
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
 type Detail struct {
-	ID                     int    `json:"id"`
+	DocumentVersion string `json:"documentation_version"`
+
+	XID                    int    `json:"xid"`
 	Name                   string `json:"name"`
 	Description            string `json:"description"`
 	HWError                bool   `json:"hw_error"`
@@ -19,6 +26,8 @@ type Detail struct {
 	BusError               bool   `json:"bus_error"`
 	ThermalIssue           bool   `json:"thermal_issue"`
 	FBCorruption           bool   `json:"fb_corruption"`
+
+	RequiredActions common.RequiredActions `json:"required_actions"`
 }
 
 // Returns the error if found.
@@ -32,7 +41,8 @@ func GetDetail(id int) (*Detail, bool) {
 // See https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages for more details.
 var details = map[int]Detail{
 	1: {
-		ID:                     1,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    1,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -44,7 +54,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	2: {
-		ID:                     2,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    2,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -56,7 +67,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	3: {
-		ID:                     3,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    3,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -68,7 +80,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	4: {
-		ID:                     4,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    4,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "or GPU semaphore timeout (then user app error is true)",
 		HWError:                false,
@@ -80,7 +93,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	5: {
-		ID:                     5,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    5,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -92,7 +106,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	6: {
-		ID:                     6,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    6,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -104,7 +119,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	7: {
-		ID:                     7,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    7,
 		Name:                   "Invalid or corrupted push buffer address",
 		Description:            "",
 		HWError:                false,
@@ -116,7 +132,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	8: {
-		ID:                     8,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    8,
 		Name:                   "GPU stopped processing",
 		Description:            "",
 		HWError:                false,
@@ -128,7 +145,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	9: {
-		ID:                     9,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    9,
 		Name:                   "Driver error programming GPU",
 		Description:            "",
 		HWError:                false,
@@ -140,7 +158,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	10: {
-		ID:                     10,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    10,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -152,7 +171,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	11: {
-		ID:                     11,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    11,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -164,7 +184,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	12: {
-		ID:                     12,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    12,
 		Name:                   "Driver error handling GPU exception",
 		Description:            "",
 		HWError:                false,
@@ -176,11 +197,12 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	13: {
-		ID:          13,
-		Name:        "Graphics Engine Exception",
-		Description: `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
-		HWError:     true,
-		DriverError: true,
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             13,
+		Name:            "Graphics Engine Exception",
+		Description:     `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
+		HWError:         true,
+		DriverError:     true,
 
 		// May skip marking the GPU device as unhealthy if the error is the application error
 		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
@@ -192,7 +214,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	14: {
-		ID:                     14,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    14,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -204,7 +227,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	15: {
-		ID:                     15,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    15,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -216,7 +240,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	16: {
-		ID:                     16,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    16,
 		Name:                   "Display engine hung",
 		Description:            "",
 		HWError:                false,
@@ -228,7 +253,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	17: {
-		ID:                     17,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    17,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -240,7 +266,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	18: {
-		ID:                     18,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    18,
 		Name:                   "Bus mastering disabled in PCI Config Space",
 		Description:            "",
 		HWError:                false,
@@ -252,7 +279,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	19: {
-		ID:                     19,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    19,
 		Name:                   "Display Engine error",
 		Description:            "",
 		HWError:                false,
@@ -264,7 +292,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	20: {
-		ID:                     20,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    20,
 		Name:                   "Invalid or corrupted Mpeg push buffer",
 		Description:            "",
 		HWError:                false,
@@ -276,7 +305,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	21: {
-		ID:                     21,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    21,
 		Name:                   "Invalid or corrupted Motion Estimation push buffer",
 		Description:            "",
 		HWError:                false,
@@ -288,7 +318,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	22: {
-		ID:                     22,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    22,
 		Name:                   "Invalid or corrupted Video Processor push buffer",
 		Description:            "",
 		HWError:                false,
@@ -300,7 +331,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	23: {
-		ID:                     23,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    23,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -312,7 +344,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	24: {
-		ID:                     24,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    24,
 		Name:                   "GPU semaphore timeout",
 		Description:            "",
 		HWError:                false,
@@ -324,7 +357,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	25: {
-		ID:                     25,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    25,
 		Name:                   "Invalid or illegal push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -336,7 +370,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	26: {
-		ID:                     26,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    26,
 		Name:                   "Framebuffer timeout",
 		Description:            "",
 		HWError:                false,
@@ -348,7 +383,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	27: {
-		ID:                     27,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    27,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -360,7 +396,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	28: {
-		ID:                     28,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    28,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -372,7 +409,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	29: {
-		ID:                     29,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    29,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -384,7 +422,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	30: {
-		ID:                     30,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    30,
 		Name:                   "GPU semaphore access error",
 		Description:            "",
 		HWError:                false,
@@ -396,11 +435,12 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	31: {
-		ID:          31,
-		Name:        "GPU memory page fault",
-		Description: `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
-		HWError:     true,
-		DriverError: true,
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             31,
+		Name:            "GPU memory page fault",
+		Description:     `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
+		HWError:         true,
+		DriverError:     true,
 
 		// May skip marking the GPU device as unhealthy if the error is the application error
 		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
@@ -412,7 +452,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	32: {
-		ID:                     32,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    32,
 		Name:                   "Invalid or corrupted push buffer stream",
 		Description:            "",
 		HWError:                false,
@@ -424,7 +465,8 @@ var details = map[int]Detail{
 		FBCorruption:           true,
 	},
 	33: {
-		ID:                     33,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    33,
 		Name:                   "Internal micro-controller error",
 		Description:            "",
 		HWError:                false,
@@ -436,7 +478,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	34: {
-		ID:                     34,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    34,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -448,7 +491,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	35: {
-		ID:                     35,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    35,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -460,7 +504,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	36: {
-		ID:                     36,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    36,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -472,7 +517,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	37: {
-		ID:                     37,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    37,
 		Name:                   "Driver firmware error",
 		Description:            "",
 		HWError:                false,
@@ -484,7 +530,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	38: {
-		ID:                     38,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    38,
 		Name:                   "Driver firmware error",
 		Description:            "",
 		HWError:                false,
@@ -496,7 +543,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	39: {
-		ID:                     39,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    39,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -508,7 +556,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	40: {
-		ID:                     40,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    40,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -520,7 +569,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	41: {
-		ID:                     41,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    41,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -532,7 +582,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	42: {
-		ID:                     42,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    42,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -544,11 +595,12 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	43: {
-		ID:          43,
-		Name:        "GPU stopped processing",
-		Description: "",
-		HWError:     false,
-		DriverError: true,
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             43,
+		Name:            "GPU stopped processing",
+		Description:     "",
+		HWError:         false,
+		DriverError:     true,
 
 		// May skip marking the GPU device as unhealthy if the error is the application error
 		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
@@ -560,7 +612,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	44: {
-		ID:                     44,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    44,
 		Name:                   "Graphics Engine fault during context switch",
 		Description:            "",
 		HWError:                false,
@@ -572,11 +625,12 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	45: {
-		ID:          45,
-		Name:        "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
-		Description: "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
-		HWError:     false,
-		DriverError: true,
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             45,
+		Name:            "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
+		Description:     "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
+		HWError:         false,
+		DriverError:     true,
 
 		// May skip marking the GPU device as unhealthy if the error is the application error
 		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
@@ -588,7 +642,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	46: {
-		ID:                     46,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    46,
 		Name:                   "GPU stopped processing",
 		Description:            "",
 		HWError:                false,
@@ -600,7 +655,8 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	47: {
-		ID:                     47,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    47,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -612,9 +668,12 @@ var details = map[int]Detail{
 		FBCorruption:           false,
 	},
 	48: {
-		ID:   48,
-		Name: "Double Bit ECC Error",
-		Description: `If Xid 48 is followed by Xid 63 or 64: Drain/cordon the node, wait for all work to complete, and reset GPU(s) reporting the XID (refer to GPU reset capabilities/limitations section below).
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             48,
+		Name:            "Double Bit ECC Error",
+		Description: `This event is logged when the GPU detects that an uncorrectable error occurs on the GPU. This is also reported back to the user application. A GPU reset or node reboot is needed to clear this error.
+
+If Xid 48 is followed by Xid 63 or 64: Drain/cordon the node, wait for all work to complete, and reset GPU(s) reporting the XID (refer to GPU reset capabilities/limitations section below).
 
 If Xid 48 is not followed by Xid 63 or 64: see Running Field Diagnostics to collect additional debug information, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#running-field-diag.
 
@@ -627,9 +686,17 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error
+		RequiredActions: common.RequiredActions{
+			ResetGPU:     true,
+			RebootSystem: true,
+		},
 	},
 	49: {
-		ID:                     49,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    49,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -641,7 +708,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	50: {
-		ID:                     50,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    50,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -653,7 +721,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	51: {
-		ID:                     51,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    51,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -665,7 +734,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	52: {
-		ID:                     52,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    52,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -677,7 +747,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	53: {
-		ID:                     53,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    53,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -689,7 +760,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	54: {
-		ID:                     54,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    54,
 		Name:                   "Auxiliary power is not connected to the GPU board",
 		Description:            "",
 		HWError:                false,
@@ -701,7 +773,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	55: {
-		ID:                     55,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    55,
 		Name:                   "Unused",
 		Description:            "",
 		HWError:                false,
@@ -713,7 +786,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	56: {
-		ID:                     56,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    56,
 		Name:                   "Display Engine error",
 		Description:            "",
 		HWError:                true,
@@ -725,7 +799,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	57: {
-		ID:                     57,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    57,
 		Name:                   "Error programming video memory interface",
 		Description:            "",
 		HWError:                true,
@@ -737,7 +812,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           true,
 	},
 	58: {
-		ID:                     58,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    58,
 		Name:                   "Unstable video memory interface detected",
 		Description:            "or EDC error - clarified in printout (driver error=false)",
 		HWError:                true,
@@ -749,7 +825,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	59: {
-		ID:                     59,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    59,
 		Name:                   "Internal micro-controller error (older drivers)",
 		Description:            "",
 		HWError:                false,
@@ -761,7 +838,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	60: {
-		ID:                     60,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    60,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                false,
@@ -773,7 +851,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	61: {
-		ID:                     61,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    61,
 		Name:                   "Internal micro-controller breakpoint/warning (newer drivers)",
 		Description:            "PMU Breakpoint. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 		HWError:                false,
@@ -785,7 +864,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	62: {
-		ID:                     62,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    62,
 		Name:                   "Internal micro-controller halt (newer drivers)",
 		Description:            "PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 		HWError:                true,
@@ -797,22 +877,23 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	63: {
-		ID:   63,
-		Name: "ECC page retirement or row remapping recording event",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             63,
+		Name:            "ECC page retirement or row remapping recording event",
 		Description: `
+These events are logged when the GPU handles ECC memory errors on the GPU.
+
+A100: Row-remapping recording event.
+
+This XID indicates successful recording of a row-remapping entry to the InfoROM.
+
+If associated with XID 94, the application that encountered the error needs to be restarted. All other applications on the system can keep running as is until there is a convenient time to reset the GPU (refer GPU reset capabilities/limitations section below) or reboot for row remapping to activate.
+
 Legacy GPU: ECC page retirement recording event.
 
 If associated with XID 48, drain/cordon the node, wait for all work to complete, and reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).
 
 If not, it is from a single bit error and the system can keep running as is until there is a convenient time to reboot it.
-
-See below for guidelines on when to RMA GPUs based on excessive errors.
-
-A100: Row-remapping recording event.
-
-If associated with XID 94, the application that encountered the error needs to be restarted. All other applications on the system can keep running as is until there is a convenient time to reset the GPU(refer GPU reset capabilities/limitations section below) or reboot for row remapping to activate.
-
-See below for guidelines on when to RMA GPUs based on row remapping failures.
 
 `,
 		HWError:                true,
@@ -824,20 +905,23 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           true,
 	},
 	64: {
-		ID:   64,
-		Name: "ECC page retirement or row remapper recording failure",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             64,
+		Name:            "ECC page retirement or row remapper recording failure",
 		Description: `
+These events are logged when the GPU handles ECC memory errors on the GPU.
+
+A100: Row-remapping recording failure.
+
+This XID indicates a failure in recording a row-remapping entry to the InfoROM.
+
+The node should be rebooted immediately since there is a recording failure. If the errors continue, drain, triage, and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
+
 Legacy GPU: ECC page retirement recording failure.
 
 See above, however the node should be monitored closely. If there is no associated XID 48 error, then these are related to single bit-errors. The GPU(s) reporting the error must be reset (refer to GPU reset capabilities/limitations section below) immediately since there is a recording failure. If the errors continue, drain, triage, and see Report a GPU Issue.
 
 See below for guidelines on when to RMA GPUs based on excessive errors, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
-
-A100: Row-remapping recording failure.
-
-The node should be rebooted immediately since there is a recording failure. If the errors continue, drain, triage, and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
-
-See below for guidelines on when to RMA GPUs based on row remapping failures.
 
 `,
 		HWError:                true,
@@ -849,7 +933,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	65: {
-		ID:                     65,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    65,
 		Name:                   "Video processor exception",
 		Description:            "",
 		HWError:                true,
@@ -861,7 +946,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	66: {
-		ID:                     66,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    66,
 		Name:                   "Illegal access by driver",
 		Description:            "",
 		HWError:                false,
@@ -873,7 +959,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	67: {
-		ID:                     67,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    67,
 		Name:                   "Illegal access by driver",
 		Description:            "",
 		HWError:                false,
@@ -885,11 +972,12 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	68: {
-		ID:          68,
-		Name:        "NVDEC0 Exception",
-		Description: "Video processor exception",
-		HWError:     true,
-		DriverError: true,
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             68,
+		Name:            "NVDEC0 Exception",
+		Description:     "Video processor exception",
+		HWError:         true,
+		DriverError:     true,
 
 		// May skip marking the GPU device as unhealthy if the error is the application error
 		// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
@@ -902,7 +990,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	69: {
-		ID:                     69,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    69,
 		Name:                   "Graphics Engine class error",
 		Description:            "",
 		HWError:                true,
@@ -914,7 +1003,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	70: {
-		ID:                     70,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    70,
 		Name:                   "CE3: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -926,7 +1016,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	71: {
-		ID:                     71,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    71,
 		Name:                   "CE4: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -938,7 +1029,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	72: {
-		ID:                     72,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    72,
 		Name:                   "CE5: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -950,7 +1042,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	73: {
-		ID:                     73,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    73,
 		Name:                   "NVENC2 Error",
 		Description:            "",
 		HWError:                true,
@@ -962,9 +1055,18 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	74: {
-		ID:   74,
-		Name: "NVLINK Error",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             74,
+		Name:            "NVLINK Error",
 		Description: `
+This event is logged when the GPU detects that a problem with a connection from the GPU to another GPU or NVSwitch over NVLink. A GPU reset or node reboot is needed to clear this error.
+
+This event may indicate a hardware failure with the link itself, or may indicate a problem with the device at the remote end of the link. For example, if a GPU fails, another GPU connected to it over NVLink may report an Xid 74 simply because the link went down as a result.
+
+The nvidia-smi nvlink command can provide additional details on NVLink errors, and connection information on the links.
+
+If this error is seen repeatedly and GPU reset or node reboot fails to clear the condition, contact your hardware vendor for support.
+
 Extract the hex strings from the XID error message. eg: (0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678) Look at the bolded DWORD (the first) and take the following paths if the particular bits (counting from LSB side) are set.
 
 Bits 4 or 5: Likely HW issue with ECC/Parity --> If seen more than 2 times on the same link, report a bug.
@@ -980,9 +1082,17 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		BusError:               true,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error
+		RequiredActions: common.RequiredActions{
+			ResetGPU:     true,
+			RebootSystem: true,
+		},
 	},
 	75: {
-		ID:                     75,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    75,
 		Name:                   "CE6: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -994,7 +1104,8 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		FBCorruption:           false,
 	},
 	76: {
-		ID:                     76,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    76,
 		Name:                   "CE7: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -1006,7 +1117,8 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		FBCorruption:           false,
 	},
 	77: {
-		ID:                     77,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    77,
 		Name:                   "CE8: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -1018,7 +1130,8 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		FBCorruption:           false,
 	},
 	78: {
-		ID:                     78,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    78,
 		Name:                   "vGPU Start Error",
 		Description:            "",
 		HWError:                false,
@@ -1030,10 +1143,15 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		FBCorruption:           false,
 	},
 	79: {
-		ID:   79,
-		Name: "GPU has fallen off the bus",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             79,
+		Name:            "GPU has fallen off the bus",
 		Description: `
-Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
+This event is logged when the GPU driver attempts to access the GPU over its PCI Express connection and finds that the GPU is not accessible.
+
+This event is often caused by hardware failures on the PCI Express link causing the GPU to be inaccessible due to the link being brought down. Reviewing system event logs and kernel PCI event logs may provide additional indications of the source of the link failures.
+
+This event may also be cause by failing GPU hardware or other driver issues.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1044,7 +1162,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	80: {
-		ID:                     80,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    80,
 		Name:                   "Corrupted data sent to GPU",
 		Description:            "",
 		HWError:                true,
@@ -1056,7 +1175,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           true,
 	},
 	81: {
-		ID:                     81,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    81,
 		Name:                   "VGA Subsystem Error",
 		Description:            "",
 		HWError:                true,
@@ -1068,7 +1188,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	82: {
-		ID:                     82,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    82,
 		Name:                   "NVJPG0 Error",
 		Description:            "",
 		HWError:                true,
@@ -1080,7 +1201,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	83: {
-		ID:                     83,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    83,
 		Name:                   "NVDEC1 Error",
 		Description:            "",
 		HWError:                true,
@@ -1092,7 +1214,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	84: {
-		ID:                     84,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    84,
 		Name:                   "NVDEC2 Error",
 		Description:            "",
 		HWError:                true,
@@ -1104,7 +1227,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	85: {
-		ID:                     85,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    85,
 		Name:                   "CE9: Unknown Error",
 		Description:            "",
 		HWError:                true,
@@ -1116,7 +1240,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	86: {
-		ID:                     86,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    86,
 		Name:                   "OFA Exception",
 		Description:            "",
 		HWError:                true,
@@ -1128,7 +1253,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	87: {
-		ID:                     87,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    87,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1140,7 +1266,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	88: {
-		ID:                     88,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    88,
 		Name:                   "NVDEC3 Error",
 		Description:            "",
 		HWError:                true,
@@ -1152,7 +1279,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	89: {
-		ID:                     89,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    89,
 		Name:                   "NVDEC4 Error",
 		Description:            "",
 		HWError:                true,
@@ -1164,7 +1292,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	90: {
-		ID:                     90,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    90,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1176,7 +1305,8 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	91: {
-		ID:                     91,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    91,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1188,8 +1318,9 @@ Drain and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-g
 		FBCorruption:           false,
 	},
 	92: {
-		ID:   92,
-		Name: "High single-bit ECC error rate",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             92,
+		Name:            "High single-bit ECC error rate",
 		Description: `
 See Running Field Diagnostics to collect additional debug information, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#running-field-diag.
 
@@ -1204,7 +1335,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	93: {
-		ID:                     93,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    93,
 		Name:                   "Non-fatal violation of provisioned InfoROM wear limit",
 		Description:            "",
 		HWError:                false,
@@ -1216,9 +1348,16 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	94: {
-		ID:   94,
-		Name: "Contained ECC error",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             94,
+		Name:            "Contained ECC error",
 		Description: `
+This XID indicates a contained ECC error has occurred.
+
+These events are logged when GPU drivers handle errors in GPUs that support error containment, starting with NVIDIA® A100 GPUs.
+
+For Xid 94, these errors are contained to one application, and the application that encountered this error must be restarted. All other applications running at the time of the Xid are unaffected. It is recommended to reset the GPU when convenient. Applications can continue to be run until the reset can be performed.
+
 (A100 only)
 
 The application that encountered the error needs to be restarted. All other applications on the system can keep running as is until there is a convenient time to reset the GPU (refer to GPU reset capabilities/limitations section below) or reboot for row remapping to activate.
@@ -1232,11 +1371,24 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           true,
+
+		// "recommended to reset the GPU when convenient"
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	95: {
-		ID:   95,
-		Name: "Uncontained ECC error",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             95,
+		Name:            "Uncontained ECC error",
 		Description: `
+This XID indicates an uncontained ECC error has occurred.
+
+These events are logged when GPU drivers handle errors in GPUs that support error containment, starting with NVIDIA® A100 GPUs.
+
+For Xid 95, these errors affect multiple applications, and the affected GPU must be reset before applications can restart. Refer https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html for GPU Reset capabilities & limitations
+
 (A100 only)
 
 If MIG is enabled, drain any work on the other GPU instances, wait for all work to complete, and reset GPU(s) reporting the XID (refer to the GPU reset capabilities/limitations section below).
@@ -1244,6 +1396,9 @@ If MIG is enabled, drain any work on the other GPU instances, wait for all work 
 If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error. If the errors continue, drain, triage, and see Report a GPU Issue, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
 
 See below for guidelines on when to RMA GPUs based on row remapping failures.
+
+References:
+https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-statistics
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1252,9 +1407,16 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           true,
+
+		// "the affected GPU must be reset before applications can restart."
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	96: {
-		ID:                     96,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    96,
 		Name:                   "NVDEC5 Error",
 		Description:            "",
 		HWError:                true,
@@ -1266,7 +1428,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	97: {
-		ID:                     97,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    97,
 		Name:                   "NVDEC6 Error",
 		Description:            "",
 		HWError:                true,
@@ -1278,7 +1441,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	98: {
-		ID:                     98,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    98,
 		Name:                   "NVDEC7 Error",
 		Description:            "",
 		HWError:                true,
@@ -1290,7 +1454,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	99: {
-		ID:                     99,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    99,
 		Name:                   "NVJPG1 Error",
 		Description:            "",
 		HWError:                true,
@@ -1302,7 +1467,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	100: {
-		ID:                     100,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    100,
 		Name:                   "NVJPG2 Error",
 		Description:            "",
 		HWError:                true,
@@ -1314,7 +1480,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	101: {
-		ID:                     101,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    101,
 		Name:                   "NVJPG3 Error",
 		Description:            "",
 		HWError:                true,
@@ -1326,7 +1493,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	102: {
-		ID:                     102,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    102,
 		Name:                   "NVJPG4 Error",
 		Description:            "",
 		HWError:                true,
@@ -1338,7 +1506,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	103: {
-		ID:                     103,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    103,
 		Name:                   "NVJPG5 Error",
 		Description:            "",
 		HWError:                true,
@@ -1350,7 +1519,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	104: {
-		ID:                     104,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    104,
 		Name:                   "NVJPG6 Error",
 		Description:            "",
 		HWError:                true,
@@ -1362,7 +1532,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	105: {
-		ID:                     105,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    105,
 		Name:                   "NVJPG7 Error",
 		Description:            "",
 		HWError:                true,
@@ -1374,7 +1545,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	106: {
-		ID:                     106,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    106,
 		Name:                   "SMBPBI Test Message",
 		Description:            "",
 		HWError:                false,
@@ -1386,7 +1558,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	107: {
-		ID:                     107,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    107,
 		Name:                   "SMBPBI Test Message Silent",
 		Description:            "",
 		HWError:                false,
@@ -1398,7 +1571,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	108: {
-		ID:                     108,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    108,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1410,7 +1584,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	109: {
-		ID:                     109,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    109,
 		Name:                   "Context Switch Timeout Error",
 		Description:            "",
 		HWError:                true,
@@ -1422,9 +1597,10 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           true,
 	},
 	110: {
-		ID:                     110,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    110,
 		Name:                   "Security Fault Error",
-		Description:            "",
+		Description:            `This event should be uncommon unless there is a hardware failure. To recover, revert any recent system hardware modifications and cold reset the system. If this fails to correct the issue, contact your hardware vendor for assistance.`,
 		HWError:                true,
 		DriverError:            false,
 		UserAppError:           false,
@@ -1432,9 +1608,15 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-110-security-fault-error
+		RequiredActions: common.RequiredActions{
+			RebootSystem: true,
+		},
 	},
 	111: {
-		ID:                     111,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    111,
 		Name:                   "Display Bundle Error Event",
 		Description:            "",
 		HWError:                true,
@@ -1446,7 +1628,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	112: {
-		ID:                     112,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    112,
 		Name:                   "Display Supervisor Error",
 		Description:            "",
 		HWError:                true,
@@ -1458,7 +1641,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	113: {
-		ID:                     113,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    113,
 		Name:                   "DP Link Training Erro",
 		Description:            "",
 		HWError:                true,
@@ -1470,7 +1654,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	114: {
-		ID:                     114,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    114,
 		Name:                   "Display Pipeline Underflow Error",
 		Description:            "",
 		HWError:                true,
@@ -1482,7 +1667,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           true,
 	},
 	115: {
-		ID:                     115,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    115,
 		Name:                   "Display Core Channel Error",
 		Description:            "",
 		HWError:                true,
@@ -1494,7 +1680,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	116: {
-		ID:                     116,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    116,
 		Name:                   "Display Window Channel Error",
 		Description:            "",
 		HWError:                true,
@@ -1506,7 +1693,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	117: {
-		ID:                     117,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    117,
 		Name:                   "Display Cursor Channel Error",
 		Description:            "",
 		HWError:                true,
@@ -1518,7 +1706,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	118: {
-		ID:                     118,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    118,
 		Name:                   "Display Pixel Pipeline Error",
 		Description:            "",
 		HWError:                true,
@@ -1530,7 +1719,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	119: {
-		ID:                     119,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    119,
 		Name:                   "GSP RPC Timeout",
 		Description:            "",
 		HWError:                true,
@@ -1542,7 +1732,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           true,
 	},
 	120: {
-		ID:                     120,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    120,
 		Name:                   "GSP Error",
 		Description:            "",
 		HWError:                true,
@@ -1554,7 +1745,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           true,
 	},
 	121: {
-		ID:                     121,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    121,
 		Name:                   "C2C Link Error",
 		Description:            "",
 		HWError:                true,
@@ -1566,7 +1758,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	122: {
-		ID:                     122,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    122,
 		Name:                   "SPI PMU RPC Read Failure",
 		Description:            "",
 		HWError:                true,
@@ -1578,8 +1771,9 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 		FBCorruption:           false,
 	},
 	123: {
-		ID:   123,
-		Name: "SPI PMU RPC Write Failure",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             123,
+		Name:            "SPI PMU RPC Write Failure",
 		Description: `
 Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabilities/limitations section provided in Section D.9 of the FM User Guide: https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf).
 `,
@@ -1592,7 +1786,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	124: {
-		ID:                     124,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    124,
 		Name:                   "SPI PMU RPC Erase Failure",
 		Description:            "",
 		HWError:                true,
@@ -1604,7 +1799,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	125: {
-		ID:                     125,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    125,
 		Name:                   "Inforom FS Failure",
 		Description:            "",
 		HWError:                true,
@@ -1616,7 +1812,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	126: {
-		ID:                     126,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    126,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1628,7 +1825,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	127: {
-		ID:                     127,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    127,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1640,7 +1838,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	128: {
-		ID:                     128,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    128,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1652,7 +1851,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	129: {
-		ID:                     129,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    129,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1664,7 +1864,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	130: {
-		ID:                     130,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    130,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1676,7 +1877,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	131: {
-		ID:                     131,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    131,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1688,7 +1890,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	132: {
-		ID:                     132,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    132,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1700,7 +1903,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	134: {
-		ID:                     134,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    134,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1712,7 +1916,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	135: {
-		ID:                     135,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    135,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1724,7 +1929,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	136: {
-		ID:                     136,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    136,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1736,19 +1942,21 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	137: {
-		ID:                     137,
-		Name:                   "Reserved",
-		Description:            "",
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    137,
+		Name:                   "NVLink FLA privilege error",
+		Description:            `This event is logged when a fault is reported by the remote MMU, such as when an illegal NVLink peer-to-peer access is made by an applicable unit on the chip. Typically these are application-level bugs, but can also be driver bugs or hardware bugs.`,
 		HWError:                false,
 		DriverError:            false,
-		UserAppError:           false,
+		UserAppError:           true,
 		SystemMemoryCorruption: false,
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
 	},
 	138: {
-		ID:                     138,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    138,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1760,7 +1968,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	139: {
-		ID:                     139,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    139,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1772,9 +1981,10 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	140: {
-		ID:                     140,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    140,
 		Name:                   "Unrecovered ECC Error",
-		Description:            "",
+		Description:            `This event may occur when the GPU driver has observed uncorrectable errors in GPU memory, in such a way as to interrupt the GPU driver’s ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU, and if the problem persists, contact your hardware vendor for support.`,
 		HWError:                true,
 		DriverError:            true,
 		UserAppError:           false,
@@ -1782,9 +1992,16 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           true,
+
+		// "Reset the GPU, and if the problem persists, contact your hardware vendor for support"
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	141: {
-		ID:                     141,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    141,
 		Name:                   "Reserved",
 		Description:            "",
 		HWError:                false,
@@ -1796,7 +2013,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	142: {
-		ID:                     142,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    142,
 		Name:                   "Unrecovered ECC Error",
 		Description:            "",
 		HWError:                false,
@@ -1808,7 +2026,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		FBCorruption:           false,
 	},
 	143: {
-		ID:                     143,
+		DocumentVersion:        "r555 (Sep 24, 2024)",
+		XID:                    143,
 		Name:                   "GPU Initialization Failure",
 		Description:            "",
 		HWError:                true,
