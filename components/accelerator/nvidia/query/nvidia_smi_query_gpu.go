@@ -26,6 +26,7 @@ type NvidiaSMIGPU struct {
 	GPUResetStatus    *SMIGPUResetStatus    `json:"GPU Reset Status,omitempty"`
 	ClockEventReasons *SMIClockEventReasons `json:"Clocks Event Reasons,omitempty"`
 
+	ECCMode      *SMIECCMode      `json:"ECC Mode,omitempty"`
 	ECCErrors    *SMIECCErrors    `json:"ECC Errors,omitempty"`
 	RemappedRows *SMIRemappedRows `json:"Remapped Rows,omitempty"`
 
@@ -48,6 +49,11 @@ type SMIClockEventReasons struct {
 	HWSlowdown           string `json:"HW Slowdown"`
 	HWThermalSlowdown    string `json:"HW Thermal Slowdown"`
 	HWPowerBrakeSlowdown string `json:"HW Power Brake Slowdown"`
+}
+
+type SMIECCMode struct {
+	Current string `json:"Current"`
+	Pending string `json:"Pending"`
 }
 
 type SMIECCErrors struct {

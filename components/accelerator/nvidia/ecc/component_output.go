@@ -36,6 +36,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	if i.NVML != nil {
 		for _, dev := range i.NVML.DeviceInfos {
+			o.ECCModes = append(o.ECCModes, dev.ECCMode)
 			o.ErrorCountsNVML = append(o.ErrorCountsNVML, dev.ECCErrors)
 
 			if errs := dev.ECCErrors.Volatile.FindUncorrectedErrs(); len(errs) > 0 {
@@ -48,6 +49,8 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
+	ECCModes []nvidia_query_nvml.ECCMode `json:"ecc_modes"`
+
 	ErrorCountsSMI  []nvidia_query.SMIECCErrors   `json:"error_counts_smi"`
 	ErrorCountsNVML []nvidia_query_nvml.ECCErrors `json:"error_counts_nvml"`
 
