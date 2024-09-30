@@ -25,11 +25,14 @@ type NvidiaSMIGPU struct {
 
 	GPUResetStatus    *SMIGPUResetStatus    `json:"GPU Reset Status,omitempty"`
 	ClockEventReasons *SMIClockEventReasons `json:"Clocks Event Reasons,omitempty"`
-	ECCErrors         *SMIECCErrors         `json:"ECC Errors,omitempty"`
-	Temperature       *SMIGPUTemperature    `json:"Temperature,omitempty"`
-	GPUPowerReadings  *SMIGPUPowerReadings  `json:"GPU Power Readings,omitempty"`
-	Processes         *SMIProcesses         `json:"Processes,omitempty"`
-	FBMemoryUsage     *SMIFBMemoryUsage     `json:"FB Memory Usage"`
+
+	ECCErrors    *SMIECCErrors    `json:"ECC Errors,omitempty"`
+	RemappedRows *SMIRemappedRows `json:"Remapped Rows,omitempty"`
+
+	Temperature      *SMIGPUTemperature   `json:"Temperature,omitempty"`
+	GPUPowerReadings *SMIGPUPowerReadings `json:"GPU Power Readings,omitempty"`
+	Processes        *SMIProcesses        `json:"Processes,omitempty"`
+	FBMemoryUsage    *SMIFBMemoryUsage    `json:"FB Memory Usage"`
 
 	FanSpeed string `json:"Fan Speed"`
 }
@@ -53,6 +56,69 @@ type SMIECCErrors struct {
 	Aggregate                         *SMIECCErrorAggregate                         `json:"Aggregate,omitempty"`
 	AggregateUncorrectableSRAMSources *SMIECCErrorAggregateUncorrectableSRAMSources `json:"Aggregate Uncorrectable SRAM Sources,omitempty"`
 	Volatile                          *SMIECCErrorVolatile                          `json:"Volatile,omitempty"`
+}
+
+type SMIRemappedRows struct {
+	ID string `json:"id"`
+
+	CorrectableError   string `json:"Correctable Error,omitempty"`
+	UncorrectableError string `json:"Uncorrectable Error,omitempty"`
+
+	// Yes/No.
+	// If uncorrectable error is >0, this pending field is set to "Yes".
+	// For a100/h100, it requires a GPU reset to actually remap the row.
+	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds
+	Pending string `json:"Pending,omitempty"`
+
+	// Yes/No
+	RemappingFailureOccurred string `json:"Remapping Failure Occurred,omitempty"`
+}
+
+type ParsedSMIRemappedRows struct {
+	ID string `json:"id"`
+
+	CorrectableErrors        string `json:"correctable_errors"`
+	UncorrectableErrors      string `json:"uncorrectable_errors"`
+	Pending                  string `json:"pending"`
+	RemappingFailureOccurred string `json:"remapping_failure_occurred"`
+}
+
+func (rw *SMIRemappedRows) Parse() (ParsedSMIRemappedRows, error) {
+	return ParsedSMIRemappedRows{
+		ID:                       rw.ID,
+		CorrectableErrors:        rw.CorrectableError,
+		UncorrectableErrors:      rw.UncorrectableError,
+		Pending:                  rw.Pending,
+		RemappingFailureOccurred: rw.RemappingFailureOccurred,
+	}, nil
+}
+
+func (rw ParsedSMIRemappedRows) GetCorrectableError() (int64, error) {
+	return strconv.ParseInt(rw.CorrectableErrors, 10, 64)
+}
+
+func (rw ParsedSMIRemappedRows) GetUncorrectableError() (int64, error) {
+	return strconv.ParseInt(rw.UncorrectableErrors, 10, 64)
+}
+
+func (rw ParsedSMIRemappedRows) GetPending() (bool, error) {
+	if rw.Pending == "Yes" || rw.Pending == "true" {
+		return true, nil
+	}
+	if rw.Pending == "No" || rw.Pending == "false" {
+		return false, nil
+	}
+	return false, fmt.Errorf("invalid pending value: %q", rw.Pending)
+}
+
+func (rw ParsedSMIRemappedRows) GetRemappingFailureOccurred() (bool, error) {
+	if rw.RemappingFailureOccurred == "Yes" || rw.RemappingFailureOccurred == "true" {
+		return true, nil
+	}
+	if rw.RemappingFailureOccurred == "No" || rw.RemappingFailureOccurred == "false" {
+		return false, nil
+	}
+	return false, fmt.Errorf("invalid remapping failure occurred value: %q", rw.RemappingFailureOccurred)
 }
 
 type SMIECCErrorAggregate struct {

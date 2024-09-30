@@ -31,7 +31,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
-		GPU: GPU{Attached: i.GPUCounts()},
+		GPU: GPU{Attached: i.GPUCount()},
 		Memory: Memory{
 			TotalBytes:     totalMem,
 			TotalHumanized: totalMemHumanized,

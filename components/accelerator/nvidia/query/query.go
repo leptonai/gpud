@@ -275,6 +275,8 @@ func Get(ctx context.Context) (output any, err error) {
 		}
 	}
 
+	o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
+
 	return o, nil
 }
 
@@ -302,13 +304,15 @@ type Output struct {
 
 	NVML       *nvml.Output `json:"nvml,omitempty"`
 	NVMLErrors []string     `json:"nvml_errors,omitempty"`
+
+	MemoryErrorManagementCapabilities MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities,omitempty"`
 }
 
 func (o *Output) YAML() ([]byte, error) {
 	return yaml.Marshal(o)
 }
 
-func (o *Output) GPUCounts() int {
+func (o *Output) GPUCount() int {
 	if o == nil {
 		return 0
 	}
@@ -330,7 +334,13 @@ func (o *Output) GPUProductName() string {
 	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
-	return o.SMI.GPUs[0].ProductName
+	if o.SMI.GPUs[0].ProductName != "" {
+		return o.SMI.GPUs[0].ProductName
+	}
+	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
+		return o.NVML.DeviceInfos[0].Name
+	}
+	return ""
 }
 
 const (

@@ -18,7 +18,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	o := &Output{
 		LsmodPeermem: *i.LsmodPeermem,
-		GPUCounts:    i.GPUCounts(),
+		GPUCount:     i.GPUCount(),
 		ProductName:  i.GPUProductName(),
 	}
 	return o
@@ -27,7 +27,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 type Output struct {
 	// Represents the number of GPUs in the system.
 	// This is used to determine if ibcore may be expected to use peermem module.
-	GPUCounts int `json:"gpu_counts"`
+	GPUCount int `json:"gpu_count"`
 
 	ProductName  string                                `json:"product_name"`
 	LsmodPeermem nvidia_query.LsmodPeermemModuleOutput `json:"lsmod_peermem"`
@@ -90,7 +90,7 @@ func (o *Output) States() ([]components.State, error) {
 		// so we don't decide whether peermem is required or not
 		Healthy: true,
 
-		Reason: fmt.Sprintf("ibcore is using peermem module? %v (gpu counts: %d)", o.LsmodPeermem.IbcoreUsingPeermemModule, o.GPUCounts),
+		Reason: fmt.Sprintf("ibcore is using peermem module? %v (gpu counts: %d)", o.LsmodPeermem.IbcoreUsingPeermemModule, o.GPUCount),
 		ExtraInfo: map[string]string{
 			StateKeyLsmodPeermemData:     string(b),
 			StateKeyLsmodPeermemEncoding: StateValueLsmodPeermemEncodingJSON,
