@@ -20,16 +20,20 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{}
-	for _, g := range i.SMI.GPUs {
-		if g.FBMemoryUsage == nil {
-			continue
+
+	if i.SMI != nil {
+		for _, g := range i.SMI.GPUs {
+			if g.FBMemoryUsage == nil {
+				continue
+			}
+			parsed, err := g.FBMemoryUsage.Parse()
+			if err != nil {
+				continue
+			}
+			o.UsagesSMI = append(o.UsagesSMI, parsed)
 		}
-		parsed, err := g.FBMemoryUsage.Parse()
-		if err != nil {
-			continue
-		}
-		o.UsagesSMI = append(o.UsagesSMI, parsed)
 	}
+
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.UsagesNVML = append(o.UsagesNVML, device.Memory)

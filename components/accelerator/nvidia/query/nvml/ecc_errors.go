@@ -4,12 +4,124 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/log"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"sigs.k8s.io/yaml"
 )
+
+type ECCErrors struct {
+	// Represents the GPU UUID.
+	UUID string `json:"uuid"`
+
+	// Aggregate counts persist across reboots (i.e. for the lifetime of the device).
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
+	Aggregate AllECCErrorCounts `json:"aggregate"`
+
+	// Volatile counts are reset each time the driver loads.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
+	Volatile AllECCErrorCounts `json:"volatile"`
+}
+
+func (es ECCErrors) JSON() ([]byte, error) {
+	return json.Marshal(es)
+}
+
+func (es ECCErrors) YAML() ([]byte, error) {
+	return yaml.Marshal(es)
+}
+
+type AllECCErrorCounts struct {
+	// Total ECC error counts for the device.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
+	Total ECCErrorCounts `json:"total"`
+
+	// GPU L1 Cache.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	L1Cache ECCErrorCounts `json:"l1_cache"`
+
+	// GPU L2 Cache.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	L2Cache ECCErrorCounts `json:"l2_cache"`
+
+	// Turing+ DRAM.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	DRAM ECCErrorCounts `json:"dram"`
+
+	// Turing+ SRAM.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	SRAM ECCErrorCounts `json:"sram"`
+
+	// GPU Device Memory.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	GPUDeviceMemory ECCErrorCounts `json:"gpu_device_memory"`
+
+	// GPU Texture Memory.
+	// Specialized memory optimized for 2D spatial locality.
+	// Read-only from kernels (in most cases).
+	// Optimized for specific access patterns common in graphics/image processing.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	GPUTextureMemory ECCErrorCounts `json:"gpu_texture_memory"`
+
+	// Shared memory. Not texture memory.
+	// Used for inter-thread communication and data caching within a block.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	SharedMemory ECCErrorCounts `json:"shared_memory"`
+
+	// GPU Register File.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+	GPURegisterFile ECCErrorCounts `json:"gpu_register_file"`
+}
+
+type ECCErrorCounts struct {
+	// A memory error that was correctedFor ECC errors, these are single bit errors.
+	// For Texture memory, these are errors fixed by resend.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
+	Corrected uint64 `json:"corrected"`
+
+	// A memory error that was not correctedFor ECC errors, these are double bit errors.
+	// For Texture memory, these are errors where the resend fails.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
+	Uncorrected uint64 `json:"uncorrected"`
+}
+
+func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
+	errs := []string{}
+
+	if allCounts.Total.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("total uncorrected %d errors", allCounts.Total.Uncorrected))
+	}
+	if allCounts.L1Cache.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("L1 Cache uncorrected %d errors", allCounts.L1Cache.Uncorrected))
+	}
+	if allCounts.L2Cache.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("L2 Cache uncorrected %d errors", allCounts.L2Cache.Uncorrected))
+	}
+	if allCounts.DRAM.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("DRAM uncorrected %d errors", allCounts.DRAM.Uncorrected))
+	}
+	if allCounts.SRAM.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("SRAM uncorrected %d errors", allCounts.SRAM.Uncorrected))
+	}
+	if allCounts.GPUDeviceMemory.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("GPU device memory uncorrected %d errors", allCounts.GPUDeviceMemory.Uncorrected))
+	}
+	if allCounts.GPUTextureMemory.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("GPU texture memory uncorrected %d errors", allCounts.GPUTextureMemory.Uncorrected))
+	}
+	if allCounts.SharedMemory.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("shared memory uncorrected %d errors", allCounts.SharedMemory.Uncorrected))
+	}
+	if allCounts.GPURegisterFile.Uncorrected > 0 {
+		errs = append(errs, fmt.Sprintf("GPU register file uncorrected %d errors", allCounts.GPURegisterFile.Uncorrected))
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
 
 func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 	result := ECCErrors{
@@ -464,116 +576,4 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 	}
 
 	return result, nil
-}
-
-type ECCErrors struct {
-	// Represents the GPU UUID.
-	UUID string `json:"uuid"`
-
-	// Aggregate counts persist across reboots (i.e. for the lifetime of the device).
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
-	Aggregate AllECCErrorCounts `json:"aggregate"`
-
-	// Volatile counts are reset each time the driver loads.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
-	Volatile AllECCErrorCounts `json:"volatile"`
-}
-
-func (es ECCErrors) JSON() ([]byte, error) {
-	return json.Marshal(es)
-}
-
-func (es ECCErrors) YAML() ([]byte, error) {
-	return yaml.Marshal(es)
-}
-
-type AllECCErrorCounts struct {
-	// Total ECC error counts for the device.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
-	Total ECCErrorCounts `json:"total"`
-
-	// GPU L1 Cache.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	L1Cache ECCErrorCounts `json:"l1_cache"`
-
-	// GPU L2 Cache.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	L2Cache ECCErrorCounts `json:"l2_cache"`
-
-	// Turing+ DRAM.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	DRAM ECCErrorCounts `json:"dram"`
-
-	// Turing+ SRAM.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	SRAM ECCErrorCounts `json:"sram"`
-
-	// GPU Device Memory.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	GPUDeviceMemory ECCErrorCounts `json:"gpu_device_memory"`
-
-	// GPU Texture Memory.
-	// Specialized memory optimized for 2D spatial locality.
-	// Read-only from kernels (in most cases).
-	// Optimized for specific access patterns common in graphics/image processing.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	GPUTextureMemory ECCErrorCounts `json:"gpu_texture_memory"`
-
-	// Shared memory. Not texture memory.
-	// Used for inter-thread communication and data caching within a block.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	SharedMemory ECCErrorCounts `json:"shared_memory"`
-
-	// GPU Register File.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	GPURegisterFile ECCErrorCounts `json:"gpu_register_file"`
-}
-
-type ECCErrorCounts struct {
-	// A memory error that was correctedFor ECC errors, these are single bit errors.
-	// For Texture memory, these are errors fixed by resend.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
-	Corrected uint64 `json:"corrected"`
-
-	// A memory error that was not correctedFor ECC errors, these are double bit errors.
-	// For Texture memory, these are errors where the resend fails.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
-	Uncorrected uint64 `json:"uncorrected"`
-}
-
-func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
-	errs := []string{}
-
-	if allCounts.Total.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("total uncorrected %d errors", allCounts.Total.Uncorrected))
-	}
-	if allCounts.L1Cache.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("L1 Cache uncorrected %d errors", allCounts.L1Cache.Uncorrected))
-	}
-	if allCounts.L2Cache.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("L2 Cache uncorrected %d errors", allCounts.L2Cache.Uncorrected))
-	}
-	if allCounts.DRAM.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("DRAM uncorrected %d errors", allCounts.DRAM.Uncorrected))
-	}
-	if allCounts.SRAM.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("SRAM uncorrected %d errors", allCounts.SRAM.Uncorrected))
-	}
-	if allCounts.GPUDeviceMemory.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("GPU device memory uncorrected %d errors", allCounts.GPUDeviceMemory.Uncorrected))
-	}
-	if allCounts.GPUTextureMemory.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("GPU texture memory uncorrected %d errors", allCounts.GPUTextureMemory.Uncorrected))
-	}
-	if allCounts.SharedMemory.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("shared memory uncorrected %d errors", allCounts.SharedMemory.Uncorrected))
-	}
-	if allCounts.GPURegisterFile.Uncorrected > 0 {
-		errs = append(errs, fmt.Sprintf("GPU register file uncorrected %d errors", allCounts.GPURegisterFile.Uncorrected))
-	}
-
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
 }

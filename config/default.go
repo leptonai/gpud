@@ -26,6 +26,7 @@ import (
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
@@ -272,6 +273,7 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 			cfg.Components[nvidia_temperature.Name] = nil
 			cfg.Components[nvidia_utilization.Name] = nil
 			cfg.Components[nvidia_processes.Name] = nil
+			cfg.Components[nvidia_remapped_rows.Name] = nil
 
 			// optional
 			cfg.Components[nvidia_fabric_manager.Name] = nil

@@ -7,6 +7,27 @@ import (
 	"testing"
 )
 
+func TestParseWithRemappedRows(t *testing.T) {
+	data, err := os.ReadFile("testdata/nvidia-smi-query.535.129.03.out.0.valid.a10")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	parsed, err := ParseSMIQueryOutput(data)
+	if err != nil {
+		t.Errorf("Parse returned an error: %v", err)
+	}
+	if parsed.GPUs[0].RemappedRows.UncorrectableError != "4" {
+		t.Errorf("RemappedRows.UncorrectableError mismatch: %+v", parsed.GPUs[0].RemappedRows.UncorrectableError)
+	}
+
+	if parsed.GPUs[0].RemappedRows.Pending != "true" { // yaml package converts yes to true, no to false
+		t.Errorf("RemappedRows.Pending mismatch: %v", parsed.GPUs[0].RemappedRows.Pending)
+	}
+	if parsed.GPUs[0].RemappedRows.RemappingFailureOccurred != "false" { // yaml package converts yes to true, no to false
+		t.Errorf("RemappedRows.RemappingFailureOccurred mismatch: %v", parsed.GPUs[0].RemappedRows.RemappingFailureOccurred)
+	}
+}
+
 func TestParseWithHWSlowdownActive(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.161.08.out.0.valid")
 	if err != nil {
