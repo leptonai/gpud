@@ -1,6 +1,8 @@
 // Package xid provides the NVIDIA XID error details.
 package xid
 
+import "github.com/leptonai/gpud/components/common"
+
 // Defines the XID error type.
 //
 // ref. https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
@@ -25,14 +27,7 @@ type Detail struct {
 	ThermalIssue           bool   `json:"thermal_issue"`
 	FBCorruption           bool   `json:"fb_corruption"`
 
-	// Set to true if the error requires a GPU reset.
-	// GPU reset and system reboot are independent actions.
-	// Both fields are set to true, if the error requires "any" of the two actions.
-	RequiresGPUReset bool `json:"requires_gpu_reset"`
-	// Set to true if the error requires a system reboot.
-	// GPU reset and system reboot are independent actions.
-	// Both fields are set to true, if the error requires "any" of the two actions.
-	RequiresSystemReboot bool `json:"requires_system_reboot"`
+	RequiredActions common.RequiredActions `json:"required_actions"`
 }
 
 // Returns the error if found.
@@ -694,8 +689,10 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error
-		RequiresGPUReset:     true,
-		RequiresSystemReboot: true,
+		RequiredActions: common.RequiredActions{
+			ResetGPU:     true,
+			RebootSystem: true,
+		},
 	},
 	49: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1088,8 +1085,10 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error
-		RequiresGPUReset:     true,
-		RequiresSystemReboot: true,
+		RequiredActions: common.RequiredActions{
+			ResetGPU:     true,
+			RebootSystem: true,
+		},
 	},
 	75: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1375,7 +1374,9 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 
 		// "recommended to reset the GPU when convenient"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiresGPUReset: true,
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	95: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -1409,7 +1410,9 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 
 		// "the affected GPU must be reset before applications can restart."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiresGPUReset: true,
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	96: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1607,7 +1610,9 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 		FBCorruption:           false,
 
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-110-security-fault-error
-		RequiresSystemReboot: true,
+		RequiredActions: common.RequiredActions{
+			RebootSystem: true,
+		},
 	},
 	111: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1990,7 +1995,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		// "Reset the GPU, and if the problem persists, contact your hardware vendor for support"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error
-		RequiresGPUReset: true,
+		RequiredActions: common.RequiredActions{
+			ResetGPU: true,
+		},
 	},
 	141: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
