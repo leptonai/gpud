@@ -26,6 +26,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		{
 			Name:    Name,
 			Healthy: false,
+			Reason:  "always unhealthy for testing",
 		},
 	}, nil
 }
