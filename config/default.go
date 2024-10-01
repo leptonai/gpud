@@ -65,7 +65,9 @@ var (
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	options := &Op{}
-	options.applyOpts(opts)
+	if err := options.applyOpts(opts); err != nil {
+		return nil, err
+	}
 
 	asRoot := stdos.Geteuid() == 0 // running as root
 
