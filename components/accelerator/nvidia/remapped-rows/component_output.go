@@ -40,10 +40,10 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			if rma {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.SuggestedActions{}
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
 				}
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors))
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors))
 			}
 
 			requiresReset, err := parsed.RequiresReset()
@@ -52,14 +52,14 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			if requiresReset {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.SuggestedActions{}
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
 				}
 
 				// for now, when we need GPU reset, we recommend simple reboot
-				o.RequiredActions.RepairActions = append(o.RequiredActions.RepairActions, common.RepairActionTypeRebootSystem)
+				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
 
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset))
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset))
 			}
 		}
 	}
@@ -70,22 +70,22 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 			rma := device.RemappedRows.QualifiesForRMA()
 			if rma {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.SuggestedActions{}
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
 				}
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed))
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed))
 			}
 
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.SuggestedActions{}
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
 				}
 
 				// for now, when we need GPU reset, we recommend simple reboot
-				o.RequiredActions.RepairActions = append(o.RequiredActions.RepairActions, common.RepairActionTypeRebootSystem)
+				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
 
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset))
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset))
 			}
 		}
 	}
@@ -100,7 +100,7 @@ type Output struct {
 
 	// Recommended course of actions for any of the GPUs with a known issue.
 	// For individual GPU details, see each per-GPU states.
-	RequiredActions *common.SuggestedActions `json:"required_actions,omitempty"`
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -218,8 +218,8 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
-	if o.RequiredActions != nil {
-		state.RequiredActions = o.RequiredActions
+	if o.SuggestedActions != nil {
+		state.SuggestedActions = o.SuggestedActions
 	}
 
 	return []components.State{state}, nil

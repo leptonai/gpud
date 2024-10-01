@@ -27,7 +27,7 @@ type Detail struct {
 	ThermalIssue           bool   `json:"thermal_issue"`
 	FBCorruption           bool   `json:"fb_corruption"`
 
-	RequiredActions common.SuggestedActions `json:"required_actions"`
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 // Returns the error if found.
@@ -689,7 +689,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 			},
@@ -1091,7 +1091,7 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 				common.RepairActionTypeRepairHardware,
@@ -1176,7 +1176,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		FBCorruption:           false,
 
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRepairHardware,
 			},
@@ -1402,7 +1402,7 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 
 		// "recommended to reset the GPU when convenient"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 			},
@@ -1443,7 +1443,7 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 
 		// "the affected GPU must be reset before applications can restart."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 				common.RepairActionTypeRepairHardware,
@@ -1650,7 +1650,7 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 		FBCorruption:           false,
 
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-110-security-fault-error
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 			},
@@ -2040,7 +2040,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		// "Reset the GPU, and if the problem persists, contact your hardware vendor for support"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error
-		RequiredActions: common.SuggestedActions{
+		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
 				common.RepairActionTypeRepairHardware,

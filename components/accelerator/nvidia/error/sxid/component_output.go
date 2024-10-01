@@ -108,7 +108,7 @@ func (o *Output) States() ([]components.State, error) {
 	}
 
 	if o.SuggestedActions != nil {
-		state.RequiredActions = o.SuggestedActions
+		state.SuggestedActions = o.SuggestedActions
 	}
 
 	return []components.State{state}, nil
@@ -141,7 +141,7 @@ func (o *Output) Events() []components.Event {
 				EventKeyErroSXidData:        string(b),
 				EventKeyErroSXidEncoding:    StateValueErrorSXidEncodingJSON,
 			},
-			RequiredActions: actions,
+			SuggestedActions: actions,
 		})
 	}
 	if len(des) == 0 {

@@ -80,11 +80,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
 			if o.SuggestedActions == nil {
 				o.SuggestedActions = &common.SuggestedActions{}
 			}
-			o.SuggestedActions.Add(&ev.Detail.RequiredActions)
+			o.SuggestedActions.Add(ev.Detail.SuggestedActions)
 		}
 	}
 
@@ -103,11 +103,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			if ev.Xid > 0 {
 				o.NVMLXidEvent = ev
 			}
-			if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+			if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
 				if o.SuggestedActions == nil {
 					o.SuggestedActions = &common.SuggestedActions{}
 				}
-				o.SuggestedActions.Add(&ev.Detail.RequiredActions)
+				o.SuggestedActions.Add(ev.Detail.SuggestedActions)
 			}
 		}
 	}
@@ -152,11 +152,11 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
 			if o.SuggestedActionsPerLogLine == nil {
 				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
 			}
-			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = &ev.Detail.RequiredActions
+			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActions
 		}
 	}
 	return o.Events(), nil
