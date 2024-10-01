@@ -73,7 +73,7 @@ type State struct {
 	Error     string            `json:"error,omitempty"`      // the unprocessed error returned from the component
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
 
-	RequiredActions *common.RequiredActions `json:"required_actions,omitempty"`
+	RequiredActions *common.SuggestedActions `json:"required_actions,omitempty"`
 }
 
 type Event struct {
@@ -83,7 +83,7 @@ type Event struct {
 	Message   string            `json:"message,omitempty"`    // detailed message of the event
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
 
-	RequiredActions *common.RequiredActions `json:"required_actions,omitempty"`
+	RequiredActions *common.SuggestedActions `json:"required_actions,omitempty"`
 }
 
 const (

@@ -41,7 +41,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			}
 			if rma {
 				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
+					o.RequiredActions = &common.SuggestedActions{}
 				}
 				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors))
 			}
@@ -53,9 +53,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			}
 			if requiresReset {
 				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
+					o.RequiredActions = &common.SuggestedActions{}
 				}
-				o.RequiredActions.ResetGPU = true
+
+				// for now, when we need GPU reset, we recommend simple reboot
+				o.RequiredActions.RepairActions = append(o.RequiredActions.RepairActions, common.RepairActionTypeRebootSystem)
+
 				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset))
 			}
 		}
@@ -68,7 +71,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			rma := device.RemappedRows.QualifiesForRMA()
 			if rma {
 				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
+					o.RequiredActions = &common.SuggestedActions{}
 				}
 				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed))
 			}
@@ -76,9 +79,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
 				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
+					o.RequiredActions = &common.SuggestedActions{}
 				}
-				o.RequiredActions.ResetGPU = true
+
+				// for now, when we need GPU reset, we recommend simple reboot
+				o.RequiredActions.RepairActions = append(o.RequiredActions.RepairActions, common.RepairActionTypeRebootSystem)
+
 				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset))
 			}
 		}
@@ -94,7 +100,7 @@ type Output struct {
 
 	// Recommended course of actions for any of the GPUs with a known issue.
 	// For individual GPU details, see each per-GPU states.
-	RequiredActions *common.RequiredActions `json:"required_actions,omitempty"`
+	RequiredActions *common.SuggestedActions `json:"required_actions,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {

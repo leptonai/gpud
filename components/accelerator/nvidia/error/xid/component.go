@@ -80,23 +80,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil {
-			if ev.Detail.RequiredActions.ResetGPU {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
-				}
-				o.RequiredActions.ResetGPU = true
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
-					fmt.Sprintf("GPU reset required due to XID %d (name %s)", ev.Detail.XID, ev.Detail.Name))
+		if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+			if o.SuggestedActions == nil {
+				o.SuggestedActions = &common.SuggestedActions{}
 			}
-			if ev.Detail.RequiredActions.RebootSystem {
-				if o.RequiredActions == nil {
-					o.RequiredActions = &common.RequiredActions{}
-				}
-				o.RequiredActions.RebootSystem = true
-				o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
-					fmt.Sprintf("system reboot required due to XID %d (name %s)", ev.Detail.XID, ev.Detail.Name))
-			}
+			o.SuggestedActions.Add(&ev.Detail.RequiredActions)
 		}
 	}
 
@@ -107,31 +95,19 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last == nil || last.Output == nil { // no data
 		log.Logger.Debugw("no xid data -- this is normal when nvml has not received any registered xid events yet")
 	} else {
-		xidEvent, ok := last.Output.(*nvidia_query_nvml.XidEvent)
+		ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
 		if !ok {
 			return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
 		}
-		if xidEvent != nil {
-			if xidEvent.Xid > 0 {
-				o.NVMLXidEvent = xidEvent
+		if ev != nil {
+			if ev.Xid > 0 {
+				o.NVMLXidEvent = ev
 			}
-			if xidEvent.Detail != nil {
-				if xidEvent.Detail.RequiredActions.ResetGPU {
-					if o.RequiredActions == nil {
-						o.RequiredActions = &common.RequiredActions{}
-					}
-					o.RequiredActions.ResetGPU = true
-					o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
-						fmt.Sprintf("GPU reset required for %s due to XID %d (name %s)", xidEvent.DeviceUUID, xidEvent.Detail.XID, xidEvent.Detail.Name))
+			if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
 				}
-				if xidEvent.Detail.RequiredActions.RebootSystem {
-					if o.RequiredActions == nil {
-						o.RequiredActions = &common.RequiredActions{}
-					}
-					o.RequiredActions.RebootSystem = true
-					o.RequiredActions.Descriptions = append(o.RequiredActions.Descriptions,
-						fmt.Sprintf("System reboot required for %s due to XID %d (name %s)", xidEvent.DeviceUUID, xidEvent.Detail.XID, xidEvent.Detail.Name))
-				}
+				o.SuggestedActions.Add(&ev.Detail.RequiredActions)
 			}
 		}
 	}
@@ -176,40 +152,11 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil {
-			if ev.Detail.RequiredActions.ResetGPU {
-				if o.RequiredActionsPerLogLine == nil {
-					o.RequiredActionsPerLogLine = make(map[string]*common.RequiredActions)
-				}
-
-				actions := &common.RequiredActions{}
-				if v, ok := o.RequiredActionsPerLogLine[ev.LogItem.Line]; ok {
-					actions = v
-				}
-
-				actions.ResetGPU = true
-				actions.Descriptions = append(actions.Descriptions,
-					fmt.Sprintf("GPU reset required due to XID %d (name %s)", ev.Detail.XID, ev.Detail.Name))
-
-				o.RequiredActionsPerLogLine[ev.LogItem.Line] = actions
+		if ev.Detail != nil && len(ev.Detail.RequiredActions.RepairActions) > 0 {
+			if o.SuggestedActionsPerLogLine == nil {
+				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
 			}
-
-			if ev.Detail.RequiredActions.RebootSystem {
-				if o.RequiredActionsPerLogLine == nil {
-					o.RequiredActionsPerLogLine = make(map[string]*common.RequiredActions)
-				}
-
-				actions := &common.RequiredActions{}
-				if v, ok := o.RequiredActionsPerLogLine[ev.LogItem.Line]; ok {
-					actions = v
-				}
-
-				actions.RebootSystem = true
-				actions.Descriptions = append(actions.Descriptions,
-					fmt.Sprintf("system reboot required due to XID %d (name %s)", ev.Detail.XID, ev.Detail.Name))
-
-				o.RequiredActionsPerLogLine[ev.LogItem.Line] = actions
-			}
+			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = &ev.Detail.RequiredActions
 		}
 	}
 	return o.Events(), nil

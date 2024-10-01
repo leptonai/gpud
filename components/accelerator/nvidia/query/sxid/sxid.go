@@ -17,7 +17,7 @@ type Detail struct {
 	Recovery       string `json:"recovery"`
 	OtherImpact    string `json:"other_impact"`
 
-	RequiredActions common.RequiredActions `json:"required_actions"`
+	RequiredActions common.SuggestedActions `json:"required_actions"`
 }
 
 // Returns the error if found.
@@ -46,8 +46,13 @@ var details = map[int]Detail{
 		Impact:         "Corresponding GPU NVLink traffic will be stalled, and the subsequent GPU access will hang. The GPU driver on the guest VM will abort CUDA jobs with Xid 45.",
 		Recovery:       "Validate GPU/NVSwitch fabric partition routing information using the NVSwitch-audit tool. Restart the guest VM.",
 		OtherImpact:    "If the error is observed on a Trunk port, partitions that are using NVSwitch trunk ports will be affected.",
-		RequiredActions: common.RequiredActions{
-			RebootSystem: true,
+		RequiredActions: common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Validate GPU/NVSwitch fabric partition routing and restart the guest VM.",
+			},
 		},
 	},
 	11012: {
@@ -301,8 +306,13 @@ var details = map[int]Detail{
 		Impact:         "Corresponding GPU NVLink traffic will be stalled, and subsequent GPU access will hang. The GPU driver on the guest VM will abort CUDA jobs with Xid 45.",
 		Recovery:       "Restart Guest VM.",
 		OtherImpact:    "If the error is observed on a Trunk port, the partitions that are using NVSwitch trunk ports will be affected.",
-		RequiredActions: common.RequiredActions{
-			RebootSystem: true,
+		RequiredActions: common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Restart the guest VM to reset the stalling NVLink traffic.",
+			},
 		},
 	},
 	19084: {
@@ -830,8 +840,15 @@ GPU (refer to section D.9). If issue persists, report GPU issues.
 		OtherImpact: defaultPotentialFatalErr.OtherImpact + `
 Other Guest VM Impact: No impact if error is confined to a single GPU.
 `,
-		RequiredActions: common.RequiredActions{
-			RebootSystem: true,
+		RequiredActions: common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"Restart the guest VM to see if the associated link comes back up.",
+				"If the link does not come back up, contact the hardware vendor to check the NVLink fabric.",
+			},
 		},
 	},
 	22012: { // in both D.4 and D.5, treat it as potential fatal
@@ -1236,8 +1253,13 @@ If the errors occurred on an NVSwitch trunk port, to reset the trunk ports and r
 	Recovery:    "Restart the guest VM.",
 	OtherImpact: "",
 
-	RequiredActions: common.RequiredActions{
-		RebootSystem: true,
+	RequiredActions: common.SuggestedActions{
+		RepairActions: []common.RepairActionType{
+			common.RepairActionTypeRebootSystem,
+		},
+		Descriptions: []string{
+			"Restart the guest VM to see if the associated NVSwitch comes back up.",
+		},
 	},
 }
 
@@ -1255,7 +1277,12 @@ var defaultAlwaysFatalErr = Detail{
 	Recovery:       "Restart the guest VM.",
 	OtherImpact:    "",
 
-	RequiredActions: common.RequiredActions{
-		RebootSystem: true,
+	RequiredActions: common.SuggestedActions{
+		RepairActions: []common.RepairActionType{
+			common.RepairActionTypeRebootSystem,
+		},
+		Descriptions: []string{
+			"Restart the host to reset the entire fabric/system.",
+		},
 	},
 }
