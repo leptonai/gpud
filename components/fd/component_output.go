@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 
-	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -147,7 +145,7 @@ func (o *Output) States() ([]components.State, error) {
 	// may fail on Mac OS
 	if len(o.Errors) > 0 {
 		state.Healthy = false
-		state.Reason += fmt.Sprintf("-- %s", strings.Join(o.Errors, ", "))
+		state.Reason += fmt.Sprintf(" -- %s", strings.Join(o.Errors, ", "))
 	}
 
 	return []components.State{state}, nil
@@ -254,35 +252,6 @@ func getRunningPids() (uint64, error) {
 		return 0, err
 	}
 	return uint64(len(pids)), nil
-}
-
-// "process_open_fds" in prometheus collector
-// ref. https://github.com/prometheus/client_golang/blob/main/prometheus/process_collector_other.go
-// ref. https://pkg.go.dev/github.com/prometheus/procfs
-func getUsage() (uint64, error) {
-	procs, err := procfs.AllProcs()
-	if err != nil {
-		return 0, err
-	}
-	total := uint64(0)
-	for _, proc := range procs {
-		l, err := proc.FileDescriptorsLen()
-		if err != nil {
-			// If the error is due to the file descriptor being cleaned up and not used anymore,
-			// skip to the next process ID.
-			if os.IsNotExist(err) ||
-				strings.Contains(err.Error(), "no such file or directory") ||
-
-				// e.g., stat /proc/1321147/fd: no such process
-				strings.Contains(err.Error(), "no such process") {
-				continue
-			}
-
-			return 0, err
-		}
-		total += uint64(l)
-	}
-	return total, nil
 }
 
 func calculateUsedPercent(usage, limit uint64) float64 {

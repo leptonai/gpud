@@ -11,3 +11,7 @@ func checkFDLimitSupported() bool {
 func getLimit() (uint64, error) {
 	return 0, nil
 }
+
+func getUsage() (uint64, error) {
+	return 0, nil
+}
