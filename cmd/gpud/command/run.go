@@ -38,7 +38,7 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	cfg, err := config.DefaultConfig(ctx)
+	cfg, err := config.DefaultConfig(ctx, config.WithEnableFailComponent(enableFailComponent))
 	cancel()
 	if err != nil {
 		return err
