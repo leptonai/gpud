@@ -28,8 +28,8 @@ type Output struct {
 	// based on the current file descriptor limit on the host (not per process).
 	UsedPercent string `json:"used_percent"`
 
-	// Set to true if the file /proc/sys/fs/file-max exists.
-	FDMaxFileExists bool `json:"fd_max_file_exists"`
+	// Set to true if the max file descriptor is supported (e.g., /proc/sys/fs/file-max exists on linux).
+	FDLimitSupported bool `json:"fd_limit_supported"`
 
 	ThresholdLimit uint64 `json:"threshold_limit"`
 	// ThresholdUsedPercent is the percentage of file descriptors that are currently in use,
@@ -67,7 +67,7 @@ const (
 	StateKeyUsage                = "usage"
 	StateKeyLimit                = "limit"
 	StateKeyUsedPercent          = "used_percent"
-	StateKeyFDMaxFileExists      = "fd_max_file_exists"
+	StateKeyFDLimitSupported     = "fd_limit_supported"
 	StateKeyThresholdLimit       = "threshold_limit"
 	StateKeyThresholdUsedPercent = "threshold_used_percent"
 )
@@ -125,7 +125,7 @@ func (o *Output) States() ([]components.State, error) {
 			StateKeyLimit:       fmt.Sprintf("%d", o.Limit),
 			StateKeyUsedPercent: o.UsedPercent,
 
-			StateKeyFDMaxFileExists: fmt.Sprintf("%v", o.FDMaxFileExists),
+			StateKeyFDLimitSupported: fmt.Sprintf("%v", o.FDLimitSupported),
 
 			StateKeyThresholdLimit:       fmt.Sprintf("%d", o.ThresholdLimit),
 			StateKeyThresholdUsedPercent: o.ThresholdUsedPercent,
@@ -137,7 +137,7 @@ func (o *Output) States() ([]components.State, error) {
 		state.Reason += "-- used_percent is greater than 95"
 	}
 
-	if o.FDMaxFileExists && o.ThresholdLimit > 0 {
+	if o.FDLimitSupported && o.ThresholdLimit > 0 {
 		if thresholdUsedPercent, err := o.GetThresholdUsedPercent(); err == nil && thresholdUsedPercent > 95.0 {
 			state.Healthy = false
 			state.Reason += "-- threshold_used_percent is greater than 95"
@@ -218,13 +218,10 @@ func CreateGet(cfg Config) query.GetFunc {
 			return nil, err
 		}
 
-		fdMaxFileExists := false
-		if _, err := os.Stat(fileMaxFile); err == nil {
-			fdMaxFileExists = true
-		}
+		fdLimitSupported := checkFDLimitSupported()
 
 		var thresholdUsedPct float64
-		if fdMaxFileExists && cfg.ThresholdLimit > 0 {
+		if fdLimitSupported && cfg.ThresholdLimit > 0 {
 			thresholdUsedPct = calculateUsedPercent(usage, cfg.ThresholdLimit)
 		}
 		if err := metrics.SetThresholdLimit(ctx, float64(cfg.ThresholdLimit)); err != nil {
@@ -241,7 +238,7 @@ func CreateGet(cfg Config) query.GetFunc {
 			Limit:       limit,
 			UsedPercent: fmt.Sprintf("%.2f", usedPct),
 
-			FDMaxFileExists: fdMaxFileExists,
+			FDLimitSupported: fdLimitSupported,
 
 			ThresholdLimit:       cfg.ThresholdLimit,
 			ThresholdUsedPercent: fmt.Sprintf("%.2f", thresholdUsedPct),
@@ -286,18 +283,6 @@ func getUsage() (uint64, error) {
 		total += uint64(l)
 	}
 	return total, nil
-}
-
-const fileMaxFile = "/proc/sys/fs/file-max"
-
-// returns the current file descriptor limit for the host, not for the current process.
-// for the current process, use syscall.Getrlimit.
-func getLimit() (uint64, error) {
-	data, err := os.ReadFile(fileMaxFile)
-	if err != nil {
-		return 0, err
-	}
-	return strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
 }
 
 func calculateUsedPercent(usage, limit uint64) float64 {
