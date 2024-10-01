@@ -56,6 +56,7 @@ import (
 	"github.com/leptonai/gpud/components/disk"
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
+	"github.com/leptonai/gpud/components/fail"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
@@ -269,6 +270,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, fd.New(ctx, cfg))
+
+		case fail.Name:
+			allComponents = append(allComponents, fail.New())
 
 		case info.Name:
 			allComponents = append(allComponents, info.New(config.Annotations))

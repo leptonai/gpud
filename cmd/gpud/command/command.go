@@ -39,7 +39,8 @@ var (
 	pollXidEvents bool
 	pollGPMEvents bool
 
-	enableAutoUpdate bool
+	enableAutoUpdate    bool
+	enableFailComponent bool
 )
 
 const (
@@ -175,6 +176,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "enable-auto-update",
 					Usage:       "enable auto update of gpud (default: true)",
 					Destination: &enableAutoUpdate,
+				},
+				&cli.BoolFlag{
+					Name:        "enable-fail-component",
+					Usage:       "enable 'fail' component that always return healthy: false for testing purposes (default: false)",
+					Destination: &enableFailComponent,
+					Hidden:      true,
 				},
 			},
 		},

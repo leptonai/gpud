@@ -34,6 +34,7 @@ import (
 	"github.com/leptonai/gpud/components/disk"
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
+	"github.com/leptonai/gpud/components/fail"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
@@ -62,7 +63,10 @@ var (
 	DefaultRetentionPeriod = metav1.Duration{Duration: 30 * time.Minute}
 )
 
-func DefaultConfig(ctx context.Context) (*Config, error) {
+func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
+	options := &Op{}
+	options.applyOpts(opts)
+
 	asRoot := stdos.Geteuid() == 0 // running as root
 
 	cfg := &Config{
@@ -95,6 +99,10 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 		},
 
 		EnableAutoUpdate: true,
+	}
+
+	if options.enableFailComponent {
+		cfg.Components[fail.Name] = nil
 	}
 
 	if runtime.GOOS == "linux" {
