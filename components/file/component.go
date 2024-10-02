@@ -1,4 +1,4 @@
-// Package file provides a component that returns healthy if and only if the files exist
+// Package file provides a component that returns healthy if and only if all the specified files exist.
 package file
 
 import (
