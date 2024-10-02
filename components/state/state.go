@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-func CreateMachineIDIfNotExist(ctx context.Context, db *sql.DB) (string, time.Time, error) {
+func CreateMachineIDIfNotExist(ctx context.Context, db *sql.DB, providedUID string) (string, time.Time, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s FROM %s
 LIMIT 1;
@@ -77,7 +77,9 @@ LIMIT 1;
 
 	insertTime := time.Now()
 	var uid string
-	if dmiUUID, err := host.UUID(ctx); err == nil {
+	if providedUID != "" {
+		uid = providedUID
+	} else if dmiUUID, err := host.UUID(ctx); err == nil {
 		uid = dmiUUID
 	} else {
 		generateUUID, err := uuid.NewUUID()

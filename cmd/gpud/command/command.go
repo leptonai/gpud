@@ -21,6 +21,7 @@ sudo gpud up
 var (
 	logLevel string
 	debug    bool
+	uid      string
 
 	annotations   string
 	listenAddress string
@@ -139,6 +140,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "annotations",
 					Usage:       "set the annotations",
 					Destination: &annotations,
+				},
+				cli.StringFlag{
+					Name:        "uid",
+					Usage:       "uid for this machine",
+					Destination: &uid,
 				},
 				&cli.BoolFlag{
 					Name:        "pprof",
