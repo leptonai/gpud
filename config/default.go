@@ -34,8 +34,8 @@ import (
 	"github.com/leptonai/gpud/components/disk"
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
-	"github.com/leptonai/gpud/components/fail"
 	"github.com/leptonai/gpud/components/fd"
+	"github.com/leptonai/gpud/components/file"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	"github.com/leptonai/gpud/components/memory"
@@ -103,8 +103,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		EnableAutoUpdate: true,
 	}
 
-	if options.enableFailComponent {
-		cfg.Components[fail.Name] = nil
+	if len(options.filesToCheck) > 0 {
+		cfg.Components[file.Name] = options.filesToCheck
 	}
 
 	if runtime.GOOS == "linux" {

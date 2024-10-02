@@ -1,7 +1,7 @@
 package config
 
 type Op struct {
-	enableFailComponent bool
+	filesToCheck []string
 }
 
 type OpOption func(*Op)
@@ -14,8 +14,8 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	return nil
 }
 
-func WithEnableFailComponent(b bool) OpOption {
+func WithFilesToCheck(files ...string) OpOption {
 	return func(op *Op) {
-		op.enableFailComponent = b
+		op.filesToCheck = append(op.filesToCheck, files...)
 	}
 }

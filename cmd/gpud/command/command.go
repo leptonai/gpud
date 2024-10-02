@@ -39,8 +39,8 @@ var (
 	pollXidEvents bool
 	pollGPMEvents bool
 
-	enableAutoUpdate    bool
-	enableFailComponent bool
+	enableAutoUpdate bool
+	filesToCheck     cli.StringSlice
 )
 
 const (
@@ -177,11 +177,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "enable auto update of gpud (default: true)",
 					Destination: &enableAutoUpdate,
 				},
-				&cli.BoolFlag{
-					Name:        "enable-fail-component",
-					Usage:       "enable 'fail' component that always return healthy: false for testing purposes (default: false)",
-					Destination: &enableFailComponent,
-					Hidden:      true,
+				&cli.StringSliceFlag{
+					Name:  "files-to-check",
+					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
+					Value: &filesToCheck,
 				},
 			},
 		},
