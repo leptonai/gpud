@@ -40,6 +40,7 @@ var (
 	pollGPMEvents bool
 
 	enableAutoUpdate bool
+	filesToCheck     cli.StringSlice
 )
 
 const (
@@ -175,6 +176,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "enable-auto-update",
 					Usage:       "enable auto update of gpud (default: true)",
 					Destination: &enableAutoUpdate,
+				},
+				&cli.StringSliceFlag{
+					Name:  "files-to-check",
+					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
+					Value: &filesToCheck,
 				},
 			},
 		},

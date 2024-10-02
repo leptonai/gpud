@@ -35,6 +35,7 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
+	"github.com/leptonai/gpud/components/file"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	"github.com/leptonai/gpud/components/memory"
@@ -62,7 +63,12 @@ var (
 	DefaultRetentionPeriod = metav1.Duration{Duration: 30 * time.Minute}
 )
 
-func DefaultConfig(ctx context.Context) (*Config, error) {
+func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
+	options := &Op{}
+	if err := options.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	asRoot := stdos.Geteuid() == 0 // running as root
 
 	cfg := &Config{
@@ -95,6 +101,10 @@ func DefaultConfig(ctx context.Context) (*Config, error) {
 		},
 
 		EnableAutoUpdate: true,
+	}
+
+	if len(options.filesToCheck) > 0 {
+		cfg.Components[file.Name] = options.filesToCheck
 	}
 
 	if runtime.GOOS == "linux" {
