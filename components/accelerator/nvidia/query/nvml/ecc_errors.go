@@ -123,7 +123,7 @@ func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
 	return errs
 }
 
-func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
+func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
 	result := ECCErrors{
 		UUID:      uuid,
 		Aggregate: AllECCErrorCounts{},
@@ -164,185 +164,6 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
-	// "GetDetailedEccErrors" is deprecated, use "nvmlDeviceGetMemoryErrorCounter"
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1ga14fc137726f6c34c3351d83e3812ed4
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
-	result.Aggregate.L1Cache.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_L1_CACHE,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.L1Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_L1_CACHE,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.L2Cache.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_L2_CACHE,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.L2Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_L2_CACHE,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.DRAM.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_DRAM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.DRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_DRAM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.SRAM.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_SRAM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.SRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_SRAM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.GPUDeviceMemory.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.GPUDeviceMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.GPUTextureMemory.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.GPUTextureMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
-	result.Aggregate.SharedMemory.Corrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_CORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_TEXTURE_SHM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-	result.Aggregate.SharedMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
-		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
-		nvml.AGGREGATE_ECC,
-		nvml.MEMORY_LOCATION_TEXTURE_SHM,
-	)
-	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
-	}
-
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
 	result.Volatile.Total.Corrected, ret = dev.GetTotalEccErrors(
 		// A memory error that was correctedFor ECC errors, these are single bit errors.
@@ -375,6 +196,227 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	if !eccModeEnabledCurrent {
+		log.Logger.Debugw("ecc mode is not enabled -- skipping fetching memory error counts using 'nvmlDeviceGetMemoryErrorCounter'", "uuid", uuid)
+		return result, nil
+	}
+
+	// "GetDetailedEccErrors" is deprecated, use "nvmlDeviceGetMemoryErrorCounter"
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1ga14fc137726f6c34c3351d83e3812ed4
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g9bcbee49054a953d333d4aa11e8b9c25
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.L1Cache.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_L1_CACHE,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.L1Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_L1_CACHE,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.L2Cache.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_L2_CACHE,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.L2Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_L2_CACHE,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.DRAM.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_DRAM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.DRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_DRAM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.SRAM.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_SRAM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.SRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_SRAM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.GPUDeviceMemory.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.GPUDeviceMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.GPUTextureMemory.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.GPUTextureMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.SharedMemory.Corrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_CORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_TEXTURE_SHM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
+	result.Aggregate.SharedMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
+		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
+		nvml.AGGREGATE_ECC,
+		nvml.MEMORY_LOCATION_TEXTURE_SHM,
+	)
+	if ret != nvml.SUCCESS {
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			log.Logger.Debugw("(aggregate, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		} else {
+			return result, fmt.Errorf("(aggregate, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
+		}
+	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.L1Cache.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -387,6 +429,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.L1Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -400,6 +445,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.L2Cache.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -412,6 +459,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.L2Cache.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -425,6 +475,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.DRAM.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -437,6 +489,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.DRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -450,6 +505,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.SRAM.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -462,6 +519,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.SRAM.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -475,6 +535,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPUDeviceMemory.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -487,6 +549,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPUDeviceMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -500,6 +565,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPUTextureMemory.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -512,6 +579,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPUTextureMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -525,6 +595,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.SharedMemory.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -537,6 +609,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.SharedMemory.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
@@ -550,6 +625,8 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 		}
 	}
 
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPURegisterFile.Corrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
@@ -562,6 +639,9 @@ func GetECCErrors(uuid string, dev device.Device) (ECCErrors, error) {
 			return result, fmt.Errorf("(volatile, corrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
 		}
 	}
+
+	// "Requires ECC Mode to be enabled."
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
 	result.Volatile.GPURegisterFile.Uncorrected, ret = dev.GetMemoryErrorCounter(
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,

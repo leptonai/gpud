@@ -44,6 +44,25 @@ func TestParseWithHWSlowdownActive(t *testing.T) {
 	}
 }
 
+func TestParseECCMode(t *testing.T) {
+	data, err := os.ReadFile("testdata/nvidia-smi-query.535.161.08.out.0.valid")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	parsed, err := ParseSMIQueryOutput(data)
+	if err != nil {
+		t.Errorf("Parse returned an error: %v", err)
+	}
+	for _, gpu := range parsed.GPUs {
+		if gpu.ECCMode.Current != "Enabled" {
+			t.Errorf("ECCMode mismatch: %+v", gpu.ECCMode.Current)
+		}
+		if gpu.ECCMode.Pending != "Enabled" {
+			t.Errorf("ECCMode mismatch: %+v", gpu.ECCMode.Pending)
+		}
+	}
+}
+
 func TestParseWithProcesses(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.154.05.out.0.valid")
 	if err != nil {

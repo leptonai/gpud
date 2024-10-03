@@ -102,6 +102,7 @@ type DeviceInfo struct {
 	Temperature  Temperature  `json:"temperature"`
 	Utilization  Utilization  `json:"utilization"`
 	Processes    Processes    `json:"processes"`
+	ECCMode      ECCMode      `json:"ecc_mode"`
 	ECCErrors    ECCErrors    `json:"ecc_errors"`
 	RemappedRows RemappedRows `json:"remapped_rows"`
 
@@ -445,7 +446,12 @@ func (inst *instance) Get() (*Output, error) {
 			return st, err
 		}
 
-		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device)
+		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devInfo.device)
+		if err != nil {
+			return st, err
+		}
+
+		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
 		if err != nil {
 			return st, err
 		}
