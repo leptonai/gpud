@@ -45,6 +45,7 @@ import (
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/components/tailscale"
 	"github.com/leptonai/gpud/log"
+	pkg_file "github.com/leptonai/gpud/pkg/file"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/systemd"
 	"github.com/leptonai/gpud/version"
@@ -294,6 +295,16 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 		return nil, false
 	}
 
+	p, err := pkg_file.LocateExecutable("containerd")
+	if p != "" && err == nil {
+		log.Logger.Debugw("containerd found in PATH", "path", p)
+		return containerd_pod.Config{
+			Query:    query_config.DefaultConfig(),
+			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
+		}, true
+	}
+	log.Logger.Debugw("containerd not found in PATH -- fallback to containerd run checks", "error", err)
+
 	containerdSocketExists := false
 	containerdRunning := false
 
@@ -326,6 +337,15 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 }
 
 func DefaultDockerContainerComponent(ctx context.Context) (any, bool) {
+	p, err := pkg_file.LocateExecutable("docker")
+	if p != "" && err == nil {
+		log.Logger.Debugw("docker found in PATH", "path", p)
+		return docker_container.Config{
+			Query: query_config.DefaultConfig(),
+		}, true
+	}
+	log.Logger.Debugw("docker not found in PATH -- fallback to docker run checks", "error", err)
+
 	if docker_container.IsDockerRunning() {
 		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
 		return docker_container.Config{
@@ -340,6 +360,16 @@ func DefaultK8sPodComponent(ctx context.Context) (any, bool) {
 		log.Logger.Debugw("ignoring default kubelet checking since it's not linux", "os", runtime.GOOS)
 		return nil, false
 	}
+
+	p, err := pkg_file.LocateExecutable("kubelet")
+	if p != "" && err == nil {
+		log.Logger.Debugw("kubelet found in PATH", "path", p)
+		return k8s_pod.Config{
+			Query: query_config.DefaultConfig(),
+			Port:  k8s_pod.DefaultKubeletReadOnlyPort,
+		}, true
+	}
+	log.Logger.Debugw("kubelet not found in PATH -- fallback to kubelet run checks", "error", err)
 
 	// check if the TCP port is open/used
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", k8s_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
