@@ -8,8 +8,7 @@ import (
 )
 
 type Config struct {
-	Query    query_config.Config `json:"query"`
-	Endpoint string              `json:"endpoint"`
+	Query query_config.Config `json:"query"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {
