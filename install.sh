@@ -67,9 +67,16 @@ main() {
   TRACK="${TRACK:-unstable}"
   VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
 
-  # e.g., ubuntu20.04, ubuntu22.04, ubuntu24.04
-  OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
-  OS_VERSION=$(lsb_release -r -s 2>/dev/null || echo "")
+  if ! type lsb_release >/dev/null 2>&1; then
+    . /etc/os-release
+    OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
+    OS_VERSION=$(echo "$VERSION" | tr -d '"')
+  else
+    # e.g., ubuntu20.04, ubuntu22.04, ubuntu24.04
+    OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
+    OS_VERSION=$(lsb_release -r -s 2>/dev/null || echo "")
+  fi
+
   if [ "$OS_NAME" = "ubuntu" ]; then
     case "$OS_VERSION" in
       20.04|22.04|24.04)
@@ -77,6 +84,16 @@ main() {
         ;;
       *)
         echo "Ubuntu version $OS_VERSION is not supported, only 20.04, 22.04, and 24.04 are supported."
+        exit 1
+        ;;
+    esac
+  elif [ "$OS_NAME" = "amzn" ]; then
+    case "$OS_VERSION" in
+      2|2023)
+        OS_DISTRO="_${OS_NAME}${OS_VERSION}"
+        ;;
+      *)
+        echo "Amazon Linux version $OS_VERSION is not supported, only version 2, 2023 is supported."
         exit 1
         ;;
     esac
