@@ -10,6 +10,7 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/update"
 )
@@ -44,6 +45,13 @@ func (s *Session) serve() {
 			continue
 		}
 		response := &Response{}
+		if payload.Method == "reboot" {
+			cancel()
+			if err := reboot.Reboot(ctx); err != nil {
+				log.Logger.Errorf("failed to reboot machine: %v", err)
+			}
+			continue
+		}
 		switch payload.Method {
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
