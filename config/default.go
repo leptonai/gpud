@@ -70,8 +70,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		return nil, err
 	}
 
-	asRoot := stdos.Geteuid() == 0 // running as root
-
 	cfg := &Config{
 		APIVersion: DefaultAPIVersion,
 
@@ -123,17 +121,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[power_supply.Name] = nil
 	}
 
-	if runtime.GOOS == "linux" {
-		if dmesg.DmesgExists() {
-			if asRoot {
-				log.Logger.Debugw("auto-detected dmesg -- configuring dmesg component")
-				cfg.Components[dmesg.Name] = dmesg.DefaultConfig()
-			} else {
-				log.Logger.Debugw("auto-detected dmesg but running as root -- skipping")
-			}
-		}
-	} else {
-		log.Logger.Debugw("auto-detect dmesg not supported -- skipping", "os", runtime.GOOS)
+	if cc, exists := DefaultDmesgComponent(); exists {
+		cfg.Components[dmesg.Name] = cc
 	}
 
 	if runtime.GOOS == "linux" {
@@ -376,5 +365,26 @@ func DefaultK8sPodComponent(ctx context.Context) (any, bool) {
 		}
 	}
 
+	return nil, false
+}
+
+func DefaultDmesgComponent() (any, bool) {
+	if runtime.GOOS != "linux" {
+		log.Logger.Debugw("ignoring default dmesg since it's not linux", "os", runtime.GOOS)
+		return nil, false
+	}
+
+	asRoot := stdos.Geteuid() == 0 // running as root
+	if !asRoot {
+		log.Logger.Debugw("auto-detected dmesg but running as root -- skipping")
+		return nil, false
+	}
+
+	if dmesg.DmesgExists() {
+		log.Logger.Debugw("auto-detected dmesg -- configuring dmesg component")
+		return dmesg.DefaultConfig(), true
+	}
+
+	log.Logger.Debugw("dmesg does not exist -- skipping dmesg component")
 	return nil, false
 }
