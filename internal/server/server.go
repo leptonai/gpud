@@ -90,7 +90,7 @@ type Server struct {
 	enableAutoUpdate      bool
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -792,7 +792,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string) (_ *Ser
 		}
 	}
 
-	uid, _, err := state.CreateMachineIDIfNotExist(ctx, db)
+	uid, _, err := state.CreateMachineIDIfNotExist(ctx, db, cliUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create machine uid: %w", err)
 	}

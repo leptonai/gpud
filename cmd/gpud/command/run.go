@@ -88,7 +88,7 @@ func cmdRun(cliContext *cli.Context) error {
 	// we don't miss any signals during boot
 	signal.Notify(signals, handledSignals...)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"))
+	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid)
 	if err != nil {
 		return err
 	}

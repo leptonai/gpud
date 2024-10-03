@@ -26,7 +26,7 @@ func TestOpenMemory(t *testing.T) {
 	if err := CreateTable(ctx, db); err != nil {
 		t.Fatal("failed to create table:", err)
 	}
-	id, _, err := CreateMachineIDIfNotExist(ctx, db)
+	id, _, err := CreateMachineIDIfNotExist(ctx, db, "")
 	if err != nil {
 		t.Fatal("failed to create machine id:", err)
 	}
