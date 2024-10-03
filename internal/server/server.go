@@ -728,14 +728,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					if err := state.Compact(ctx, db); err != nil {
-						log.Logger.Errorw("failed to compact state database", "error", err)
-					}
-					if err := state.RecordMetrics(ctx, db); err != nil {
-						log.Logger.Errorw("failed to record metrics", "error", err)
-					}
-
 					ticker.Reset(config.RetentionPeriod.Duration)
+				}
+
+				if err := state.Compact(ctx, db); err != nil {
+					log.Logger.Errorw("failed to compact state database", "error", err)
+				}
+				if err := state.RecordMetrics(ctx, db); err != nil {
+					log.Logger.Errorw("failed to record metrics", "error", err)
 				}
 			}
 		}()
@@ -747,7 +747,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	var componentNames []string
+	componentSet := make(map[string]struct{})
 	for _, c := range allComponents {
+		componentSet[c.Name()] = struct{}{}
 		componentNames = append(componentNames, c.Name())
 		if strings.Contains(c.Name(), "nvidia") {
 			s.nvidiaComponentsExist = true
@@ -820,7 +822,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	registeredPaths := newGlobalHandler(config, components.GetAllComponents()).registerComponentRoutes(v1)
+	ghler := newGlobalHandler(config, components.GetAllComponents())
+	registeredPaths := ghler.registerComponentRoutes(v1)
 	for i := range registeredPaths {
 		registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
 	}
@@ -869,6 +872,127 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				fmt.Printf("\n\n\n\n\n%s serving %s\n\n\n\n\n", checkMark, url)
 			}()
 		}
+	}
+
+	// refresh components in case containerd, docker, or k8s kubelet starts afterwards
+	if config.RefreshComponentsInterval.Duration > 0 {
+		go func() {
+			ticker := time.NewTicker(config.RefreshComponentsInterval.Duration)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					ticker.Reset(config.RefreshComponentsInterval.Duration)
+				}
+
+				componentsToAdd := make([]components.Component, 0)
+
+				// NOTE: systemd unit update still requires gpud restarts
+				for _, name := range []string{
+					containerd_pod.Name,
+					docker_container.Name,
+					k8s_pod.Name,
+				} {
+					if _, ok := componentSet[name]; ok {
+						continue
+					}
+
+					if cc, exists := lepconfig.DefaultContainerdComponent(ctx); exists {
+						ccfg := containerd_pod.Config{Query: defaultQueryCfg}
+						if cc != nil {
+							parsed, err := containerd_pod.ParseConfig(cc, db)
+							if err != nil {
+								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
+								continue
+							}
+							ccfg = *parsed
+						}
+						if err := ccfg.Validate(); err != nil {
+							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
+							continue
+						}
+						componentsToAdd = append(componentsToAdd, containerd_pod.New(ctx, ccfg))
+					}
+
+					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx); exists {
+						ccfg := docker_container.Config{Query: defaultQueryCfg}
+						if cc != nil {
+							parsed, err := docker_container.ParseConfig(cc, db)
+							if err != nil {
+								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
+								continue
+							}
+							ccfg = *parsed
+						}
+						if err := ccfg.Validate(); err != nil {
+							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
+							continue
+						}
+						componentsToAdd = append(componentsToAdd, docker_container.New(ctx, ccfg))
+					}
+
+					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx); exists {
+						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
+						if cc != nil {
+							parsed, err := k8s_pod.ParseConfig(cc, db)
+							if err != nil {
+								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
+								continue
+							}
+							ccfg = *parsed
+						}
+						if err := ccfg.Validate(); err != nil {
+							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
+							continue
+						}
+						componentsToAdd = append(componentsToAdd, k8s_pod.New(ctx, ccfg))
+					}
+				}
+
+				if len(componentsToAdd) == 0 {
+					continue
+				}
+
+				for i := range componentsToAdd {
+					metrics.SetRegistered(componentsToAdd[i].Name())
+					componentsToAdd[i] = metrics.NewWatchableComponent(componentsToAdd[i])
+
+					// fails if already registered
+					if err := components.RegisterComponent(componentsToAdd[i].Name(), componentsToAdd[i]); err != nil {
+						log.Logger.Warnw("failed to register component", "name", componentsToAdd[i].Name(), "error", err)
+						continue
+					}
+
+					if orig, ok := componentsToAdd[i].(interface{ Unwrap() interface{} }); ok {
+						if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
+							log.Logger.Debugw("registering prometheus collectors", "component", componentsToAdd[i].Name())
+							if err := prov.RegisterCollectors(promReg, db, components_metrics_state.DefaultTableName); err != nil {
+								log.Logger.Errorw("failed to register metrics for component", "component", componentsToAdd[i].Name(), "error", err)
+							}
+						} else {
+							log.Logger.Debugw("component does not implement components.PromRegisterer", "component", componentsToAdd[i].Name())
+						}
+					} else {
+						log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", componentsToAdd[i].Name())
+					}
+				}
+
+				newComponentNames := make([]string, len(componentNames))
+				copy(newComponentNames, componentNames)
+				for _, c := range componentsToAdd {
+					newComponentNames = append(newComponentNames, c.Name())
+				}
+				if err = state.UpdateComponents(ctx, db, s.uid, strings.Join(newComponentNames, ",")); err != nil {
+					log.Logger.Errorw("failed to update components", "error", err)
+				}
+
+				ghler.componentNamesMu.Lock()
+				ghler.componentNames = newComponentNames
+				ghler.componentNamesMu.Unlock()
+			}
+		}()
 	}
 
 	go s.updateToken(ctx, db, uid, endpoint)

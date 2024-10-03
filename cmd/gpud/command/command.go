@@ -28,7 +28,8 @@ var (
 
 	pprof bool
 
-	retentionPeriod time.Duration
+	retentionPeriod           time.Duration
+	refreshComponentsInterval time.Duration
 
 	webEnable        bool
 	webAdmin         bool
@@ -156,6 +157,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
 					Destination: &retentionPeriod,
 					Value:       config.DefaultRetentionPeriod.Duration,
+				},
+				&cli.DurationFlag{
+					Name:        "refresh-components-interval",
+					Usage:       "set the time period to refresh selected components",
+					Destination: &refreshComponentsInterval,
+					Value:       config.DefaultRefreshComponentsInterval.Duration,
 				},
 				&cli.BoolTFlag{
 					Name:        "web-enable",

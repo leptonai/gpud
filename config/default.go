@@ -59,8 +59,9 @@ const (
 )
 
 var (
-	DefaultRefreshPeriod   = metav1.Duration{Duration: time.Minute}
-	DefaultRetentionPeriod = metav1.Duration{Duration: 30 * time.Minute}
+	DefaultRefreshPeriod             = metav1.Duration{Duration: time.Minute}
+	DefaultRetentionPeriod           = metav1.Duration{Duration: 30 * time.Minute}
+	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
 )
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
@@ -90,8 +91,9 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			os.Name:     nil,
 		},
 
-		RetentionPeriod: DefaultRetentionPeriod,
-		Pprof:           false,
+		RetentionPeriod:           DefaultRetentionPeriod,
+		RefreshComponentsInterval: DefaultRefreshComponentsInterval,
+		Pprof:                     false,
 
 		Web: &Web{
 			Enable:        true,
@@ -107,69 +109,14 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[file.Name] = options.filesToCheck
 	}
 
-	if runtime.GOOS == "linux" {
-		containerdSocketExists := false
-		containerdRunning := false
-
-		if _, err := stdos.Stat(containerd_pod.DefaultSocketFile); err == nil {
-			log.Logger.Debugw("containerd default socket file exists, containerd installed", "file", containerd_pod.DefaultSocketFile)
-			containerdSocketExists = true
-		} else {
-			log.Logger.Debugw("containerd default socket file does not exist, skip containerd check", "file", containerd_pod.DefaultSocketFile, "error", err)
-		}
-
-		cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
-		defer ccancel()
-		if _, _, conn, err := containerd_pod.Connect(cctx, containerd_pod.DefaultContainerRuntimeEndpoint); err == nil {
-			log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint)
-			containerdRunning = true
-			_ = conn.Close()
-		} else {
-			log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint, "error", err)
-		}
-
-		if containerdSocketExists && containerdRunning {
-			log.Logger.Debugw("auto-detected containerd -- configuring containerd pod component")
-			cfg.Components[containerd_pod.Name] = containerd_pod.Config{
-				Query:    query_config.DefaultConfig(),
-				Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
-			}
-		}
-	} else {
-		log.Logger.Debugw("ignoring default containerd pod checking since it's not linux", "os", runtime.GOOS)
+	if cc, exists := DefaultDockerContainerComponent(ctx); exists {
+		cfg.Components[docker_container.Name] = cc
 	}
-
-	if runtime.GOOS == "linux" {
-		// check if the TCP port is open/used
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", k8s_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
-		if err != nil {
-			log.Logger.Debugw("tcp port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", err)
-		} else {
-			log.Logger.Debugw("tcp port is open", "port", k8s_pod.DefaultKubeletReadOnlyPort)
-			conn.Close()
-
-			kerr := k8s_pod.CheckKubeletReadOnlyPort(ctx, k8s_pod.DefaultKubeletReadOnlyPort)
-			// check
-			if kerr != nil {
-				log.Logger.Debugw("kubelet readonly port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", kerr)
-			} else {
-				log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", k8s_pod.DefaultKubeletReadOnlyPort)
-
-				// "k8s_pod" requires kubelet read-only port
-				// assume if kubelet is running, it opens the most common read-only port 10255
-				cfg.Components[k8s_pod.Name] = k8s_pod.Config{
-					Query: query_config.DefaultConfig(),
-					Port:  k8s_pod.DefaultKubeletReadOnlyPort,
-				}
-			}
-		}
-	} else {
-		log.Logger.Debugw("ignoring default kubelet checking since it's not linux", "os", runtime.GOOS)
+	if cc, exists := DefaultContainerdComponent(ctx); exists {
+		cfg.Components[containerd_pod.Name] = cc
 	}
-
-	if docker_container.IsDockerRunning() {
-		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
-		cfg.Components[docker_container.Name] = nil
+	if cc, exists := DefaultK8sPodComponent(ctx); exists {
+		cfg.Components[k8s_pod.Name] = cc
 	}
 
 	if _, err := stdos.Stat(power_supply.DefaultBatteryCapacityFile); err == nil {
@@ -350,4 +297,84 @@ func DefaultFifoFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(f, "gpud.fifo"), nil
+}
+
+func DefaultContainerdComponent(ctx context.Context) (any, bool) {
+	if runtime.GOOS != "linux" {
+		log.Logger.Debugw("ignoring default containerd pod checking since it's not linux", "os", runtime.GOOS)
+		return nil, false
+	}
+
+	containerdSocketExists := false
+	containerdRunning := false
+
+	if _, err := stdos.Stat(containerd_pod.DefaultSocketFile); err == nil {
+		log.Logger.Debugw("containerd default socket file exists, containerd installed", "file", containerd_pod.DefaultSocketFile)
+		containerdSocketExists = true
+	} else {
+		log.Logger.Debugw("containerd default socket file does not exist, skip containerd check", "file", containerd_pod.DefaultSocketFile, "error", err)
+	}
+
+	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
+	defer ccancel()
+
+	if _, _, conn, err := containerd_pod.Connect(cctx, containerd_pod.DefaultContainerRuntimeEndpoint); err == nil {
+		log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint)
+		containerdRunning = true
+		_ = conn.Close()
+	} else {
+		log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint, "error", err)
+	}
+
+	if containerdSocketExists && containerdRunning {
+		log.Logger.Debugw("auto-detected containerd -- configuring containerd pod component")
+		return containerd_pod.Config{
+			Query:    query_config.DefaultConfig(),
+			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
+		}, true
+	}
+	return nil, false
+}
+
+func DefaultDockerContainerComponent(ctx context.Context) (any, bool) {
+	if docker_container.IsDockerRunning() {
+		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
+		return docker_container.Config{
+			Query: query_config.DefaultConfig(),
+		}, true
+	}
+	return nil, false
+}
+
+func DefaultK8sPodComponent(ctx context.Context) (any, bool) {
+	if runtime.GOOS != "linux" {
+		log.Logger.Debugw("ignoring default kubelet checking since it's not linux", "os", runtime.GOOS)
+		return nil, false
+	}
+
+	// check if the TCP port is open/used
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", k8s_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
+	if err != nil {
+		log.Logger.Debugw("tcp port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", err)
+	} else {
+		log.Logger.Debugw("tcp port is open", "port", k8s_pod.DefaultKubeletReadOnlyPort)
+		conn.Close()
+
+		kerr := k8s_pod.CheckKubeletReadOnlyPort(ctx, k8s_pod.DefaultKubeletReadOnlyPort)
+		// check
+		if kerr != nil {
+			log.Logger.Debugw("kubelet readonly port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", kerr)
+		} else {
+			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", k8s_pod.DefaultKubeletReadOnlyPort)
+
+			// "k8s_pod" requires kubelet read-only port
+			// assume if kubelet is running, it opens the most common read-only port 10255
+			return k8s_pod.Config{
+				Query: query_config.DefaultConfig(),
+				Port:  k8s_pod.DefaultKubeletReadOnlyPort,
+			}, true
+		}
+	}
+
+	return nil, false
 }

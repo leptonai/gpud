@@ -33,6 +33,10 @@ type Config struct {
 	// Once elapsed, old states/metrics are purged/compacted.
 	RetentionPeriod metav1.Duration `json:"retention_period"`
 
+	// Interval at which to refresh selected components.
+	// Disables refresh if not set.
+	RefreshComponentsInterval metav1.Duration `json:"refresh_components_interval"`
+
 	// Set true to enable profiler.
 	Pprof bool `json:"pprof"`
 
@@ -64,6 +68,9 @@ func (config *Config) Validate() error {
 	}
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
+	}
+	if config.RefreshComponentsInterval.Duration < time.Minute {
+		return fmt.Errorf("refresh_components_interval must be at least 1 minute, got %d", config.RefreshComponentsInterval.Duration)
 	}
 	if config.Web != nil && config.Web.RefreshPeriod.Duration < time.Minute {
 		return fmt.Errorf("web_refresh_period must be at least 1 minute, got %d", config.Web.RefreshPeriod.Duration)

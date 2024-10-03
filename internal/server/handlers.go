@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	lep_components "github.com/leptonai/gpud/components"
@@ -17,9 +18,11 @@ import (
 )
 
 type globalHandler struct {
-	cfg            *lep_config.Config
-	components     map[string]lep_components.Component
-	componentNames []string
+	cfg        *lep_config.Config
+	components map[string]lep_components.Component
+
+	componentNamesMu sync.RWMutex
+	componentNames   []string
 }
 
 func newGlobalHandler(cfg *lep_config.Config, components map[string]lep_components.Component) *globalHandler {
@@ -61,6 +64,8 @@ func (g *globalHandler) getReqTime(c *gin.Context) (time.Time, time.Time, error)
 func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 	components := c.Query("components")
 	if components == "" {
+		g.componentNamesMu.RLock()
+		defer g.componentNamesMu.RUnlock()
 		return g.componentNames, nil
 	}
 
