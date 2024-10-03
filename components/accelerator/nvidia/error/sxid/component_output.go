@@ -8,12 +8,21 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
+	"github.com/leptonai/gpud/components/common"
 
 	"sigs.k8s.io/yaml"
 )
 
 type Output struct {
 	DmesgErrors []nvidia_query_sxid.DmesgError `json:"dmesg_errors,omitempty"`
+
+	// Recommended course of actions for any of the GPUs with a known issue.
+	// For individual GPU details, see each per-GPU states.
+	// Used for states calls.
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
+
+	// Used for events calls.
+	SuggestedActionsPerLogLine map[string]*common.SuggestedActions `json:"suggested_actions_per_log_line,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -98,6 +107,10 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
+	if o.SuggestedActions != nil {
+		state.SuggestedActions = o.SuggestedActions
+	}
+
 	return []components.State{state}, nil
 }
 
@@ -114,6 +127,12 @@ func (o *Output) Events() []components.Event {
 	des := make([]components.Event, 0)
 	for _, de := range o.DmesgErrors {
 		b, _ := de.JSON()
+
+		var actions *common.SuggestedActions = nil
+		if o.SuggestedActionsPerLogLine != nil {
+			actions = o.SuggestedActionsPerLogLine[de.LogItem.Line]
+		}
+
 		des = append(des, components.Event{
 			Time: de.LogItem.Time,
 			Name: EventNameErroSXid,
@@ -122,6 +141,7 @@ func (o *Output) Events() []components.Event {
 				EventKeyErroSXidData:        string(b),
 				EventKeyErroSXidEncoding:    StateValueErrorSXidEncodingJSON,
 			},
+			SuggestedActions: actions,
 		})
 	}
 	if len(des) == 0 {

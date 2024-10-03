@@ -27,7 +27,7 @@ type Detail struct {
 	ThermalIssue           bool   `json:"thermal_issue"`
 	FBCorruption           bool   `json:"fb_corruption"`
 
-	RequiredActions common.RequiredActions `json:"required_actions"`
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 // Returns the error if found.
@@ -689,9 +689,13 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error
-		RequiredActions: common.RequiredActions{
-			ResetGPU:     true,
-			RebootSystem: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"GPU reset required due to XID 48 (double bit ECC error).",
+			},
 		},
 	},
 	49: {
@@ -1059,7 +1063,9 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 		XID:             74,
 		Name:            "NVLINK Error",
 		Description: `
-This event is logged when the GPU detects that a problem with a connection from the GPU to another GPU or NVSwitch over NVLink. A GPU reset or node reboot is needed to clear this error.
+This event is logged when the GPU detects that a problem with a connection from the GPU to another GPU or NVSwitch over NVLink.
+
+A GPU reset or node reboot is needed to clear this error.
 
 This event may indicate a hardware failure with the link itself, or may indicate a problem with the device at the remote end of the link. For example, if a GPU fails, another GPU connected to it over NVLink may report an Xid 74 simply because the link went down as a result.
 
@@ -1085,9 +1091,15 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 
 		// "A GPU reset or node reboot is needed to clear this error."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error
-		RequiredActions: common.RequiredActions{
-			ResetGPU:     true,
-			RebootSystem: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"GPU reset or node reboot is needed to clear this error.",
+				"If this error is seen repeatedly, contact hardware vendor to check the physical link.",
+			},
 		},
 	},
 	75: {
@@ -1149,7 +1161,9 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 		Description: `
 This event is logged when the GPU driver attempts to access the GPU over its PCI Express connection and finds that the GPU is not accessible.
 
-This event is often caused by hardware failures on the PCI Express link causing the GPU to be inaccessible due to the link being brought down. Reviewing system event logs and kernel PCI event logs may provide additional indications of the source of the link failures.
+This event is often caused by hardware failures on the PCI Express link causing the GPU to be inaccessible due to the link being brought down.
+
+Reviewing system event logs and kernel PCI event logs may provide additional indications of the source of the link failures.
 
 This event may also be cause by failing GPU hardware or other driver issues.
 `,
@@ -1160,6 +1174,16 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		BusError:               true,
 		ThermalIssue:           true,
 		FBCorruption:           false,
+
+		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"GPU not accessible due to failing hardware ('GPU has fallen off the bus') -- check with the data center.",
+			},
+		},
 	},
 	80: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1356,7 +1380,11 @@ This XID indicates a contained ECC error has occurred.
 
 These events are logged when GPU drivers handle errors in GPUs that support error containment, starting with NVIDIA® A100 GPUs.
 
-For Xid 94, these errors are contained to one application, and the application that encountered this error must be restarted. All other applications running at the time of the Xid are unaffected. It is recommended to reset the GPU when convenient. Applications can continue to be run until the reset can be performed.
+For Xid 94, these errors are contained to one application, and the application that encountered this error must be restarted.
+
+All other applications running at the time of the Xid are unaffected.
+
+It is recommended to reset the GPU when convenient. Applications can continue to be run until the reset can be performed.
 
 (A100 only)
 
@@ -1374,8 +1402,13 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 
 		// "recommended to reset the GPU when convenient"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiredActions: common.RequiredActions{
-			ResetGPU: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"GPU reset or system reboot is recommended when convenient, to clear the contained ECC error.",
+			},
 		},
 	},
 	95: {
@@ -1410,8 +1443,15 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 
 		// "the affected GPU must be reset before applications can restart."
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
-		RequiredActions: common.RequiredActions{
-			ResetGPU: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"GPU reset or system reboot is needed to clear this uncontained ECC error. If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.",
+				"If the errors continue, drain the node and contact the hardware vendor for assistance.",
+			},
 		},
 	},
 	96: {
@@ -1610,8 +1650,13 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 		FBCorruption:           false,
 
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-110-security-fault-error
-		RequiredActions: common.RequiredActions{
-			RebootSystem: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"This event should be uncommon unless there is a hardware failure.",
+			},
 		},
 	},
 	111: {
@@ -1995,8 +2040,15 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		// "Reset the GPU, and if the problem persists, contact your hardware vendor for support"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error
-		RequiredActions: common.RequiredActions{
-			ResetGPU: true,
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"Reset the GPU in case the row remapping is pending.",
+				"Requires hardware vendor support if the problem persists after reboot.",
+			},
 		},
 	},
 	141: {

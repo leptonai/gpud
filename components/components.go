@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/components/common"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	"github.com/leptonai/gpud/errdefs"
 
@@ -71,6 +72,8 @@ type State struct {
 	Reason    string            `json:"reason,omitempty"`     // a detailed and processed reason on why the component is not healthy
 	Error     string            `json:"error,omitempty"`      // the unprocessed error returned from the component
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
+
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 type Event struct {
@@ -79,6 +82,8 @@ type Event struct {
 	Type      string            `json:"type,omitempty"`       // optional: ErrCritical, ErrWarning, Info, Resolution, ...
 	Message   string            `json:"message,omitempty"`    // detailed message of the event
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
+
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 const (

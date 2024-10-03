@@ -9,6 +9,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 )
 
@@ -32,12 +33,60 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
+
+			rma, err := parsed.QualifiesForRMA()
+			if err != nil {
+				log.Logger.Warnw("failed to determine if GPU qualifies for RMA", "error", err)
+				continue
+			}
+			if rma {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
+				}
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors))
+			}
+
+			requiresReset, err := parsed.RequiresReset()
+			if err != nil {
+				log.Logger.Warnw("failed to determine if GPU needs reset", "error", err)
+				continue
+			}
+			if requiresReset {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
+				}
+
+				// for now, when we need GPU reset, we recommend simple reboot
+				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
+
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset))
+			}
 		}
 	}
 
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.RemappedRowsNVML = append(o.RemappedRowsNVML, device.RemappedRows)
+
+			rma := device.RemappedRows.QualifiesForRMA()
+			if rma {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
+				}
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed))
+			}
+
+			requiresReset := device.RemappedRows.RequiresReset()
+			if requiresReset {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
+				}
+
+				// for now, when we need GPU reset, we recommend simple reboot
+				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
+
+				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset))
+			}
 		}
 	}
 
@@ -48,6 +97,10 @@ type Output struct {
 	MemoryErrorManagementCapabilities nvidia_query.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	RemappedRowsSMI                   []nvidia_query.ParsedSMIRemappedRows           `json:"remapped_rows_smi"`
 	RemappedRowsNVML                  []nvidia_query_nvml.RemappedRows               `json:"remapped_rows_nvml"`
+
+	// Recommended course of actions for any of the GPUs with a known issue.
+	// For individual GPU details, see each per-GPU states.
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -164,5 +217,10 @@ func (o *Output) States() ([]components.State, error) {
 			StateKeyRemappedRowsEncoding: StateValueRemappedRowsEncodingJSON,
 		},
 	}
+
+	if o.SuggestedActions != nil {
+		state.SuggestedActions = o.SuggestedActions
+	}
+
 	return []components.State{state}, nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/log"
 )
@@ -61,6 +62,13 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+			if o.SuggestedActions == nil {
+				o.SuggestedActions = &common.SuggestedActions{}
+			}
+			o.SuggestedActions.Add(ev.Detail.SuggestedActions)
+		}
 	}
 	return o.States()
 }
@@ -101,6 +109,13 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+			if o.SuggestedActionsPerLogLine == nil {
+				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
+			}
+			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActions
+		}
 	}
 	return o.Events(), nil
 }

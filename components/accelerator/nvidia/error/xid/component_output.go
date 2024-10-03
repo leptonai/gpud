@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	"github.com/leptonai/gpud/components/common"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 
@@ -20,6 +21,14 @@ import (
 type Output struct {
 	DmesgErrors  []nvidia_query_xid.DmesgError `json:"dmesg_errors,omitempty"`
 	NVMLXidEvent *nvidia_query_nvml.XidEvent   `json:"nvml_xid_event,omitempty"`
+
+	// Recommended course of actions for any of the GPUs with a known issue.
+	// For individual GPU details, see each per-GPU states.
+	// Used for states calls.
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
+
+	// Used for events calls.
+	SuggestedActionsPerLogLine map[string]*common.SuggestedActions `json:"suggested_actions_per_log_line,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -145,6 +154,11 @@ func (o *Output) States() ([]components.State, error) {
 			StateKeyErrorXidEncoding: StateValueErrorXidEncodingJSON,
 		},
 	}
+
+	if o.SuggestedActions != nil {
+		state.SuggestedActions = o.SuggestedActions
+	}
+
 	return []components.State{state}, nil
 }
 
@@ -161,6 +175,12 @@ func (o *Output) Events() []components.Event {
 	des := make([]components.Event, 0)
 	for _, de := range o.DmesgErrors {
 		b, _ := de.JSON()
+
+		var actions *common.SuggestedActions = nil
+		if o.SuggestedActionsPerLogLine != nil {
+			actions = o.SuggestedActionsPerLogLine[de.LogItem.Line]
+		}
+
 		des = append(des, components.Event{
 			Time: de.LogItem.Time,
 			Name: EventNameErroXid,
@@ -169,6 +189,7 @@ func (o *Output) Events() []components.Event {
 				EventKeyErroXidData:        string(b),
 				EventKeyErroXidEncoding:    StateValueErrorXidEncodingJSON,
 			},
+			SuggestedActions: actions,
 		})
 	}
 	if len(des) == 0 {

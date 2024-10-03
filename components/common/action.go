@@ -1,11 +1,78 @@
 package common
 
-// RequiredAction represents a set of required actions to mitigate an issue.
-// Each field is independent, and it's up to the caller to determine the best course of action.
-// e.g., if both ResetGPU and Reboot are true, the caller may just reboot the system skipping the reset.
-type RequiredActions struct {
-	// Set to true if the error requires a GPU reset.
-	ResetGPU bool `json:"reset_gpu"`
-	// Set to true if the error requires a system reboot.
-	RebootSystem bool `json:"reboot_system"`
+type RepairActionType string
+
+const (
+	// RepairActionTypeRebootSystem represents a suggested action to reboot the system.
+	// Specific to NVIDIA GPUs, this implies GPU reset by rebooting the system.
+	RepairActionTypeRebootSystem RepairActionType = "REBOOT_SYSTEM"
+
+	// RepairActionTypeRepairHardware represents a suggested action to repair the hardware, externally.
+	// This often involves data center (or cloud provider) support to physically check/repair the machine.
+	RepairActionTypeRepairHardware RepairActionType = "REPAIR_HARDWARE"
+)
+
+// SuggestedActions represents a set of suggested actions to mitigate an issue.
+type SuggestedActions struct {
+	// A list of repair actions to mitigate the issue.
+	RepairActions []RepairActionType `json:"repair_actions"`
+
+	// A list of descriptions for the suggested actions.
+	Descriptions []string `json:"descriptions"`
+}
+
+func (s *SuggestedActions) RequiresReboot() bool {
+	if s == nil {
+		return false
+	}
+	if len(s.RepairActions) == 0 {
+		return false
+	}
+	for _, action := range s.RepairActions {
+		if action == RepairActionTypeRebootSystem {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SuggestedActions) RequiresRepair() bool {
+	if s == nil {
+		return false
+	}
+	if len(s.RepairActions) == 0 {
+		return false
+	}
+	for _, action := range s.RepairActions {
+		if action == RepairActionTypeRepairHardware {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SuggestedActions) Add(other *SuggestedActions) {
+	if other == nil {
+		return
+	}
+
+	existingActions := make(map[RepairActionType]struct{})
+	for _, action := range s.RepairActions {
+		existingActions[action] = struct{}{}
+	}
+	for _, action := range other.RepairActions {
+		if _, ok := existingActions[action]; !ok {
+			s.RepairActions = append(s.RepairActions, action)
+		}
+	}
+
+	existingDescriptions := make(map[string]struct{})
+	for _, description := range s.Descriptions {
+		existingDescriptions[description] = struct{}{}
+	}
+	for _, description := range other.Descriptions {
+		if _, ok := existingDescriptions[description]; !ok {
+			s.Descriptions = append(s.Descriptions, description)
+		}
+	}
 }

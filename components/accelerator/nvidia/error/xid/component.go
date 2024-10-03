@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -78,6 +79,13 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+			if o.SuggestedActions == nil {
+				o.SuggestedActions = &common.SuggestedActions{}
+			}
+			o.SuggestedActions.Add(ev.Detail.SuggestedActions)
+		}
 	}
 
 	last, err := c.poller.Last()
@@ -87,12 +95,20 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last == nil || last.Output == nil { // no data
 		log.Logger.Debugw("no xid data -- this is normal when nvml has not received any registered xid events yet")
 	} else {
-		xidEvent, ok := last.Output.(*nvidia_query_nvml.XidEvent)
+		ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
 		if !ok {
 			return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
 		}
-		if xidEvent != nil && xidEvent.Xid > 0 {
-			o.NVMLXidEvent = xidEvent
+		if ev != nil {
+			if ev.Xid > 0 {
+				o.NVMLXidEvent = ev
+			}
+			if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+				if o.SuggestedActions == nil {
+					o.SuggestedActions = &common.SuggestedActions{}
+				}
+				o.SuggestedActions.Add(ev.Detail.SuggestedActions)
+			}
 		}
 	}
 
@@ -135,6 +151,13 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
+
+		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+			if o.SuggestedActionsPerLogLine == nil {
+				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
+			}
+			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActions
+		}
 	}
 	return o.Events(), nil
 }
