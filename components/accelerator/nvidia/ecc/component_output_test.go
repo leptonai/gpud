@@ -73,6 +73,9 @@ func TestToOutput(t *testing.T) {
 				},
 			},
 			expected: &Output{
+				ECCModes: []nvidia_query_nvml.ECCMode{
+					{},
+				},
 				ErrorCountsNVML: []nvidia_query_nvml.ECCErrors{
 					{
 						Volatile: nvidia_query_nvml.AllECCErrorCounts{
@@ -91,7 +94,7 @@ func TestToOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ToOutput(tt.input)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("ToOutput()\n%+v\n\nwant\n%+v", result.VolatileUncorrectedErrors, tt.expected.VolatileUncorrectedErrors)
+				t.Errorf("ToOutput()\n%+v\n\nwant\n%+v", result, tt.expected)
 			}
 
 			b, err := result.JSON()
