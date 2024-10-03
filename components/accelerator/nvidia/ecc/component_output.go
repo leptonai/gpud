@@ -78,22 +78,22 @@ func ParseOutputJSON(data []byte) (*Output, error) {
 }
 
 const (
-	StateNameECCErrors = "ecc_errors"
+	StateNameECC = "ecc"
 
-	StateKeyECCErrorsData           = "data"
-	StateKeyECCErrorsEncoding       = "encoding"
-	StateValueECCErrorsEncodingJSON = "json"
+	StateKeyECCData           = "data"
+	StateKeyECCEncoding       = "encoding"
+	StateValueECCEncodingJSON = "json"
 )
 
 func ParseStateECCErrors(m map[string]string) (*Output, error) {
-	data := m[StateKeyECCErrorsData]
+	data := m[StateKeyECCData]
 	return ParseOutputJSON([]byte(data))
 }
 
 func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	for _, state := range states {
 		switch state.Name {
-		case StateNameECCErrors:
+		case StateNameECC:
 			o, err := ParseStateECCErrors(state.ExtraInfo)
 			if err != nil {
 				return nil, err
@@ -121,12 +121,12 @@ func (o *Output) States() ([]components.State, error) {
 
 	b, _ := o.JSON()
 	state := components.State{
-		Name:    StateNameECCErrors,
+		Name:    StateNameECC,
 		Healthy: len(o.VolatileUncorrectedErrors) == 0,
 		Reason:  reasons,
 		ExtraInfo: map[string]string{
-			StateKeyECCErrorsData:     string(b),
-			StateKeyECCErrorsEncoding: StateValueECCErrorsEncodingJSON,
+			StateKeyECCData:     string(b),
+			StateKeyECCEncoding: StateValueECCEncodingJSON,
 		},
 	}
 	return []components.State{state}, nil

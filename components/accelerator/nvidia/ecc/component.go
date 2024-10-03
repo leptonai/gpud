@@ -1,4 +1,4 @@
-// Package ecc tracks the NVIDIA per-GPU ECC errors.
+// Package ecc tracks the NVIDIA per-GPU ECC errors and other ECC related information.
 package ecc
 
 import (
