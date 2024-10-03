@@ -14,8 +14,7 @@ import (
 )
 
 type Op struct {
-	useSystemctl             bool
-	fileToCreateBeforeReboot string
+	useSystemctl bool
 }
 
 type OpOption func(*Op)
@@ -35,13 +34,6 @@ func WithSystemctl(b bool) OpOption {
 	}
 }
 
-// Specifies a file to create before rebooting.
-func WithFileToCreateBeforeReboot(file string) OpOption {
-	return func(op *Op) {
-		op.fileToCreateBeforeReboot = file
-	}
-}
-
 var ErrNotRoot = errors.New("must be run as sudo/root")
 
 // Reboots the system.
@@ -54,14 +46,6 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 	asRoot := stdos.Geteuid() == 0 // running as root
 	if !asRoot {
 		return ErrNotRoot
-	}
-
-	if options.fileToCreateBeforeReboot != "" {
-		f, err := stdos.OpenFile(options.fileToCreateBeforeReboot, stdos.O_CREATE|stdos.O_WRONLY|stdos.O_TRUNC, 0o644)
-		if err != nil {
-			return fmt.Errorf("failed to create file %s: %w", options.fileToCreateBeforeReboot, err)
-		}
-		_ = f.Close()
 	}
 
 	// "sudo shutdown -r +1" does not work
