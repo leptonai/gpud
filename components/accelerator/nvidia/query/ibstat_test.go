@@ -2,10 +2,9 @@ package query
 
 import "testing"
 
-func TestValidateIbstatOutputBrokenCase(t *testing.T) {
+func TestValidateIbstatOutputErrIbstatOutputBrokenStateDown(t *testing.T) {
 	t.Parallel()
 
-	// This case was found in https://github.com/leptonai/lepton/issues/7521
 	outputWithErr := `
 
 CA 'mlx5_11'
@@ -27,8 +26,37 @@ CA 'mlx5_11'
 		Link layer: Ethernet
 	`
 	err := ValidateIbstatOutput(outputWithErr)
-	if err == nil {
-		t.Errorf("broken ibstat output passed validation")
+	if err != ErrIbstatOutputBrokenStateDown {
+		t.Errorf("ibstat output did not pass validation")
+	}
+}
+
+func TestValidateIbstatOutputErrIbstatOutputBrokenPhysicalDisabled(t *testing.T) {
+	t.Parallel()
+
+	outputWithErr := `
+
+CA 'mlx5_11'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.1002
+	Hardware version: 0
+	Node GUID: 0xa088c20300bb3514
+	System image GUID: 0xa088c20300bb3514
+	Port 1:
+		State: Active
+		Physical state: Disabled
+		Rate: 40
+		Base lid: 0
+		LMC: 0
+		SM lid: 0
+		Capability mask: 0x00010000
+		Port GUID: 0x0000000000000000
+		Link layer: Ethernet
+	`
+	err := ValidateIbstatOutput(outputWithErr)
+	if err != ErrIbstatOutputBrokenPhysicalDisabled {
+		t.Errorf("ibstat output did not pass validation")
 	}
 }
 
