@@ -36,6 +36,13 @@ func TestSuggestedActions_RequiresReboot(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "requires check user app and GPU",
+			sa: SuggestedActions{
+				RepairActions: []RepairActionType{RepairActionTypeCheckUserAppAndGPU},
+			},
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
