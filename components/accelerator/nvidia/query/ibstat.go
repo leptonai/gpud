@@ -43,7 +43,7 @@ func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
 
 var (
 	ErrIbstatOutputBrokenStateDown        = errors.New("ibstat output unexpected; found State: Down")
-	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output seems broken; found Physical state: Disabled")
+	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output unexpected; found Physical state: Disabled")
 )
 
 func ValidateIbstatOutput(s string) error {
