@@ -46,7 +46,20 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
 
 		for _, lib := range defaultNVIDIALibraries {
-			libPath, err := file.FindLibrary(lib)
+			libPath, err := file.FindLibrary(lib, file.WithSearchDirs(
+				// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
+				"/",
+				"/usr/lib64",
+				"/usr/lib/x86_64-linux-gnu",
+				"/usr/lib/aarch64-linux-gnu",
+				"/usr/lib/x86_64-linux-gnu/nvidia/current",
+				"/usr/lib/aarch64-linux-gnu/nvidia/current",
+				"/lib64",
+				"/lib/x86_64-linux-gnu",
+				"/lib/aarch64-linux-gnu",
+				"/lib/x86_64-linux-gnu/nvidia/current",
+				"/lib/aarch64-linux-gnu/nvidia/current",
+			))
 			if err != nil {
 				log.Logger.Warnw("error finding library", "library", lib, "error", err)
 			} else {

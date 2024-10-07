@@ -76,6 +76,20 @@ var (
 		// typically symlinked to "libcuda.so.1" or "libcuda.so.535.183.06"
 		"libcuda.so",
 	}
+	DefaultNVIDIALibrariesSearchDirs = []string{
+		// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
+		"/",
+		"/usr/lib64",
+		"/usr/lib/x86_64-linux-gnu",
+		"/usr/lib/aarch64-linux-gnu",
+		"/usr/lib/x86_64-linux-gnu/nvidia/current",
+		"/usr/lib/aarch64-linux-gnu/nvidia/current",
+		"/lib64",
+		"/lib/x86_64-linux-gnu",
+		"/lib/aarch64-linux-gnu",
+		"/lib/x86_64-linux-gnu/nvidia/current",
+		"/lib/aarch64-linux-gnu/nvidia/current",
+	}
 )
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
@@ -233,7 +247,10 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_utilization.Name] = nil
 		cfg.Components[nvidia_processes.Name] = nil
 		cfg.Components[nvidia_remapped_rows.Name] = nil
-		cfg.Components[library.Name] = DefaultNVIDIALibraries
+		cfg.Components[library.Name] = library.Config{
+			Libraries:  DefaultNVIDIALibraries,
+			SearchDirs: DefaultNVIDIALibrariesSearchDirs,
+		}
 
 		// optional
 		cfg.Components[nvidia_fabric_manager.Name] = nil

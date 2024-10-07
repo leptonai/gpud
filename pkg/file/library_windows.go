@@ -3,7 +3,7 @@
 
 package file
 
-func findLibrary(name string) (string, error) {
+func findLibrary(_ map[string]any, name string) (string, error) {
 	if name == "" {
 		return "", ErrLibraryEmpty
 	}

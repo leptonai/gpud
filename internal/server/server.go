@@ -283,11 +283,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case library.Name:
 			if configValue != nil {
-				libs, ok := configValue.([]string)
+				libCfg, ok := configValue.(library.Config)
 				if !ok {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
-				allComponents = append(allComponents, library.New(libs))
+				allComponents = append(allComponents, library.New(libCfg))
 			}
 
 		case info.Name:

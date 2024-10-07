@@ -13,18 +13,39 @@ import (
 
 const Name = "library"
 
-func New(libs []string) components.Component {
+type Config struct {
+	Libraries  []string
+	SearchDirs []string
+}
+
+func New(cfg Config) components.Component {
 	libraries := make(map[string]any)
-	for _, lib := range libs {
+	for _, lib := range cfg.Libraries {
 		libraries[lib] = struct{}{}
 	}
-	return &component{libraries: libraries}
+
+	searchDirs := make(map[string]any)
+	for _, dir := range cfg.SearchDirs {
+		searchDirs[dir] = struct{}{}
+	}
+	searchOpts := []file.OpOption{}
+	for dir := range searchDirs {
+		searchOpts = append(searchOpts, file.WithSearchDirs(dir))
+	}
+
+	return &component{
+		libraries:  libraries,
+		searchDirs: searchDirs,
+		searchOpts: searchOpts,
+	}
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	libraries map[string]any
+	libraries  map[string]any
+	searchDirs map[string]any
+	searchOpts []file.OpOption
 }
 
 func (c *component) Name() string { return Name }
@@ -32,7 +53,7 @@ func (c *component) Name() string { return Name }
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	unhealthy := []components.State{}
 	for lib := range c.libraries {
-		resolved, err := file.FindLibrary(lib)
+		resolved, err := file.FindLibrary(lib, c.searchOpts...)
 		if err != nil {
 			return nil, err
 		}

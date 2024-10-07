@@ -30,23 +30,19 @@ var libSearchDirs = []string{
 	"/usr/lib64",
 	"/usr/lib/x86_64-linux-gnu",
 	"/usr/lib/aarch64-linux-gnu",
-	"/usr/lib/x86_64-linux-gnu/nvidia/current",
-	"/usr/lib/aarch64-linux-gnu/nvidia/current",
 	"/lib64",
 	"/lib/x86_64-linux-gnu",
 	"/lib/aarch64-linux-gnu",
-	"/lib/x86_64-linux-gnu/nvidia/current",
-	"/lib/aarch64-linux-gnu/nvidia/current",
 }
 
 // Returns the resolved path of the library if found.
 // Returns an empty string and no error if not found.
-func findLibrary(name string) (string, error) {
+func findLibrary(searchDirs map[string]any, name string) (string, error) {
 	if name == "" {
 		return "", ErrLibraryEmpty
 	}
 
-	for _, dir := range libSearchDirs {
+	for dir := range searchDirs {
 		libPath := filepath.Join(dir, name)
 		if _, err := os.Stat(libPath); err != nil {
 			if !os.IsNotExist(err) {
