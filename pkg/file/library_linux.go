@@ -25,13 +25,18 @@ import (
 )
 
 // ref. "github.com/NVIDIA/go-nvml/pkg/nvlib/info/root.go"
+// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
 var libSearchDirs = []string{
 	"/usr/lib64",
 	"/usr/lib/x86_64-linux-gnu",
 	"/usr/lib/aarch64-linux-gnu",
+	"/usr/lib/x86_64-linux-gnu/nvidia/current",
+	"/usr/lib/aarch64-linux-gnu/nvidia/current",
 	"/lib64",
 	"/lib/x86_64-linux-gnu",
 	"/lib/aarch64-linux-gnu",
+	"/lib/x86_64-linux-gnu/nvidia/current",
+	"/lib/aarch64-linux-gnu/nvidia/current",
 }
 
 // Returns the resolved path of the library if found.
