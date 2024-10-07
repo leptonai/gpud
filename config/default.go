@@ -38,6 +38,7 @@ import (
 	"github.com/leptonai/gpud/components/file"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/components/os"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
@@ -63,6 +64,18 @@ var (
 	DefaultRefreshPeriod             = metav1.Duration{Duration: time.Minute}
 	DefaultRetentionPeriod           = metav1.Duration{Duration: 30 * time.Minute}
 	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
+)
+
+var (
+	DefaultNVIDIALibraries = []string{
+		// core library for NVML
+		// typically symlinked to "libnvidia-ml.so.1" or "libnvidia-ml.so.535.183.06"
+		"libnvidia-ml.so",
+
+		// core library for CUDA support
+		// typically symlinked to "libcuda.so.1" or "libcuda.so.535.183.06"
+		"libcuda.so",
+	}
 )
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
@@ -163,70 +176,69 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
 
-	if runtime.GOOS == "linux" {
-		if nvidia_query.SMIExists() {
-			driverVersion, err := nvidia_query_nvml.GetDriverVersion()
-			if err != nil {
-				return nil, err
-			}
-			major, _, _, err := nvidia_query_nvml.ParseDriverVersion(driverVersion)
-			if err != nil {
-				return nil, err
-			}
-
-			log.Logger.Debugw("auto-detected nvidia -- configuring nvidia components")
-
-			if nvidia_query_nvml.ClockEventsSupportedVersion(major) {
-				clockEventsSupported, err := nvidia_query_nvml.ClockEventsSupported()
-				if err == nil {
-					if clockEventsSupported {
-						log.Logger.Infow("auto-detected clock events supported")
-						cfg.Components[nvidia_clock.Name] = nil
-					} else {
-						log.Logger.Infow("auto-detected clock events not supported -- skipping", "error", err)
-					}
-				} else {
-					log.Logger.Warnw("failed to check clock events supported or not", "error", err)
-				}
-			} else {
-				log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
-			}
-
-			cfg.Components[nvidia_ecc.Name] = nil
-			cfg.Components[nvidia_error.Name] = nil
-			if _, ok := cfg.Components[dmesg.Name]; ok {
-				cfg.Components[nvidia_error_xid.Name] = nil
-				cfg.Components[nvidia_error_sxid.Name] = nil
-			}
-			cfg.Components[nvidia_info.Name] = nil
-
-			cfg.Components[nvidia_clockspeed.Name] = nil
-			cfg.Components[nvidia_memory.Name] = nil
-
-			gpmSupported, err := nvidia_query_nvml.GPMSupported()
-			if err == nil {
-				if gpmSupported {
-					log.Logger.Infow("auto-detected gpm supported")
-					cfg.Components[nvidia_gpm.Name] = nil
-				} else {
-					log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
-				}
-			} else {
-				log.Logger.Warnw("failed to check gpm supported or not", "error", err)
-			}
-
-			cfg.Components[nvidia_nvlink.Name] = nil
-			cfg.Components[nvidia_power.Name] = nil
-			cfg.Components[nvidia_temperature.Name] = nil
-			cfg.Components[nvidia_utilization.Name] = nil
-			cfg.Components[nvidia_processes.Name] = nil
-			cfg.Components[nvidia_remapped_rows.Name] = nil
-
-			// optional
-			cfg.Components[nvidia_fabric_manager.Name] = nil
-			cfg.Components[nvidia_infiniband.Name] = nil
-			cfg.Components[nvidia_peermem.Name] = nil
+	if runtime.GOOS == "linux" && nvidia_query.SMIExists() {
+		driverVersion, err := nvidia_query_nvml.GetDriverVersion()
+		if err != nil {
+			return nil, err
 		}
+		major, _, _, err := nvidia_query_nvml.ParseDriverVersion(driverVersion)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Logger.Debugw("auto-detected nvidia -- configuring nvidia components")
+
+		if nvidia_query_nvml.ClockEventsSupportedVersion(major) {
+			clockEventsSupported, err := nvidia_query_nvml.ClockEventsSupported()
+			if err == nil {
+				if clockEventsSupported {
+					log.Logger.Infow("auto-detected clock events supported")
+					cfg.Components[nvidia_clock.Name] = nil
+				} else {
+					log.Logger.Infow("auto-detected clock events not supported -- skipping", "error", err)
+				}
+			} else {
+				log.Logger.Warnw("failed to check clock events supported or not", "error", err)
+			}
+		} else {
+			log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
+		}
+
+		cfg.Components[nvidia_ecc.Name] = nil
+		cfg.Components[nvidia_error.Name] = nil
+		if _, ok := cfg.Components[dmesg.Name]; ok {
+			cfg.Components[nvidia_error_xid.Name] = nil
+			cfg.Components[nvidia_error_sxid.Name] = nil
+		}
+		cfg.Components[nvidia_info.Name] = nil
+
+		cfg.Components[nvidia_clockspeed.Name] = nil
+		cfg.Components[nvidia_memory.Name] = nil
+
+		gpmSupported, err := nvidia_query_nvml.GPMSupported()
+		if err == nil {
+			if gpmSupported {
+				log.Logger.Infow("auto-detected gpm supported")
+				cfg.Components[nvidia_gpm.Name] = nil
+			} else {
+				log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
+			}
+		} else {
+			log.Logger.Warnw("failed to check gpm supported or not", "error", err)
+		}
+
+		cfg.Components[nvidia_nvlink.Name] = nil
+		cfg.Components[nvidia_power.Name] = nil
+		cfg.Components[nvidia_temperature.Name] = nil
+		cfg.Components[nvidia_utilization.Name] = nil
+		cfg.Components[nvidia_processes.Name] = nil
+		cfg.Components[nvidia_remapped_rows.Name] = nil
+		cfg.Components[library.Name] = DefaultNVIDIALibraries
+
+		// optional
+		cfg.Components[nvidia_fabric_manager.Name] = nil
+		cfg.Components[nvidia_infiniband.Name] = nil
+		cfg.Components[nvidia_peermem.Name] = nil
 	} else {
 		log.Logger.Debugw("auto-detect nvidia not supported -- skipping", "os", runtime.GOOS)
 	}
