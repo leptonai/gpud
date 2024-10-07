@@ -47,6 +47,7 @@ func findLibrary(name string) (string, error) {
 			if !os.IsNotExist(err) {
 				return "", err
 			}
+			// does not exist, continue
 			continue
 		}
 		return filepath.EvalSymlinks(libPath)
