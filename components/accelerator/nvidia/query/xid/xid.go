@@ -683,7 +683,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error ocurred (Xid 44) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 44) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
@@ -774,7 +774,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error ocurred -- GPU reset required due to Xid 48 (double bit ECC error).",
+				"Uncorrectable GPU error occurred -- GPU reset required due to Xid 48 (double bit ECC error).",
 			},
 		},
 	},
@@ -955,7 +955,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error ocurred (Xid 61) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
@@ -980,7 +980,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error ocurred (Xid 61) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
@@ -1158,7 +1158,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error ocurred (Xid 61) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
