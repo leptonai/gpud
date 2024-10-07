@@ -26,13 +26,13 @@ import (
 
 // ref. "github.com/NVIDIA/go-nvml/pkg/nvlib/info/root.go"
 // ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
-var libSearchDirs = []string{
-	"/usr/lib64",
-	"/usr/lib/x86_64-linux-gnu",
-	"/usr/lib/aarch64-linux-gnu",
-	"/lib64",
-	"/lib/x86_64-linux-gnu",
-	"/lib/aarch64-linux-gnu",
+var defaultLibSearchDirs = map[string]any{
+	"/usr/lib64":                 struct{}{},
+	"/usr/lib/x86_64-linux-gnu":  struct{}{},
+	"/usr/lib/aarch64-linux-gnu": struct{}{},
+	"/lib64":                     struct{}{},
+	"/lib/x86_64-linux-gnu":      struct{}{},
+	"/lib/aarch64-linux-gnu":     struct{}{},
 }
 
 // Returns the resolved path of the library if found.

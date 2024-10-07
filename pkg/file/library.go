@@ -26,7 +26,9 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
 	}
-
+	if len(op.searchDirs) == 0 {
+		op.searchDirs = defaultLibSearchDirs
+	}
 	return nil
 }
 
