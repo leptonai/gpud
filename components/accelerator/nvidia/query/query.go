@@ -90,6 +90,8 @@ func Get(ctx context.Context) (output any, err error) {
 		}
 
 		if err := systemd.ConnectDbus(); err != nil {
+			log.Logger.Warnw("failed to connect to dbus", "error", err)
+
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to connect to dbus: %v", err))
 		} else {
 			active := false
