@@ -10,6 +10,11 @@ const (
 	// RepairActionTypeRepairHardware represents a suggested action to repair the hardware, externally.
 	// This often involves data center (or cloud provider) support to physically check/repair the machine.
 	RepairActionTypeRepairHardware RepairActionType = "REPAIR_HARDWARE"
+
+	// RepairActionTypeCheckUserApp represents a suggested action to check the user application.
+	// For instance, NVIDIA may report XID 45 as user app error, but the underlying GPU might have other issues
+	// thus requires further diagnosis of the application and the GPU.
+	RepairActionTypeCheckUserAppAndGPU RepairActionType = "CHECK_USER_APP_AND_GPU"
 )
 
 // SuggestedActions represents a set of suggested actions to mitigate an issue.
@@ -45,6 +50,21 @@ func (s *SuggestedActions) RequiresRepair() bool {
 	}
 	for _, action := range s.RepairActions {
 		if action == RepairActionTypeRepairHardware {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SuggestedActions) RequiresCheckUserAppAndGPU() bool {
+	if s == nil {
+		return false
+	}
+	if len(s.RepairActions) == 0 {
+		return false
+	}
+	for _, action := range s.RepairActions {
+		if action == RepairActionTypeCheckUserAppAndGPU {
 			return true
 		}
 	}
