@@ -163,13 +163,20 @@ func CreateGet(cfg Config) query.GetFunc {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get uptime for unit %s: %w", unit, err)
 			}
-			active, err := GetDefaultDbusConn().IsActive(ctx, unit)
-			if err != nil {
+
+			active := false
+
+			defaultConn := GetDefaultDbusConn()
+			if defaultConn != nil {
+				active, err = defaultConn.IsActive(ctx, unit)
+			}
+			if defaultConn == nil || err != nil {
 				active, err = systemd.IsActive(unit)
 				if err != nil {
 					return nil, fmt.Errorf("failed to check active status for unit %s: %w", unit, err)
 				}
 			}
+
 			now := time.Now().UTC()
 			o.Units = append(o.Units, Unit{
 				Name:            unit,

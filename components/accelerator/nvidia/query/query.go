@@ -92,11 +92,19 @@ func Get(ctx context.Context) (output any, err error) {
 		if err := systemd.ConnectDbus(); err != nil {
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to connect to dbus: %v", err))
 		} else {
-			cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-			active, err := CheckFabricManagerActive(cctx, systemd.GetDefaultDbusConn())
-			ccancel()
-			if err != nil {
-				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager active: %v", err))
+			active := false
+			defaultConn := systemd.GetDefaultDbusConn()
+
+			if defaultConn != nil {
+				cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+				var err error
+				active, err = CheckFabricManagerActive(cctx, defaultConn)
+				ccancel()
+				if err != nil {
+					o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager active: %v", err))
+				}
+			} else {
+				o.FabricManagerErrors = append(o.FabricManagerErrors, "systemd dbus connection not available")
 			}
 
 			cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
