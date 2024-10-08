@@ -49,7 +49,7 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 	}
 
 	// "sudo shutdown -r +1" does not work
-	cmd := "subo reboot"
+	cmd := "sudo reboot"
 	if options.useSystemctl {
 		cmd = "sudo systemctl reboot"
 	}

@@ -46,10 +46,10 @@ func (s *Session) serve() {
 		}
 		response := &Response{}
 		if payload.Method == "reboot" {
-			cancel()
 			if err := reboot.Reboot(ctx); err != nil {
 				log.Logger.Errorf("failed to reboot machine: %v", err)
 			}
+			cancel()
 			continue
 		}
 		switch payload.Method {

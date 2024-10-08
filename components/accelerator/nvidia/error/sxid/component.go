@@ -63,7 +63,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+		if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
 			if o.SuggestedActions == nil {
 				o.SuggestedActions = &common.SuggestedActions{}
 			}
@@ -110,7 +110,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+		if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
 			if o.SuggestedActionsPerLogLine == nil {
 				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
 			}
