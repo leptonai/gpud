@@ -1,12 +1,13 @@
 package config
 
 type Op struct {
-	filesToCheck []string
+	FilesToCheck                  []string
+	KubeletIgnoreConnectionErrors bool
 }
 
 type OpOption func(*Op)
 
-func (op *Op) applyOpts(opts []OpOption) error {
+func (op *Op) ApplyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -16,6 +17,12 @@ func (op *Op) applyOpts(opts []OpOption) error {
 
 func WithFilesToCheck(files ...string) OpOption {
 	return func(op *Op) {
-		op.filesToCheck = append(op.filesToCheck, files...)
+		op.FilesToCheck = append(op.FilesToCheck, files...)
+	}
+}
+
+func WithKubeletIgnoreConnectionErrors(b bool) OpOption {
+	return func(op *Op) {
+		op.KubeletIgnoreConnectionErrors = b
 	}
 }
