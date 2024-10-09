@@ -360,12 +360,52 @@ func (o *Output) GPUCount() int {
 	return cnts
 }
 
+func (o *Output) GPUCountFromSMI() int {
+	if o == nil {
+		return 0
+	}
+	if o.SMI == nil {
+		return 0
+	}
+	return o.SMI.AttachedGPUs
+}
+
+func (o *Output) GPUCountFromNVML() int {
+	if o == nil {
+		return 0
+	}
+	if o.NVML == nil {
+		return 0
+	}
+	return len(o.NVML.DeviceInfos)
+}
+
 func (o *Output) GPUProductName() string {
 	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
 	if o.SMI.GPUs[0].ProductName != "" {
 		return o.SMI.GPUs[0].ProductName
+	}
+	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
+		return o.NVML.DeviceInfos[0].Name
+	}
+	return ""
+}
+
+func (o *Output) GPUProductNameFromSMI() string {
+	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
+		return ""
+	}
+	if o.SMI.GPUs[0].ProductName != "" {
+		return o.SMI.GPUs[0].ProductName
+	}
+	return ""
+}
+
+func (o *Output) GPUProductNameFromNVML() string {
+	if o == nil {
+		return ""
 	}
 	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
 		return o.NVML.DeviceInfos[0].Name
@@ -389,11 +429,13 @@ func (o *Output) PrintInfo(debug bool) {
 		fmt.Printf("%s successfully checked nvidia-smi\n", checkMark)
 	}
 
-	if o.SMI != nil {
-		if len(o.SMI.GPUs) > 0 {
-			fmt.Printf("%s product name: %s (nvidia-smi)\n", checkMark, o.SMI.GPUs[0].ProductName)
-		}
+	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
+	fmt.Printf("%s GPU count '%d' (from nvidia-smi)\n", checkMark, o.GPUCountFromSMI())
+	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
+	fmt.Printf("%s GPU product name '%s' (from nvidia-smi)\n", checkMark, o.GPUProductNameFromSMI())
+	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
 
+	if o.SMI != nil {
 		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
 			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
 			for _, err := range errs {
