@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 type Output struct {
 	NodeName string      `json:"node_name,omitempty"`
 	Pods     []PodStatus `json:"pods,omitempty"`
+	Message  string      `json:"message,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -117,6 +119,18 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		pods, err := ListFromKubeletReadOnlyPort(ctx, cfg.Port)
 		if err != nil {
+			// e.g.,
+			// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
+			connectionErr := false
+			if strings.Contains(err.Error(), "connection refused") {
+				connectionErr = true
+			}
+			if cfg.IgnoreConnectionErrors && connectionErr {
+				log.Logger.Warnw("failed to list pods from kubelet read-only port but ignoring since ignore_connection_errors is true", "error", err)
+				return &Output{
+					Message: "failed to list pods from kubelet read-only port but ignoring (maybe readOnlyPort not set in kubelet config file)",
+				}, nil
+			}
 			return nil, err
 		}
 		log.Logger.Debugw("listed pods", "pods", len(pods.Items))

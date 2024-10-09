@@ -43,6 +43,8 @@ var (
 
 	enableAutoUpdate bool
 	filesToCheck     cli.StringSlice
+
+	kubeletIgnoreConnectionErrors bool
 )
 
 const (
@@ -194,6 +196,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "files-to-check",
 					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
 					Value: &filesToCheck,
+				},
+				&cli.BoolFlag{
+					Name:        "kubelet-ignore-connection-errors",
+					Usage:       "ignore connection errors to kubelet read-only port, useful when kubelet readOnlyPort is disabled (default: false)",
+					Destination: &kubeletIgnoreConnectionErrors,
 				},
 			},
 		},
