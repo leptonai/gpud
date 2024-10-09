@@ -2,6 +2,7 @@ package config
 
 type Op struct {
 	FilesToCheck                  []string
+	DockerIgnoreConnectionErrors  bool
 	KubeletIgnoreConnectionErrors bool
 }
 
@@ -18,6 +19,12 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 func WithFilesToCheck(files ...string) OpOption {
 	return func(op *Op) {
 		op.FilesToCheck = append(op.FilesToCheck, files...)
+	}
+}
+
+func WithDockerIgnoreConnectionErrors(b bool) OpOption {
+	return func(op *Op) {
+		op.DockerIgnoreConnectionErrors = b
 	}
 }
 

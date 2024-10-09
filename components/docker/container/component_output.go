@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/log"
 
 	docker_types "github.com/docker/docker/api/types"
 	docker_container "github.com/docker/docker/api/types/container"
@@ -24,6 +25,12 @@ type Output struct {
 	// "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
 	IsErrDockerClientVersionNewerThanDaemon bool   `json:"is_err_docker_client_version_newer_than_daemon,omitempty"`
 	DockerClientError                       string `json:"docker_client_error,omitempty"`
+
+	// In case the docker daemon is not running
+	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
+	ConnectionError        string `json:"connection_error,omitempty"`
+	ConnectionErrorIgnored bool   `json:"connection_error_ignored"`
+	Message                string `json:"message,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -131,6 +138,21 @@ func CreateGet(cfg Config) query.GetFunc {
 				return &Output{
 					IsErrDockerClientVersionNewerThanDaemon: true,
 					DockerClientError:                       err.Error(),
+				}, nil
+			}
+
+			// e.g.,
+			// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+			connectionErr := false
+			if strings.Contains(err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(err.Error(), "the docker daemon running") {
+				connectionErr = true
+			}
+			if cfg.IgnoreConnectionErrors && connectionErr {
+				log.Logger.Warnw("failed to connect to docker daemon but ignoring since ignore_connection_errors is true", "error", err)
+				return &Output{
+					ConnectionError:        err.Error(),
+					ConnectionErrorIgnored: true,
+					Message:                "failed to connect to docker daemon but ignoring since ignore_connection_errors is true",
 				}, nil
 			}
 			return nil, err
