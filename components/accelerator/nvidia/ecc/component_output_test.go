@@ -51,7 +51,7 @@ func TestToOutput(t *testing.T) {
 						},
 					},
 				},
-				VolatileUncorrectedErrors: []string{"[GPU-1] GPU : Volatile DRAMUncorrectable: 6"},
+				VolatileUncorrectedErrorsFromSMI: []string{"[GPU-1] GPU : Volatile DRAMUncorrectable: 6"},
 			},
 		},
 		{
@@ -85,7 +85,7 @@ func TestToOutput(t *testing.T) {
 						},
 					},
 				},
-				VolatileUncorrectedErrors: []string{"[GPU-2] total uncorrected 20 errors"},
+				VolatileUncorrectedErrorsFromNVML: []string{"[GPU-2] total uncorrected 20 errors"},
 			},
 		},
 	}
