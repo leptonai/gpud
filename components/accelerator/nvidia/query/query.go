@@ -62,6 +62,11 @@ func Get(ctx context.Context) (output any, err error) {
 		IbstatExists:          IbstatExists(),
 	}
 
+	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
+	if err != nil {
+		log.Logger.Warnw("failed to count gpu devices", "error", err)
+	}
+
 	defer func() {
 		getSuccessOnceCloseOnce.Do(func() {
 			close(getSuccessOnce)
@@ -309,6 +314,9 @@ const (
 )
 
 type Output struct {
+	// GPU device count from the /dev directory.
+	GPUDeviceCount int `json:"gpu_device_count"`
+
 	SMIExists      bool       `json:"smi_exists"`
 	SMI            *SMIOutput `json:"smi,omitempty"`
 	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`

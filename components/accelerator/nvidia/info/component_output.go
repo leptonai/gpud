@@ -31,7 +31,10 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
-		GPU: GPU{Attached: i.GPUCount()},
+		GPU: GPU{
+			DeviceCount: i.GPUDeviceCount,
+			Attached:    i.GPUCount(),
+		},
 		Memory: Memory{
 			TotalBytes:     totalMem,
 			TotalHumanized: totalMemHumanized,
@@ -72,6 +75,11 @@ type CUDA struct {
 }
 
 type GPU struct {
+	// DeviceCount is the number of GPU devices based on the /dev directory.
+	DeviceCount int `json:"device_count"`
+
+	// Attached is the number of GPU devices that are attached to the system,
+	// based on the nvidia-smi or NVML.
 	Attached int `json:"attached"`
 }
 
@@ -93,8 +101,9 @@ const (
 	StateKeyCUDA        = "cuda"
 	StateKeyCUDAVersion = "version"
 
-	StateKeyGPU         = "gpu"
-	StateKeyGPUAttached = "attached"
+	StateKeyGPU            = "gpu"
+	StateKeyGPUDeviceCount = "device_count"
+	StateKeyGPUAttached    = "attached"
 
 	StateKeyMemory               = "memory"
 	StateKeyMemoryTotalBytes     = "total_bytes"
@@ -218,10 +227,11 @@ func (o *Output) States() ([]components.State, error) {
 		},
 		{
 			Name:    StateKeyGPU,
-			Healthy: true,
-			Reason:  fmt.Sprintf("%d gpu(s) found/attached", o.GPU.Attached),
+			Healthy: o.GPU.DeviceCount == o.GPU.Attached,
+			Reason:  fmt.Sprintf("%d gpu(s) in /dev and %d gpu(s) found/attached", o.GPU.DeviceCount, o.GPU.Attached),
 			ExtraInfo: map[string]string{
-				StateKeyGPUAttached: strconv.Itoa(o.GPU.Attached),
+				StateKeyGPUDeviceCount: strconv.Itoa(o.GPU.DeviceCount),
+				StateKeyGPUAttached:    strconv.Itoa(o.GPU.Attached),
 			},
 		},
 		{
