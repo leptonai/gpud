@@ -115,16 +115,14 @@ func (o *Output) States() ([]components.State, error) {
 	// as aggregate counts persist across reboots
 	// ignore it for settings the healthy
 	if len(o.VolatileUncorrectedErrorsFromSMI) > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvidia-smi): %s",
+		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvidia-smi)",
 			len(o.VolatileUncorrectedErrorsFromSMI),
-			strings.Join(o.VolatileUncorrectedErrorsFromSMI, ", "),
 		))
 	}
 
 	if len(o.VolatileUncorrectedErrorsFromNVML) > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvml): %s",
+		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvml)",
 			len(o.VolatileUncorrectedErrorsFromNVML),
-			strings.Join(o.VolatileUncorrectedErrorsFromNVML, ", "),
 		))
 	}
 
@@ -132,7 +130,7 @@ func (o *Output) States() ([]components.State, error) {
 	if len(reason) == 0 {
 		reason = "no issue detected"
 	} else {
-		reason = fmt.Sprintf("note that when an uncorrectable ECC error is detected, the NVIDIA driver software will perform error recovery -- details of ecc status are: %s", reason)
+		reason = fmt.Sprintf("note that when an uncorrectable ECC error is detected, the NVIDIA driver software will perform error recovery -- %s", reason)
 	}
 
 	b, _ := o.JSON()
