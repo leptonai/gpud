@@ -44,6 +44,7 @@ var (
 	enableAutoUpdate bool
 	filesToCheck     cli.StringSlice
 
+	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
 )
 
@@ -196,6 +197,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "files-to-check",
 					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
 					Value: &filesToCheck,
+				},
+				&cli.BoolFlag{
+					Name:        "docker-ignore-connection-errors",
+					Usage:       "ignore connection errors to docker daemon, useful when docker daemon is not running (default: false)",
+					Destination: &dockerIgnoreConnectionErrors,
 				},
 				&cli.BoolFlag{
 					Name:        "kubelet-ignore-connection-errors",

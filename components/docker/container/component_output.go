@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/log"
 
 	docker_types "github.com/docker/docker/api/types"
 	docker_container "github.com/docker/docker/api/types/container"
@@ -24,6 +26,13 @@ type Output struct {
 	// "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
 	IsErrDockerClientVersionNewerThanDaemon bool   `json:"is_err_docker_client_version_newer_than_daemon,omitempty"`
 	DockerClientError                       string `json:"docker_client_error,omitempty"`
+
+	DockerPidFound bool `json:"docker_pid_found,omitempty"`
+
+	// In case the docker daemon is not running
+	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
+	ConnectionError string `json:"connection_error,omitempty"`
+	Message         string `json:"message,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -65,14 +74,22 @@ func (o *Output) describeReason() string {
 		}
 		return fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", o.DockerClientError)
 	}
+	if o.ConnectionError != "" {
+		return fmt.Sprintf("connection error to docker daemon -- %s", o.ConnectionError)
+	}
 	return fmt.Sprintf("total %d containers", len(o.Containers))
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	healthy := o.ConnectionError == ""
+	if cfg.IgnoreConnectionErrors {
+		healthy = true
+	}
+
 	b, _ := o.JSON()
 	return []components.State{{
 		Name:    StateNameDockerContainer,
-		Healthy: true,
+		Healthy: healthy,
 		Reason:  o.describeReason(),
 		ExtraInfo: map[string]string{
 			StateKeyDockerContainerData:     string(b),
@@ -125,6 +142,14 @@ func CreateGet(cfg Config) query.GetFunc {
 			}
 		}()
 
+		// check if a process named "docker" is running
+		dockerRunning := false
+		if err := exec.Command("pidof", "docker").Run(); err == nil {
+			dockerRunning = true
+		} else {
+			log.Logger.Warnw("docker process not found, assuming docker is not running", "error", err)
+		}
+
 		dockerContainers, err := ListContainers(ctx)
 		if err != nil {
 			if IsErrDockerClientVersionNewerThanDaemon(err) {
@@ -133,14 +158,26 @@ func CreateGet(cfg Config) query.GetFunc {
 					DockerClientError:                       err.Error(),
 				}, nil
 			}
-			return nil, err
+
+			o := &Output{
+				DockerPidFound: dockerRunning,
+				Message:        "failed to list containers from docker -- " + err.Error(),
+			}
+
+			// e.g.,
+			// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+			if strings.Contains(err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(err.Error(), "the docker daemon running") {
+				o.ConnectionError = err.Error()
+			}
+
+			return o, nil
 		}
 
 		var containers []DockerContainer
 		for _, c := range dockerContainers {
 			containers = append(containers, ConvertToDockerContainer(c))
 		}
-		return &Output{Containers: containers}, nil
+		return &Output{Containers: containers, DockerPidFound: dockerRunning}, nil
 	}
 }
 

@@ -965,7 +965,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 						componentsToAdd = append(componentsToAdd, containerd_pod.New(ctx, ccfg))
 					}
 
-					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx); exists {
+					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
 						ccfg := docker_container.Config{Query: defaultQueryCfg}
 						if cc != nil {
 							parsed, err := docker_container.ParseConfig(cc, db)

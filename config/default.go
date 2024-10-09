@@ -136,7 +136,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[file.Name] = options.FilesToCheck
 	}
 
-	if cc, exists := DefaultDockerContainerComponent(ctx); exists {
+	if cc, exists := DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
 		cfg.Components[docker_container.Name] = cc
 	}
 	if cc, exists := DefaultContainerdComponent(ctx); exists {
@@ -367,7 +367,7 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 	return nil, false
 }
 
-func DefaultDockerContainerComponent(ctx context.Context) (any, bool) {
+func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
 	p, err := pkg_file.LocateExecutable("docker")
 	if p != "" && err == nil {
 		log.Logger.Debugw("docker found in PATH", "path", p)
@@ -380,7 +380,8 @@ func DefaultDockerContainerComponent(ctx context.Context) (any, bool) {
 	if docker_container.IsDockerRunning() {
 		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
 		return docker_container.Config{
-			Query: query_config.DefaultConfig(),
+			Query:                  query_config.DefaultConfig(),
+			IgnoreConnectionErrors: ignoreConnectionErrors,
 		}, true
 	}
 	return nil, false
