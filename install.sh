@@ -116,7 +116,18 @@ main() {
 
   mkdir "$DIR"
   DLPATH=/tmp/"$FILENAME"
-  curl -fsSL https://pkg.gpud.dev/"$FILENAME" -o "$DLPATH"
+
+  if ! curl -fsSL "https://pkg.gpud.dev/$FILENAME" -o "$DLPATH" 2>/tmp/gpud_curl_error.log; then
+    echo "failed to download file from 'https://pkg.gpud.dev/$FILENAME'"
+
+    echo "\nerror message:"
+    cat /tmp/gpud_curl_error.log
+
+    rm -f "$DLPATH" /tmp/gpud_curl_error.log
+    exit 1
+  fi
+  rm -f /tmp/gpud_curl_error.log
+
   tar xzf "$DLPATH" -C "$DIR"
 
   $SUDO cp -f "$DIR"/gpud /usr/sbin
