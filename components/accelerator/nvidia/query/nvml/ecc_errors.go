@@ -80,7 +80,8 @@ type ECCErrorCounts struct {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
 	Corrected uint64 `json:"corrected"`
 
-	// A memory error that was not correctedFor ECC errors, these are double bit errors.
+	// A memory error that was not corrected.
+	// For ECC errors, these are double bit errors.
 	// For Texture memory, these are errors where the resend fails.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
 	Uncorrected uint64 `json:"uncorrected"`
@@ -150,7 +151,8 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
 	result.Aggregate.Total.Uncorrected, ret = dev.GetTotalEccErrors(
-		// A memory error that was not correctedFor ECC errors, these are double bit errors.
+		// A memory error that was not corrected.
+		// For ECC errors, these are double bit errors.
 		// For Texture memory, these are errors where the resend fails.
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
@@ -182,7 +184,8 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
 	result.Volatile.Total.Uncorrected, ret = dev.GetTotalEccErrors(
-		// A memory error that was not correctedFor ECC errors, these are double bit errors.
+		// A memory error that was not corrected.
+		// For ECC errors, these are double bit errors.
 		// For Texture memory, these are errors where the resend fails.
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
