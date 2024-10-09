@@ -22,7 +22,9 @@ import (
 type Output struct {
 	NodeName string      `json:"node_name,omitempty"`
 	Pods     []PodStatus `json:"pods,omitempty"`
-	Message  string      `json:"message,omitempty"`
+
+	ConnectionErrorIgnored bool   `json:"connection_error_ignored"`
+	Message                string `json:"message,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -128,7 +130,8 @@ func CreateGet(cfg Config) query.GetFunc {
 			if cfg.IgnoreConnectionErrors && connectionErr {
 				log.Logger.Warnw("failed to list pods from kubelet read-only port but ignoring since ignore_connection_errors is true", "error", err)
 				return &Output{
-					Message: "failed to list pods from kubelet read-only port but ignoring (maybe readOnlyPort not set in kubelet config file)",
+					ConnectionErrorIgnored: true,
+					Message:                "failed to list pods from kubelet read-only port but ignoring (maybe readOnlyPort not set in kubelet config file)",
 				}, nil
 			}
 			return nil, err
