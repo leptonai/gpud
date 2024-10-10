@@ -330,12 +330,16 @@ sudo rm /etc/systemd/system/gpud.service
 
 		// for checking gpud status
 		{
-			Name:   "status",
+			Name:    "status",
+			Aliases: []string{"st"},
+
 			Usage:  "checks the status of gpud",
 			Action: cmdStatus,
 		},
 		{
-			Name:   "logs",
+			Name:    "logs",
+			Aliases: []string{"l"},
+
 			Usage:  "checks the gpud logs",
 			Action: cmdLogs,
 			Flags: []cli.Flag{
@@ -348,9 +352,19 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 
+		{
+			Name:    "accelerator",
+			Aliases: []string{"a"},
+
+			Usage:  "quick scans the currently installed accelerator",
+			Action: cmdAccelerator,
+		},
+
 		// for diagnose + quick scanning
 		{
-			Name:  "diagnose",
+			Name:    "diagnose",
+			Aliases: []string{"d"},
+
 			Usage: "collects diagnose information",
 			UsageText: `# to collect diagnose information
 sudo gpud diagnose
@@ -358,8 +372,7 @@ sudo gpud diagnose
 # check the auto-generated summary file
 cat summary.txt
 `,
-			Action:  cmdDiagnose,
-			Aliases: []string{"d"},
+			Action: cmdDiagnose,
 			Flags: []cli.Flag{
 				&cli.BoolTFlag{
 					Name:        "create-archive (default: true)",
@@ -369,7 +382,9 @@ cat summary.txt
 			},
 		},
 		{
-			Name:   "scan",
+			Name:    "scan",
+			Aliases: []string{"s"},
+
 			Usage:  "quick scans the host for any major issues",
 			Action: cmdScan,
 			Flags: []cli.Flag{
