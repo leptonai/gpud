@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRegexNvidiaPeermemInvalidContext(t *testing.T) {
+func TestRegexInvalidContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -13,9 +13,11 @@ func TestRegexNvidiaPeermemInvalidContext(t *testing.T) {
 		matches bool
 	}{
 		{"[Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing", true},
+		{"ERROR detected invalid context, skipping further processing", true},
+		{"[123213123123] ERROR detected invalid context, skipping further processing", true},
 	}
 
-	re, err := regexp.Compile(RegexNvidiaPeermemInvalidContext)
+	re, err := regexp.Compile(RegexInvalidContext)
 	if err != nil {
 		t.Fatalf("Error compiling regex: %v", err)
 	}

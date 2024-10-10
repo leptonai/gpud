@@ -2,7 +2,10 @@ package dmesg
 
 import (
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
+	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
+	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/query/nccl"
 	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -47,6 +50,11 @@ const (
 	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 	EventNvidiaPeermemInvalidContext = "nvidia_peermem_invalid_context"
+
+	// repeated messages may indicate GPU communication issues, which may happen due to fabric manager issues
+	// e.g.,
+	// [Thu Oct 10 03:06:53 2024] pt_main_thread[2536443]: segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2[7f7c7ac00000+d3d3000]
+	EventNvidiaNCCLSegfaultInLibnccl = "nvidia_nccl_segfault_in_libnccl"
 )
 
 func DefaultDmesgFiltersForNvidia() []*query_log_filter.Filter {
@@ -62,11 +70,14 @@ func DefaultDmesgFiltersForNvidia() []*query_log_filter.Filter {
 			OwnerReferences: []string{nvidia_error.Name},
 		},
 		{
-			Name:  EventNvidiaPeermemInvalidContext,
-			Regex: ptr.To(nvidia_query_peermem.RegexNvidiaPeermemInvalidContext),
-
-			// to prevent circular dependency, do not import "nvidia_peermem.Name"
-			OwnerReferences: []string{"accelerator-nvidia-peermem"},
+			Name:            EventNvidiaPeermemInvalidContext,
+			Regex:           ptr.To(nvidia_query_peermem.RegexInvalidContext),
+			OwnerReferences: []string{nvidia_peermem_id.Name},
+		},
+		{
+			Name:            EventNvidiaNCCLSegfaultInLibnccl,
+			Regex:           ptr.To(nvidia_query_nccl.RegexSegfaultInLibnccl),
+			OwnerReferences: []string{nvidia_nccl_id.Name},
 		},
 	}
 }

@@ -9,19 +9,18 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
 
-const Name = "accelerator-nvidia-peermem"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.DefaultPoller.Start(cctx, cfg.Query, Name)
+	nvidia_query.DefaultPoller.Start(cctx, cfg.Query, nvidia_peermem_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -38,7 +37,7 @@ type component struct {
 	poller  query.Poller
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return nvidia_peermem_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
@@ -46,7 +45,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return nil, err
 	}
 	if last == nil { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_peermem_id.Name)
 		return nil, nil
 	}
 	if last.Error != nil {
@@ -75,7 +74,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.LsmodPeermemErrors {
 			cs = append(cs, components.State{
-				Name:    Name,
+				Name:    nvidia_peermem_id.Name,
 				Healthy: false,
 				Error:   e,
 				Reason:  "lsmod peermem query failed with " + e,
@@ -159,7 +158,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
+	_ = c.poller.Stop(nvidia_peermem_id.Name)
 
 	return nil
 }

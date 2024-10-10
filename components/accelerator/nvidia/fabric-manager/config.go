@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"k8s.io/utils/ptr"
-
+	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+
+	"k8s.io/utils/ptr"
 )
 
 type Config struct {
@@ -41,35 +42,32 @@ const (
 
 	// e.g.,
 	// [Jul 23 2024 07:53:55] [ERROR] [tid 841] detected NVSwitch fatal error 20034 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33
-	eventNVSwitchFatailSXid       = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-fatal"
-	regexNVSwitchFatalSXidFromLog = `.+detected NVSwitch fatal error (\d+)`
+	eventNVSwitchFatailSXid = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-fatal"
 
 	// e.g.,
 	// [Jul 09 2024 18:14:07] [ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61
-	eventNVSwitchNonFatailSXid       = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-non-fatal"
-	regexNVSwitchNonFatalSXidFromLog = `.+detected NVSwitch non-fatal error (\d+)`
+	eventNVSwitchNonFatailSXid = "accelerator-nvidia-fabric-manager-nvswitch-sxid-log-non-fatal"
 
 	// e.g.,
 	// [Sep 17 2024 06:01:46] [ERROR] [tid 1230079] failed to find the GPU handle 5410063385821516767 in the multicast team request setup 6130285411925746235.
-	eventNVSwitchNVLinkFailure        = "accelerator-nvidia-fabric-manager-nvlink-failure"
-	regexNVSwitchNVLinkFailureFromLog = `.+failed to find the GPU handle \d+ in the multicast team .*`
+	eventNVSwitchNVLinkFailure = "accelerator-nvidia-fabric-manager-nvlink-failure"
 )
 
 var (
 	filters = []*query_log_filter.Filter{
 		{
 			Name:            eventNVSwitchFatailSXid,
-			Regex:           ptr.To(regexNVSwitchFatalSXidFromLog),
+			Regex:           ptr.To(fabric_manager_log.RegexNVSwitchFatalSXidFromLog),
 			OwnerReferences: []string{Name},
 		},
 		{
 			Name:            eventNVSwitchNonFatailSXid,
-			Regex:           ptr.To(regexNVSwitchNonFatalSXidFromLog),
+			Regex:           ptr.To(fabric_manager_log.RegexNVSwitchNonFatalSXidFromLog),
 			OwnerReferences: []string{Name},
 		},
 		{
 			Name:            eventNVSwitchNVLinkFailure,
-			Regex:           ptr.To(regexNVSwitchNVLinkFailureFromLog),
+			Regex:           ptr.To(fabric_manager_log.RegexNVSwitchNVLinkFailureFromLog),
 			OwnerReferences: []string{Name},
 		},
 	}
