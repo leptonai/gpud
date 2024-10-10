@@ -42,8 +42,11 @@ import (
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
+	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
+	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
+	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -585,7 +588,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_infiniband.New(ctx, cfg))
 
-		case nvidia_peermem.Name:
+		case nvidia_peermem_id.Name:
 			cfg := nvidia_peermem.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := nvidia_peermem.ParseConfig(configValue, db)
@@ -598,6 +601,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_peermem.New(ctx, cfg))
+
+		case nvidia_nccl_id.Name:
+			cfg := nvidia_nccl.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_nccl.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_nccl.New(ctx, cfg))
 
 		case containerd_pod.Name:
 			cfg := containerd_pod.Config{Query: defaultQueryCfg}

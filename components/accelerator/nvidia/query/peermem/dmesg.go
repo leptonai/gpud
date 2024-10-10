@@ -6,4 +6,4 @@ package peermem
 // [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 // [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 // [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
-const RegexNvidiaPeermemInvalidContext = `.+ERROR detected invalid context, skipping further processing`
+const RegexInvalidContext = `.*ERROR detected invalid context, skipping further processing`
