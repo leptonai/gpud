@@ -78,15 +78,19 @@ type DeviceInfo struct {
 	// TODO: implement MIG device UUID fetching using NVML.
 	UUID string `json:"uuid"`
 
-	// MinorNumber is the minor number of the device.
-	MinorNumber int `json:"minor_number"`
-	// Bus is the bus ID from PCI info API.
-	Bus uint32 `json:"bus"`
-	// Device ID is the device ID from PCI info API.
-	Device uint32 `json:"device"`
+	// MinorNumberID is the minor number ID of the device.
+	MinorNumberID int `json:"minor_number_id"`
+	// BusID is the bus ID from PCI info API.
+	BusID uint32 `json:"bus_id"`
+	// DeviceID is the device ID from PCI info API.
+	DeviceID uint32 `json:"device_id"`
 
-	Name            string `json:"name"`
-	GPUCores        int    `json:"gpu_cores"`
+	Name     string `json:"name"`
+	GPUCores int    `json:"gpu_cores"`
+
+	// Set true if the device is attached to a GPU fabric.
+	FabricAttached bool `json:"fabric_attached"`
+
 	SupportedEvents uint64 `json:"supported_events"`
 
 	// Set true if the device supports NVML error checks (health checks).
@@ -293,14 +297,23 @@ func (inst *instance) Start() error {
 			inst.gpmMetricsSupported = false
 		}
 
+		fabricAttached, err := d.IsFabricAttached()
+		if err != nil {
+			return fmt.Errorf("failed to check if fabric attached: %v", err)
+		}
+
 		inst.devices[uuid] = &DeviceInfo{
 			UUID: uuid,
 
-			MinorNumber:     minorNumber,
-			Bus:             pciInfo.Bus,
-			Device:          pciInfo.Device,
-			Name:            name,
-			GPUCores:        cores,
+			MinorNumberID: minorNumber,
+			BusID:         pciInfo.Bus,
+			DeviceID:      pciInfo.Device,
+
+			Name:     name,
+			GPUCores: cores,
+
+			FabricAttached: fabricAttached,
+
 			SupportedEvents: supportedEvents,
 
 			XidErrorSupported:   xidErrorSupported,
@@ -387,9 +400,9 @@ func (inst *instance) Get() (*Output, error) {
 		latestInfo := &DeviceInfo{
 			UUID: devInfo.UUID,
 
-			MinorNumber: devInfo.MinorNumber,
-			Bus:         devInfo.Bus,
-			Device:      devInfo.Device,
+			MinorNumberID: devInfo.MinorNumberID,
+			BusID:         devInfo.BusID,
+			DeviceID:      devInfo.DeviceID,
 
 			Name:            devInfo.Name,
 			GPUCores:        devInfo.GPUCores,
