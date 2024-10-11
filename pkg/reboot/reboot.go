@@ -116,7 +116,10 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 			return
 		}
 
-		rebootFunc()
+		rerr := rebootFunc()
+
+		// actually, this should not print if reboot worked
+		log.Logger.Warnw("successfully rebooted", "command", cmd, "error", rerr)
 	}()
 
 	log.Logger.Infow(
