@@ -35,36 +35,41 @@ type Response struct {
 
 func (s *Session) serve() {
 	for body := range s.reader {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-		reqId := body.ReqID
-		data := body.Data
-		// 1. unmarshal data
 		var payload Request
-		if err := json.Unmarshal(data, &payload); err != nil {
-			cancel()
+		if err := json.Unmarshal(body.Data, &payload); err != nil {
+			log.Logger.Errorf("failed to unmarshal request: %v", err)
 			continue
 		}
-		response := &Response{}
+
 		if payload.Method == "reboot" {
-			if err := reboot.Reboot(ctx); err != nil {
-				log.Logger.Errorf("failed to reboot machine: %v", err)
-			}
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			rerr := reboot.Reboot(ctx, reboot.WithDelaySeconds(3))
 			cancel()
+
+			if rerr != nil {
+				log.Logger.Errorf("failed to trigger reboot machine: %v", rerr)
+			}
 			continue
 		}
+
+		response := &Response{}
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		switch payload.Method {
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
 			response.Error = err
 			response.Metrics = metrics
+
 		case "states":
 			states, err := s.getStates(ctx, payload)
 			response.Error = err
 			response.States = states
+
 		case "events":
 			events, err := s.getEvents(ctx, payload)
 			response.Error = err
 			response.Events = events
+
 		case "update":
 			systemdManaged, _ := systemd.IsActive("gpud.service")
 			if !systemdManaged {
@@ -85,12 +90,13 @@ func (s *Session) serve() {
 				}
 			}
 		}
+		cancel()
+
 		responseRaw, _ := json.Marshal(response)
 		s.writer <- Body{
 			Data:  responseRaw,
-			ReqID: reqId,
+			ReqID: body.ReqID,
 		}
-		cancel()
 	}
 }
 
