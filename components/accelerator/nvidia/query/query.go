@@ -442,12 +442,6 @@ func (o *Output) PrintInfo(debug bool) {
 		for _, dev := range o.NVML.DeviceInfos {
 			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
 
-			if dev.FabricAttached {
-				fmt.Printf("%s NVML fabric attached\n", checkMark)
-			} else {
-				fmt.Printf("%s NVML fabric NOT attached\n", checkMark)
-			}
-
 			if dev.ClockEvents != nil {
 				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
 					fmt.Printf("%s NVML found hw slowdown error(s)\n", warningSign)
