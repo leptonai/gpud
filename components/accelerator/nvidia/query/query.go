@@ -445,7 +445,7 @@ func (o *Output) PrintInfo(debug bool) {
 			if dev.FabricAttached {
 				fmt.Printf("%s NVML fabric attached\n", checkMark)
 			} else {
-				fmt.Printf("%s NVML fabric not attached\n", warningBlackSign)
+				fmt.Printf("%s NVML fabric NOT attached\n", checkMark)
 			}
 
 			if dev.ClockEvents != nil {
