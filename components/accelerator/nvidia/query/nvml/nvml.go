@@ -73,6 +73,15 @@ type instance struct {
 	gpmEventChCloseOnce sync.Once
 }
 
+// TODO
+// Track if the device is a fabric-attached GPU.
+// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
+// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
+// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
+// ref. https://github.com/NVIDIA/k8s-dra-driver/issues/2#issuecomment-2346638506
+// ref. https://github.com/NVIDIA/go-nvlib/pull/44
+
 type DeviceInfo struct {
 	// Note that k8s-device-plugin has a different logic for MIG devices.
 	// TODO: implement MIG device UUID fetching using NVML.
@@ -85,16 +94,8 @@ type DeviceInfo struct {
 	// DeviceID is the device ID from PCI info API.
 	DeviceID uint32 `json:"device_id"`
 
-	Name     string `json:"name"`
-	GPUCores int    `json:"gpu_cores"`
-
-	// Set true if the device is attached to a GPU fabric.
-	// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
-	// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
-	// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
-	FabricAttached bool `json:"fabric_attached"`
-
+	Name            string `json:"name"`
+	GPUCores        int    `json:"gpu_cores"`
 	SupportedEvents uint64 `json:"supported_events"`
 
 	// Set true if the device supports NVML error checks (health checks).
@@ -301,11 +302,6 @@ func (inst *instance) Start() error {
 			inst.gpmMetricsSupported = false
 		}
 
-		fabricAttached, err := d.IsFabricAttached()
-		if err != nil {
-			return fmt.Errorf("failed to check if fabric attached: %v", err)
-		}
-
 		inst.devices[uuid] = &DeviceInfo{
 			UUID: uuid,
 
@@ -315,8 +311,6 @@ func (inst *instance) Start() error {
 
 			Name:     name,
 			GPUCores: cores,
-
-			FabricAttached: fabricAttached,
 
 			SupportedEvents: supportedEvents,
 
