@@ -89,6 +89,10 @@ type DeviceInfo struct {
 	GPUCores int    `json:"gpu_cores"`
 
 	// Set true if the device is attached to a GPU fabric.
+	// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
+	// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
+	// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
 	FabricAttached bool `json:"fabric_attached"`
 
 	SupportedEvents uint64 `json:"supported_events"`
