@@ -78,11 +78,17 @@ func (o *Output) describeReason() string {
 	return fmt.Sprintf("total %d pods (node %s)", len(o.Pods), o.NodeName)
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	healthy := o.ConnectionError == ""
+	if cfg.IgnoreConnectionErrors {
+		healthy = true
+	}
+
 	b, _ := o.JSON()
+
 	return []components.State{{
 		Name:    StateNamePod,
-		Healthy: true,
+		Healthy: healthy,
 		Reason:  o.describeReason(),
 		ExtraInfo: map[string]string{
 			StateKeyPodData:     string(b),
