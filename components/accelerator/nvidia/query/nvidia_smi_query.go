@@ -10,13 +10,15 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/pkg/file"
+
 	"sigs.k8s.io/yaml"
 )
 
 // Returns true if the local machine runs on Nvidia GPU
 // by running "nvidia-smi".
 func SMIExists() bool {
-	p, err := exec.LookPath("nvidia-smi")
+	p, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return false
 	}
@@ -24,7 +26,7 @@ func SMIExists() bool {
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
-	p, err := exec.LookPath("nvidia-smi")
+	p, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
 	}
