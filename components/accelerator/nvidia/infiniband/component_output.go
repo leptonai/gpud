@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-
-	"sigs.k8s.io/yaml"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -84,11 +83,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
 	if len(o.Ibstat.Errors) > 0 {
-		yb, err := yaml.Marshal(o.Ibstat.Errors)
-		if err != nil {
-			return "", false, err
-		}
-		return fmt.Sprintf("ibstat errors found:\n\n%s", string(yb)), false, nil
+		return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 	}
 	return "no ibstat error found", true, nil
 }
