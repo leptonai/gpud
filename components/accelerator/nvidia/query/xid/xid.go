@@ -714,9 +714,11 @@ var details = map[int]Detail{
 		// ref. https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent/
 		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
 				common.RepairActionTypeCheckUserAppAndGPU,
 			},
 			Descriptions: []string{
+				"System reboot is recommended as Xid 45 often blocks nvidia-smi, sometimes indicating a deeper GPU issue.",
 				"Software-related issue affecting code and data segments, possibly GPU memory issue (Xid 45) -- check user applications and GPUs.",
 			},
 		},
