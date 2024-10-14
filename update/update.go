@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	url2 "net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -240,5 +241,26 @@ func update(ver, url string, requireRoot bool, useSystemd bool) error {
 		}
 	}
 
+	return nil
+}
+
+func PackageUpdate(targetPackage, ver, baseUrl string) error {
+	dlDir, err := os.UserCacheDir()
+	if err != nil {
+		dlDir = os.TempDir()
+	}
+	dlPath := filepath.Join(dlDir, targetPackage+ver)
+	downloadUrl, err := url2.JoinPath(baseUrl, "packages", targetPackage)
+	if err != nil {
+		return err
+	}
+	err = downloadURLToFile(ver, dlPath, downloadUrl)
+	if err != nil {
+		return err
+	}
+
+	if err = os.Rename(dlPath, fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", targetPackage)); err != nil {
+		return err
+	}
 	return nil
 }

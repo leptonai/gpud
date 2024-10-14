@@ -484,8 +484,8 @@ sudo gpud join
 				},
 				cli.StringFlag{
 					Name:  "cluster-name",
-					Usage: "cluster name for control plane (e.g.: lepton-production)",
-					Value: "lepton-production",
+					Usage: "cluster name for control plane (e.g.: lepton-dev)",
+					Value: "lepton-dev",
 				},
 				cli.StringFlag{
 					Name:  "public-ip",

@@ -59,7 +59,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("executing nproc: %w", err)
 	}
 
-	totalCPU, err := strconv.ParseInt(out.String(), 10, 64)
+	totalCPU, err := strconv.ParseInt(strings.TrimSpace(out.String()), 10, 64)
 	if err != nil {
 		return fmt.Errorf("error parsing cpu: %w", err)
 	}
@@ -117,7 +117,11 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}
-	return handleJoinResponse(rootCtx, response.Body)
+	if err := handleJoinResponse(rootCtx, response.Body); err != nil {
+		return err
+	}
+	fmt.Println("Please wait while gpud is initializing your machine, this may take a few minutes.\nYou can run `gpud status` to check the progress.")
+	return nil
 }
 
 func handleJoinResponse(ctx context.Context, body io.Reader) error {
