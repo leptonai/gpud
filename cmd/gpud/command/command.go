@@ -82,7 +82,7 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -111,7 +111,7 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -220,7 +220,7 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
 				},
 				&cli.BoolTFlag{
 					Name:        "enable-auto-update",
