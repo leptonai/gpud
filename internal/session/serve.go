@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "github.com/leptonai/gpud/api/v1"
@@ -71,21 +72,28 @@ func (s *Session) serve() {
 			response.Events = events
 
 		case "update":
-			systemdManaged, _ := systemd.IsActive("gpud.service")
-			if !systemdManaged {
-				log.Logger.Debugw("gpud is not managed with systemd")
-				response.Error = errors.New("gpud is not managed with systemd")
-			} else if !s.enableAutoUpdate {
-				log.Logger.Debugw("auto update is disabled")
-				response.Error = errors.New("auto update is disabled")
+			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
+				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
+				if err != nil {
+					response.Error = err
+				}
 			} else {
-				nextVersion := payload.UpdateVersion
-				if nextVersion == "" {
-					response.Error = fmt.Errorf("update_version is empty")
+				systemdManaged, _ := systemd.IsActive("gpud.service")
+				if !systemdManaged {
+					log.Logger.Debugw("gpud is not managed with systemd")
+					response.Error = errors.New("gpud is not managed with systemd")
+				} else if !s.enableAutoUpdate {
+					log.Logger.Debugw("auto update is disabled")
+					response.Error = errors.New("auto update is disabled")
 				} else {
-					err := update.Update(nextVersion, update.DefaultUpdateURL)
-					if err != nil {
-						response.Error = err
+					nextVersion := payload.UpdateVersion
+					if nextVersion == "" {
+						response.Error = fmt.Errorf("update_version is empty")
+					} else {
+						err := update.Update(nextVersion, update.DefaultUpdateURL)
+						if err != nil {
+							response.Error = err
+						}
 					}
 				}
 			}
