@@ -393,16 +393,8 @@ func (o *Output) GPUProductName() string {
 	return ""
 }
 
-func (o *Output) GPUProductNameFromSMI() string {
-	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
-		return ""
-	}
-	if o.SMI.GPUs[0].ProductName != "" {
-		return o.SMI.GPUs[0].ProductName
-	}
-	return ""
-}
-
+// This is the same product name in nvidia-smi outputs.
+// ref. https://developer.nvidia.com/management-library-nvml
 func (o *Output) GPUProductNameFromNVML() string {
 	if o == nil {
 		return ""
@@ -432,7 +424,6 @@ func (o *Output) PrintInfo(debug bool) {
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
 	fmt.Printf("%s GPU count '%d' (from nvidia-smi)\n", checkMark, o.GPUCountFromSMI())
 	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
-	fmt.Printf("%s GPU product name '%s' (from nvidia-smi)\n", checkMark, o.GPUProductNameFromSMI())
 	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
 
 	if o.SMI != nil {
