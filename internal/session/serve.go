@@ -41,19 +41,19 @@ func (s *Session) serve() {
 			continue
 		}
 
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		if payload.Method == "reboot" {
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-			rerr := reboot.Reboot(ctx, reboot.WithDelaySeconds(3))
-			cancel()
+			rerr := reboot.Reboot(ctx, reboot.WithDelaySeconds(0))
 
 			if rerr != nil {
 				log.Logger.Errorf("failed to trigger reboot machine: %v", rerr)
 			}
+
+			cancel()
 			continue
 		}
 
 		response := &Response{}
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		switch payload.Method {
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
