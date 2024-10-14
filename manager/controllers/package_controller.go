@@ -30,6 +30,16 @@ func NewPackageController(watcher chan packages.PackageInfo) *PackageController 
 	return r
 }
 
+func (c *PackageController) Status(ctx context.Context) ([]packages.PackageStatus, error) {
+	c.RLock()
+	defer c.RUnlock()
+	var ret []packages.PackageStatus
+	for _, pkg := range c.packageStatus {
+		ret = append(ret, *pkg)
+	}
+	return ret, nil
+}
+
 func (c *PackageController) Run(ctx context.Context) error {
 	go c.reconcileLoop(ctx)
 	go c.updateRunner(ctx)
@@ -91,7 +101,13 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			if version == pkg.TargetVersion {
 				continue
 			}
+			c.Lock()
+			c.packageStatus[pkg.Name].Installing = true
+			c.Unlock()
 			err = runCommand(ctx, pkg.ScriptPath, "upgrade", nil)
+			c.Lock()
+			c.packageStatus[pkg.Name].Installing = false
+			c.Unlock()
 			if err != nil {
 				log.Logger.Errorf("[package controller]: %v unexpected upgrade failure: %v", pkg.Name, err)
 			}
