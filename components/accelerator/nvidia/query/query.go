@@ -356,10 +356,9 @@ func (o *Output) GPUProductName() string {
 }
 
 const (
-	inProgress       = "\033[33m⌛\033[0m"
-	checkMark        = "\033[32m✔\033[0m"
-	warningSign      = "\033[31m✘\033[0m"
-	warningBlackSign = "\033[30m✘\033[0m"
+	inProgress  = "\033[33m⌛\033[0m"
+	checkMark   = "\033[32m✔\033[0m"
+	warningSign = "\033[31m✘\033[0m"
 )
 
 func (o *Output) PrintInfo(debug bool) {
