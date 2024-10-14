@@ -980,7 +980,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 62) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
@@ -1158,7 +1158,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
+				"Uncorrectable GPU error occurred (Xid 69) -- GPU reset or node reboot is needed.",
 			},
 		},
 	},
@@ -1241,7 +1241,8 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 
 "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158 explains:
 
-Xid74 indicates errors in NVLink.
+Xid 74 indicates errors in NVLink.
+
 For PCIe A100, it's mainly occurred on the NVLink Bridge between two GPUs.
 Its occurrence rate is several orders of magnitude higher than other hardware faults.
 Apart from stress testing to exclude those that are constantly repeating errors, there isn't a good way to avoid the occurrence of Xid74 issues.
