@@ -174,7 +174,7 @@ func Get(ctx context.Context) (output any, err error) {
 		metrics_remapped_rows.SetLastUpdateUnixSeconds(nowUnix)
 
 		for _, dev := range o.NVML.DeviceInfos {
-			log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.Bus, "device", dev.Device, "minorNumber", dev.MinorNumber)
+			log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.BusID, "device", dev.DeviceID, "minorNumber", dev.MinorNumberID)
 
 			if dev.ClockEvents != nil {
 				if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
@@ -449,7 +449,7 @@ func (o *Output) PrintInfo(debug bool) {
 		}
 
 		for _, dev := range o.NVML.DeviceInfos {
-			fmt.Printf("\n\n##################\nNVML scan results for %s\n\n", dev.UUID)
+			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
 
 			if dev.ClockEvents != nil {
 				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {

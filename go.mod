@@ -3,7 +3,7 @@ module github.com/leptonai/gpud
 go 1.23
 
 require (
-	github.com/NVIDIA/go-nvlib v0.6.1
+	github.com/NVIDIA/go-nvlib v0.7.0
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/docker/docker v25.0.6+incompatible
