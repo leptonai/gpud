@@ -10,6 +10,8 @@ import (
 type Manager struct {
 }
 
+var GlobalController *controllers.PackageController
+
 func New() (*Manager, error) {
 	return &Manager{}, nil
 }
@@ -18,4 +20,5 @@ func (a *Manager) Start(ctx context.Context) {
 	watcher := informer.NewFileInformer()
 	packageController := controllers.NewPackageController(watcher)
 	_ = packageController.Run(ctx)
+	GlobalController = packageController
 }

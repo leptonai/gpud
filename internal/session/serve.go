@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"time"
 
 	v1 "github.com/leptonai/gpud/api/v1"
@@ -73,35 +74,42 @@ func (s *Session) serve() {
 			response.Events = events
 
 		case "update":
-			if !s.enableAutoUpdate {
-				log.Logger.Warnw("auto update is disabled -- skipping update")
-				response.Error = errors.New("auto update is disabled")
-				break
-			}
+			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
+				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
+				if err != nil {
+					response.Error = err
+				}
+			} else {
+				if !s.enableAutoUpdate {
+					log.Logger.Warnw("auto update is disabled -- skipping update")
+					response.Error = errors.New("auto update is disabled")
+					break
+				}
 
-			systemdManaged, _ := systemd.IsActive("gpud.service")
-			if s.autoUpdateExitCode == -1 && !systemdManaged {
-				log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
-				response.Error = errors.New("gpud is not managed with systemd")
-				break
-			}
+				systemdManaged, _ := systemd.IsActive("gpud.service")
+				if s.autoUpdateExitCode == -1 && !systemdManaged {
+					log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
+					response.Error = errors.New("gpud is not managed with systemd")
+					break
+				}
 
-			nextVersion := payload.UpdateVersion
-			if nextVersion == "" {
-				log.Logger.Warnw("target update_version is empty -- skipping update")
-				response.Error = errors.New("update_version is empty")
-				break
-			}
+				nextVersion := payload.UpdateVersion
+				if nextVersion == "" {
+					log.Logger.Warnw("target update_version is empty -- skipping update")
+					response.Error = errors.New("update_version is empty")
+					break
+				}
 
-			if systemdManaged {
-				response.Error = update.Update(nextVersion, update.DefaultUpdateURL)
-				break
-			}
+				if systemdManaged {
+					response.Error = update.Update(nextVersion, update.DefaultUpdateURL)
+					break
+				}
 
-			if s.autoUpdateExitCode != -1 {
-				response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
-				if response.Error == nil {
-					needExit = s.autoUpdateExitCode
+				if s.autoUpdateExitCode != -1 {
+					response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
+					if response.Error == nil {
+						needExit = s.autoUpdateExitCode
+					}
 				}
 			}
 		}
