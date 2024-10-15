@@ -9,6 +9,63 @@ import (
 	"time"
 )
 
+func TestApplyOpts(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    []OpOption
+		wantErr bool
+	}{
+		{
+			name:    "Default options",
+			opts:    []OpOption{},
+			wantErr: false,
+		},
+		{
+			name: "Enable auto update",
+			opts: []OpOption{
+				WithEnableAutoUpdate(true),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Disable auto update",
+			opts: []OpOption{
+				WithEnableAutoUpdate(false),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Set auto update by exit code with auto update enabled",
+			opts: []OpOption{
+				WithEnableAutoUpdate(true),
+				WithAutoUpdateExitCode(1),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Set auto update by exit code with auto update disabled",
+			opts: []OpOption{
+				WithEnableAutoUpdate(false),
+				WithAutoUpdateExitCode(1),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := &Op{}
+			err := op.applyOpts(tt.opts)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("applyOpts() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != ErrAutoUpdateDisabledButExitCodeSet {
+				t.Errorf("applyOpts() expected error %v, got %v", ErrAutoUpdateDisabledButExitCodeSet, err)
+			}
+		})
+	}
+}
+
 func TestNewSession(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -16,7 +73,10 @@ func TestNewSession(t *testing.T) {
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
 
-	session := NewSession(ctx, endpoint, machineID, time.Second, true)
+	session, err := NewSession(ctx, endpoint, WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true))
+	if err != nil {
+		t.Fatalf("error creating session: %v", err)
+	}
 	defer session.Stop()
 
 	if session == nil {

@@ -191,33 +191,53 @@ func StopSystemdUnit() error {
 }
 
 func Update(ver, url string) error {
-	if err := RequireRoot(); err != nil {
-		log.Logger.Errorf("this command needs to be run as root: %v", err)
-		return err
+	return update(ver, url, true, true)
+}
+
+// Updates the gpud binary by only downloading the tarball and unpacking it,
+// without restarting the service or requiring root.
+func UpdateOnlyBinary(ver, url string) error {
+	return update(ver, url, false, false)
+}
+
+func update(ver, url string, requireRoot bool, useSystemd bool) error {
+	log.Logger.Infow("starting gpud update", "version", ver, "url", url, "requireRoot", requireRoot, "useSystemd", useSystemd)
+
+	if requireRoot {
+		if err := RequireRoot(); err != nil {
+			log.Logger.Errorf("this command needs to be run as root: %v", err)
+			return err
+		}
 	}
 
 	dlPath, err := downloadLinuxTarball(ver, url)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Extracting %q", dlPath)
+	log.Logger.Infow("downloaded update tarball", "path", dlPath)
+
 	if err := unpackLinuxTarball(dlPath); err != nil {
 		return err
 	}
+	log.Logger.Infow("unpacked update tarball", "path", dlPath)
+
 	if err := os.Remove(dlPath); err != nil {
-		log.Logger.Errorf("failed to cleanup: %s", err)
+		log.Logger.Errorw("failed to cleanup the downloaded update tarball", "error", err)
 	}
-	if err := RestartSystemdUnit(); err != nil {
-		if strings.Contains(err.Error(), "signal: terminated") {
-			// an expected error
-			log.Logger.Infof("gpud binary updated successfully. Waiting complete of systemd restart.")
-		} else if errors.Is(err, errors.ErrUnsupported) {
-			log.Logger.Errorf("gpud binary updated successfully. Please restart gpud to finish the update.")
+
+	if useSystemd {
+		if err := RestartSystemdUnit(); err != nil {
+			if strings.Contains(err.Error(), "signal: terminated") {
+				// an expected error
+				log.Logger.Infof("gpud binary updated successfully. Waiting complete of systemd restart.")
+			} else if errors.Is(err, errors.ErrUnsupported) {
+				log.Logger.Errorf("gpud binary updated successfully. Please restart gpud to finish the update.")
+			} else {
+				log.Logger.Errorf("gpud binary updated successfully, but failed to restart gpud: %s. Please restart gpud to finish the update.", err)
+			}
 		} else {
-			log.Logger.Errorf("gpud binary updated successfully, but failed to restart gpud: %s. Please restart gpud to finish the update.", err)
+			log.Logger.Infow("completed gpud update", "version", ver)
 		}
-	} else {
-		log.Logger.Infof("updating gpud to version %s completed", ver)
 	}
 
 	return nil
