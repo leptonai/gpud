@@ -2,6 +2,7 @@ package command
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -31,7 +32,6 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	defer rootCancel()
 	endpoint := cliContext.String("endpoint")
 	clusterName := cliContext.String("cluster-name")
-	publicIP := cliContext.String("public-ip")
 	provider := cliContext.String("provider")
 	xrayNeeded := cliContext.Bool("xray-needed")
 	nodeGroup := cliContext.String("node-group")
@@ -68,9 +68,43 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
+	publicIP, _ := login.PublicIP()
+	if !cliContext.Bool("skip-interactive") {
+		reader := bufio.NewReader(os.Stdin)
+		var input string
+		if productName != "unknown" {
+			fmt.Printf("We detect your gpu type is %v, if this is corrent, press Enter. If not, please enter your gpu shape below\n", productName)
+			input, err = reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Error reading input:", err)
+				return
+			}
+			if input != "\n" {
+				productName = strings.TrimSpace(input)
+			}
+		}
 
-	if publicIP == "" {
-		publicIP, _ = login.PublicIP()
+		fmt.Printf("We detect your public IP is %v, if this is corrent, press Enter. If not, please enter your public IP below\n", publicIP)
+		input, err = reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			return
+		}
+		if input != "\n" {
+			publicIP = strings.TrimSpace(input)
+		}
+
+		if provider == "personal" {
+			fmt.Printf("Provider name not specified, if you want to use default value, press Enter. If not, please enter your provider's name below\n")
+			input, err = reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Error reading input:", err)
+				return
+			}
+			if input != "\n" {
+				provider = strings.TrimSpace(input)
+			}
+		}
 	}
 
 	type payload struct {
@@ -100,6 +134,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		ExtraInfo:        extraInfo,
 	}
 	rawPayload, _ := json.Marshal(&content)
+	fmt.Println("Please wait while control plane is initializing basic setup for your machine with following configuration, this may take up to one minute...")
+	prettyJSON, _ := json.MarshalIndent(content, "", "  ")
+	fmt.Println(string(prettyJSON))
 	response, err := http.Post(fmt.Sprintf("https://%s/api/v1/join", endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err

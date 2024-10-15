@@ -74,9 +74,7 @@ func (s *Session) serve() {
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
-				if err != nil {
-					response.Error = err
-				}
+				log.Logger.Infow("Update received for machine", "version", targetVersion[1], "package", targetVersion[0], "error", err)
 			} else {
 				systemdManaged, _ := systemd.IsActive("gpud.service")
 				if !systemdManaged {
