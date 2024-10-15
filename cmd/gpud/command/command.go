@@ -79,7 +79,7 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -108,7 +108,38 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+				},
+			},
+		},
+		{
+			Name:   "kubeconfig",
+			Usage:  "Writes the kubeconfig with gpud.",
+			Action: cmdKubeConfig,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "file",
+					Usage: "file path to output the kubelet config",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "region of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "cluster",
+					Usage: "name of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "role",
+					Usage: "role arn",
+				},
+				cli.StringFlag{
+					Name:  "session",
+					Usage: "cluster session name",
+				},
+				cli.StringFlag{
+					Name:  "cluster-ca",
+					Usage: "cluster ca file path",
 				},
 			},
 		},
@@ -186,7 +217,7 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
 				},
 				&cli.BoolTFlag{
 					Name:        "enable-auto-update",
@@ -421,6 +452,47 @@ cat summary.txt
 					Name:        "poll-gpm-events",
 					Usage:       "enable polling gpm events (default: false)",
 					Destination: &pollGPMEvents,
+				},
+			},
+		},
+		{
+			Name:  "join",
+			Usage: "join gpud machine into a lepton cluster",
+			UsageText: `# to join gpud into a lepton cluster
+sudo gpud join
+`,
+			Action: cmdJoin,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:  "cluster-name",
+					Usage: "cluster name for control plane (e.g.: lepton-dev)",
+					Value: "lepton-dev",
+				},
+				cli.StringFlag{
+					Name:  "provider",
+					Usage: "provider of the machine",
+					Value: "personal",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.BoolFlag{
+					Name:  "skip-interactive",
+					Usage: "use detected value instead of prompting for user input",
+				},
+				cli.BoolFlag{
+					Name:  "xray-needed",
+					Usage: "enable xray for the machine",
+				},
+				cli.StringFlag{
+					Name:  "extra-info",
+					Usage: "base64 encoded extra info to pass to control plane",
 				},
 			},
 		},

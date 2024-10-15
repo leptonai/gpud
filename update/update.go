@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	url2 "net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -220,5 +221,26 @@ func Update(ver, url string) error {
 		log.Logger.Infof("updating gpud to version %s completed", ver)
 	}
 
+	return nil
+}
+
+func PackageUpdate(targetPackage, ver, baseUrl string) error {
+	dlDir, err := os.UserCacheDir()
+	if err != nil {
+		dlDir = os.TempDir()
+	}
+	dlPath := filepath.Join(dlDir, targetPackage+ver)
+	downloadUrl, err := url2.JoinPath(baseUrl, "packages", targetPackage)
+	if err != nil {
+		return err
+	}
+	err = downloadURLToFile(ver, dlPath, downloadUrl)
+	if err != nil {
+		return err
+	}
+
+	if err = os.Rename(dlPath, fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", targetPackage)); err != nil {
+		return err
+	}
 	return nil
 }
