@@ -29,7 +29,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
 
 			if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
-				o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
+				o.VolatileUncorrectedErrorsFromSMI = append(o.VolatileUncorrectedErrorsFromSMI, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
 			}
 		}
 	}
@@ -40,7 +40,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			o.ErrorCountsNVML = append(o.ErrorCountsNVML, dev.ECCErrors)
 
 			if errs := dev.ECCErrors.Volatile.FindUncorrectedErrs(); len(errs) > 0 {
-				o.VolatileUncorrectedErrors = append(o.VolatileUncorrectedErrors, fmt.Sprintf("[%s] %s", dev.UUID, strings.Join(errs, ", ")))
+				o.VolatileUncorrectedErrorsFromNVML = append(o.VolatileUncorrectedErrorsFromNVML, fmt.Sprintf("[%s] %s", dev.UUID, strings.Join(errs, ", ")))
 			}
 		}
 	}
@@ -56,13 +56,15 @@ type Output struct {
 
 	// Volatile counts are reset each time the driver loads.
 	// As aggregate counts persist across reboots (i.e. for the lifetime of the device),
-	// do not track separately.
+	// we do not track separately.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
 	//
-	// A memory error that was not correctedFor ECC errors, these are double bit errors.
+	// A memory error that was not corrected.
+	// For ECC errors, these are double bit errors.
 	// For Texture memory, these are errors where the resend fails.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1gc5469bd68b9fdcf78734471d86becb24
-	VolatileUncorrectedErrors []string `json:"volatile_uncorrected_errors"`
+	VolatileUncorrectedErrorsFromSMI  []string `json:"volatile_uncorrected_errors_from_smi"`
+	VolatileUncorrectedErrorsFromNVML []string `json:"volatile_uncorrected_errors_from_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -108,22 +110,39 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 func (o *Output) States() ([]components.State, error) {
-	reasons := ""
+	reasons := []string{}
 
 	// as aggregate counts persist across reboots
 	// ignore it for settings the healthy
-	if len(o.VolatileUncorrectedErrors) > 0 {
-		reasons = fmt.Sprintf("%d volatile errors found (from nvidia-smi and nvml): %s",
-			len(o.VolatileUncorrectedErrors),
-			strings.Join(o.VolatileUncorrectedErrors, ", "),
-		)
+	if len(o.VolatileUncorrectedErrorsFromSMI) > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvidia-smi)",
+			len(o.VolatileUncorrectedErrorsFromSMI),
+		))
+	}
+
+	if len(o.VolatileUncorrectedErrorsFromNVML) > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d volatile errors found (from nvml)",
+			len(o.VolatileUncorrectedErrorsFromNVML),
+		))
+	}
+
+	reason := strings.Join(reasons, "; ")
+	if len(reason) == 0 {
+		reason = "no issue detected"
+	} else {
+		reason = fmt.Sprintf("note that when an uncorrectable ECC error is detected, the NVIDIA driver software will perform error recovery -- %s", reason)
 	}
 
 	b, _ := o.JSON()
 	state := components.State{
-		Name:    StateNameECC,
-		Healthy: len(o.VolatileUncorrectedErrors) == 0,
-		Reason:  reasons,
+		Name: StateNameECC,
+
+		// no reason to mark this unhealthy as "when an uncorrectable ECC error is detected, the NVIDIA driver software will perform error recovery."
+		// we only mark this unhealthy when the pending row remapping is >0 (which requires GPU reset)
+		// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html
+		Healthy: true,
+
+		Reason: reason,
 		ExtraInfo: map[string]string{
 			StateKeyECCData:     string(b),
 			StateKeyECCEncoding: StateValueECCEncodingJSON,

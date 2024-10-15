@@ -30,8 +30,18 @@ type Processes struct {
 }
 
 type Process struct {
-	PID                         uint32      `json:"pid"`
-	Status                      []string    `json:"status,omitempty"`
+	PID    uint32   `json:"pid"`
+	Status []string `json:"status,omitempty"`
+
+	// ZombieStatus is set to true if the process is defunct
+	// (terminated but not reaped by its parent).
+	ZombieStatus bool `json:"zombie_status,omitempty"`
+
+	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA.
+	// Empty if there is no bad environment variable found for this process.
+	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
+	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
+
 	CmdArgs                     []string    `json:"cmd_args,omitempty"`
 	CreateTime                  metav1.Time `json:"create_time,omitempty"`
 	GPUUsedPercent              uint32      `json:"gpu_used_percent,omitempty"`
@@ -109,10 +119,43 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 			}
 			return Processes{}, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
 		}
+		isZombie := false
+		for _, s := range status {
+			if s == process.Zombie {
+				isZombie = true
+				break
+			}
+		}
+
+		envs, err := procObject.Environ()
+		if err != nil {
+			return Processes{}, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)
+		}
+
+		badEnvVars := make(map[string]string)
+		for _, env := range envs {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) == 2 {
+				key, value := parts[0], parts[1]
+
+				// implementing "DCGM_FR_BAD_CUDA_ENV"
+				if _, ok := BAD_CUDA_ENV_KEYS[key]; ok {
+					badEnvVars[key] = value
+				}
+			}
+		}
+		if len(badEnvVars) == 0 {
+			badEnvVars = nil
+		}
 
 		procs.RunningProcesses = append(procs.RunningProcesses, Process{
-			PID:        proc.Pid,
-			Status:     status,
+			PID: proc.Pid,
+
+			Status:       status,
+			ZombieStatus: isZombie,
+
+			BadEnvVarsForCUDA: badEnvVars,
+
 			CmdArgs:    args,
 			CreateTime: createTime,
 

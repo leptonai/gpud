@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,10 +41,22 @@ func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
 	return o, nil
 }
 
+var (
+	ErrIbstatOutputBrokenStateDown        = errors.New("ibstat output unexpected; found State: Down (check the physical switch)")
+	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output unexpected; found Physical state: Disabled (check the physical switch)")
+)
+
 func ValidateIbstatOutput(s string) error {
 	if strings.Contains(s, "State: Down") {
-		return fmt.Errorf("ibstat output seems broken; found State: Down")
+		return ErrIbstatOutputBrokenStateDown
 	}
+
+	// needs
+	// "ip link set <dev> up"
+	if strings.Contains(s, "Physical state: Disabled") {
+		return ErrIbstatOutputBrokenPhysicalDisabled
+	}
+
 	return nil
 }
 

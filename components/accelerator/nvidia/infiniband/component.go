@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
@@ -87,6 +88,14 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 				Reason:  "ibstat query found errors " + strings.Join(allOutput.Ibstat.Errors, ", "),
 				ExtraInfo: map[string]string{
 					nvidia_query.StateKeyIbstatExists: fmt.Sprintf("%v", allOutput.IbstatExists),
+				},
+				SuggestedActions: &common.SuggestedActions{
+					RepairActions: []common.RepairActionType{
+						common.RepairActionTypeRepairHardware,
+					},
+					Descriptions: []string{
+						"potential infiniband switch/hardware issue needs immediate attention",
+					},
 				},
 			},
 		}, nil

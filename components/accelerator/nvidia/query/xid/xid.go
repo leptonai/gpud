@@ -212,6 +212,23 @@ var details = map[int]Detail{
 		BusError:               true,
 		ThermalIssue:           true,
 		FBCorruption:           true,
+
+		// "may indicate anomalies in GPU memory affecting code and data segments"
+		// even though the official doc says it's a user app error
+		// it's possible that this indicates a deeper issue in the GPU
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		//
+		// "the screen blacks out and I am given NVRM Nvidia XID 45"
+		// "GPU was dead"
+		// ref. https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent/
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+			},
+			Descriptions: []string{
+				"Software-related issue affecting code and data segments, possibly GPU memory issue (Xid 13) -- check user applications and GPUs.",
+			},
+		},
 	},
 	14: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -450,6 +467,23 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "may indicate anomalies in GPU memory affecting code and data segments"
+		// even though the official doc says it's a user app error
+		// it's possible that this indicates a deeper issue in the GPU
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		//
+		// "the screen blacks out and I am given NVRM Nvidia XID 45"
+		// "GPU was dead"
+		// ref. https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent/
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+			},
+			Descriptions: []string{
+				"Software-related issue affecting code and data segments, possibly GPU memory issue (Xid 31) -- check user applications and GPUs.",
+			},
+		},
 	},
 	32: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -610,6 +644,23 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "may indicate anomalies in GPU memory affecting code and data segments"
+		// even though the official doc says it's a user app error
+		// it's possible that this indicates a deeper issue in the GPU
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		//
+		// "the screen blacks out and I am given NVRM Nvidia XID 45"
+		// "GPU was dead"
+		// ref. https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent/
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+			},
+			Descriptions: []string{
+				"Software-related issue affecting code and data segments, possibly GPU memory issue (Xid 43) -- check user applications and GPUs.",
+			},
+		},
 	},
 	44: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -623,6 +674,18 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "Thease failures mean an uncorrectable error occurs on the GPU, which is also reported back to the user application."
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Uncorrectable GPU error occurred (Xid 44) -- GPU reset or node reboot is needed.",
+			},
+		},
 	},
 	45: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -640,6 +703,25 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "may indicate anomalies in GPU memory affecting code and data segments"
+		// even though the official doc says it's a user app error
+		// it's possible that this indicates a deeper issue in the GPU
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		//
+		// "the screen blacks out and I am given NVRM Nvidia XID 45"
+		// "GPU was dead"
+		// ref. https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent/
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeCheckUserAppAndGPU,
+			},
+			Descriptions: []string{
+				"System reboot is recommended as Xid 45 often blocks nvidia-smi, sometimes indicating a deeper GPU issue.",
+				"Software-related issue affecting code and data segments, possibly GPU memory issue (Xid 45) -- check user applications and GPUs.",
+			},
+		},
 	},
 	46: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -694,7 +776,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"GPU reset required due to XID 48 (double bit ECC error).",
+				"Uncorrectable GPU error occurred -- GPU reset required due to Xid 48 (double bit ECC error).",
 			},
 		},
 	},
@@ -866,6 +948,18 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "Thease failures mean an uncorrectable error occurs on the GPU, which is also reported back to the user application."
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
+			},
+		},
 	},
 	62: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -879,6 +973,18 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		BusError:               false,
 		ThermalIssue:           true,
 		FBCorruption:           false,
+
+		// "Thease failures mean an uncorrectable error occurs on the GPU, which is also reported back to the user application."
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Uncorrectable GPU error occurred (Xid 62) -- GPU reset or node reboot is needed.",
+			},
+		},
 	},
 	63: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -907,6 +1013,18 @@ If not, it is from a single bit error and the system can keep running as is unti
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           true,
+
+		// "Triggered when the GPU handles memory ECC errors on the GPU"
+		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+			},
+			Descriptions: []string{
+				"Row-remapping happened (Xid 63, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but for optimal performance, reset the GPU or reboot the system.",
+			},
+		},
 	},
 	64: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -935,6 +1053,20 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "Triggered when the GPU handles memory ECC errors on the GPU"
+		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Row-remapping happened (Xid 64, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
+				"System reboot is recommended when convenient, but not required immediately.",
+			},
+		},
 	},
 	65: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -948,6 +1080,20 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "Triggered when the GPU handles memory ECC errors on the GPU"
+		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
+				"System reboot is recommended when convenient, but not required immediately.",
+			},
+		},
 	},
 	66: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1005,6 +1151,18 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		// "Thease failures mean an uncorrectable error occurs on the GPU, which is also reported back to the user application."
+		// "A GPU reset or node reboot is needed to clear this error."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+			Descriptions: []string{
+				"Uncorrectable GPU error occurred (Xid 69) -- GPU reset or node reboot is needed.",
+			},
+		},
 	},
 	70: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1080,6 +1238,17 @@ Bits 4 or 5: Likely HW issue with ECC/Parity --> If seen more than 2 times on th
 Bits 21 or 22: Marginal channel SI issue. Check link mechanical connecetions. If other errors accompany, follow the resolution for those.
 
 Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanical connecetions and re-seat if a field resolution is required. Run diags if issue persists.
+
+
+
+"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158 explains:
+
+Xid 74 indicates errors in NVLink.
+
+For PCIe A100, it's mainly occurred on the NVLink Bridge between two GPUs.
+Its occurrence rate is several orders of magnitude higher than other hardware faults.
+Apart from stress testing to exclude those that are constantly repeating errors, there isn't a good way to avoid the occurrence of Xid74 issues.
+
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1097,8 +1266,8 @@ Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanic
 				common.RepairActionTypeRepairHardware,
 			},
 			Descriptions: []string{
-				"GPU reset or node reboot is needed to clear this error.",
-				"If this error is seen repeatedly, contact hardware vendor to check the physical link.",
+				"GPU reset or node reboot is needed to clear this error (Xid 74).",
+				"If this error is seen repeatedly (Xid 74), contact hardware vendor to check the physical link.",
 			},
 		},
 	},
@@ -1181,7 +1350,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 				common.RepairActionTypeRepairHardware,
 			},
 			Descriptions: []string{
-				"GPU not accessible due to failing hardware ('GPU has fallen off the bus') -- check with the data center.",
+				"GPU not accessible due to failing hardware (Xid 79, 'GPU has fallen off the bus') -- check with the data center.",
 			},
 		},
 	},
@@ -1402,12 +1571,18 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 
 		// "recommended to reset the GPU when convenient"
 		// ref. https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained
+		//
+		// "Triggered when the GPU handles memory ECC errors on the GPU"
+		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
 		SuggestedActions: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"GPU reset or system reboot is recommended when convenient, to clear the contained ECC error.",
+				"Row-remapping happened (Xid 94, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
+				"System reboot is recommended when convenient, but not required immediately.",
 			},
 		},
 	},
@@ -1449,8 +1624,8 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 				common.RepairActionTypeRepairHardware,
 			},
 			Descriptions: []string{
-				"GPU reset or system reboot is needed to clear this uncontained ECC error. If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.",
-				"If the errors continue, drain the node and contact the hardware vendor for assistance.",
+				"GPU reset or system reboot is needed to clear this uncontained ECC error (Xid 95). If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.",
+				"If the errors continue (Xid 95), drain the node and contact the hardware vendor for assistance.",
 			},
 		},
 	},
@@ -1655,7 +1830,7 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 				common.RepairActionTypeRebootSystem,
 			},
 			Descriptions: []string{
-				"This event should be uncommon unless there is a hardware failure.",
+				"This event should be uncommon unless there is a hardware failure (Xid 110).",
 			},
 		},
 	},
@@ -1775,6 +1950,18 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 		BusError:               true,
 		ThermalIssue:           true,
 		FBCorruption:           true,
+
+		// "Xid119 means GPU GSP module failed."
+		// "These failures need to do fieldiag test, and most need to RMA."
+		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"GPU GSP module failed (Xid 119) -- check if GPU qualifies for RMA.",
+			},
+		},
 	},
 	120: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -2046,8 +2233,8 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				common.RepairActionTypeRepairHardware,
 			},
 			Descriptions: []string{
-				"Reset the GPU in case the row remapping is pending.",
-				"Requires hardware vendor support if the problem persists after reboot.",
+				"Reset the GPU in case the row remapping is pending (Xid 140).",
+				"Requires hardware vendor support if the problem persists after reboot (Xid 140).",
 			},
 		},
 	},

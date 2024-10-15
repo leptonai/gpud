@@ -10,13 +10,15 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/pkg/file"
+
 	"sigs.k8s.io/yaml"
 )
 
 // Returns true if the local machine runs on Nvidia GPU
 // by running "nvidia-smi".
 func SMIExists() bool {
-	p, err := exec.LookPath("nvidia-smi")
+	p, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return false
 	}
@@ -24,12 +26,51 @@ func SMIExists() bool {
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
-	p, err := exec.LookPath("nvidia-smi")
+	p, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
 	}
+
 	cmd := exec.CommandContext(ctx, p, args...)
-	return cmd.Output()
+
+	// in case of driver issue, the nvidia-smi is stuck in "state:D" -- uninterruptible sleep state
+	// which may not handle the os kill signal from the context timeout/cancellation
+	//
+	// e.g.,
+	//
+	// [Sat Oct 12 18:35:32 2024] NVRM: Xid (PCI:0000:61:00): 45, pid=1496200, name=distprovers-gpu, Ch 0000000f
+	// [Sat Oct 12 18:38:44 2024] INFO: task cache_mgr_event:620917 blocked for more than 120 seconds.
+	// [Sat Oct 12 18:38:44 2024]       Tainted: P           OE     5.15.0-97-generic #107-Ubuntu
+	// [Sat Oct 12 18:38:44 2024] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+	// [Sat Oct 12 18:38:44 2024] task:cache_mgr_event state:D stack:    0 pid:620917 ppid:620571 flags:0x00000002
+	// [Sat Oct 12 18:38:44 2024] Call Trace:
+	// [Sat Oct 12 18:38:44 2024]  <TASK>
+	// [Sat Oct 12 18:38:44 2024]  __schedule+0x24e/0x590
+	// [Sat Oct 12 18:38:44 2024]  schedule+0x69/0x110
+	// [Sat Oct 12 18:38:44 2024]  rwsem_down_write_slowpath+0x230/0x3e0
+	// [Sat Oct 12 18:38:44 2024]  ? load_new_mm_cr3+0x76/0xe0
+	// [Sat Oct 12 18:38:44 2024]  down_write+0x47/0x60
+	// [Sat Oct 12 18:38:44 2024]  os_acquire_rwlock_write+0x35/0x50 [nvidia]
+	// [Sat Oct 12 18:38:44 2024]  _nv042330rm+0x10/0x40 [nvidia]
+	// [Sat Oct 12 18:38:44 2024]  ? _nv043429rm+0x23c/0x290
+	errc := make(chan error, 1)
+	var output []byte
+	go func() {
+		var err error
+		output, err = cmd.Output()
+		errc <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case err := <-errc:
+		if err != nil {
+			return nil, fmt.Errorf("nvidia-smi command failed: %w", err)
+		}
+		return output, nil
+	}
 }
 
 // Make sure to call this with a timeout, as a broken GPU may block the command.

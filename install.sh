@@ -13,14 +13,14 @@ main() {
     case "$(uname)" in
     	Darwin)
   			OS="darwin"
-  			echo "macos is not supported yet, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL-GPUD.md to build by yourself"
+  			echo "macos is not supported yet, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
   			exit 1
   			;;
   		Linux)
   			OS="linux"
   			;;
   	  *)
-  	    echo "OS $(uname) is not supported, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL-GPUD.md to build by yourself"
+  	    echo "OS $(uname) is not supported, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
   	    exit 1
   	    ;;
   	esac
@@ -34,11 +34,11 @@ main() {
   			;;
   		arm64|aarch64)
   			ARCH="arm64"
-  			echo "arm64 is not supported yet, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL-GPUD.md to build by yourself"
+  			echo "arm64 is not supported yet, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
    			exit 1
   			;;
    	  *)
-  	    echo "Processor $(uname -m) is not supported, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL-GPUD.md to build by yourself"
+  	    echo "Processor $(uname -m) is not supported, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
   	    exit 1
   	    ;;
   	esac
@@ -116,7 +116,18 @@ main() {
 
   mkdir "$DIR"
   DLPATH=/tmp/"$FILENAME"
-  curl -fsSL https://pkg.gpud.dev/"$FILENAME" -o "$DLPATH"
+
+  if ! curl -fsSL "https://pkg.gpud.dev/$FILENAME" -o "$DLPATH" 2>/tmp/gpud_curl_error.log; then
+    echo "failed to download file from 'https://pkg.gpud.dev/$FILENAME'"
+
+    echo "\nerror message:"
+    cat /tmp/gpud_curl_error.log
+
+    rm -f "$DLPATH" /tmp/gpud_curl_error.log
+    exit 1
+  fi
+  rm -f /tmp/gpud_curl_error.log
+
   tar xzf "$DLPATH" -C "$DIR"
 
   $SUDO cp -f "$DIR"/gpud /usr/sbin

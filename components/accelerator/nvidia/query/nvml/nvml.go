@@ -73,17 +73,26 @@ type instance struct {
 	gpmEventChCloseOnce sync.Once
 }
 
+// TODO
+// Track if the device is a fabric-attached GPU.
+// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
+// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
+// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
+// ref. https://github.com/NVIDIA/k8s-dra-driver/issues/2#issuecomment-2346638506
+// ref. https://github.com/NVIDIA/go-nvlib/pull/44
+
 type DeviceInfo struct {
 	// Note that k8s-device-plugin has a different logic for MIG devices.
 	// TODO: implement MIG device UUID fetching using NVML.
 	UUID string `json:"uuid"`
 
-	// MinorNumber is the minor number of the device.
-	MinorNumber int `json:"minor_number"`
-	// Bus is the bus ID from PCI info API.
-	Bus uint32 `json:"bus"`
-	// Device ID is the device ID from PCI info API.
-	Device uint32 `json:"device"`
+	// MinorNumberID is the minor number ID of the device.
+	MinorNumberID int `json:"minor_number_id"`
+	// BusID is the bus ID from PCI info API.
+	BusID uint32 `json:"bus_id"`
+	// DeviceID is the device ID from PCI info API.
+	DeviceID uint32 `json:"device_id"`
 
 	Name            string `json:"name"`
 	GPUCores        int    `json:"gpu_cores"`
@@ -296,11 +305,13 @@ func (inst *instance) Start() error {
 		inst.devices[uuid] = &DeviceInfo{
 			UUID: uuid,
 
-			MinorNumber:     minorNumber,
-			Bus:             pciInfo.Bus,
-			Device:          pciInfo.Device,
-			Name:            name,
-			GPUCores:        cores,
+			MinorNumberID: minorNumber,
+			BusID:         pciInfo.Bus,
+			DeviceID:      pciInfo.Device,
+
+			Name:     name,
+			GPUCores: cores,
+
 			SupportedEvents: supportedEvents,
 
 			XidErrorSupported:   xidErrorSupported,
@@ -387,9 +398,9 @@ func (inst *instance) Get() (*Output, error) {
 		latestInfo := &DeviceInfo{
 			UUID: devInfo.UUID,
 
-			MinorNumber: devInfo.MinorNumber,
-			Bus:         devInfo.Bus,
-			Device:      devInfo.Device,
+			MinorNumberID: devInfo.MinorNumberID,
+			BusID:         devInfo.BusID,
+			DeviceID:      devInfo.DeviceID,
 
 			Name:            devInfo.Name,
 			GPUCores:        devInfo.GPUCores,
