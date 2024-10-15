@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
@@ -193,6 +194,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 				log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 			}
 
+			cfg.Components[nvidia_badenvs_id.Name] = nil
 			cfg.Components[nvidia_ecc.Name] = nil
 			cfg.Components[nvidia_error.Name] = nil
 			if _, ok := cfg.Components[dmesg.Name]; ok {

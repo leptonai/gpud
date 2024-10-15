@@ -37,7 +37,8 @@ type Process struct {
 	// (terminated but not reaped by its parent).
 	ZombieStatus bool `json:"zombie_status,omitempty"`
 
-	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA.
+	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA
+	// that is set for this specific process.
 	// Empty if there is no bad environment variable found for this process.
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
