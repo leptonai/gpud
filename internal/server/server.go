@@ -31,6 +31,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
+	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
@@ -76,6 +78,7 @@ import (
 	"github.com/leptonai/gpud/components/state"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/components/tailscale"
+	gpud_config "github.com/leptonai/gpud/config"
 	lepconfig "github.com/leptonai/gpud/config"
 	_ "github.com/leptonai/gpud/docs/apis"
 	"github.com/leptonai/gpud/internal/login"
@@ -94,7 +97,12 @@ type Server struct {
 	enableAutoUpdate      bool
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
+	options := &gpud_config.Op{}
+	if err := options.ApplyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -380,6 +388,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_info.New(ctx, cfg))
+
+		case nvidia_badenvs_id.Name:
+			cfg := nvidia_badenvs.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_badenvs.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_badenvs.New(ctx, cfg))
 
 		case nvidia_error.Name:
 			cfg := nvidia_error.Config{Query: defaultQueryCfg}
@@ -960,7 +982,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 						componentsToAdd = append(componentsToAdd, docker_container.New(ctx, ccfg))
 					}
 
-					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx); exists {
+					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
 						if cc != nil {
 							parsed, err := k8s_pod.ParseConfig(cc, db)

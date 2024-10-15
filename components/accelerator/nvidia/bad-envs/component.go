@@ -1,5 +1,5 @@
-// Package pod tracks the current pods from the kubelet read-only port.
-package pod
+// Package badenvs tracks any bad environment variables that are globally set for the NVIDIA GPUs.
+package badenvs
 
 import (
 	"context"
@@ -7,27 +7,22 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	bad_envs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
+	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
 
-const Name = "k8s-pod"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	GetDefaultPoller().Start(cctx, cfg.Query, Name)
-	defaultPollerCloseOnce.Do(func() {
-		close(defaultPollerc)
-	})
+	nvidia_query.DefaultPoller.Start(cctx, cfg.Query, bad_envs_id.Name)
 
 	return &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
-		poller:  GetDefaultPoller(),
-		cfg:     cfg,
+		poller:  nvidia_query.DefaultPoller,
 	}
 }
 
@@ -37,11 +32,9 @@ type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
-
-	cfg Config
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return bad_envs_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
@@ -49,13 +42,12 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return nil, err
 	}
 	if last == nil { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", bad_envs_id.Name)
 		return nil, nil
 	}
 	if last.Error != nil {
 		return []components.State{
 			{
-				Name:    Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
 				Reason:  "last query failed",
@@ -65,18 +57,18 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Output == nil {
 		return []components.State{
 			{
-				Name:    Name,
 				Healthy: false,
 				Reason:  "no output",
 			},
 		}, nil
 	}
 
-	output, ok := last.Output.(*Output)
+	allOutput, ok := last.Output.(*nvidia_query.Output)
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
-	return output.States(c.cfg)
+	output := ToOutput(allOutput)
+	return output.States()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -93,7 +85,32 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(Name)
+	_ = c.poller.Stop(bad_envs_id.Name)
 
 	return nil
+}
+
+var _ components.OutputProvider = (*component)(nil)
+
+func (c *component) Output() (any, error) {
+	last, err := c.poller.Last()
+	if err != nil {
+		return nil, err
+	}
+	if last == nil { // no data
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", bad_envs_id.Name)
+		return nil, nil
+	}
+	if last.Error != nil {
+		return nil, last.Error
+	}
+	if last.Output == nil {
+		return nil, nil
+	}
+
+	output, ok := last.Output.(*nvidia_query.Output)
+	if !ok {
+		return nil, fmt.Errorf("invalid output type: %T, expected *nvidia_query.Output", last.Output)
+	}
+	return ToOutput(output), nil
 }

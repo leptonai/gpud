@@ -95,7 +95,7 @@ var (
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	options := &Op{}
-	if err := options.applyOpts(opts); err != nil {
+	if err := options.ApplyOpts(opts); err != nil {
 		return nil, err
 	}
 
@@ -132,8 +132,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		EnableAutoUpdate: true,
 	}
 
-	if len(options.filesToCheck) > 0 {
-		cfg.Components[file.Name] = options.filesToCheck
+	if len(options.FilesToCheck) > 0 {
+		cfg.Components[file.Name] = options.FilesToCheck
 	}
 
 	if cc, exists := DefaultDockerContainerComponent(ctx); exists {
@@ -142,7 +142,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	if cc, exists := DefaultContainerdComponent(ctx); exists {
 		cfg.Components[containerd_pod.Name] = cc
 	}
-	if cc, exists := DefaultK8sPodComponent(ctx); exists {
+	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 		cfg.Components[k8s_pod.Name] = cc
 	}
 
@@ -386,7 +386,7 @@ func DefaultDockerContainerComponent(ctx context.Context) (any, bool) {
 	return nil, false
 }
 
-func DefaultK8sPodComponent(ctx context.Context) (any, bool) {
+func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
 	if runtime.GOOS != "linux" {
 		log.Logger.Debugw("ignoring default kubelet checking since it's not linux", "os", runtime.GOOS)
 		return nil, false
@@ -420,8 +420,9 @@ func DefaultK8sPodComponent(ctx context.Context) (any, bool) {
 			// "k8s_pod" requires kubelet read-only port
 			// assume if kubelet is running, it opens the most common read-only port 10255
 			return k8s_pod.Config{
-				Query: query_config.DefaultConfig(),
-				Port:  k8s_pod.DefaultKubeletReadOnlyPort,
+				Query:                  query_config.DefaultConfig(),
+				Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
+				IgnoreConnectionErrors: ignoreConnectionErrors,
 			}, true
 		}
 	}

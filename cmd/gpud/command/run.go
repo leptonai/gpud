@@ -37,8 +37,13 @@ func cmdRun(cliContext *cli.Context) error {
 		gin.SetMode(gin.DebugMode)
 	}
 
+	configOpts := []config.OpOption{
+		config.WithFilesToCheck(filesToCheck...),
+		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	cfg, err := config.DefaultConfig(ctx, config.WithFilesToCheck(filesToCheck...))
+	cfg, err := config.DefaultConfig(ctx, configOpts...)
 	cancel()
 	if err != nil {
 		return err
@@ -88,7 +93,7 @@ func cmdRun(cliContext *cli.Context) error {
 	// we don't miss any signals during boot
 	signal.Notify(signals, handledSignals...)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid)
+	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, configOpts...)
 	if err != nil {
 		return err
 	}
