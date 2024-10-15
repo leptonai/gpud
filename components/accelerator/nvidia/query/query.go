@@ -62,6 +62,11 @@ func Get(ctx context.Context) (output any, err error) {
 		IbstatExists:          IbstatExists(),
 	}
 
+	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
+	if err != nil {
+		log.Logger.Warnw("failed to count gpu devices", "error", err)
+	}
+
 	defer func() {
 		getSuccessOnceCloseOnce.Do(func() {
 			close(getSuccessOnce)
@@ -309,6 +314,9 @@ const (
 )
 
 type Output struct {
+	// GPU device count from the /dev directory.
+	GPUDeviceCount int `json:"gpu_device_count"`
+
 	SMIExists      bool       `json:"smi_exists"`
 	SMI            *SMIOutput `json:"smi,omitempty"`
 	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`
@@ -352,12 +360,34 @@ func (o *Output) GPUCount() int {
 	return cnts
 }
 
+func (o *Output) GPUCountFromNVML() int {
+	if o == nil {
+		return 0
+	}
+	if o.NVML == nil {
+		return 0
+	}
+	return len(o.NVML.DeviceInfos)
+}
+
 func (o *Output) GPUProductName() string {
 	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
 	if o.SMI.GPUs[0].ProductName != "" {
 		return o.SMI.GPUs[0].ProductName
+	}
+	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
+		return o.NVML.DeviceInfos[0].Name
+	}
+	return ""
+}
+
+// This is the same product name in nvidia-smi outputs.
+// ref. https://developer.nvidia.com/management-library-nvml
+func (o *Output) GPUProductNameFromNVML() string {
+	if o == nil {
+		return ""
 	}
 	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
 		return o.NVML.DeviceInfos[0].Name
@@ -381,11 +411,11 @@ func (o *Output) PrintInfo(debug bool) {
 		fmt.Printf("%s successfully checked nvidia-smi\n", checkMark)
 	}
 
-	if o.SMI != nil {
-		if len(o.SMI.GPUs) > 0 {
-			fmt.Printf("%s product name: %s (nvidia-smi)\n", checkMark, o.SMI.GPUs[0].ProductName)
-		}
+	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
+	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
+	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
 
+	if o.SMI != nil {
 		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
 			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
 			for _, err := range errs {
