@@ -5,6 +5,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -83,6 +84,15 @@ func Get(ctx context.Context) (output any, err error) {
 		}
 		if o.SMI != nil && o.SMI.SummaryFailure != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, o.SMI.SummaryFailure.Error())
+		}
+	}
+
+	for k, desc := range nvml.BAD_CUDA_ENV_KEYS {
+		if os.Getenv(k) == "1" {
+			if o.BadEnvVarsForCUDA == nil {
+				o.BadEnvVarsForCUDA = make(map[string]string)
+			}
+			o.BadEnvVarsForCUDA[k] = desc
 		}
 	}
 
@@ -321,6 +331,11 @@ type Output struct {
 	SMI            *SMIOutput `json:"smi,omitempty"`
 	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`
 
+	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA.
+	// that is set globally for the host.
+	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
+	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
+
 	FabricManagerExists bool                 `json:"fabric_manager_exists"`
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
 	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
@@ -414,6 +429,14 @@ func (o *Output) PrintInfo(debug bool) {
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
 	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
 	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
+
+	if len(o.BadEnvVarsForCUDA) > 0 {
+		for k, v := range o.BadEnvVarsForCUDA {
+			fmt.Printf("%s bad cuda env var: %s=%s\n", warningSign, k, v)
+		}
+	} else {
+		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
+	}
 
 	if o.SMI != nil {
 		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {

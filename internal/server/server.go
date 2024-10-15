@@ -31,6 +31,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
+	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
@@ -376,6 +378,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_info.New(ctx, cfg))
+
+		case nvidia_badenvs_id.Name:
+			cfg := nvidia_badenvs.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_badenvs.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_badenvs.New(ctx, cfg))
 
 		case nvidia_error.Name:
 			cfg := nvidia_error.Config{Query: defaultQueryCfg}
