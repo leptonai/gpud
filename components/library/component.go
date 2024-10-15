@@ -4,6 +4,7 @@ package library
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -51,36 +52,32 @@ type component struct {
 func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	unhealthy := []components.State{}
+	reasons := []string{}
 	for lib := range c.libraries {
 		resolved, err := file.FindLibrary(lib, c.searchOpts...)
 		if err != nil {
 			return nil, err
 		}
-
 		if resolved == "" {
-			unhealthy = append(unhealthy, components.State{
-				Name: Name,
-
-				// TODO: mark it as unhealthy once stable
-				Healthy: true,
-
-				Reason: fmt.Sprintf("library %q does not exist", lib),
-			})
-			continue
+			reasons = append(reasons, fmt.Sprintf("library %q does not exist", lib))
 		}
-
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
-	if len(unhealthy) > 0 {
-		return unhealthy, nil
+	if len(reasons) == 0 {
+		return []components.State{
+			{
+				Name:    Name,
+				Healthy: true,
+				Reason:  "all libraries exist",
+			},
+		}, nil
 	}
 
 	return []components.State{
 		{
 			Name:    Name,
-			Healthy: true,
-			Reason:  "all libraries exist",
+			Healthy: false,
+			Reason:  strings.Join(reasons, "; "),
 		},
 	}, nil
 }
