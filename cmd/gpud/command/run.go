@@ -100,7 +100,7 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	m.Start(rootCtx)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, configOpts...)
+	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m, configOpts...)
 	if err != nil {
 		return err
 	}
