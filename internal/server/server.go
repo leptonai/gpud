@@ -86,6 +86,7 @@ import (
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/internal/session"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/manager"
 )
 
 // Server is the gpud main daemon
@@ -100,7 +101,7 @@ type Server struct {
 	autoUpdateExitCode    int
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *manager.Manager, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
 	options := &gpud_config.Op{}
 	if err := options.ApplyOpts(opts); err != nil {
 		return nil, err
@@ -920,6 +921,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	registeredPaths = append(registeredPaths, componentHandlerDescription{
 		Path: path.Join("/admin", URLPathConfig),
 		Desc: URLPathConfigDesc,
+	})
+	admin.GET(URLPathPackages, createPackageHandler(packageManager))
+	registeredPaths = append(registeredPaths, componentHandlerDescription{
+		Path: path.Join("/admin", URLPathPackages),
+		Desc: URLPathPackagesDesc,
 	})
 
 	if config.Pprof {
