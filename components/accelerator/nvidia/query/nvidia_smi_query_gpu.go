@@ -38,6 +38,24 @@ type NvidiaSMIGPU struct {
 	FanSpeed string `json:"Fan Speed"`
 }
 
+func (gpu *NvidiaSMIGPU) GetSMIGPUPersistenceMode() SMIGPUPersistenceMode {
+	if gpu.PersistenceMode == "Enabled" {
+		return SMIGPUPersistenceMode{
+			ID:      gpu.ID,
+			Enabled: true,
+		}
+	}
+	return SMIGPUPersistenceMode{
+		ID:      gpu.ID,
+		Enabled: false,
+	}
+}
+
+type SMIGPUPersistenceMode struct {
+	ID      string `json:"id"`
+	Enabled bool   `json:"enabled"`
+}
+
 type SMIGPUResetStatus struct {
 	ResetRequired            string `json:"Reset Required"`
 	DrainAndResetRecommended string `json:"Drain and Reset Recommended"`

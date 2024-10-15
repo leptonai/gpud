@@ -23,6 +23,7 @@ import (
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
+	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -256,8 +257,9 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		// optional
 		cfg.Components[nvidia_fabric_manager.Name] = nil
 		cfg.Components[nvidia_infiniband.Name] = nil
-		cfg.Components[nvidia_peermem_id.Name] = nil
 		cfg.Components[nvidia_nccl_id.Name] = nil
+		cfg.Components[nvidia_peermem_id.Name] = nil
+		cfg.Components[nvidia_persistence_mode_id.Name] = nil
 	} else {
 		log.Logger.Debugw("auto-detect nvidia not supported -- skipping", "os", runtime.GOOS)
 	}
