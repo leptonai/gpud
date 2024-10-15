@@ -65,6 +65,7 @@ import (
 	"github.com/leptonai/gpud/components/file"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/components/metrics"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
@@ -289,6 +290,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
 				allComponents = append(allComponents, file.New(filesToCheck))
+			}
+
+		case library.Name:
+			if configValue != nil {
+				libCfg, ok := configValue.(library.Config)
+				if !ok {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				allComponents = append(allComponents, library.New(libCfg))
 			}
 
 		case info.Name:

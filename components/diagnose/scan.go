@@ -15,6 +15,7 @@ import (
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/file"
 )
 
 const (
@@ -22,6 +23,11 @@ const (
 	checkMark   = "\033[32m✔\033[0m"
 	warningSign = "\033[31m✘\033[0m"
 )
+
+var defaultNVIDIALibraries = []string{
+	"libnvidia-ml.so",
+	"libcuda.so",
+}
 
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
@@ -38,6 +44,28 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if nvidia_query.SMIExists() {
 		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
+
+		for _, lib := range defaultNVIDIALibraries {
+			libPath, err := file.FindLibrary(lib, file.WithSearchDirs(
+				// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
+				"/",
+				"/usr/lib64",
+				"/usr/lib/x86_64-linux-gnu",
+				"/usr/lib/aarch64-linux-gnu",
+				"/usr/lib/x86_64-linux-gnu/nvidia/current",
+				"/usr/lib/aarch64-linux-gnu/nvidia/current",
+				"/lib64",
+				"/lib/x86_64-linux-gnu",
+				"/lib/aarch64-linux-gnu",
+				"/lib/x86_64-linux-gnu/nvidia/current",
+				"/lib/aarch64-linux-gnu/nvidia/current",
+			))
+			if err != nil {
+				log.Logger.Warnw("error finding library", "library", lib, "error", err)
+			} else {
+				fmt.Printf("%s found library %s at %s\n", checkMark, lib, libPath)
+			}
+		}
 
 		outputRaw, err := nvidia_query.Get(ctx)
 		if err != nil {
