@@ -360,16 +360,6 @@ func (o *Output) GPUCount() int {
 	return cnts
 }
 
-func (o *Output) GPUCountFromSMI() int {
-	if o == nil {
-		return 0
-	}
-	if o.SMI == nil {
-		return 0
-	}
-	return o.SMI.AttachedGPUs
-}
-
 func (o *Output) GPUCountFromNVML() int {
 	if o == nil {
 		return 0
@@ -422,7 +412,6 @@ func (o *Output) PrintInfo(debug bool) {
 	}
 
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
-	fmt.Printf("%s GPU count '%d' (from nvidia-smi)\n", checkMark, o.GPUCountFromSMI())
 	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
 	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
 
