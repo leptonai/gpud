@@ -60,12 +60,13 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 					IsInstalled:    false,
 					Installing:     false,
 					Status:         false,
-					TargetVersion:  packageInfo.TargetVersion,
+					TargetVersion:  "",
 					CurrentVersion: "",
 					ScriptPath:     "",
 					Dependency:     packageInfo.Dependency,
 				}
 			}
+			c.packageStatus[packageInfo.Name].TargetVersion = packageInfo.TargetVersion
 			c.packageStatus[packageInfo.Name].ScriptPath = packageInfo.ScriptPath
 			c.Unlock()
 		case <-ctx.Done():

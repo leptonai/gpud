@@ -488,10 +488,6 @@ sudo gpud join
 					Value: "lepton-dev",
 				},
 				cli.StringFlag{
-					Name:  "public-ip",
-					Usage: "public ip of the machine",
-				},
-				cli.StringFlag{
 					Name:  "provider",
 					Usage: "provider of the machine",
 					Value: "personal",
@@ -499,6 +495,10 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "node-group",
 					Usage: "node group to join",
+				},
+				cli.BoolFlag{
+					Name:  "skip-interactive",
+					Usage: "use detected value instead of prompting for user input",
 				},
 				cli.BoolFlag{
 					Name:  "xray-needed",
