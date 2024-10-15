@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +23,10 @@ import (
 type Output struct {
 	NodeName string      `json:"node_name,omitempty"`
 	Pods     []PodStatus `json:"pods,omitempty"`
+
+	KubeletPidFound bool   `json:"kubelet_pid_found"`
+	ConnectionError string `json:"connection_error,omitempty"`
+	Message         string `json:"message,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -66,14 +72,23 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 func (o *Output) describeReason() string {
+	if o.ConnectionError != "" {
+		return fmt.Sprintf("connection error to node %s -- %s", o.NodeName, o.ConnectionError)
+	}
 	return fmt.Sprintf("total %d pods (node %s)", len(o.Pods), o.NodeName)
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	healthy := o.ConnectionError == ""
+	if cfg.IgnoreConnectionErrors {
+		healthy = true
+	}
+
 	b, _ := o.JSON()
+
 	return []components.State{{
 		Name:    StateNamePod,
-		Healthy: true,
+		Healthy: healthy,
 		Reason:  o.describeReason(),
 		ExtraInfo: map[string]string{
 			StateKeyPodData:     string(b),
@@ -115,9 +130,28 @@ func CreateGet(cfg Config) query.GetFunc {
 			}
 		}()
 
+		// check if a process named "kubelet" is running
+		kubeletRunning := false
+		if err := exec.Command("pidof", "kubelet").Run(); err == nil {
+			kubeletRunning = true
+		} else {
+			log.Logger.Warnw("kubelet process not found, assuming kubelet is not running", "error", err)
+		}
+
 		pods, err := ListFromKubeletReadOnlyPort(ctx, cfg.Port)
 		if err != nil {
-			return nil, err
+			o := &Output{
+				KubeletPidFound: kubeletRunning,
+				Message:         "failed to list pods from kubelet read-only port (maybe readOnlyPort not set in kubelet config file) -- " + err.Error(),
+			}
+
+			// e.g.,
+			// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
+			if strings.Contains(err.Error(), "connection refused") {
+				o.ConnectionError = err.Error()
+			}
+
+			return o, nil
 		}
 		log.Logger.Debugw("listed pods", "pods", len(pods.Items))
 
@@ -131,8 +165,9 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 
 		return &Output{
-			NodeName: nodeName,
-			Pods:     pss,
+			NodeName:        nodeName,
+			Pods:            pss,
+			KubeletPidFound: kubeletRunning,
 		}, nil
 	}
 }

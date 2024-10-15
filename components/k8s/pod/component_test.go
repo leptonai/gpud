@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 
+	query_config "github.com/leptonai/gpud/components/query/config"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -56,7 +58,7 @@ func TestListFromKubeletReadOnlyPort(t *testing.T) {
 	}
 }
 
-func TestGetFromKubeletReadOnlyPort_Error(t *testing.T) {
+func TestGetFromKubeletReadOnlyPort_ParseError(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +78,40 @@ func TestGetFromKubeletReadOnlyPort_Error(t *testing.T) {
 	}
 	if result != nil {
 		t.Fatalf("expected nil result, got: %v", result)
+	}
+}
+
+func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+
+	portRaw := srv.URL[len("http://127.0.0.1:"):]
+	port, _ := strconv.ParseInt(portRaw, 10, 32)
+
+	srv.Close()
+
+	getFunc := CreateGet(Config{
+		Query: query_config.Config{},
+		Port:  int(port),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// connection error should not be a failure
+	r, err := getFunc(ctx)
+	if err != nil {
+		t.Fatal("expected an error, got nil")
+	}
+	o, ok := r.(*Output)
+	if !ok {
+		t.Fatalf("expected output type *Output, got: %T", r)
+	}
+	if o.ConnectionError == "" {
+		t.Fatal("expected a connection error, got none")
 	}
 }
 

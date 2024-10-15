@@ -75,6 +75,7 @@ import (
 	"github.com/leptonai/gpud/components/state"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/components/tailscale"
+	gpud_config "github.com/leptonai/gpud/config"
 	lepconfig "github.com/leptonai/gpud/config"
 	_ "github.com/leptonai/gpud/docs/apis"
 	"github.com/leptonai/gpud/internal/login"
@@ -93,7 +94,12 @@ type Server struct {
 	enableAutoUpdate      bool
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
+	options := &gpud_config.Op{}
+	if err := options.ApplyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -950,7 +956,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 						componentsToAdd = append(componentsToAdd, docker_container.New(ctx, ccfg))
 					}
 
-					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx); exists {
+					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
 						if cc != nil {
 							parsed, err := k8s_pod.ParseConfig(cc, db)
