@@ -103,17 +103,18 @@ type DeviceInfo struct {
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
-	ClockEvents  *ClockEvents `json:"clock_events,omitempty"`
-	ClockSpeed   ClockSpeed   `json:"clock_speed"`
-	Memory       Memory       `json:"memory"`
-	NVLink       NVLink       `json:"nvlink"`
-	Power        Power        `json:"power"`
-	Temperature  Temperature  `json:"temperature"`
-	Utilization  Utilization  `json:"utilization"`
-	Processes    Processes    `json:"processes"`
-	ECCMode      ECCMode      `json:"ecc_mode"`
-	ECCErrors    ECCErrors    `json:"ecc_errors"`
-	RemappedRows RemappedRows `json:"remapped_rows"`
+	PersistenceMode PersistenceMode `json:"persistence_mode"`
+	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
+	ClockSpeed      ClockSpeed      `json:"clock_speed"`
+	Memory          Memory          `json:"memory"`
+	NVLink          NVLink          `json:"nvlink"`
+	Power           Power           `json:"power"`
+	Temperature     Temperature     `json:"temperature"`
+	Utilization     Utilization     `json:"utilization"`
+	Processes       Processes       `json:"processes"`
+	ECCMode         ECCMode         `json:"ecc_mode"`
+	ECCErrors       ECCErrors       `json:"ecc_errors"`
+	RemappedRows    RemappedRows    `json:"remapped_rows"`
 
 	device device.Device `json:"-"`
 }
@@ -413,6 +414,12 @@ func (inst *instance) Get() (*Output, error) {
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
+		var err error
+		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
+		if err != nil {
+			return st, err
+		}
+
 		if inst.clockEventsSupported {
 			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
 			if err != nil {
@@ -421,7 +428,6 @@ func (inst *instance) Get() (*Output, error) {
 			latestInfo.ClockEvents = &clockEvents
 		}
 
-		var err error
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
 		if err != nil {
 			return st, err

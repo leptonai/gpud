@@ -58,6 +58,8 @@ func Get(ctx context.Context) (output any, err error) {
 
 	o := &Output{
 		SMIExists:             SMIExists(),
+		PersistencedExists:    PersistencedExists(),
+		PersistencedRunning:   PersistencedRunning(),
 		FabricManagerExists:   FabricManagerExists(),
 		InfinibandClassExists: InfinibandClassExists(),
 		IbstatExists:          IbstatExists(),
@@ -336,6 +338,9 @@ type Output struct {
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
 
+	PersistencedExists  bool `json:"persistenced_exists"`
+	PersistencedRunning bool `json:"persistenced_running"`
+
 	FabricManagerExists bool                 `json:"fabric_manager_exists"`
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
 	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
@@ -503,6 +508,13 @@ func (o *Output) PrintInfo(debug bool) {
 
 		for _, dev := range o.NVML.DeviceInfos {
 			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
+
+			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
+			if dev.PersistenceMode.Enabled {
+				fmt.Printf("%s NVML persistence mode is enabled (nvidia-persistenced running %v)\n", checkMark, o.PersistencedRunning)
+			} else {
+				fmt.Printf("%s NVML persistence mode is disabled (nvidia-persistenced running %v)\n", warningSign, o.PersistencedRunning)
+			}
 
 			if dev.ClockEvents != nil {
 				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
