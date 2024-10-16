@@ -75,6 +75,10 @@ To access the local web UI, open https://localhost:15132 in your browser.
 
 If run with `gpud up`, you may disable this local web UI by setting `FLAGS="--web-enable=false"` to the `/etc/default/gpud` environment file and restart the service.
 
+#### Run GPUd with Kubernetes
+
+See [gpud helm chart](./charts/gpud/README.md) to deploy GPUd in your Kubernetes cluster.
+
 #### If your system doesn't have systemd
 
 To run on Mac (without systemd):
