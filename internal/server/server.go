@@ -97,6 +97,7 @@ type Server struct {
 	fifo                  *goOS.File
 	session               *session.Session
 	enableAutoUpdate      bool
+	autoUpdateExitCode    int
 }
 
 func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
@@ -122,9 +123,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
 	}
 	s := &Server{
-		db:               db,
-		fifoPath:         fifoPath,
-		enableAutoUpdate: config.EnableAutoUpdate,
+		db:                 db,
+		fifoPath:           fifoPath,
+		enableAutoUpdate:   config.EnableAutoUpdate,
+		autoUpdateExitCode: config.AutoUpdateExitCode,
 	}
 	defer func() {
 		if retErr != nil {
@@ -1168,9 +1170,22 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 	if dbToken, err := state.GetLoginInfo(ctx, db, uid); err == nil {
 		userToken = dbToken
 	}
+
 	if userToken != "" {
-		s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second, s.enableAutoUpdate)
+		var err error
+		s.session, err = session.NewSession(
+			ctx,
+			fmt.Sprintf("https://%s/api/v1/session", endpoint),
+			session.WithMachineID(uid),
+			session.WithPipeInterval(3*time.Second),
+			session.WithEnableAutoUpdate(s.enableAutoUpdate),
+			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+		)
+		if err != nil {
+			log.Logger.Errorw("error creating session", "error", err)
+		}
 	}
+
 	if _, err := goOS.Stat(pipePath); err == nil {
 		if err = goOS.Remove(pipePath); err != nil {
 			log.Logger.Errorf("error creating pipe: %v", err)
@@ -1203,9 +1218,20 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			if s.session != nil {
 				s.session.Stop()
 			}
-			s.session = session.NewSession(ctx, fmt.Sprintf("https://%s/api/v1/session", endpoint), uid, 3*time.Second, s.enableAutoUpdate)
+			s.session, err = session.NewSession(
+				ctx,
+				fmt.Sprintf("https://%s/api/v1/session", endpoint),
+				session.WithMachineID(uid),
+				session.WithPipeInterval(3*time.Second),
+				session.WithEnableAutoUpdate(s.enableAutoUpdate),
+				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			)
+			if err != nil {
+				log.Logger.Errorw("error creating session", "error", err)
+			}
 		}
-		time.Sleep(1 * time.Second)
+
+		time.Sleep(time.Second)
 	}
 }
 

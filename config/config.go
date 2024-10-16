@@ -45,6 +45,11 @@ type Config struct {
 
 	// Set false to disable auto update
 	EnableAutoUpdate bool `json:"enable_auto_update"`
+
+	// Exit code to exit with when auto updating.
+	// Only valid when the auto update is enabled.
+	// Set -1 to disable the auto update by exit code.
+	AutoUpdateExitCode int `json:"auto_update_exit_code"`
 }
 
 // Configures the local web configuration.
@@ -62,6 +67,8 @@ type Web struct {
 	SincePeriod metav1.Duration `json:"since_period"`
 }
 
+var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
+
 func (config *Config) Validate() error {
 	if config.Address == "" {
 		return errors.New("address is required")
@@ -77,6 +84,9 @@ func (config *Config) Validate() error {
 	}
 	if config.Web != nil && config.Web.SincePeriod.Duration < 10*time.Minute {
 		return fmt.Errorf("web_metrics_since_period must be at least 10 minutes, got %d", config.Web.SincePeriod.Duration)
+	}
+	if !config.EnableAutoUpdate && config.AutoUpdateExitCode != -1 {
+		return ErrInvalidAutoUpdateExitCode
 	}
 	return nil
 }

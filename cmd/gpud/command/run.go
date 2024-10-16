@@ -75,7 +75,10 @@ func cmdRun(cliContext *cli.Context) error {
 	if webRefreshPeriod > 0 {
 		cfg.Web.RefreshPeriod = metav1.Duration{Duration: webRefreshPeriod}
 	}
+
 	cfg.EnableAutoUpdate = enableAutoUpdate
+	cfg.AutoUpdateExitCode = autoUpdateExitCode
+
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

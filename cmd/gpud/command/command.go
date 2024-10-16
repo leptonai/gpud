@@ -41,8 +41,10 @@ var (
 	pollXidEvents bool
 	pollGPMEvents bool
 
-	enableAutoUpdate bool
-	filesToCheck     cli.StringSlice
+	enableAutoUpdate   bool
+	autoUpdateExitCode int
+
+	filesToCheck cli.StringSlice
 
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
@@ -192,6 +194,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "enable-auto-update",
 					Usage:       "enable auto update of gpud (default: true)",
 					Destination: &enableAutoUpdate,
+				},
+				&cli.IntFlag{
+					Name:        "auto-update-exit-code",
+					Usage:       "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
+					Destination: &autoUpdateExitCode,
+					Value:       -1,
 				},
 				&cli.StringSliceFlag{
 					Name:  "files-to-check",

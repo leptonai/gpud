@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"os"
 	"time"
 
 	v1 "github.com/leptonai/gpud/api/v1"
@@ -53,7 +53,9 @@ func (s *Session) serve() {
 			continue
 		}
 
+		needExit := -1
 		response := &Response{}
+
 		switch payload.Method {
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
@@ -71,31 +73,50 @@ func (s *Session) serve() {
 			response.Events = events
 
 		case "update":
-			systemdManaged, _ := systemd.IsActive("gpud.service")
-			if !systemdManaged {
-				log.Logger.Debugw("gpud is not managed with systemd")
-				response.Error = errors.New("gpud is not managed with systemd")
-			} else if !s.enableAutoUpdate {
-				log.Logger.Debugw("auto update is disabled")
+			if !s.enableAutoUpdate {
+				log.Logger.Warnw("auto update is disabled -- skipping update")
 				response.Error = errors.New("auto update is disabled")
-			} else {
-				nextVersion := payload.UpdateVersion
-				if nextVersion == "" {
-					response.Error = fmt.Errorf("update_version is empty")
-				} else {
-					err := update.Update(nextVersion, update.DefaultUpdateURL)
-					if err != nil {
-						response.Error = err
-					}
+				break
+			}
+
+			systemdManaged, _ := systemd.IsActive("gpud.service")
+			if s.autoUpdateExitCode == -1 && !systemdManaged {
+				log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
+				response.Error = errors.New("gpud is not managed with systemd")
+				break
+			}
+
+			nextVersion := payload.UpdateVersion
+			if nextVersion == "" {
+				log.Logger.Warnw("target update_version is empty -- skipping update")
+				response.Error = errors.New("update_version is empty")
+				break
+			}
+
+			if systemdManaged {
+				response.Error = update.Update(nextVersion, update.DefaultUpdateURL)
+				break
+			}
+
+			if s.autoUpdateExitCode != -1 {
+				response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
+				if response.Error == nil {
+					needExit = s.autoUpdateExitCode
 				}
 			}
 		}
+
 		cancel()
 
 		responseRaw, _ := json.Marshal(response)
 		s.writer <- Body{
 			Data:  responseRaw,
 			ReqID: body.ReqID,
+		}
+
+		if needExit != -1 {
+			log.Logger.Infow("exiting with code for auto update", "code", needExit)
+			os.Exit(s.autoUpdateExitCode)
 		}
 	}
 }

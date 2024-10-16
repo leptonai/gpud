@@ -12,6 +12,58 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
+type Op struct {
+	machineID          string
+	pipeInterval       time.Duration
+	enableAutoUpdate   bool
+	autoUpdateExitCode int
+}
+
+type OpOption func(*Op)
+
+var ErrAutoUpdateDisabledButExitCodeSet = errors.New("auto update is disabled but auto update by exit code is set")
+
+func (op *Op) applyOpts(opts []OpOption) error {
+	op.autoUpdateExitCode = -1
+
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	if !op.enableAutoUpdate && op.autoUpdateExitCode != -1 {
+		return ErrAutoUpdateDisabledButExitCodeSet
+	}
+
+	return nil
+}
+
+func WithMachineID(machineID string) OpOption {
+	return func(op *Op) {
+		op.machineID = machineID
+	}
+}
+
+func WithPipeInterval(t time.Duration) OpOption {
+	return func(op *Op) {
+		op.pipeInterval = t
+	}
+}
+
+func WithEnableAutoUpdate(enableAutoUpdate bool) OpOption {
+	return func(op *Op) {
+		op.enableAutoUpdate = enableAutoUpdate
+	}
+}
+
+// Triggers an auto update of GPUd itself by exiting the process with the given exit code.
+// Useful when the machine is managed by the Kubernetes daemonset and we want to
+// trigger an auto update when the daemonset restarts the machine.
+func WithAutoUpdateExitCode(autoUpdateExitCode int) OpOption {
+	return func(op *Op) {
+		op.autoUpdateExitCode = autoUpdateExitCode
+	}
+}
+
 type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -31,10 +83,16 @@ type Session struct {
 	readerCloseCh  chan bool
 	readerClosedCh chan bool
 
-	enableAutoUpdate bool
+	enableAutoUpdate   bool
+	autoUpdateExitCode int
 }
 
-func NewSession(ctx context.Context, endpoint string, machineID string, pipeInterval time.Duration, enableAutoUpdate bool) *Session {
+func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Session, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	cps := make([]string, 0)
 	allComponents := components.GetAllComponents()
 	for key := range allComponents {
@@ -46,14 +104,15 @@ func NewSession(ctx context.Context, endpoint string, machineID string, pipeInte
 		ctx:    cctx,
 		cancel: ccancel,
 
-		pipeInterval: pipeInterval,
+		pipeInterval: op.pipeInterval,
 
 		endpoint:  endpoint,
-		machineID: machineID,
+		machineID: op.machineID,
 
 		components: cps,
 
-		enableAutoUpdate: enableAutoUpdate,
+		enableAutoUpdate:   op.enableAutoUpdate,
+		autoUpdateExitCode: op.autoUpdateExitCode,
 	}
 
 	s.reader = make(chan Body, 20)
@@ -65,7 +124,7 @@ func NewSession(ctx context.Context, endpoint string, machineID string, pipeInte
 	s.keepAlive()
 	go s.serve()
 
-	return s
+	return s, nil
 }
 
 type Body struct {
