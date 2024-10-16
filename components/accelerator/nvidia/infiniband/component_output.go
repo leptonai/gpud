@@ -31,7 +31,10 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
-	GPUProductName        string                    `json:"gpu_product_name"`
+	// GPUProductName is the product name of the GPU.
+	// Useful to ignore infiniband states for non-infiniband supported GPUs (e.g., GTX 4090).
+	GPUProductName string `json:"gpu_product_name"`
+
 	InfinibandClassExists bool                      `json:"infiniband_class_exists"`
 	IbstatExists          bool                      `json:"ibstat_exists"`
 	Ibstat                nvidia_query.IbstatOutput `json:"ibstat"`
