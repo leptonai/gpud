@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/common"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -18,6 +19,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
+		GPUProductName:        i.GPUProductName(),
 		InfinibandClassExists: i.InfinibandClassExists,
 		IbstatExists:          i.IbstatExists,
 	}
@@ -29,6 +31,10 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
+	// GPUProductName is the product name of the GPU.
+	// Useful to ignore infiniband states for non-infiniband supported GPUs (e.g., GTX 4090).
+	GPUProductName string `json:"gpu_product_name"`
+
 	InfinibandClassExists bool                      `json:"infiniband_class_exists"`
 	IbstatExists          bool                      `json:"ibstat_exists"`
 	Ibstat                nvidia_query.IbstatOutput `json:"ibstat"`
@@ -82,10 +88,10 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
-	if len(o.Ibstat.Errors) > 0 {
+	if o.IbstatExists && len(o.Ibstat.Errors) > 0 {
 		return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 	}
-	return "no ibstat error found", true, nil
+	return "no ibstat exists or no ibstat error found", true, nil
 }
 
 func (o *Output) States() ([]components.State, error) {
@@ -93,15 +99,35 @@ func (o *Output) States() ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	b, _ := o.JSON()
+
+	var suggestedActions *common.SuggestedActions = nil
+	if !healthy {
+		suggestedActions = &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{
+				"potential infiniband switch/hardware issue needs immediate attention",
+			},
+		}
+	}
+
 	state := components.State{
-		Name:    StateNameIbstat,
+		Name: StateNameIbstat,
+
 		Healthy: healthy,
 		Reason:  outputReasons,
+
 		ExtraInfo: map[string]string{
-			StateKeyIbstatData:     string(b),
-			StateKeyIbstatEncoding: StateValueIbstatEncodingJSON,
+			nvidia_query.StateKeyGPUProductName: o.GPUProductName,
+			nvidia_query.StateKeyIbstatExists:   fmt.Sprintf("%v", o.IbstatExists),
+			StateKeyIbstatData:                  string(b),
+			StateKeyIbstatEncoding:              StateValueIbstatEncodingJSON,
 		},
+
+		SuggestedActions: suggestedActions,
 	}
 	return []components.State{state}, nil
 }
