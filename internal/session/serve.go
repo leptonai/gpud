@@ -116,7 +116,7 @@ func (s *Session) serve() {
 
 		if needExit != -1 {
 			log.Logger.Infow("exiting with code for auto update", "code", needExit)
-			os.Exit(needExit)
+			os.Exit(s.autoUpdateExitCode)
 		}
 	}
 }
