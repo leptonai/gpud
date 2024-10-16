@@ -19,6 +19,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
+		GPUProductName:        i.GPUProductName(),
 		InfinibandClassExists: i.InfinibandClassExists,
 		IbstatExists:          i.IbstatExists,
 	}
@@ -30,6 +31,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
+	GPUProductName        string                    `json:"gpu_product_name"`
 	InfinibandClassExists bool                      `json:"infiniband_class_exists"`
 	IbstatExists          bool                      `json:"ibstat_exists"`
 	Ibstat                nvidia_query.IbstatOutput `json:"ibstat"`
@@ -116,9 +118,10 @@ func (o *Output) States() ([]components.State, error) {
 		Reason:  outputReasons,
 
 		ExtraInfo: map[string]string{
-			nvidia_query.StateKeyIbstatExists: fmt.Sprintf("%v", o.IbstatExists),
-			StateKeyIbstatData:                string(b),
-			StateKeyIbstatEncoding:            StateValueIbstatEncodingJSON,
+			nvidia_query.StateKeyGPUProductName: o.GPUProductName,
+			nvidia_query.StateKeyIbstatExists:   fmt.Sprintf("%v", o.IbstatExists),
+			StateKeyIbstatData:                  string(b),
+			StateKeyIbstatEncoding:              StateValueIbstatEncodingJSON,
 		},
 
 		SuggestedActions: suggestedActions,
