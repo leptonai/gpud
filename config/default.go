@@ -42,6 +42,7 @@ import (
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
+	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	query_config "github.com/leptonai/gpud/components/query/config"
@@ -154,6 +155,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	if cc, exists := DefaultDmesgComponent(); exists {
 		cfg.Components[dmesg.Name] = cc
 	}
+
+	cfg.Components[network_latency.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		if pkd_systemd.SystemdExists() && pkd_systemd.SystemctlExists() {

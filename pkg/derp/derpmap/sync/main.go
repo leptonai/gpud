@@ -2,24 +2,28 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
-	_ "embed"
-
-	"github.com/leptonai/gpud/components/network/latency/derpmap"
+	"github.com/leptonai/gpud/pkg/derp/derpmap"
 )
 
 const derpmapPath = "../derpmap.json"
 
 // sync reads the DERP map from the tailscale public DERP map and writes the data locally to derpmapPath
 func main() {
-	d, err := derpmap.GetTailcaleDERPMap()
+	d, err := derpmap.DownloadTailcaleDERPMap()
 	if err != nil {
 		fmt.Printf("failed to get DERP map: %v", err)
 	}
 
-	err = d.WriteJSON(derpmapPath)
+	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
+		fmt.Printf("failed to marshal DERP map: %v", err)
+	}
+
+	if err = os.WriteFile(derpmapPath, data, 0o644); err != nil {
 		fmt.Printf("failed to write DERP map: %v", err)
 	}
 }

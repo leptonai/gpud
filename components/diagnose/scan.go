@@ -15,6 +15,7 @@ import (
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/derp"
 	"github.com/leptonai/gpud/pkg/file"
 )
 
@@ -192,6 +193,16 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
 	} else {
 		fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, matched)
+	}
+
+	if op.netcheck {
+		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n\n", inProgress)
+		latencies, err := derp.MeasureLatencies(ctx, derp.WithVerbose(op.debug))
+		if err != nil {
+			log.Logger.Warnw("error measuring latencies", "error", err)
+		} else {
+			latencies.RenderTable(os.Stdout)
+		}
 	}
 
 	fmt.Printf("\n\n%s scan complete\n\n", checkMark)
