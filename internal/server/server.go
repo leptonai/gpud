@@ -824,7 +824,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		// this guarantees no name conflict, thus safe to register handlers by its name
 		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Warnw("failed to register component", "name", c.Name(), "error", err)
+			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
 			continue
 		}
 
