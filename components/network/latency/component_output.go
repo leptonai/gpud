@@ -117,9 +117,14 @@ func createGetFunc(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (any, error) {
 		o := &Output{}
 
+		timeout := time.Duration(2*cfg.GlobalMillisecondThreshold) * time.Millisecond
+		if timeout < 15*time.Second {
+			timeout = 15 * time.Second
+		}
+
 		// "ctx" here is the root level, create one with shorter timeouts
 		// to not block on this checks
-		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
 		var err error
