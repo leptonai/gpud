@@ -196,7 +196,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	if op.netcheck {
-		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n\n", inProgress)
+		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n", inProgress)
 		latencies, err := derp.MeasureLatencies(ctx, derp.WithVerbose(op.debug))
 		if err != nil {
 			log.Logger.Warnw("error measuring latencies", "error", err)

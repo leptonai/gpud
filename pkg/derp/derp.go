@@ -81,7 +81,7 @@ func MeasureLatencies(ctx context.Context, opts ...OpOption) (Latencies, error) 
 		return nil, err
 	}
 
-	log.Logger.Infow("measuring latencies to DERP nodes")
+	log.Logger.Debugw("measuring latencies to DERP nodes")
 
 	logf := logger.Discard
 	if op.verbose {
