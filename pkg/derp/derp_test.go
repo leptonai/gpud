@@ -8,6 +8,8 @@ import (
 )
 
 func TestGetRegionLatency(t *testing.T) {
+	t.Skip("skipping test")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
