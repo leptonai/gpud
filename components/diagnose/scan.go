@@ -202,6 +202,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Warnw("error measuring latencies", "error", err)
 		} else {
 			latencies.RenderTable(os.Stdout)
+			fmt.Printf("\n\n%s latency check complete\n\n", checkMark)
 		}
 	}
 
