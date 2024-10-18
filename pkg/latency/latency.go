@@ -12,14 +12,13 @@ type Latencies []Latency
 
 func (l Latencies) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Provider", "ASN", "Region Name", "AWS Region", "Latency"})
+	table.SetHeader([]string{"Provider", "Region Name", "Closest AWS Region", "Latency"})
 
 	for _, latency := range l {
 		table.Append([]string{
 			latency.Provider,
-			latency.ASN,
 			latency.RegionName,
-			latency.AWSRegion,
+			latency.ClosestAWSRegion,
 			latency.Latency.Duration.String(),
 		})
 	}
@@ -33,14 +32,11 @@ type Latency struct {
 	// Defines the edge server provider type (e.g., tailscale DERP).
 	Provider string `json:"provider"`
 
-	// ASN of the edge server.
-	ASN string `json:"asn"`
-
 	// Region name of the edge server.
 	RegionName string `json:"region_name"`
 
-	// AWS region of the edge server.
-	AWSRegion string `json:"aws_region"`
+	// The closest AWS region of the edge server.
+	ClosestAWSRegion string `json:"closest_aws_region"`
 
 	// Latency of the edge server.
 	// It is a time that the request takes to be sent to the edge server and back.

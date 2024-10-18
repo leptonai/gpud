@@ -65,14 +65,6 @@ func measureDERP(ctx context.Context, opts ...OpOption) (latency.Latencies, erro
 			return nil, fmt.Errorf("region %d not found in derpmap", regionID)
 		}
 
-		var asn string
-		for _, node := range derpRegion.Nodes {
-			asn, ok = derpmap.GetASN(node.IPv4)
-			if ok {
-				break
-			}
-		}
-
 		awsRegion, ok := derpmap.GetAWSRegion(derpRegion.RegionName)
 		if !ok {
 			return nil, fmt.Errorf("failed to get AWS region for %s", derpRegion.RegionName)
@@ -80,10 +72,9 @@ func measureDERP(ctx context.Context, opts ...OpOption) (latency.Latencies, erro
 
 		latencies = append(latencies, latency.Latency{
 			Provider: ProviderTailscaleDERP,
-			ASN:      asn,
 
-			RegionName: derpRegion.RegionName,
-			AWSRegion:  awsRegion,
+			RegionName:       derpRegion.RegionName,
+			ClosestAWSRegion: awsRegion,
 
 			Latency:             metav1.Duration{Duration: dur},
 			LatencyMilliseconds: dur.Milliseconds(),
