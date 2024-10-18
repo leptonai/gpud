@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
@@ -97,9 +96,6 @@ func ListPCIs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	if err := p.Start(ctx); err != nil {
 		return nil, err
