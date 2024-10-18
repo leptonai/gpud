@@ -6,7 +6,7 @@ var derpRegionNameToAWSRegion = map[string]string{
 	"Amsterdam":     "eu-west-1",
 	"Bangalore":     "ap-south-1",
 	"Chicago":       "us-east-2",
-	"Dallas":        "us-west-2",
+	"Dallas":        "us-east-1",
 	"Denver":        "us-west-1",
 	"Dubai":         "me-central-1",
 	"Frankfurt":     "eu-central-1",
