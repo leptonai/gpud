@@ -16,6 +16,7 @@ import (
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
+	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 )
 
 const (
@@ -192,6 +193,17 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
 	} else {
 		fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, matched)
+	}
+
+	if op.netcheck {
+		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n", inProgress)
+		latencies, err := latency_edge.Measure(ctx, latency_edge.WithVerbose(op.debug))
+		if err != nil {
+			log.Logger.Warnw("error measuring latencies", "error", err)
+		} else {
+			latencies.RenderTable(os.Stdout)
+			fmt.Printf("\n\n%s latency check complete\n\n", checkMark)
+		}
 	}
 
 	fmt.Printf("\n\n%s scan complete\n\n", checkMark)

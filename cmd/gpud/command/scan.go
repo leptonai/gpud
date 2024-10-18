@@ -18,6 +18,7 @@ func cmdScan(cliContext *cli.Context) error {
 		diagnose.WithDebug(debug),
 		diagnose.WithPollXidEvents(pollXidEvents),
 		diagnose.WithPollGPMEvents(pollGPMEvents),
+		diagnose.WithNetcheck(netcheck),
 	)
 	if err != nil {
 		return err

@@ -7,6 +7,8 @@ type Op struct {
 
 	pollXidEvents bool
 	pollGPMEvents bool
+
+	netcheck bool
 }
 
 type OpOption func(*Op)
@@ -48,5 +50,12 @@ func WithPollXidEvents(b bool) OpOption {
 func WithPollGPMEvents(b bool) OpOption {
 	return func(op *Op) {
 		op.pollGPMEvents = b
+	}
+}
+
+// WithNetcheck enables network connectivity checks to global edge/derp servers.
+func WithNetcheck(b bool) OpOption {
+	return func(op *Op) {
+		op.netcheck = b
 	}
 }

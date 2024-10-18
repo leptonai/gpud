@@ -709,7 +709,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, k8s_pod.New(ctx, cfg))
 
 		case network_latency.Name:
-			cfg := network_latency.Config{Query: defaultQueryCfg}
+			cfg := network_latency.Config{
+				Query:                      defaultQueryCfg,
+				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
+			}
 			if configValue != nil {
 				parsed, err := network_latency.ParseConfig(configValue, db)
 				if err != nil {
