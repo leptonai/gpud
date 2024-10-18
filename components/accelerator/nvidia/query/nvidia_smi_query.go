@@ -232,6 +232,16 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 			// Processes                             : null
 			currentLine = bytes.Replace(currentLine, []byte("None"), []byte("null"), 1)
 
+		case bytes.Contains(currentLine, []byte("Remapped Rows")) && bytes.HasSuffix(bytes.TrimSpace(currentLine), []byte("N/A")):
+			// e.g.,
+			//
+			// Remapped Rows                         : N/A
+			//
+			// should be
+			//
+			// Remapped Rows                         : null
+			currentLine = bytes.Replace(currentLine, []byte("N/A"), []byte("null"), 1)
+
 		case bytes.HasPrefix(lastKey, []byte("HW Slowdown")) ||
 			bytes.HasPrefix(lastKey, []byte("HW Thermal Slowdown")) ||
 			bytes.HasPrefix(lastKey, []byte("Process ID")) ||
