@@ -15,8 +15,8 @@ import (
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/pkg/derp"
 	"github.com/leptonai/gpud/pkg/file"
+	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 )
 
 const (
@@ -197,7 +197,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if op.netcheck {
 		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n", inProgress)
-		latencies, err := derp.MeasureLatencies(ctx, derp.WithVerbose(op.debug))
+		latencies, err := latency_edge.Measure(ctx, latency_edge.WithVerbose(op.debug))
 		if err != nil {
 			log.Logger.Warnw("error measuring latencies", "error", err)
 		} else {

@@ -1,4 +1,4 @@
-package derp
+package edge
 
 import (
 	"context"
@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-func TestGetRegionLatency(t *testing.T) {
+func TestMeasure(t *testing.T) {
 	t.Skip("skipping test")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	latencies, err := MeasureLatencies(ctx, WithVerbose(true))
+	latencies, err := Measure(ctx, WithVerbose(true))
 	if err != nil {
 		t.Fatal(err)
 	}

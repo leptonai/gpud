@@ -11,12 +11,13 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/pkg/derp"
+	"github.com/leptonai/gpud/pkg/latency"
+	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 )
 
 type Output struct {
-	// DERPLatencies is the list of DERP latencies from global DERP servers (e.g., tailscale).
-	DERPLatencies []derp.Latency `json:"derp_latencies"`
+	// EgressLatencies is the list of egress latencies to global edge servers.
+	EgressLatencies latency.Latencies `json:"egress_latencies"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -65,7 +66,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States(cfg Config) ([]components.State, error) {
 	unhealthyReasons := []string{}
 	if cfg.GlobalMillisecondThreshold > 0 {
-		for _, latency := range o.DERPLatencies {
+		for _, latency := range o.EgressLatencies {
 			if latency.LatencyMilliseconds > cfg.GlobalMillisecondThreshold {
 				unhealthyReasons = append(unhealthyReasons, fmt.Sprintf("latency to %s edge derp server (%s) exceeded threshold of %dms", latency.RegionName, latency.Latency, cfg.GlobalMillisecondThreshold))
 			}
@@ -74,7 +75,7 @@ func (o *Output) States(cfg Config) ([]components.State, error) {
 
 	healthy := true
 	if cfg.GlobalMillisecondThreshold > 0 && len(unhealthyReasons) > 0 {
-		if len(unhealthyReasons) == len(o.DERPLatencies) {
+		if len(unhealthyReasons) == len(o.EgressLatencies) {
 			healthy = false
 		}
 	}
@@ -128,7 +129,7 @@ func createGetFunc(cfg Config) query.GetFunc {
 		defer cancel()
 
 		var err error
-		o.DERPLatencies, err = derp.MeasureLatencies(cctx)
+		o.EgressLatencies, err = latency_edge.Measure(cctx)
 		if err != nil {
 			return nil, err
 		}
