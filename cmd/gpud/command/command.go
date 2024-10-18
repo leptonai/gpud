@@ -40,6 +40,7 @@ var (
 
 	pollXidEvents bool
 	pollGPMEvents bool
+	netcheck      bool
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -429,6 +430,11 @@ cat summary.txt
 					Name:        "poll-gpm-events",
 					Usage:       "enable polling gpm events (default: false)",
 					Destination: &pollGPMEvents,
+				},
+				&cli.BoolTFlag{
+					Name:        "netcheck",
+					Usage:       "enable network connectivity checks to global edge/derp servers (default: true)",
+					Destination: &netcheck,
 				},
 			},
 		},
