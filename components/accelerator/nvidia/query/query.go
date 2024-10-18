@@ -320,6 +320,7 @@ func Get(ctx context.Context) (output any, err error) {
 }
 
 const (
+	StateKeyGPUProductName      = "gpu_product_name"
 	StateKeySMIExists           = "smi_exists"
 	StateKeyFabricManagerExists = "fabric_manager_exists"
 	StateKeyIbstatExists        = "ibstat_exists"
