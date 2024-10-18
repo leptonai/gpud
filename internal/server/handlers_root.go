@@ -1,14 +1,15 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
 	stdos "os"
 	"runtime"
 	"strings"
+	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
 	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
@@ -28,6 +29,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/version"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gin-gonic/gin"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -80,8 +82,15 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 	nvidiaClockSpeedChart := false
 	nvidiaErrsChart := false
 
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Fatalw("failed to check if nvidia is installed", "error", err)
+	}
+
 	var nvidiaInfoOutputProvider components.OutputProvider
-	if nvidia_query.SMIExists() {
+	if nvidiaInstalled {
 		nvidiaInfoComponent, err := components.GetComponent(nvidia_info.Name)
 		if err != nil {
 			panic(fmt.Sprintf("component %q required but not set", nvidia_info.Name))
