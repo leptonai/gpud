@@ -12,13 +12,13 @@ type Latencies []Latency
 
 func (l Latencies) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Provider", "Region Name", "Closest AWS Region", "Latency"})
+	table.SetHeader([]string{"Provider", "Region Name", "Region Code", "Latency"})
 
 	for _, latency := range l {
 		table.Append([]string{
 			latency.Provider,
 			latency.RegionName,
-			latency.ClosestAWSRegion,
+			latency.RegionCode,
 			latency.Latency.Duration.String(),
 		})
 	}
@@ -35,8 +35,9 @@ type Latency struct {
 	// Region name of the edge server.
 	RegionName string `json:"region_name"`
 
-	// The closest AWS region of the edge server.
-	ClosestAWSRegion string `json:"closest_aws_region"`
+	// The region code of the edge server.
+	// e.g., Named "us-east-1" to be consistent with other cloud providers.
+	RegionCode string `json:"region_code"`
 
 	// Latency of the edge server.
 	// It is a time that the request takes to be sent to the edge server and back.

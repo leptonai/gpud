@@ -11,7 +11,7 @@ var derpRegionNameToAWSRegion = map[string]string{
 	"Dubai":         "me-central-1",
 	"Frankfurt":     "eu-central-1",
 	"Hong Kong":     "ap-east-1",
-	"Honolulu":      "us-west-2",
+	"Honolulu":      "us-west-3",
 	"Johannesburg":  "af-south-1",
 	"London":        "eu-west-2",
 	"Los Angeles":   "us-west-1",
@@ -30,8 +30,8 @@ var derpRegionNameToAWSRegion = map[string]string{
 	"Warsaw":        "eu-central-1",
 }
 
-// GetAWSRegion returns the AWS region for the given DERP region name.
-func GetAWSRegion(regionName string) (string, bool) {
+// GetRegionCode returns the region code for the given DERP region name.
+func GetRegionCode(regionName string) (string, bool) {
 	region, ok := derpRegionNameToAWSRegion[regionName]
 	return region, ok
 }
