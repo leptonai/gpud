@@ -21,6 +21,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if !smiInstalled {
 		return false, nil
 	}
+	log.Logger.Info("nvidia-smi installed")
 
 	// now that nvidia-smi installed,
 	// check the NVIDIA GPU presence via PCI bus
@@ -31,6 +32,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if len(pciDevices) == 0 {
 		return false, nil
 	}
+	log.Logger.Info("nvidia PCI devices found", "devices", len(pciDevices))
 
 	// now that we have the NVIDIA PCI devices,
 	// call NVML C-based API for NVML API
@@ -38,8 +40,8 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
 	log.Logger.Infow("detected nvidia gpu", "product", productName)
+
 	return true, nil
 }
 
