@@ -28,6 +28,20 @@ func TestParseWithRemappedRows(t *testing.T) {
 	}
 }
 
+func TestParseWithRemappedRowsNone(t *testing.T) {
+	data, err := os.ReadFile("testdata/nvidia-smi-query.560.35.03.out.0.valid")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	parsed, err := ParseSMIQueryOutput(data)
+	if err != nil {
+		t.Errorf("Parse returned an error: %v", err)
+	}
+	if parsed.GPUs[0].RemappedRows != nil {
+		t.Errorf("RemappedRows should be nil: %+v", parsed.GPUs[0].RemappedRows)
+	}
+}
+
 func TestParseWithHWSlowdownActive(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.161.08.out.0.valid")
 	if err != nil {
