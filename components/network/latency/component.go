@@ -24,6 +24,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  getDefaultPoller(),
+		cfg:     cfg,
 	}
 }
 
@@ -33,6 +34,7 @@ type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
+	cfg     Config
 }
 
 func (c *component) Name() string { return Name }
@@ -66,7 +68,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
-	return output.States()
+	return output.States(c.cfg)
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {

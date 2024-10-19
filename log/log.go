@@ -59,3 +59,8 @@ func (l *LeptonLogger) Errorw(msg string, keysAndValues ...interface{}) {
 
 	l.SugaredLogger.Errorw(msg, keysAndValues...)
 }
+
+// Implements "tailscale.com/types/logger".Logf.
+func (l *LeptonLogger) Printf(format string, v ...any) {
+	l.SugaredLogger.Infof(format, v...)
+}

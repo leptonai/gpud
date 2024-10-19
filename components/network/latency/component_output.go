@@ -5,25 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/network/latency/derpmap"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/pkg/latency"
+	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 )
 
 type Output struct {
-	RegionLatencies []RegionLatency `json:"region_latency"`
-}
-
-type RegionLatency struct {
-	// RegionID/RegionCode list is available at https://login.tailscale.com/derpmap/default
-	RegionID         int           `json:"region_id"`         // RegionID is the DERP region ID
-	RegionCode       string        `json:"region_code"`       // RegionCode is the three-letter code for the region
-	RegionName       string        `json:"region_name"`       // RegionName is the human-readable name of the region (e.g. "Chicago")
-	Latency          time.Duration `json:"latency"`           // Latency is the round-trip time to the region
-	LatencyHumanized string        `json:"latency_humanized"` // LatencyHumanized is the human-readable version of the latency, in milliseconds
+	// EgressLatencies is the list of egress latencies to global edge servers.
+	EgressLatencies latency.Latencies `json:"egress_latencies"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -69,12 +63,33 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	return nil, errors.New("no latency state found")
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	unhealthyReasons := []string{}
+	if cfg.GlobalMillisecondThreshold > 0 {
+		for _, latency := range o.EgressLatencies {
+			if latency.LatencyMilliseconds > cfg.GlobalMillisecondThreshold {
+				unhealthyReasons = append(unhealthyReasons, fmt.Sprintf("latency to %s edge derp server (%s) exceeded threshold of %dms", latency.RegionName, latency.Latency, cfg.GlobalMillisecondThreshold))
+			}
+		}
+	}
+
+	healthy := true
+	if cfg.GlobalMillisecondThreshold > 0 && len(unhealthyReasons) > 0 {
+		if len(unhealthyReasons) == len(o.EgressLatencies) {
+			healthy = false
+		}
+	}
+
+	reason := "no issue"
+	if len(unhealthyReasons) > 0 {
+		reason = strings.Join(unhealthyReasons, "; ")
+	}
+
 	b, _ := o.JSON()
 	state := components.State{
 		Name:    StateNameLatency,
-		Healthy: true,
-		Reason:  "n/a",
+		Healthy: healthy,
+		Reason:  reason,
 		ExtraInfo: map[string]string{
 			StateKeyLatencyData:     string(b),
 			StateKeyLatencyEncoding: StateKeyLatencyEncodingJSON,
@@ -100,35 +115,25 @@ func getDefaultPoller() query.Poller {
 }
 
 func createGetFunc(cfg Config) query.GetFunc {
+	timeout := time.Duration(2*cfg.GlobalMillisecondThreshold) * time.Millisecond
+	if timeout < 15*time.Second {
+		timeout = 15 * time.Second
+	}
+
 	return func(ctx context.Context) (any, error) {
 		o := &Output{}
-		// get code -> region mapping
-		// TODO: support region code, region name, and region ID in config file
-		codeMap := derpmap.SavedDERPMap.GetRegionCodeMapping()
-		for _, regionCode := range cfg.RegionCodes {
-			region, ok := codeMap[regionCode]
-			if !ok {
-				return nil, fmt.Errorf("region code %s not found", regionCode)
-			}
-			rl := RegionLatency{
-				RegionID:   region.RegionID,
-				RegionCode: regionCode,
-				RegionName: region.RegionName,
-			}
 
-			latency, err := getRegionLatency(ctx, region.RegionID)
-			if err != nil {
-				return nil, err
-			}
-			rl.Latency = latency
-			rl.LatencyHumanized = fmt.Sprintf("%v", latency)
-			o.RegionLatencies = append(o.RegionLatencies, rl)
+		// "ctx" here is the root level, create one with shorter timeouts
+		// to not block on this checks
+		cctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		var err error
+		o.EgressLatencies, err = latency_edge.Measure(cctx)
+		if err != nil {
+			return nil, err
 		}
+
 		return o, nil
 	}
-}
-
-func getRegionLatency(ctx context.Context, regionID int) (time.Duration, error) {
-	// TODO: implmenet getRegionLatency - see https://github.com/tailscale/tailscale/blob/main/net/netcheck/netcheck.go#L950
-	return time.Second, nil
 }
