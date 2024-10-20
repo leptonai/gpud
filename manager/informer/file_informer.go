@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -36,7 +37,7 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					continue
 				}
 				scriptPath := fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", pkgName)
-				version, dependencies, err := resolvePackage(scriptPath)
+				version, dependencies, totalTime, err := resolvePackage(scriptPath)
 				if err != nil {
 					log.Logger.Errorf("resolve package failed: %v", err)
 					continue
@@ -47,6 +48,7 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					ScriptPath:    scriptPath,
 					TargetVersion: version,
 					Dependency:    dependencies,
+					TotalTime:     totalTime,
 				}
 			}
 		}
@@ -88,7 +90,7 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					continue
 				}
 
-				version, dependencies, err := resolvePackage(path)
+				version, dependencies, totalTime, err := resolvePackage(path)
 				if err != nil {
 					log.Logger.Errorf("resolve package failed: %v", err)
 					continue
@@ -98,6 +100,7 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					ScriptPath:    path,
 					TargetVersion: version,
 					Dependency:    dependencies,
+					TotalTime:     totalTime,
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -132,23 +135,29 @@ func addDirectory(watcher *fsnotify.Watcher, dir string) error {
 	})
 }
 
-func resolvePackage(path string) (string, [][]string, error) {
+func resolvePackage(path string) (string, [][]string, time.Duration, error) {
 	var version string
 	var dependencies [][]string
+	var totalTime time.Duration
 	if _, err := exec.Command("stat", path).CombinedOutput(); err != nil {
-		return "", nil, fmt.Errorf("stat failed: %v", err)
+		return "", nil, 0, fmt.Errorf("stat failed: %v", err)
 	}
 	if out, err := exec.Command("bash", "-c", fmt.Sprintf("grep \"#GPUD_PACKAGE_VERSION\" %s | awk -F \"=\"  '{print $2}'", path)).CombinedOutput(); err != nil {
-		return "", nil, fmt.Errorf("get version failed: %v output: %s", err, out)
+		return "", nil, 0, fmt.Errorf("get version failed: %v output: %s", err, out)
 	} else {
 		version = strings.TrimSpace(string(out))
 	}
 	if out, err := exec.Command("bash", "-c", fmt.Sprintf("grep \"#GPUD_PACKAGE_DEPENDENCY\" %s | awk -F \"=\"  '{print $2}'", path)).CombinedOutput(); err != nil {
-		return "", nil, fmt.Errorf("get dependencies failed: %v output: %s", err, out)
+		return "", nil, 0, fmt.Errorf("get dependencies failed: %v output: %s", err, out)
 	} else {
 		dependencies = resolveDependencies(string(out))
 	}
-	return version, dependencies, nil
+	if out, err := exec.Command("bash", "-c", fmt.Sprintf("grep \"#GPUD_PACKAGE_INSTALL_TIME\" %s | awk -F \"=\"  '{print $2}'", path)).CombinedOutput(); err != nil {
+		return "", nil, 0, fmt.Errorf("get dependencies failed: %v output: %s", err, out)
+	} else {
+		totalTime, _ = time.ParseDuration(strings.TrimSpace(string(out)))
+	}
+	return version, dependencies, totalTime, nil
 }
 
 func resolveDependencies(raw string) [][]string {

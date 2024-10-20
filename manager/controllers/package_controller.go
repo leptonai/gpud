@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ func (c *PackageController) Status(ctx context.Context) ([]packages.PackageStatu
 	for _, pkg := range c.packageStatus {
 		ret = append(ret, *pkg)
 	}
+	sort.Sort(packages.PackageStatuses(ret))
 	return ret, nil
 }
 
@@ -59,11 +61,13 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 					Name:           packageInfo.Name,
 					IsInstalled:    false,
 					Installing:     false,
+					Progress:       0,
 					Status:         false,
 					TargetVersion:  "",
 					CurrentVersion: "",
 					ScriptPath:     "",
 					Dependency:     packageInfo.Dependency,
+					TotalTime:      packageInfo.TotalTime,
 				}
 			}
 			c.packageStatus[packageInfo.Name].TargetVersion = packageInfo.TargetVersion
@@ -102,12 +106,37 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			if version == pkg.TargetVersion {
 				continue
 			}
+			var eta time.Duration
 			c.Lock()
 			c.packageStatus[pkg.Name].Installing = true
+			c.packageStatus[pkg.Name].Progress = 0
+			eta = c.packageStatus[pkg.Name].TotalTime
 			c.Unlock()
+			done := make(chan any)
+			go func() {
+				startTime := time.Now()
+				localTicker := time.NewTicker(2 * time.Second)
+				defer localTicker.Stop()
+				for {
+					select {
+					case <-done:
+						return
+					case <-localTicker.C:
+						c.Lock()
+						progress := int(time.Since(startTime).Seconds() / eta.Seconds() * 100)
+						if progress >= 100 {
+							progress = 98
+						}
+						c.packageStatus[pkg.Name].Progress = progress
+						c.Unlock()
+					}
+				}
+			}()
 			err = runCommand(ctx, pkg.ScriptPath, "upgrade", nil)
+			close(done)
 			c.Lock()
 			c.packageStatus[pkg.Name].Installing = false
+			c.packageStatus[pkg.Name].Progress = 100
 			c.Unlock()
 			if err != nil {
 				log.Logger.Errorf("[package controller]: %v unexpected upgrade failure: %v", pkg.Name, err)
@@ -156,6 +185,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			err := runCommand(ctx, pkg.ScriptPath, "isInstalled", nil)
 			if err == nil {
 				c.Lock()
+				c.packageStatus[pkg.Name].Progress = 100
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
 				log.Logger.Infof("[package controller]: %v already installed", pkg.Name)
@@ -163,10 +193,34 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			}
 			log.Logger.Errorf("[package controller]: %v not installed, installing", pkg.Name)
 			go func() {
+				var eta time.Duration
 				c.Lock()
 				c.packageStatus[pkg.Name].Installing = true
+				c.packageStatus[pkg.Name].Progress = 0
+				eta = c.packageStatus[pkg.Name].TotalTime
 				c.Unlock()
+				done := make(chan any)
+				go func() {
+					startTime := time.Now()
+					localTicker := time.NewTicker(2 * time.Second)
+					defer localTicker.Stop()
+					for {
+						select {
+						case <-done:
+							return
+						case <-localTicker.C:
+							progress := int(time.Since(startTime).Seconds() / eta.Seconds() * 100)
+							if progress >= 100 {
+								progress = 98
+							}
+							c.Lock()
+							c.packageStatus[pkg.Name].Progress = progress
+							c.Unlock()
+						}
+					}
+				}()
 				err = runCommand(ctx, pkg.ScriptPath, "install", nil)
+				close(done)
 				if err != nil {
 					log.Logger.Errorf("[package controller]: %v unexpected install failure: %v", pkg.Name, err)
 				} else {
@@ -176,6 +230,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				}
 				c.Lock()
 				c.packageStatus[pkg.Name].Installing = false
+				c.packageStatus[pkg.Name].Progress = 100
 				c.Unlock()
 			}()
 		}
