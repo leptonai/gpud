@@ -19,9 +19,10 @@ sudo gpud up
 `
 
 var (
-	logLevel string
-	debug    bool
-	uid      string
+	logLevel    string
+	debug       bool
+	statusWatch bool
+	uid         string
 
 	annotations   string
 	listenAddress string
@@ -82,7 +83,7 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -111,7 +112,7 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
-					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -134,7 +135,7 @@ nohup sudo gpud run &>> <your log file path> &
 				},
 				cli.StringFlag{
 					Name:  "role",
-					Usage: "role arn",
+					Usage: "role",
 				},
 				cli.StringFlag{
 					Name:  "session",
@@ -220,7 +221,7 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 				&cli.BoolTFlag{
 					Name:        "enable-auto-update",
@@ -388,6 +389,13 @@ sudo rm /etc/systemd/system/gpud.service
 
 			Usage:  "checks the status of gpud",
 			Action: cmdStatus,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:        "watch, w",
+					Usage:       "watch for package install status",
+					Destination: &statusWatch,
+				},
+			},
 		},
 		{
 			Name:    "logs",
@@ -480,12 +488,12 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine.app.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 				cli.StringFlag{
 					Name:  "cluster-name",
-					Usage: "cluster name for control plane (e.g.: lepton-dev)",
-					Value: "lepton-dev",
+					Usage: "cluster name for control plane (e.g.: lepton-prod-0)",
+					Value: "lepton-prod-0",
 				},
 				cli.StringFlag{
 					Name:  "provider",
@@ -499,10 +507,6 @@ sudo gpud join
 				cli.BoolFlag{
 					Name:  "skip-interactive",
 					Usage: "use detected value instead of prompting for user input",
-				},
-				cli.BoolFlag{
-					Name:  "xray-needed",
-					Usage: "enable xray for the machine",
 				},
 				cli.StringFlag{
 					Name:  "extra-info",

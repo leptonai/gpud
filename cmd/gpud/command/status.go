@@ -42,17 +42,30 @@ func cmdStatus(cliContext *cli.Context) error {
 	}
 	fmt.Printf("%s successfully checked gpud health\n", checkMark)
 
-	packageStatus, err := getStatus()
-	if err != nil {
-		fmt.Printf("%s failed to check package status: %v\n", warningSign, err)
-		return err
-	}
-	for _, status := range packageStatus {
-		statusSign := warningSign
-		if status.Status {
-			statusSign = checkMark
+	for {
+		packageStatus, err := getStatus()
+		if err != nil {
+			fmt.Printf("%s failed to get package status: %v\n", warningSign, err)
+			return err
 		}
-		fmt.Printf("%s %v version: %v target version: %v, status: %v installed: %v\n", statusSign, status.Name, status.CurrentVersion, status.TargetVersion, status.Status, status.IsInstalled)
+		if statusWatch {
+			fmt.Print("\033[2J\033[H")
+		}
+		for _, status := range packageStatus {
+			statusSign := warningSign
+			if status.Status {
+				statusSign = checkMark
+			}
+			progress := fmt.Sprintf("%v%%", status.Progress)
+			if !status.Installing && !status.IsInstalled {
+				progress = "Not Started, Waiting for dependencies to finish..."
+			}
+			fmt.Printf("%s %v current version: %v target version: %v, status: %v installed: %v progress: %v\n", statusSign, status.Name, status.CurrentVersion, status.TargetVersion, status.Status, status.IsInstalled, progress)
+		}
+		if !statusWatch {
+			break
+		}
+		time.Sleep(3 * time.Second)
 	}
 
 	return nil

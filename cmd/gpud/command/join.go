@@ -24,6 +24,7 @@ import (
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/log"
+	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -33,7 +34,6 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	endpoint := cliContext.String("endpoint")
 	clusterName := cliContext.String("cluster-name")
 	provider := cliContext.String("provider")
-	xrayNeeded := cliContext.Bool("xray-needed")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
 
@@ -68,7 +68,26 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
+
+	// network section
 	publicIP, _ := login.PublicIP()
+	region := "unknown"
+	detectProvider := ""
+	latencies, err := latency_edge.Measure(rootCtx)
+	var closest int64
+	for _, latency := range latencies {
+		if closest == 0 {
+			closest = latency.LatencyMilliseconds
+			region = latency.RegionCode
+			detectProvider = latency.Provider
+		}
+		if latency.LatencyMilliseconds < closest {
+			closest = latency.LatencyMilliseconds
+			region = latency.RegionCode
+			detectProvider = latency.Provider
+		}
+	}
+
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
 		var input string
@@ -95,7 +114,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 
 		if provider == "personal" {
-			fmt.Printf("Provider name not specified, if you want to use default value, press Enter. If not, please enter your provider's name below\n")
+			fmt.Printf("Provider name not specified, we detected your provider is %v, if correct, press Enter. If not, please enter your provider's name below\n", detectProvider)
 			input, err = reader.ReadString('\n')
 			if err != nil {
 				fmt.Println("Error reading input:", err)
@@ -103,7 +122,19 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			}
 			if input != "\n" {
 				provider = strings.TrimSpace(input)
+			} else {
+				provider = detectProvider
 			}
+		}
+
+		fmt.Printf("We detect your region is %v, if this is corrent, press Enter. If not, please enter your region below\n", region)
+		input, err = reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			return
+		}
+		if input != "\n" {
+			region = strings.TrimSpace(input)
 		}
 	}
 
@@ -113,10 +144,10 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		PublicIP         string `json:"public_ip"`
 		Provider         string `json:"provider"`
 		ProviderGPUShape string `json:"provider_gpu_shape"`
-		XrayNeeded       bool   `json:"xray_needed"`
 		TotalCPU         int64  `json:"total_cpu"`
 		NodeGroup        string `json:"node_group"`
 		ExtraInfo        string `json:"extra_info"`
+		Region           string `json:"region"`
 	}
 	type RespErr struct {
 		Error  string `json:"error"`
@@ -128,15 +159,27 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		PublicIP:         publicIP,
 		Provider:         provider,
 		ProviderGPUShape: productName,
-		XrayNeeded:       xrayNeeded,
 		TotalCPU:         totalCPU,
 		NodeGroup:        nodeGroup,
 		ExtraInfo:        extraInfo,
+		Region:           region,
 	}
 	rawPayload, _ := json.Marshal(&content)
-	fmt.Println("Please wait while control plane is initializing basic setup for your machine with following configuration, this may take up to one minute...")
+	fmt.Println("Your machine will be initialized with following configuration, please press Enter if it is ok")
 	prettyJSON, _ := json.MarshalIndent(content, "", "  ")
 	fmt.Println(string(prettyJSON))
+	fmt.Printf("%sWarning: GPUd will upgrade your container runtime to containerd, will affect your current running containers (if any)%s\n", "\033[33m", "\033[0m")
+	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
+	fmt.Printf("Please look carefully about the above warning, if ok, please hit Enter\n")
+	if !cliContext.Bool("skip-interactive") {
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		if input != "\n" {
+			fmt.Println("Non empty input received, GPUd join aborted.")
+			return nil
+		}
+	}
+	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
 	response, err := http.Post(fmt.Sprintf("https://%s/api/v1/join", endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
@@ -157,7 +200,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	if err := handleJoinResponse(rootCtx, response.Body); err != nil {
 		return err
 	}
-	fmt.Println("Please wait while gpud is initializing your machine, this may take a few minutes.\nYou can run `gpud status` to check the progress.")
+	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
 	return nil
 }
 
