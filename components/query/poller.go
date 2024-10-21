@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -247,12 +248,14 @@ func (pl *poller) processItem(item Item) {
 	pl.lastItems = append(pl.lastItems, item)
 }
 
+var ErrNoData = errors.New("no data collected yet in the poller")
+
 func (pl *poller) Last() (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
 	if len(pl.lastItems) == 0 {
-		return nil, nil
+		return nil, ErrNoData
 	}
 
 	return &pl.lastItems[len(pl.lastItems)-1], nil

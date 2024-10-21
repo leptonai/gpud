@@ -18,18 +18,20 @@ func TestPoller_processResult(t *testing.T) {
 	defer cancel()
 
 	tests := []struct {
-		name      string
-		queueN    int
-		initial   []Item
-		newResult Item
-		expected  []Item
+		name              string
+		queueN            int
+		initial           []Item
+		newResult         *Item
+		expectedLastItems []Item
+		expectedLastErr   error
 	}{
 		{
-			name:      "Add to empty queue",
-			queueN:    3,
-			initial:   []Item{},
-			newResult: Item{Time: metav1.NewTime(now)},
-			expected:  []Item{{Time: metav1.NewTime(now)}},
+			name:              "Add to empty queue",
+			queueN:            3,
+			initial:           []Item{},
+			newResult:         &Item{Time: metav1.NewTime(now)},
+			expectedLastItems: []Item{{Time: metav1.NewTime(now)}},
+			expectedLastErr:   nil,
 		},
 		{
 			name:   "Add to non-full queue",
@@ -37,11 +39,12 @@ func TestPoller_processResult(t *testing.T) {
 			initial: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 			},
-			newResult: Item{Time: metav1.NewTime(now)},
-			expected: []Item{
+			newResult: &Item{Time: metav1.NewTime(now)},
+			expectedLastItems: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 				{Time: metav1.NewTime(now)},
 			},
+			expectedLastErr: nil,
 		},
 		{
 			name:   "Add to full queue",
@@ -51,12 +54,21 @@ func TestPoller_processResult(t *testing.T) {
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 				{Time: metav1.NewTime(now.Add(-1 * time.Second))},
 			},
-			newResult: Item{Time: metav1.NewTime(now)},
-			expected: []Item{
+			newResult: &Item{Time: metav1.NewTime(now)},
+			expectedLastItems: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 				{Time: metav1.NewTime(now.Add(-1 * time.Second))},
 				{Time: metav1.NewTime(now)},
 			},
+			expectedLastErr: nil,
+		},
+		{
+			name:              "Empty queue",
+			queueN:            3,
+			initial:           []Item{},
+			newResult:         nil,
+			expectedLastItems: []Item{},
+			expectedLastErr:   ErrNoData,
 		},
 	}
 
@@ -67,12 +79,21 @@ func TestPoller_processResult(t *testing.T) {
 				cfg:       query_config.Config{QueueSize: tt.queueN},
 				lastItems: tt.initial,
 			}
-			q.processItem(tt.newResult)
-			if !reflect.DeepEqual(tt.expected, q.lastItems) {
-				t.Errorf("expected %+v, got %+v", tt.expected, q.lastItems)
+			if tt.newResult != nil {
+				q.processItem(*tt.newResult)
+			}
+			if !reflect.DeepEqual(tt.expectedLastItems, q.lastItems) {
+				t.Errorf("expected %+v, got %+v", tt.expectedLastItems, q.lastItems)
 			}
 			if len(q.lastItems) > tt.queueN {
 				t.Errorf("expected queue length of %d, got %d", tt.queueN, len(q.lastItems))
+			}
+			last, err := q.Last()
+			if err != tt.expectedLastErr {
+				t.Errorf("expected last error %v, got %v", tt.expectedLastErr, err)
+			}
+			if err == nil && !reflect.DeepEqual(last, &q.lastItems[len(q.lastItems)-1]) {
+				t.Errorf("expected last item %+v, got %+v", q.lastItems[len(q.lastItems)-1], last)
 			}
 		})
 	}
