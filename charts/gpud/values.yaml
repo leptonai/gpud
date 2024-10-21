@@ -12,7 +12,7 @@ gpud:
   web_enable: false
 
   # endpoint for control plane
-  endpoint: mothership-machine-mothership-machine-dev.cloud.lepton.ai
+  endpoint: mothership-machine.app.lepton.ai
 
   # set false to disable auto-update
   enable_auto_update: true
