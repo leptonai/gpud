@@ -21,7 +21,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if !smiInstalled {
 		return false, nil
 	}
-	log.Logger.Info("nvidia-smi installed")
+	log.Logger.Debugw("nvidia-smi installed")
 
 	// now that nvidia-smi installed,
 	// check the NVIDIA GPU presence via PCI bus
@@ -36,17 +36,17 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 
 	// now that we have the NVIDIA PCI devices,
 	// call NVML C-based API for NVML API
-	productName, err := LoadProductName(ctx)
+	gpuDeviceName, err := LoadGPUDeviceName(ctx)
 	if err != nil {
 		return false, err
 	}
-	log.Logger.Infow("detected nvidia gpu", "product", productName)
+	log.Logger.Infow("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
 
 	return true, nil
 }
 
-// Loads the product name of the NVIDIA GPU.
-func LoadProductName(ctx context.Context) (string, error) {
+// Loads the product name of the NVIDIA GPU device.
+func LoadGPUDeviceName(ctx context.Context) (string, error) {
 	nvmlLib := nvml.New()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
