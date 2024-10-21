@@ -1,0 +1,34 @@
+dsName: gpud-run
+
+gpud:
+  GPUD_NO_USAGE_STATS: true
+
+  listen_addres: 0.0.0.0:15132
+
+  # debug, info, warn, error, fatal, panic, dpanic
+  log_level: info
+
+  # set true enable local web dashboard
+  web_enable: false
+
+  # endpoint for control plane
+  endpoint: mothership-machine.app.lepton.ai
+
+  # set false to disable auto-update
+  enable_auto_update: true
+
+  # set non -1 to enable exit to auto update trigger
+  # must be consistent with spec.restartPolicy
+  auto_update_exit_code: 0
+
+# Affinity settings for the DaemonSet
+affinity: {}
+  # Uncomment and modify the following section to set a specific affinity
+  # nodeAffinity:
+  #   requiredDuringSchedulingIgnoredDuringExecution:
+  #     nodeSelectorTerms:
+  #     - matchExpressions:
+  #       - key: example.com/test
+  #         operator: In
+  #         values:
+  #         - "ABC"
