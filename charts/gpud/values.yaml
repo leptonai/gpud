@@ -28,7 +28,7 @@ affinity: {}
   #   requiredDuringSchedulingIgnoredDuringExecution:
   #     nodeSelectorTerms:
   #     - matchExpressions:
-  #       - key: lepton.ai/resource-provider
+  #       - key: example.com/test
   #         operator: In
   #         values:
   #         - "ABC"
