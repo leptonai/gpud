@@ -116,7 +116,7 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo,
 		for component := range op.components {
 			components = append(components, component)
 		}
-		q.Add("component", strings.Join(components, ","))
+		q.Add("components", strings.Join(components, ","))
 	}
 	reqURL.RawQuery = q.Encode()
 
@@ -213,7 +213,7 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		for component := range op.components {
 			components = append(components, component)
 		}
-		q.Add("component", strings.Join(components, ","))
+		q.Add("components", strings.Join(components, ","))
 	}
 	reqURL.RawQuery = q.Encode()
 
