@@ -11,6 +11,7 @@ import (
 	"net/url"
 
 	v1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/internal/server"
 	"sigs.k8s.io/yaml"
 )
@@ -213,7 +214,11 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, errdefs.ErrNotFound
+		}
 		return nil, errors.New("server not ready, response not 200")
 	}
 
