@@ -5,12 +5,10 @@ package infiniband
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
@@ -78,35 +76,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
-	if !allOutput.IbstatExists {
-		return []components.State{
-			{
-				Name:    Name,
-				Healthy: true,
-				Reason:  "ibstat does not exist",
-			},
-		}, nil
-	}
-	if allOutput.IbstatExists && len(allOutput.Ibstat.Errors) > 0 {
-		return []components.State{
-			{
-				Name:    Name,
-				Healthy: false,
-				Reason:  "ibstat query found errors " + strings.Join(allOutput.Ibstat.Errors, ", "),
-				ExtraInfo: map[string]string{
-					nvidia_query.StateKeyIbstatExists: fmt.Sprintf("%v", allOutput.IbstatExists),
-				},
-				SuggestedActions: &common.SuggestedActions{
-					RepairActions: []common.RepairActionType{
-						common.RepairActionTypeRepairHardware,
-					},
-					Descriptions: []string{
-						"potential infiniband switch/hardware issue needs immediate attention",
-					},
-				},
-			},
-		}, nil
-	}
+
 	output := ToOutput(allOutput)
 	return output.States()
 }
