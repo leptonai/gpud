@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -72,7 +73,7 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 	var ret []string
 	for _, component := range strings.Split(components, ",") {
 		if _, err := lep_components.GetComponent(component); err != nil {
-			return nil, fmt.Errorf("failed to get component: %v", err)
+			return nil, fmt.Errorf("failed to get component: %v (%w)", err, errors.Unwrap(err))
 		}
 		ret = append(ret, component)
 	}

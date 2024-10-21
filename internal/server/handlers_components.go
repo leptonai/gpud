@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"time"
@@ -122,6 +123,11 @@ func (g *globalHandler) getStates(c *gin.Context) {
 	var states v1.LeptonStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
 		return
 	}
@@ -193,6 +199,11 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 	var events v1.LeptonEvents
 	components, err := g.getReqComponents(c)
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
 		return
 	}
@@ -270,6 +281,11 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 	var infos v1.LeptonInfo
 	components, err := g.getReqComponents(c)
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
 		return
 	}
@@ -377,6 +393,11 @@ const (
 func (g *globalHandler) getMetrics(c *gin.Context) {
 	components, err := g.getReqComponents(c)
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
 		return
 	}

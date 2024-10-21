@@ -127,13 +127,19 @@ func GetComponent(name string) (Component, error) {
 	defaultSetMu.RLock()
 	defer defaultSetMu.RUnlock()
 
-	if defaultSet == nil {
+	return getComponent(defaultSet, name)
+}
+
+func getComponent(set map[string]Component, name string) (Component, error) {
+	if set == nil {
 		return nil, fmt.Errorf("component set not initialized: %w", errdefs.ErrUnavailable)
 	}
-	if _, ok := defaultSet[name]; !ok {
+
+	v, ok := set[name]
+	if !ok {
 		return nil, fmt.Errorf("component %s not found: %w", name, errdefs.ErrNotFound)
 	}
-	return defaultSet[name], nil
+	return v, nil
 }
 
 func GetAllComponents() map[string]Component {

@@ -9,8 +9,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	v1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/internal/server"
 	"sigs.k8s.io/yaml"
 )
@@ -104,17 +106,21 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo,
 		return nil, err
 	}
 
-	queryURL, err := url.Parse(fmt.Sprintf("%s/v1/info", addr))
+	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/info", addr))
 	if err != nil {
 		return nil, err
 	}
-	q := queryURL.Query()
-	if op.component != "" {
-		q.Add("component", op.component)
+	q := reqURL.Query()
+	if len(op.components) > 0 {
+		components := make([]string, 0, len(op.components))
+		for component := range op.components {
+			components = append(components, component)
+		}
+		q.Add("components", strings.Join(components, ","))
 	}
-	queryURL.RawQuery = q.Encode()
+	reqURL.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, queryURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -197,10 +203,25 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/v1/states", addr), nil)
+	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/states", addr))
+	if err != nil {
+		return nil, err
+	}
+	q := reqURL.Query()
+	if len(op.components) > 0 {
+		components := make([]string, 0, len(op.components))
+		for component := range op.components {
+			components = append(components, component)
+		}
+		q.Add("components", strings.Join(components, ","))
+	}
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
 	if op.requestContentType != "" {
 		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
 	}
@@ -213,7 +234,11 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, errdefs.ErrNotFound
+		}
 		return nil, errors.New("server not ready, response not 200")
 	}
 
