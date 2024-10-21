@@ -195,7 +195,12 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
 
-	if runtime.GOOS == "linux" && nvidia_query.SMIExists() {
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if runtime.GOOS == "linux" && nvidiaInstalled {
 		driverVersion, err := nvidia_query_nvml.GetDriverVersion()
 		if err != nil {
 			return nil, err

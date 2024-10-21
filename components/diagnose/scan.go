@@ -43,7 +43,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
 
-	if nvidia_query.SMIExists() {
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		log.Logger.Warnw("error checking nvidia gpu installation", "error", err)
+		return err
+	}
+
+	if nvidiaInstalled {
 		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
 
 		for _, lib := range defaultNVIDIALibraries {
