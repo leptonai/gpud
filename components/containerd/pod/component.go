@@ -9,6 +9,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const Name = "containerd-pod"
@@ -47,12 +50,24 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return nil, nil
 	}
 	if last.Error != nil {
+		// this is the error from "ListSandboxStatus"
+		//
+		// e.g.,
+		// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
+		reason := "failed gRPC call to the containerd socket"
+		st, ok := status.FromError(last.Error)
+		if ok {
+			if st.Code() == codes.Unimplemented {
+				reason += "; no CRI configured for containerd"
+			}
+		}
+
 		return []components.State{
 			{
 				Name:    Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
-				Reason:  "last query failed",
+				Reason:  reason,
 			},
 		}, nil
 	}
