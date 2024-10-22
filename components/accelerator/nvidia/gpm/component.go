@@ -97,6 +97,7 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 		return nil, fmt.Errorf("fail to read sm int util: %w", err)
 	}
 	ms = updateMetrics(ms, intUtils)
+
 	anyTensorUtils, err := nvidia_query_metrics_gpm.ReadGPUAnyTensorUtilPercents(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("fail to read sm any tensor util: %w", err)
