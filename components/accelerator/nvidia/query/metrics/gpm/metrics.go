@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	"github.com/leptonai/gpud/log"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
