@@ -496,8 +496,26 @@ var (
 
 // Starts the default NVML instance.
 //
-// By default, it tracks the SM occupancy metric, with nvml.GPM_METRIC_SM_OCCUPANCY.
+// By default, it tracks the SM occupancy metrics, with nvml.GPM_METRIC_SM_OCCUPANCY,
+// nvml.GPM_METRIC_INTEGER_UTIL, nvml.GPM_METRIC_ANY_TENSOR_UTIL,
+// nvml.GPM_METRIC_DFMA_TENSOR_UTIL, nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
+// nvml.GPM_METRIC_IMMA_TENSOR_UTIL, nvml.GPM_METRIC_FP64_UTIL,
+// nvml.GPM_METRIC_FP32_UTIL, nvml.GPM_METRIC_FP16_UTIL,
+
+// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10641-L10643
 // NVML_GPM_METRIC_SM_OCCUPANCY is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
+// NVML_GPM_METRIC_INTEGER_UTIL is the percentage of time the GPU's SMs were doing integer operations (0.0 - 100.0).
+// NVML_GPM_METRIC_ANY_TENSOR_UTIL is the percentage of time the GPU's SMs were doing ANY tensor operations (0.0 - 100.0).
+
+// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10644-L10646
+// NVML_GPM_METRIC_DFMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing DFMA tensor operations (0.0 - 100.0).
+// NVML_GPM_METRIC_HMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing HMMA tensor operations (0.0 - 100.0).
+// NVML_GPM_METRIC_IMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing IMMA tensor operations (0.0 - 100.0).
+
+// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10648-L10650
+// NVML_GPM_METRIC_FP64_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP64 math (0.0 - 100.0).
+// NVML_GPM_METRIC_FP32_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP32 math (0.0 - 100.0).
+// NVML_GPM_METRIC_FP16_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP16 math (0.0 - 100.0).
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
 func StartDefaultInstance(ctx context.Context) error {
 	defaultInstanceMu.Lock()
@@ -508,7 +526,17 @@ func StartDefaultInstance(ctx context.Context) error {
 	}
 
 	var err error
-	defaultInstance, err = NewInstance(ctx, WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY))
+	defaultInstance, err = NewInstance(ctx,
+		WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY,
+			nvml.GPM_METRIC_INTEGER_UTIL,
+			nvml.GPM_METRIC_ANY_TENSOR_UTIL,
+			nvml.GPM_METRIC_DFMA_TENSOR_UTIL,
+			nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
+			nvml.GPM_METRIC_IMMA_TENSOR_UTIL,
+			nvml.GPM_METRIC_FP64_UTIL,
+			nvml.GPM_METRIC_FP32_UTIL,
+			nvml.GPM_METRIC_FP16_UTIL,
+		))
 	if err != nil {
 		return err
 	}

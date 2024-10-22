@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query_metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
@@ -69,6 +70,18 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return nil, nil
 }
 
+func updateMetrics(ms []components.Metric, metrics components_metrics_state.Metrics) []components.Metric {
+	for _, m := range metrics {
+		ms = append(ms, components.Metric{
+			Metric: m,
+			ExtraInfo: map[string]string{
+				"gpu_id": m.MetricSecondaryName,
+			},
+		})
+	}
+	return ms
+}
+
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
@@ -78,14 +91,54 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 	}
 
 	ms := make([]components.Metric, 0, len(smOccupancies))
-	for _, m := range smOccupancies {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
+	ms = updateMetrics(ms, smOccupancies)
+	intUtils, err := nvidia_query_metrics_gpm.ReadGPUIntUtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm int util: %w", err)
 	}
+	ms = updateMetrics(ms, intUtils)
+
+	anyTensorUtils, err := nvidia_query_metrics_gpm.ReadGPUAnyTensorUtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm any tensor util: %w", err)
+	}
+	ms = updateMetrics(ms, anyTensorUtils)
+
+	dfmaTensorUtils, err := nvidia_query_metrics_gpm.ReadGPUDFMATensorUtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm dfma tensor util: %w", err)
+	}
+	ms = updateMetrics(ms, dfmaTensorUtils)
+
+	hmmaTensorUtils, err := nvidia_query_metrics_gpm.ReadGPUHMMATensorUtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm dfma tensor util: %w", err)
+	}
+	ms = updateMetrics(ms, hmmaTensorUtils)
+
+	immaTensorUtils, err := nvidia_query_metrics_gpm.ReadGPUIMMATensorUtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm dfma tensor util: %w", err)
+	}
+	ms = updateMetrics(ms, immaTensorUtils)
+
+	fp64Utils, err := nvidia_query_metrics_gpm.ReadGPUFp64UtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm fp64 util: %w", err)
+	}
+	ms = updateMetrics(ms, fp64Utils)
+
+	fp32Utils, err := nvidia_query_metrics_gpm.ReadGPUFp32UtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm fp64 util: %w", err)
+	}
+	ms = updateMetrics(ms, fp32Utils)
+
+	fp16Utils, err := nvidia_query_metrics_gpm.ReadGPUFp16UtilPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read sm fp64 util: %w", err)
+	}
+	ms = updateMetrics(ms, fp16Utils)
 
 	return ms, nil
 }
