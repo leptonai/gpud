@@ -25,7 +25,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 
 	// now that nvidia-smi installed,
 	// check the NVIDIA GPU presence via PCI bus
-	pciDevices, err := ListPCIs(ctx)
+	pciDevices, err := ListNVIDIAPCIs(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -82,7 +82,7 @@ func LoadGPUDeviceName(ctx context.Context) (string, error) {
 }
 
 // Lists all PCI devices that are compatible with NVIDIA.
-func ListPCIs(ctx context.Context) ([]string, error) {
+func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	lspciPath, err := file.LocateExecutable("lspci")
 	if err != nil {
 		return nil, nil
