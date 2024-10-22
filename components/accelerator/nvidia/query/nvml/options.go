@@ -17,11 +17,13 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	return nil
 }
 
-func WithGPMMetricsID(id nvml.GpmMetricId) OpOption {
+func WithGPMMetricsID(ids ...nvml.GpmMetricId) OpOption {
 	return func(op *Op) {
 		if op.gpmMetricsIDs == nil {
 			op.gpmMetricsIDs = make(map[nvml.GpmMetricId]struct{})
 		}
-		op.gpmMetricsIDs[id] = struct{}{}
+		for _, id := range ids {
+			op.gpmMetricsIDs[id] = struct{}{}
+		}
 	}
 }
