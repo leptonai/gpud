@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // Fetches the UUIF of the machine host, using the "dmidecode".
@@ -26,7 +28,12 @@ func UUID(ctx context.Context) (string, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) > 6 && line[:6] == "UUID: " {
-			return line[6:], nil
+			uid := line[6:]
+			if strings.Contains(uid, "Not Settable") {
+				generateUUID, _ := uuid.NewUUID()
+				uid = generateUUID.String()
+			}
+			return uid, nil
 		}
 	}
 

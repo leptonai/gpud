@@ -24,6 +24,7 @@ import (
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/asn"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -72,20 +73,24 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	// network section
 	publicIP, _ := login.PublicIP()
 	region := "unknown"
-	detectProvider := ""
-	latencies, err := latency_edge.Measure(rootCtx)
+	detectProvider := "unknown"
+	latencies, _ := latency_edge.Measure(rootCtx)
 	var closest int64
 	for _, latency := range latencies {
 		if closest == 0 {
 			closest = latency.LatencyMilliseconds
 			region = latency.RegionCode
-			detectProvider = latency.Provider
 		}
 		if latency.LatencyMilliseconds < closest {
 			closest = latency.LatencyMilliseconds
 			region = latency.RegionCode
-			detectProvider = latency.Provider
 		}
+	}
+	asnResult, err := asn.GetASLookup(publicIP)
+	if err != nil {
+		log.Logger.Errorf("failed to get asn lookup: %v", err)
+	} else {
+		detectProvider = asnResult.AsnName
 	}
 
 	if !cliContext.Bool("skip-interactive") {

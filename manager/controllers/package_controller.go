@@ -70,6 +70,8 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 					TotalTime:      packageInfo.TotalTime,
 				}
 			}
+			c.packageStatus[packageInfo.Name].TotalTime = packageInfo.TotalTime
+			c.packageStatus[packageInfo.Name].Dependency = packageInfo.Dependency
 			c.packageStatus[packageInfo.Name].TargetVersion = packageInfo.TargetVersion
 			c.packageStatus[packageInfo.Name].ScriptPath = packageInfo.ScriptPath
 			c.Unlock()
@@ -99,7 +101,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
 				continue
 			}
-			log.Logger.Infof("[package controller]: %v verison is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
+			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
 			c.Lock()
 			c.packageStatus[pkg.Name].CurrentVersion = version
 			c.Unlock()
