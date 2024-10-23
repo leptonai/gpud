@@ -51,17 +51,14 @@ func cmdStatus(cliContext *cli.Context) error {
 		if statusWatch {
 			fmt.Print("\033[2J\033[H")
 		}
+		var totalTime int64
+		var progress int64
 		for _, status := range packageStatus {
-			statusSign := warningSign
-			if status.Status {
-				statusSign = checkMark
-			}
-			progress := fmt.Sprintf("%v%%", status.Progress)
-			if !status.Installing && !status.IsInstalled {
-				progress = "Not Started, Waiting for dependencies to finish..."
-			}
-			fmt.Printf("%s %v current version: %v target version: %v, status: %v installed: %v progress: %v\n", statusSign, status.Name, status.CurrentVersion, status.TargetVersion, status.Status, status.IsInstalled, progress)
+			totalTime += status.TotalTime.Milliseconds()
+			progress += status.TotalTime.Milliseconds() * int64(status.Progress) / 100
 		}
+
+		fmt.Printf("Total progress: %v%%, Estimate time left: %v\n", progress*100/totalTime, time.Duration(totalTime-progress)*time.Millisecond)
 		if !statusWatch {
 			break
 		}

@@ -30,6 +30,11 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 	}
 
 	go func() {
+		defer func() {
+			if err = watcher.Close(); err != nil {
+				log.Logger.Error(err)
+			}
+		}()
 		out, err := exec.Command("ls", "/var/lib/gpud/packages").CombinedOutput()
 		if err == nil {
 			for _, pkgName := range strings.Split(string(out), "\n") {
@@ -62,7 +67,9 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					fileInfo, err := os.Stat(event.Name)
 					if err == nil && fileInfo.IsDir() {
 						log.Logger.Infof("New directory created: %s", event.Name)
-						addDirectory(watcher, event.Name)
+						if aErr := addDirectory(watcher, event.Name); aErr != nil {
+							log.Logger.Error(aErr)
+						}
 					}
 					continue
 				}
@@ -70,7 +77,9 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					fileInfo, err := os.Stat(event.Name)
 					if os.IsNotExist(err) || (err == nil && fileInfo.IsDir()) {
 						log.Logger.Infof("Directory removed: %s", event.Name)
-						watcher.Remove(event.Name)
+						if rErr := watcher.Remove(event.Name); rErr != nil {
+							log.Logger.Error(rErr)
+						}
 					}
 				}
 
@@ -102,20 +111,19 @@ func (f *FileInformer) Start() chan packages.PackageInfo {
 					Dependency:    dependencies,
 					TotalTime:     totalTime,
 				}
-			case err, ok := <-watcher.Errors:
+			case wErr, ok := <-watcher.Errors:
 				if !ok {
 					continue
 				}
-				log.Logger.Errorf("Error: %s", err)
+				log.Logger.Errorf("Error: %s", wErr)
 			}
 		}
-		watcher.Close()
 	}()
 
 	rootDir := "/var/lib/gpud/"
 	err = addDirectory(watcher, rootDir)
 	if err != nil {
-		log.Logger.Fatal(err)
+		log.Logger.Error(err)
 	}
 	return c
 }

@@ -99,7 +99,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
 				continue
 			}
-			log.Logger.Infof("[package controller]: %v verison is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
+			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
 			c.Lock()
 			c.packageStatus[pkg.Name].CurrentVersion = version
 			c.Unlock()

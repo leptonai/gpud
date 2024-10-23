@@ -73,7 +73,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	publicIP, _ := login.PublicIP()
 	region := "unknown"
 	detectProvider := ""
-	latencies, err := latency_edge.Measure(rootCtx)
+	latencies, _ := latency_edge.Measure(rootCtx)
 	var closest int64
 	for _, latency := range latencies {
 		if closest == 0 {

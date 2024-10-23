@@ -55,11 +55,15 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 	}
 
-	packages, err := manager.GlobalController.Status(ctx)
-	if err != nil {
-		return nil, err
+	var managedPackages string
+	if manager.GlobalController != nil {
+		packageStatus, err := manager.GlobalController.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rawPayload, _ := json.Marshal(&packageStatus)
+		managedPackages = string(rawPayload)
 	}
-	rawPayload, _ := json.Marshal(&packages)
 	return []components.State{
 		{
 			Name:    StateNameDaemon,
@@ -68,7 +72,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			ExtraInfo: map[string]string{
 				StateKeyDaemonVersion: version.Version,
 				StateKeyMacAddress:    mac,
-				StateKeyPackages:      string(rawPayload),
+				StateKeyPackages:      managedPackages,
 			},
 		},
 		{
