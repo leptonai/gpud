@@ -308,9 +308,6 @@ func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
 	if err := reg.Register(gpuIMMATensorUtilPercent); err != nil {
 		return err
 	}
-	if err := reg.Register(gpuIntUtilPercent); err != nil {
-		return err
-	}
 	if err := reg.Register(gpuFp64UtilPercent); err != nil {
 		return err
 	}
