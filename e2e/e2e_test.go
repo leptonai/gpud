@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,6 +19,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	client_v1 "github.com/leptonai/gpud/client/v1"
+	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/internal/server"
 )
 
@@ -312,6 +314,10 @@ func TestGpudHealthzInfo(t *testing.T) {
 			for _, state := range i.Info.States {
 				t.Logf("state: %s - healthy: %t", state.Name, state.Healthy)
 			}
+		}
+
+		if _, err := client_v1.GetStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...); !errors.Is(err, errdefs.ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 
 		states, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
