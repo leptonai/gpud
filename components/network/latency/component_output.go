@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	components_metrics "github.com/leptonai/gpud/components/metrics"
+	"github.com/leptonai/gpud/components/network/latency/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/latency"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
@@ -120,7 +122,19 @@ func createGetFunc(cfg Config) query.GetFunc {
 		timeout = 15 * time.Second
 	}
 
-	return func(ctx context.Context) (any, error) {
+	return func(ctx context.Context) (_ any, e error) {
+		defer func() {
+			if e != nil {
+				components_metrics.SetGetFailed(Name)
+			} else {
+				components_metrics.SetGetSuccess(Name)
+			}
+		}()
+
+		now := time.Now().UTC()
+		nowUTC := float64(now.Unix())
+		metrics.SetLastUpdateUnixSeconds(nowUTC)
+
 		o := &Output{}
 
 		// "ctx" here is the root level, create one with shorter timeouts
@@ -132,6 +146,17 @@ func createGetFunc(cfg Config) query.GetFunc {
 		o.EgressLatencies, err = latency_edge.Measure(cctx)
 		if err != nil {
 			return nil, err
+		}
+
+		for _, latency := range o.EgressLatencies {
+			if err := metrics.SetEdgeInMilliseconds(
+				ctx,
+				fmt.Sprintf("%s (%s)", latency.RegionName, latency.Provider),
+				float64(latency.LatencyMilliseconds),
+				now,
+			); err != nil {
+				return nil, err
+			}
 		}
 
 		return o, nil
