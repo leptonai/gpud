@@ -3,12 +3,16 @@ package latency
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/network/latency/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const Name = "network-latency"
@@ -31,10 +35,11 @@ func New(ctx context.Context, cfg Config) components.Component {
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
-	cfg     Config
+	rootCtx  context.Context
+	cancel   context.CancelFunc
+	poller   query.Poller
+	gatherer prometheus.Gatherer
+	cfg      Config
 }
 
 func (c *component) Name() string { return Name }
@@ -78,7 +83,17 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
-	return nil, nil
+	edgeLatencies, err := metrics.ReadEdgeInMilliseconds(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read running pids: %w", err)
+	}
+
+	ms := make([]components.Metric, 0, len(edgeLatencies))
+	for _, m := range edgeLatencies {
+		ms = append(ms, components.Metric{Metric: m})
+	}
+
+	return ms, nil
 }
 
 func (c *component) Close() error {
@@ -88,4 +103,11 @@ func (c *component) Close() error {
 	c.poller.Stop(Name)
 
 	return nil
+}
+
+var _ components.PromRegisterer = (*component)(nil)
+
+func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+	c.gatherer = reg
+	return metrics.Register(reg, db, tableName)
 }
