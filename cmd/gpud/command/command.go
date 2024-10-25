@@ -19,9 +19,10 @@ sudo gpud up
 `
 
 var (
-	logLevel string
-	debug    bool
-	uid      string
+	logLevel    string
+	debug       bool
+	statusWatch bool
+	uid         string
 
 	annotations   string
 	listenAddress string
@@ -82,7 +83,7 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 			},
 		},
@@ -111,7 +112,38 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
+				},
+			},
+		},
+		{
+			Name:   "kubeconfig",
+			Usage:  "Writes the kubeconfig with gpud.",
+			Action: cmdKubeConfig,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "file",
+					Usage: "file path to output the kubelet config",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "region of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "cluster",
+					Usage: "name of target cluster",
+				},
+				cli.StringFlag{
+					Name:  "role",
+					Usage: "role",
+				},
+				cli.StringFlag{
+					Name:  "session",
+					Usage: "cluster session name",
+				},
+				cli.StringFlag{
+					Name:  "cluster-ca",
+					Usage: "cluster ca file path",
 				},
 			},
 		},
@@ -189,7 +221,7 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine-mothership-machine-dev.cloud.lepton.ai",
+					Value: "mothership-machine.app.lepton.ai",
 				},
 				&cli.BoolTFlag{
 					Name:        "enable-auto-update",
@@ -357,6 +389,13 @@ sudo rm /etc/systemd/system/gpud.service
 
 			Usage:  "checks the status of gpud",
 			Action: cmdStatus,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:        "watch, w",
+					Usage:       "watch for package install status",
+					Destination: &statusWatch,
+				},
+			},
 		},
 		{
 			Name:    "logs",
@@ -435,6 +474,43 @@ cat summary.txt
 					Name:        "netcheck",
 					Usage:       "enable network connectivity checks to global edge/derp servers (default: true)",
 					Destination: &netcheck,
+				},
+			},
+		},
+		{
+			Name:  "join",
+			Usage: "join gpud machine into a lepton cluster",
+			UsageText: `# to join gpud into a lepton cluster
+sudo gpud join
+`,
+			Action: cmdJoin,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+					Value: "mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:  "cluster-name",
+					Usage: "cluster name for control plane (e.g.: lepton-prod-0)",
+					Value: "lepton-prod-0",
+				},
+				cli.StringFlag{
+					Name:  "provider",
+					Usage: "provider of the machine",
+					Value: "personal",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.BoolFlag{
+					Name:  "skip-interactive",
+					Usage: "use detected value instead of prompting for user input",
+				},
+				cli.StringFlag{
+					Name:  "extra-info",
+					Usage: "base64 encoded extra info to pass to control plane",
 				},
 			},
 		},

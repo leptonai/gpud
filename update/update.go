@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/http"
+	url2 "net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -241,4 +243,72 @@ func update(ver, url string, requireRoot bool, useSystemd bool) error {
 	}
 
 	return nil
+}
+
+func PackageUpdate(targetPackage, ver, baseUrl string) error {
+	dlDir, err := os.UserCacheDir()
+	if err != nil {
+		dlDir = os.TempDir()
+	}
+	if err = os.MkdirAll(dlDir, 0700); err != nil {
+		return err
+	}
+	dlPath := filepath.Join(dlDir, targetPackage+ver)
+	downloadUrl, err := url2.JoinPath(baseUrl, "packages", targetPackage, ver)
+	if err != nil {
+		return err
+	}
+	err = downloadFile(downloadUrl, dlPath)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(dlPath)
+
+	if err = copyFile(dlPath, fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", targetPackage)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func downloadFile(url, filepath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	err = destinationFile.Sync()
+	return err
 }

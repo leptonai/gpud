@@ -3,12 +3,14 @@ package info
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -33,6 +35,7 @@ const (
 
 	StateKeyDaemonVersion = "daemon_version"
 	StateKeyMacAddress    = "mac_address"
+	StateKeyPackages      = "packages"
 
 	StateNameAnnotations = "annotations"
 )
@@ -52,6 +55,15 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 	}
 
+	var managedPackages string
+	if manager.GlobalController != nil {
+		packageStatus, err := manager.GlobalController.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rawPayload, _ := json.Marshal(&packageStatus)
+		managedPackages = string(rawPayload)
+	}
 	return []components.State{
 		{
 			Name:    StateNameDaemon,
@@ -60,6 +72,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			ExtraInfo: map[string]string{
 				StateKeyDaemonVersion: version.Version,
 				StateKeyMacAddress:    mac,
+				StateKeyPackages:      managedPackages,
 			},
 		},
 		{

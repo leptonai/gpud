@@ -12,6 +12,7 @@ import (
 
 	lep_components "github.com/leptonai/gpud/components"
 	lep_config "github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/manager"
 
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/yaml"
@@ -143,5 +144,21 @@ func createConfigHandler(cfg *lep_config.Config) func(c *gin.Context) {
 				c.JSON(http.StatusOK, cfg)
 			}
 		}
+	}
+}
+
+const (
+	URLPathPackages     = "/packages"
+	URLPathPackagesDesc = "Get the status of gpud managed packages"
+)
+
+func createPackageHandler(m *manager.Manager) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		packageStatus, err := m.Status(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to get package status " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, packageStatus)
 	}
 }
