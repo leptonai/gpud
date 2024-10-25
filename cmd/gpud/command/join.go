@@ -53,7 +53,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("failed to get machine uid: %w", err)
 	}
 
-	cmd := exec.Command("nproc")
+	cmd := exec.Command("nproc", "--all")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err = cmd.Run(); err != nil {

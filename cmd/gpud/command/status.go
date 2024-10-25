@@ -48,6 +48,10 @@ func cmdStatus(cliContext *cli.Context) error {
 			fmt.Printf("%s failed to get package status: %v\n", warningSign, err)
 			return err
 		}
+		if len(packageStatus) == 0 {
+			fmt.Printf("no packages found\n")
+			return nil
+		}
 		if statusWatch {
 			fmt.Print("\033[2J\033[H")
 		}
@@ -58,7 +62,11 @@ func cmdStatus(cliContext *cli.Context) error {
 			progress += status.TotalTime.Milliseconds() * int64(status.Progress) / 100
 		}
 
-		fmt.Printf("Total progress: %v%%, Estimate time left: %v\n", progress*100/totalTime, time.Duration(totalTime-progress)*time.Millisecond)
+		var totalProgress int64
+		if totalTime != 0 {
+			totalProgress = progress * 100 / totalTime
+		}
+		fmt.Printf("Total progress: %v%%, Estimate time left: %v\n", totalProgress, time.Duration(totalTime-progress)*time.Millisecond)
 		if !statusWatch {
 			break
 		}
