@@ -414,6 +414,12 @@ sudo rm /etc/systemd/system/gpud.service
 		},
 
 		{
+			Name: "is-nvidia",
+
+			Usage:  "quick check if the host has NVIDIA GPUs installed",
+			Action: cmdIsNvidia,
+		},
+		{
 			Name:    "accelerator",
 			Aliases: []string{"a"},
 

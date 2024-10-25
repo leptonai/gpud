@@ -1,6 +1,9 @@
 package dmesg
 
 import (
+	"context"
+	"time"
+
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
@@ -15,7 +18,15 @@ import (
 )
 
 func init() {
-	if nvidia_query.SMIExists() {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		return
+	}
+
+	if nvidiaInstalled {
 		defaultFilters = append(defaultFilters, DefaultDmesgFiltersForNvidia()...)
 	}
 	for i := range defaultFilters {
