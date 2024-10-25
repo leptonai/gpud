@@ -14,7 +14,7 @@ type Op struct {
 	checkInterval         time.Duration
 	requestContentType    string
 	requestAcceptEncoding string
-	component             string
+	components            map[string]any
 }
 
 type OpOption func(*Op)
@@ -74,6 +74,9 @@ func WithAcceptEncodingGzip() OpOption {
 
 func WithComponent(component string) OpOption {
 	return func(op *Op) {
-		op.component = component
+		if op.components == nil {
+			op.components = make(map[string]any)
+		}
+		op.components[component] = nil
 	}
 }
