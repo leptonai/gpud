@@ -91,16 +91,8 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
 	reasons := []string{}
-	healthy := true
-	if !o.PersistencedExists {
-		reasons = append(reasons, "nvidia-persistenced does not exist (install 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
-		healthy = false
-	}
-	if !o.PersistencedRunning {
-		reasons = append(reasons, "nvidia-persistenced exists but not running (start 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
-		healthy = false
-	}
 
+	enabled := true
 	for _, p := range o.PersistenceModesSMI {
 		if o.PersistencedRunning {
 			continue
@@ -111,7 +103,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 		// we cannot guarantee that the NVIDIA Persistence Daemon will be running. This would be a feature regression as persistence mode might not be available out-of- the-box."
 		if !p.Enabled {
 			reasons = append(reasons, fmt.Sprintf("persistence mode is not enabled on %s (nvidia-smi)", p.ID))
-			healthy = false
+			enabled = false
 		}
 	}
 
@@ -125,11 +117,20 @@ func (o *Output) Evaluate() (string, bool, error) {
 		// we cannot guarantee that the NVIDIA Persistence Daemon will be running. This would be a feature regression as persistence mode might not be available out-of- the-box."
 		if !p.Enabled {
 			reasons = append(reasons, fmt.Sprintf("persistence mode is not enabled on %s (NVML)", p.UUID))
-			healthy = false
+			enabled = false
 		}
 	}
 
-	return strings.Join(reasons, "; "), healthy, nil
+	// does not make the component unhealthy, since persistence mode can still be enabled
+	// recommend installing nvidia-persistenced since it's the recommended way to enable persistence mode
+	if !o.PersistencedExists {
+		reasons = append(reasons, "nvidia-persistenced does not exist (install 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
+	}
+	if !o.PersistencedRunning {
+		reasons = append(reasons, "nvidia-persistenced exists but not running (start 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
+	}
+
+	return strings.Join(reasons, "; "), enabled, nil
 }
 
 func (o *Output) States() ([]components.State, error) {
