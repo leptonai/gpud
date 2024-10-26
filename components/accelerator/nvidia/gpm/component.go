@@ -51,18 +51,42 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last == nil || last.Output == nil { // no data
-		log.Logger.Debugw("no gpm event data -- this is normal when nvml has not received any registered gpm event events yet")
-	} else {
-		gpmEvent, ok := last.Output.(*nvidia_query_nvml.GPMEvent)
-		if !ok {
-			return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.GPMEvent", last.Output)
-		}
-		if gpmEvent != nil && len(gpmEvent.Metrics) > 0 {
-			o.NVMLGPMEvent = gpmEvent
-		}
+	if last == nil && err != nil && err != query.ErrNoData { // no data
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		return []components.State{
+			{
+				Name:    Name,
+				Healthy: false,
+				Error:   query.ErrNoData.Error(),
+				Reason:  query.ErrNoData.Error(),
+			},
+		}, nil
+	}
+	if last.Error != nil {
+		return []components.State{
+			{
+				Healthy: false,
+				Error:   last.Error.Error(),
+				Reason:  "last query failed",
+			},
+		}, nil
+	}
+	if last.Output == nil {
+		return []components.State{
+			{
+				Healthy: false,
+				Reason:  "no output",
+			},
+		}, nil
 	}
 
+	gpmEvent, ok := last.Output.(*nvidia_query_nvml.GPMEvent)
+	if !ok {
+		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.GPMEvent", last.Output)
+	}
+	if gpmEvent != nil && len(gpmEvent.Metrics) > 0 {
+		o.NVMLGPMEvent = gpmEvent
+	}
 	return o.States()
 }
 

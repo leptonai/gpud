@@ -92,26 +92,50 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last == nil || last.Output == nil { // no data
-		log.Logger.Debugw("no xid data -- this is normal when nvml has not received any registered xid events yet")
-	} else {
-		ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
-		if !ok {
-			return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
-		}
-		if ev != nil {
-			if ev.Xid > 0 {
-				o.NVMLXidEvent = ev
-			}
-			if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
-				if o.SuggestedActions == nil {
-					o.SuggestedActions = &common.SuggestedActions{}
-				}
-				o.SuggestedActions.Add(ev.Detail.SuggestedActions)
-			}
-		}
+	if last == nil && err != nil && err != query.ErrNoData { // no data
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		return []components.State{
+			{
+				Name:    Name,
+				Healthy: false,
+				Error:   query.ErrNoData.Error(),
+				Reason:  query.ErrNoData.Error(),
+			},
+		}, nil
+	}
+	if last.Error != nil {
+		return []components.State{
+			{
+				Healthy: false,
+				Error:   last.Error.Error(),
+				Reason:  "last query failed",
+			},
+		}, nil
+	}
+	if last.Output == nil {
+		return []components.State{
+			{
+				Healthy: false,
+				Reason:  "no output",
+			},
+		}, nil
 	}
 
+	ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
+	if !ok {
+		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
+	}
+	if ev != nil {
+		if ev.Xid > 0 {
+			o.NVMLXidEvent = ev
+		}
+		if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
+			if o.SuggestedActions == nil {
+				o.SuggestedActions = &common.SuggestedActions{}
+			}
+			o.SuggestedActions.Add(ev.Detail.SuggestedActions)
+		}
+	}
 	return o.States()
 }
 
