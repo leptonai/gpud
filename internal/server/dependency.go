@@ -9,15 +9,24 @@ import (
 	lepconfig "github.com/leptonai/gpud/config"
 )
 
+// componentDependencies defines which components depend on other components
+var componentDependencies = map[string][]string{
+	nvidia_error_xid.Name:  {dmesg.Name},
+	nvidia_error_sxid.Name: {dmesg.Name},
+}
+
 func checkDependencies(config *lepconfig.Config) error {
-	if _, ok := config.Components[nvidia_error_xid.Name]; ok {
-		if _, ok := config.Components[dmesg.Name]; !ok {
-			return fmt.Errorf("%q requires %q to be enabled", nvidia_error_xid.Name, dmesg.Name)
+	for component, dependencies := range componentDependencies {
+		// Skip if the component is not enabled
+		if _, enabled := config.Components[component]; !enabled {
+			continue
 		}
-	}
-	if _, ok := config.Components[nvidia_error_sxid.Name]; ok {
-		if _, ok := config.Components[dmesg.Name]; !ok {
-			return fmt.Errorf("%q requires %q to be enabled", nvidia_error_sxid.Name, dmesg.Name)
+
+		// Check if all dependencies are enabled
+		for _, dep := range dependencies {
+			if _, ok := config.Components[dep]; !ok {
+				return fmt.Errorf("%q requires %q to be enabled", component, dep)
+			}
 		}
 	}
 	return nil
