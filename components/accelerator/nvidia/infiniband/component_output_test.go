@@ -15,32 +15,43 @@ func TestOutputStates(t *testing.T) {
 		expectedReason  string
 	}{
 		{
-			name: "Healthy state",
+			name: "GTX 4090 state",
 			o: &Output{
-				IbstatExists: true,
-				Ibstat:       nvidia_query.IbstatOutput{},
+				GPUProductName: "NVIDIA GeForce RTX 4090",
 			},
 			expectedHealthy: true,
-			expectedReason:  "no ibstat exists or no ibstat error found",
+			expectedReason:  "GTX 4090 series GPUs do not support infiniband",
+		},
+		{
+			name: "Healthy state",
+			o: &Output{
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat:                nvidia_query.IbstatOutput{},
+			},
+			expectedHealthy: true,
+			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
 		{
 			name: "Unhealthy state",
 			o: &Output{
-				IbstatExists: true,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
 				Ibstat: nvidia_query.IbstatOutput{
 					Errors: []string{"Error 1", "Error 2"},
 				},
 			},
 			expectedHealthy: false,
-			expectedReason:  "ibstat errors found: Error 1, Error 2",
+			expectedReason:  "infiniband suppported but ibstat errors found: Error 1, Error 2",
 		},
 		{
 			name: "No ibstat state",
 			o: &Output{
-				IbstatExists: false,
+				InfinibandClassExists: false,
+				IbstatExists:          false,
 			},
 			expectedHealthy: true,
-			expectedReason:  "no ibstat exists or no ibstat error found",
+			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
 	}
 
