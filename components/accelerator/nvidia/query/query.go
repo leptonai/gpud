@@ -141,7 +141,7 @@ func Get(ctx context.Context) (output any, err error) {
 		}
 	}
 
-	if o.IbstatExists {
+	if o.InfinibandClassExists && o.IbstatExists {
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		o.Ibstat, err = RunIbstat(cctx)
 		ccancel()
@@ -473,7 +473,7 @@ func (o *Output) PrintInfo(debug bool) {
 		fmt.Printf("%s successfully checked fabric manager\n", checkMark)
 	}
 
-	if o.IbstatExists {
+	if o.InfinibandClassExists && o.IbstatExists {
 		if o.Ibstat != nil && len(o.Ibstat.Errors) > 0 {
 			fmt.Printf("%s ibstat check failed with %d error(s)\n", warningSign, len(o.Ibstat.Errors))
 			for _, err := range o.Ibstat.Errors {
@@ -482,6 +482,8 @@ func (o *Output) PrintInfo(debug bool) {
 		} else {
 			fmt.Printf("%s successfully checked ibstat\n", checkMark)
 		}
+	} else {
+		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {
