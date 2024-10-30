@@ -29,7 +29,7 @@ type XidError struct {
 	DataSource string `json:"data_source"`
 
 	// RawEvent is the raw event from the nvml API.
-	RawEvent nvidia_query_nvml.XidEvent `json:"raw_event"`
+	RawEvent *nvidia_query_nvml.XidEvent `json:"raw_event,omitempty"`
 
 	// Xid is the corresponding XID from the raw event.
 	// The monitoring component can use this Xid to decide its own action.

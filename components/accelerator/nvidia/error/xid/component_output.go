@@ -129,9 +129,9 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 	if o.NVMLXidEvent != nil {
 		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
 			DataSource:                   "nvml",
-			RawEvent:                     *o.NVMLXidEvent,
+			RawEvent:                     o.NVMLXidEvent,
 			Xid:                          o.NVMLXidEvent.Xid,
-			XidCriticalErrorMarkedByNVML: o.NVMLXidEvent.XidCriticalError,
+			XidCriticalErrorMarkedByNVML: o.NVMLXidEvent.XidCriticalErrorMarkedByNVML,
 			XidCriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
 		}
 

@@ -31,7 +31,7 @@ func TestOutputEvaluate(t *testing.T) {
 			input: &Output{
 				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
 					Xid:                          79,
-					XidCriticalError:             true,
+					XidCriticalErrorMarkedByNVML: true,
 					XidCriticalErrorMarkedByGPUd: true,
 					Detail: &nvidia_query_xid.Detail{
 						Description: "GPU has fallen off the bus",
@@ -59,15 +59,15 @@ event_type: 0
 sample_duration: 0s
 time: null
 xid: 79
-xid_critical_error: true
 xid_critical_error_marked_by_gpud: true
+xid_critical_error_marked_by_nvml: true
 `},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource: "nvml",
-						RawEvent: nvidia_query_nvml.XidEvent{
+						RawEvent: &nvidia_query_nvml.XidEvent{
 							Xid:                          79,
-							XidCriticalError:             true,
+							XidCriticalErrorMarkedByNVML: true,
 							XidCriticalErrorMarkedByGPUd: true,
 							Detail: &nvidia_query_xid.Detail{
 								Description: "GPU has fallen off the bus",
@@ -134,7 +134,7 @@ xid_critical_error_marked_by_gpud: true
 			input: &Output{
 				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
 					Xid:                          79,
-					XidCriticalError:             true,
+					XidCriticalErrorMarkedByNVML: true,
 					XidCriticalErrorMarkedByGPUd: true,
 				},
 				DmesgErrors: []nvidia_query_xid.DmesgError{
@@ -163,8 +163,8 @@ event_type: 0
 sample_duration: 0s
 time: null
 xid: 79
-xid_critical_error: true
 xid_critical_error_marked_by_gpud: true
+xid_critical_error_marked_by_nvml: true
 `,
 					`xid error event found from dmesg:
 
@@ -206,9 +206,9 @@ xid_critical_error_marked_by_gpud: true
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource: "nvml",
-						RawEvent: nvidia_query_nvml.XidEvent{
+						RawEvent: &nvidia_query_nvml.XidEvent{
 							Xid:                          79,
-							XidCriticalError:             true,
+							XidCriticalErrorMarkedByNVML: true,
 							XidCriticalErrorMarkedByGPUd: true,
 						},
 						Xid:                          79,
