@@ -47,13 +47,12 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last == nil && err != nil && err != query.ErrNoData { // no data
+	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
 			{
 				Name:    Name,
-				Healthy: false,
-				Error:   query.ErrNoData.Error(),
+				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
 		}, nil
@@ -72,7 +71,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return []components.State{
 			{
 				Name:    Name,
-				Healthy: false,
+				Healthy: true,
 				Reason:  "no output",
 			},
 		}, nil
