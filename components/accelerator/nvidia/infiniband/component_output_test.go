@@ -20,11 +20,12 @@ func TestOutputStates(t *testing.T) {
 				GPUProductName: "NVIDIA GeForce RTX 4090",
 			},
 			expectedHealthy: true,
-			expectedReason:  "GTX 4090 series GPUs do not support infiniband",
+			expectedReason:  `"NVIDIA GeForce RTX 4090" GPUs do not support infiniband`,
 		},
 		{
 			name: "Healthy state",
 			o: &Output{
+				GPUProductName:        "NVIDIA A100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
 				Ibstat:                nvidia_query.IbstatOutput{},
@@ -35,6 +36,7 @@ func TestOutputStates(t *testing.T) {
 		{
 			name: "Unhealthy state",
 			o: &Output{
+				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
 				Ibstat: nvidia_query.IbstatOutput{
@@ -47,6 +49,7 @@ func TestOutputStates(t *testing.T) {
 		{
 			name: "No ibstat state",
 			o: &Output{
+				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: false,
 				IbstatExists:          false,
 			},
