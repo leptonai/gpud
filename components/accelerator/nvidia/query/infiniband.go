@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// Returns true if the product supports infiniband.
+// e.g.,
+// "NVIDIA A100"
+// "NVIDIA H100"
+func SupportsInfinibandProduct(gpuProductName string) bool {
+	p := strings.ToLower(gpuProductName)
+	return strings.Contains(p, "a100") || strings.Contains(p, "h100")
+}
+
 func IbstatExists() bool {
 	p, err := exec.LookPath("ibstat")
 	if err != nil {

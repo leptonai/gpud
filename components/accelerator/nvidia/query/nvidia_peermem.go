@@ -116,11 +116,3 @@ type LsmodPeermemModuleOutput struct {
 	Raw                      string `json:"raw"`
 	IbcoreUsingPeermemModule bool   `json:"ibcore_using_peermem_module"`
 }
-
-func IsIbcoreExpected(gpuProductName string, ibstatExists bool, infinibandClassExists bool) bool {
-	if !ibstatExists || !infinibandClassExists {
-		return false
-	}
-	p := strings.ToLower(gpuProductName)
-	return (strings.Contains(p, "h100") || strings.Contains(p, "a100")) && strings.Contains(p, "sxm")
-}
