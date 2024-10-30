@@ -45,9 +45,6 @@ func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err != nil {
-		return nil, err
-	}
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
@@ -57,6 +54,9 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 				Reason:  query.ErrNoData.Error(),
 			},
 		}, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	if last.Error != nil {
 		return []components.State{
