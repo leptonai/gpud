@@ -13,6 +13,7 @@ import "github.com/leptonai/gpud/components/common"
 // ref. https://docs.nvidia.com/deploy/xid-errors/index.html
 // ref. https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/common/sdk/nvidia/inc/nverror.h
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+// ref. https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems
 type Detail struct {
 	DocumentVersion string `json:"documentation_version"`
 
@@ -506,6 +507,13 @@ var details = map[int]Detail{
 		ThermalIssue:           true,
 		FBCorruption:           true,
 
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check the physical link."},
+		},
+
 		CriticalErrorMarkedByGPUd: true,
 	},
 	33: {
@@ -585,6 +593,13 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check the driver firmware issues."},
+		},
 
 		CriticalErrorMarkedByGPUd: true,
 	},
@@ -1563,6 +1578,13 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check hardware or driver errors."},
+		},
 
 		CriticalErrorMarkedByGPUd: true,
 	},
