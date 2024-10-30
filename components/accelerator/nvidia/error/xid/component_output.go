@@ -120,14 +120,15 @@ func (o *Output) Evaluate() (string, bool, error) {
 		return "no xid error found", true, nil
 	}
 
-	reason := "xid error found from dmesg"
-	if len(o.DmesgErrors) == 0 {
+	reason := "no xid error found from dmesg"
+	if len(o.DmesgErrors) > 0 {
 		yb, err := yaml.Marshal(o.DmesgErrors)
 		if err != nil {
 			return "", false, err
 		}
-		reason += fmt.Sprintf("\n\nxid event found from dmesg:\n\n%s", string(yb))
+		reason = fmt.Sprintf("xid error event found from dmesg:\n\n%s", string(yb))
 	}
+
 	if o.NVMLXidEvent != nil {
 		yb, err := yaml.Marshal(o.NVMLXidEvent)
 		if err != nil {
