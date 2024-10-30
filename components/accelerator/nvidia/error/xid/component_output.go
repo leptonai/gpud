@@ -185,7 +185,19 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 		reason.Messages = append(reason.Messages, fmt.Sprintf("xid error event found from dmesg:\n\n%s", string(yb)))
 	}
 
-	return reason, false, nil
+	// if none of the Xid errors is marked as critical in GPUd,
+	// the component is then healthy
+	// we still provide other information where the monitoring component
+	// can still take its own action
+	healthy := true
+	for _, e := range reason.Errors {
+		if e.XidCriticalErrorMarkedByGPUd {
+			healthy = false
+			break
+		}
+	}
+
+	return reason, healthy, nil
 }
 
 func (o *Output) States() ([]components.State, error) {
