@@ -88,8 +88,8 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
-	if strings.Contains(o.GPUProductName, "4090") {
-		return "GTX 4090 series GPUs do not support infiniband", true, nil
+	if !nvidia_query.SupportsInfinibandProduct(o.GPUProductName) {
+		return fmt.Sprintf("%s GPUs do not support infiniband", o.GPUProductName), true, nil
 	}
 	if o.InfinibandClassExists && o.IbstatExists && len(o.Ibstat.Errors) > 0 {
 		return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
