@@ -115,41 +115,87 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 // Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate() (string, bool, error) {
+func (o *Output) Evaluate() (Reason, bool, error) {
 	if len(o.DmesgErrors) == 0 && (o.NVMLXidEvent == nil || o.NVMLXidEvent.Detail == nil) {
-		return "no xid error found", true, nil
+		return Reason{Messages: []string{"no xid error found"}}, true, nil
 	}
 
-	reason := "no xid error found from dmesg"
-	if len(o.DmesgErrors) > 0 {
-		yb, err := yaml.Marshal(o.DmesgErrors)
-		if err != nil {
-			return "", false, err
-		}
-		reason = fmt.Sprintf("xid error event found from dmesg:\n\n%s", string(yb))
+	// non-zero xid events, thus state itself as unhealthy
+	reason := Reason{
+		Messages: []string{"no xid error found"},
+		Errors:   make(map[uint64]XidError),
 	}
 
 	if o.NVMLXidEvent != nil {
+		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
+			DataSource:                   "nvml",
+			RawEvent:                     *o.NVMLXidEvent,
+			Xid:                          o.NVMLXidEvent.Xid,
+			XidCriticalErrorMarkedByNVML: o.NVMLXidEvent.XidCriticalError,
+			XidCriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
+		}
+
 		yb, err := yaml.Marshal(o.NVMLXidEvent)
 		if err != nil {
-			return "", false, err
+			reason.OtherErrors = append(reason.OtherErrors, fmt.Sprintf("failed to marshal nvml xid event: %s", err.Error()))
+			return reason, false, nil
 		}
-		reason += fmt.Sprintf("\n\nxid event found from nvml:\n\n%s", string(yb))
+
+		reason.Messages = []string{fmt.Sprintf("xid event found from nvml:\n\n%s", string(yb))}
+	}
+
+	if len(o.DmesgErrors) > 0 {
+		for _, de := range o.DmesgErrors {
+			if de.Detail == nil || !de.DetailFound {
+				continue
+			}
+
+			xid := uint64(de.Detail.XID)
+
+			// already detected by NVML wait/watch API
+			if _, ok := reason.Errors[xid]; ok {
+				continue
+			}
+
+			// this is the error found from dmesg, thus no NVML related info
+			reason.Errors[xid] = XidError{
+				DataSource:                   "dmesg",
+				Xid:                          xid,
+				XidCriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
+			}
+		}
+
+		yb, err := yaml.Marshal(o.DmesgErrors)
+		if err != nil {
+			reason.OtherErrors = append(reason.OtherErrors, fmt.Sprintf("failed to marshal dmesg errors: %s", err.Error()))
+			return reason, false, nil
+		}
+
+		reason.Messages = append(reason.Messages, fmt.Sprintf("xid error event found from dmesg:\n\n%s", string(yb)))
 	}
 
 	return reason, false, nil
 }
 
 func (o *Output) States() ([]components.State, error) {
-	outputReasons, healthy, err := o.Evaluate()
+	reason, healthy, err := o.Evaluate()
 	if err != nil {
 		return nil, err
 	}
-	b, _ := o.JSON()
+	reasonB, err := reason.JSON()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := o.JSON()
+	if err != nil {
+		return nil, err
+	}
+
 	state := components.State{
 		Name:    StateNameErrorXid,
 		Healthy: healthy,
-		Reason:  outputReasons,
+		Reason:  string(reasonB),
 		ExtraInfo: map[string]string{
 			StateKeyErrorXidData:     string(b),
 			StateKeyErrorXidEncoding: StateValueErrorXidEncodingJSON,
