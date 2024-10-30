@@ -127,12 +127,23 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 	}
 
 	if o.NVMLXidEvent != nil {
+		desc := ""
+		if o.NVMLXidEvent.Detail != nil {
+			desc = o.NVMLXidEvent.Detail.Description
+		}
+		var suggestedActions *common.SuggestedActions = nil
+		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.SuggestedActions != nil {
+			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActions
+		}
+
 		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
 			DataSource:                   "nvml",
-			RawEvent:                     o.NVMLXidEvent,
+			DeviceUUID:                   o.NVMLXidEvent.DeviceUUID,
 			Xid:                          o.NVMLXidEvent.Xid,
+			XidDescription:               desc,
 			XidCriticalErrorMarkedByNVML: o.NVMLXidEvent.XidCriticalErrorMarkedByNVML,
 			XidCriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
+			SuggestedActions:             suggestedActions,
 		}
 
 		yb, err := yaml.Marshal(o.NVMLXidEvent)

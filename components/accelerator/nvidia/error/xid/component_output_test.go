@@ -64,16 +64,9 @@ xid_critical_error_marked_by_nvml: true
 `},
 				Errors: map[uint64]XidError{
 					79: {
-						DataSource: "nvml",
-						RawEvent: &nvidia_query_nvml.XidEvent{
-							Xid:                          79,
-							XidCriticalErrorMarkedByNVML: true,
-							XidCriticalErrorMarkedByGPUd: true,
-							Detail: &nvidia_query_xid.Detail{
-								Description: "GPU has fallen off the bus",
-							},
-						},
+						DataSource:                   "nvml",
 						Xid:                          79,
+						XidDescription:               "GPU has fallen off the bus",
 						XidCriticalErrorMarkedByNVML: true,
 						XidCriticalErrorMarkedByGPUd: true,
 					},
@@ -205,12 +198,7 @@ xid_critical_error_marked_by_nvml: true
 `},
 				Errors: map[uint64]XidError{
 					79: {
-						DataSource: "nvml",
-						RawEvent: &nvidia_query_nvml.XidEvent{
-							Xid:                          79,
-							XidCriticalErrorMarkedByNVML: true,
-							XidCriticalErrorMarkedByGPUd: true,
-						},
+						DataSource:                   "nvml",
 						Xid:                          79,
 						XidCriticalErrorMarkedByNVML: true,
 						XidCriticalErrorMarkedByGPUd: true,

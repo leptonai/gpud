@@ -3,7 +3,7 @@ package xid
 import (
 	"encoding/json"
 
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	"github.com/leptonai/gpud/components/common"
 )
 
 // Reason defines the reason for the output evaluation in the JSON format.
@@ -28,16 +28,22 @@ type XidError struct {
 	// DataSource is the source of the data.
 	DataSource string `json:"data_source"`
 
-	// RawEvent is the raw event from the nvml API.
-	RawEvent *nvidia_query_nvml.XidEvent `json:"raw_event,omitempty"`
+	// DeviceUUID is the UUID of the device that has the error.
+	DeviceUUID string `json:"device_uuid"`
 
 	// Xid is the corresponding XID from the raw event.
 	// The monitoring component can use this Xid to decide its own action.
 	Xid uint64 `json:"xid"`
+
+	// Description is the description of the error.
+	XidDescription string `json:"xid_description"`
 
 	// XidCriticalErrorMarkedByNVML is true if the NVML marks this error as a critical error.
 	XidCriticalErrorMarkedByNVML bool `json:"xid_critical_error_marked_by_nvml"`
 
 	// XidCriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	XidCriticalErrorMarkedByGPUd bool `json:"xid_critical_error_marked_by_gpud"`
+
+	// SuggestedActions are the suggested actions for the error.
+	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
