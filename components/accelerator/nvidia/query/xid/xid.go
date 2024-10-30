@@ -13,6 +13,7 @@ import "github.com/leptonai/gpud/components/common"
 // ref. https://docs.nvidia.com/deploy/xid-errors/index.html
 // ref. https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/common/sdk/nvidia/inc/nverror.h
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/v0.16.0/internal/rm/health.go#L62-L76
+// ref. https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems
 type Detail struct {
 	DocumentVersion string `json:"documentation_version"`
 
@@ -28,6 +29,14 @@ type Detail struct {
 	FBCorruption           bool   `json:"fb_corruption"`
 
 	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
+
+	// CriticalErrorMarkedByGPUd is true if the GPUd marks this XID as a critical error.
+	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+}
+
+// IsCritical returns true if the GPUd marks this XID as a critical error.
+func (d Detail) IsCritical() bool {
+	return d.CriticalErrorMarkedByGPUd
 }
 
 // Returns the error if found.
@@ -489,7 +498,7 @@ var details = map[int]Detail{
 		DocumentVersion:        "r555 (Sep 24, 2024)",
 		XID:                    32,
 		Name:                   "Invalid or corrupted push buffer stream",
-		Description:            "",
+		Description:            "The event is reported by the DMA controller of the PCIE bus that manages communication between the NVIDIA driver and GPU. In most cases, a PCI quality issue occurs.",
 		HWError:                false,
 		DriverError:            true,
 		UserAppError:           false,
@@ -497,6 +506,15 @@ var details = map[int]Detail{
 		BusError:               true,
 		ThermalIssue:           true,
 		FBCorruption:           true,
+
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check the physical link."},
+		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	33: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -575,6 +593,15 @@ var details = map[int]Detail{
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check the driver firmware issues."},
+		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	39: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -760,6 +787,8 @@ If Xid 48 is followed by Xid 63 or 64: Drain/cordon the node, wait for all work 
 If Xid 48 is not followed by Xid 63 or 64: see Running Field Diagnostics to collect additional debug information, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#running-field-diag.
 
 See below for guidelines on when to RMA GPUs based on excessive errors.
+
+The error is also reported to your application. In most cases, you need to reset the GPU or node to fix this error.
 `,
 		HWError:                true,
 		DriverError:            false,
@@ -779,6 +808,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				"Uncorrectable GPU error occurred -- GPU reset required due to Xid 48 (double bit ECC error).",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	49: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -937,10 +968,13 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		FBCorruption:           false,
 	},
 	61: {
-		DocumentVersion:        "r555 (Sep 24, 2024)",
-		XID:                    61,
-		Name:                   "Internal micro-controller breakpoint/warning (newer drivers)",
-		Description:            "PMU Breakpoint. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
+		DocumentVersion: "r555 (Sep 24, 2024)",
+		XID:             61,
+		Name:            "Internal micro-controller breakpoint/warning (newer drivers)",
+		Description: `PMU Breakpoint. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).
+
+Internal micro-controller breakpoint/warning. The GPU internal engine stops working. Consequently, your businesses are affected.
+`,
 		HWError:                false,
 		DriverError:            false,
 		UserAppError:           false,
@@ -960,12 +994,14 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				"Uncorrectable GPU error occurred (Xid 61) -- GPU reset or node reboot is needed.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	62: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
 		XID:                    62,
 		Name:                   "Internal micro-controller halt (newer drivers)",
-		Description:            "PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
+		Description:            "This event is similar to Xid 61. PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 		HWError:                true,
 		DriverError:            true,
 		UserAppError:           false,
@@ -985,6 +1021,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				"Uncorrectable GPU error occurred (Xid 62) -- GPU reset or node reboot is needed.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	63: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -1005,6 +1043,7 @@ If associated with XID 48, drain/cordon the node, wait for all work to complete,
 
 If not, it is from a single bit error and the system can keep running as is until there is a convenient time to reboot it.
 
+Xid 63 indicates that the retirement or remapping information is successfully recorded in infoROM.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1025,6 +1064,8 @@ If not, it is from a single bit error and the system can keep running as is unti
 				"Row-remapping happened (Xid 63, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but for optimal performance, reset the GPU or reboot the system.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	64: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -1045,6 +1086,9 @@ See above, however the node should be monitored closely. If there is no associat
 
 See below for guidelines on when to RMA GPUs based on excessive errors, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.
 
+ECC page retirement or row remapper recording failure. This event is similar to XID 63. However, Xid 63 indicates that the retirement or remapping information is successfully recorded in infoROM.
+
+Xid 64 indicates that the retirement or remapping information fails to be recorded.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1067,6 +1111,8 @@ See below for guidelines on when to RMA GPUs based on excessive errors, via http
 				"System reboot is recommended when convenient, but not required immediately.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	65: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1249,6 +1295,7 @@ For PCIe A100, it's mainly occurred on the NVLink Bridge between two GPUs.
 Its occurrence rate is several orders of magnitude higher than other hardware faults.
 Apart from stress testing to exclude those that are constantly repeating errors, there isn't a good way to avoid the occurrence of Xid74 issues.
 
+The XID indicates an NVLink hardware error. The GPU encounters a critical hardware error and must be repaired.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1270,6 +1317,8 @@ Apart from stress testing to exclude those that are constantly repeating errors,
 				"If this error is seen repeatedly (Xid 74), contact hardware vendor to check the physical link.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	75: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1353,6 +1402,8 @@ This event may also be cause by failing GPU hardware or other driver issues.
 				"GPU not accessible due to failing hardware (Xid 79, 'GPU has fallen off the bus') -- check with the data center.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	80: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1514,7 +1565,8 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		DocumentVersion: "r555 (Sep 24, 2024)",
 		XID:             92,
 		Name:            "High single-bit ECC error rate",
-		Description: `
+		Description: `A hardware or driver error occurs.
+
 See Running Field Diagnostics to collect additional debug information, via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#running-field-diag.
 
 See below for guidelines on when to RMA GPUs based on excessive errors.
@@ -1526,6 +1578,15 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		BusError:               false,
 		ThermalIssue:           false,
 		FBCorruption:           false,
+
+		SuggestedActions: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRepairHardware,
+			},
+			Descriptions: []string{"Please submit a technical support ticket to check hardware or driver errors."},
+		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	93: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",
@@ -1559,7 +1620,11 @@ It is recommended to reset the GPU when convenient. Applications can continue to
 
 The application that encountered the error needs to be restarted. All other applications on the system can keep running as is until there is a convenient time to reset the GPU (refer to GPU reset capabilities/limitations section below) or reboot for row remapping to activate.
 
-See below for guidelines on when to RMA GPUs based on row remapping failures
+See below for guidelines on when to RMA GPUs based on row remapping failures.
+
+When the application encounters an uncorrectable GPU memory ECC error, the ECC mechanism of NVIDIA attempts to suppress the error in the faulty application in case the error affects other applications on the GPU-accelerated node.
+
+This event is generated if the error suppression mechanism successfully suppresses the error. In this case, only the faulty application is affected by the uncorrectable ECC error.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1585,6 +1650,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures
 				"System reboot is recommended when convenient, but not required immediately.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	95: {
 		DocumentVersion: "r555 (Sep 24, 2024)",
@@ -1607,6 +1674,8 @@ See below for guidelines on when to RMA GPUs based on row remapping failures.
 
 References:
 https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-statistics
+
+This event is similar to Xid 94. However, Xid 94 indicates that the error is suppressed. Xid 95 indicates that the error fails to be suppressed. Other applications on the GPU-accelerated node are also affected.
 `,
 		HWError:                true,
 		DriverError:            true,
@@ -1628,6 +1697,8 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 				"If the errors continue (Xid 95), drain the node and contact the hardware vendor for assistance.",
 			},
 		},
+
+		CriticalErrorMarkedByGPUd: true,
 	},
 	96: {
 		DocumentVersion:        "r555 (Sep 24, 2024)",

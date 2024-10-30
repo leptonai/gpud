@@ -20,9 +20,14 @@ type XidEvent struct {
 
 	EventType uint64 `json:"event_type"`
 
-	DeviceUUID       string `json:"device_uuid"`
-	Xid              uint64 `json:"xid"`
-	XidCriticalError bool   `json:"xid_critical_error"`
+	DeviceUUID string `json:"device_uuid"`
+	Xid        uint64 `json:"xid"`
+
+	// XidCriticalErrorMarkedByNVML is true if the NVML marks this error as a critical error.
+	XidCriticalErrorMarkedByNVML bool `json:"xid_critical_error_marked_by_nvml"`
+
+	// XidCriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
+	XidCriticalErrorMarkedByGPUd bool `json:"xid_critical_error_marked_by_gpud"`
 
 	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
 
@@ -133,9 +138,11 @@ func (inst *instance) pollXidEvents() {
 
 			EventType: e.EventType,
 
-			DeviceUUID:       deviceUUID,
-			Xid:              xid,
-			XidCriticalError: e.EventType == nvml.EventTypeXidCriticalError,
+			DeviceUUID: deviceUUID,
+			Xid:        xid,
+
+			XidCriticalErrorMarkedByNVML: e.EventType == nvml.EventTypeXidCriticalError,
+			XidCriticalErrorMarkedByGPUd: xidDetail.IsCritical(),
 
 			Detail: xidDetail,
 
