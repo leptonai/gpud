@@ -115,14 +115,14 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 // Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate() (Reason, bool, error) {
+func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 	if len(o.DmesgErrors) == 0 && (o.NVMLXidEvent == nil || o.NVMLXidEvent.Detail == nil) {
 		return Reason{Messages: []string{"no xid error found"}}, true, nil
 	}
 
 	// non-zero xid events, thus state itself as unhealthy
 	reason := Reason{
-		Messages: []string{"no xid error found"},
+		Messages: []string{},
 		Errors:   make(map[uint64]XidError),
 	}
 
@@ -131,12 +131,18 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 		if o.NVMLXidEvent.Detail != nil {
 			desc = o.NVMLXidEvent.Detail.Description
 		}
+
 		var suggestedActions *common.SuggestedActions = nil
 		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.SuggestedActions != nil {
 			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActions
 		}
 
-		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
+		criticalMsg := "(non-critical)"
+		if o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd {
+			criticalMsg = "(critical)"
+		}
+
+		xidErr := XidError{
 			DataSource:                   "nvml",
 			DeviceUUID:                   o.NVMLXidEvent.DeviceUUID,
 			Xid:                          o.NVMLXidEvent.Xid,
@@ -145,14 +151,8 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 			XidCriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
 			SuggestedActions:             suggestedActions,
 		}
-
-		yb, err := yaml.Marshal(o.NVMLXidEvent)
-		if err != nil {
-			reason.OtherErrors = append(reason.OtherErrors, fmt.Sprintf("failed to marshal nvml xid event: %s", err.Error()))
-			return reason, false, nil
-		}
-
-		reason.Messages = []string{fmt.Sprintf("xid event found from nvml:\n\n%s", string(yb))}
+		reason.Errors[o.NVMLXidEvent.Xid] = xidErr
+		reason.Messages = append(reason.Messages, fmt.Sprintf("nvml xid %d event %s", xidErr.Xid, criticalMsg))
 	}
 
 	if len(o.DmesgErrors) > 0 {
@@ -168,21 +168,20 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 				continue
 			}
 
+			criticalMsg := "(non-critical)"
+			if de.Detail.CriticalErrorMarkedByGPUd {
+				criticalMsg = "(critical)"
+			}
+
 			// this is the error found from dmesg, thus no NVML related info
-			reason.Errors[xid] = XidError{
+			xidErr := XidError{
 				DataSource:                   "dmesg",
 				Xid:                          xid,
 				XidCriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
 			}
+			reason.Errors[xid] = xidErr
+			reason.Messages = append(reason.Messages, fmt.Sprintf("dmesg xid %d event %s", xidErr.Xid, criticalMsg))
 		}
-
-		yb, err := yaml.Marshal(o.DmesgErrors)
-		if err != nil {
-			reason.OtherErrors = append(reason.OtherErrors, fmt.Sprintf("failed to marshal dmesg errors: %s", err.Error()))
-			return reason, false, nil
-		}
-
-		reason.Messages = append(reason.Messages, fmt.Sprintf("xid error event found from dmesg:\n\n%s", string(yb)))
 	}
 
 	// if none of the Xid errors is marked as critical in GPUd,
@@ -190,18 +189,22 @@ func (o *Output) Evaluate() (Reason, bool, error) {
 	// we still provide other information where the monitoring component
 	// can still take its own action
 	healthy := true
+	criticals := make(map[uint64]XidError)
 	for _, e := range reason.Errors {
 		if e.XidCriticalErrorMarkedByGPUd {
 			healthy = false
-			break
+			criticals[e.Xid] = e
 		}
+	}
+	if onlyGPUdCritical {
+		reason.Errors = criticals
 	}
 
 	return reason, healthy, nil
 }
 
 func (o *Output) States() ([]components.State, error) {
-	reason, healthy, err := o.Evaluate()
+	reason, healthy, err := o.Evaluate(true)
 	if err != nil {
 		return nil, err
 	}

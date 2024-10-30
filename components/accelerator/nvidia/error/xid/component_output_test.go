@@ -11,15 +11,17 @@ import (
 
 func TestOutputEvaluate(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       *Output
-		wantReason  Reason
-		wantHealthy bool
-		wantErr     bool
+		name             string
+		input            *Output
+		onlyGPUdCritical bool
+		wantReason       Reason
+		wantHealthy      bool
+		wantErr          bool
 	}{
 		{
-			name:  "no errors",
-			input: &Output{},
+			name:             "no errors",
+			input:            &Output{},
+			onlyGPUdCritical: false,
 			wantReason: Reason{
 				Messages: []string{"no xid error found"},
 			},
@@ -38,30 +40,9 @@ func TestOutputEvaluate(t *testing.T) {
 					},
 				},
 			},
+			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{`xid event found from nvml:
-
-detail:
-  bus_error: false
-  critical_error_marked_by_gpud: false
-  description: GPU has fallen off the bus
-  documentation_version: ""
-  driver_error: false
-  fb_corruption: false
-  hw_error: false
-  name: ""
-  system_memory_corruption: false
-  thermal_issue: false
-  user_app_error: false
-  xid: 0
-device_uuid: ""
-event_type: 0
-sample_duration: 0s
-time: null
-xid: 79
-xid_critical_error_marked_by_gpud: true
-xid_critical_error_marked_by_nvml: true
-`},
+				Messages: []string{"nvml xid 79 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                   "nvml",
@@ -88,29 +69,9 @@ xid_critical_error_marked_by_nvml: true
 					},
 				},
 			},
+			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{
-					"no xid error found",
-					`xid error event found from dmesg:
-
-- detail:
-    bus_error: false
-    critical_error_marked_by_gpud: true
-    description: ""
-    documentation_version: ""
-    driver_error: false
-    fb_corruption: false
-    hw_error: false
-    name: ""
-    system_memory_corruption: false
-    thermal_issue: false
-    user_app_error: false
-    xid: 79
-  detail_found: true
-  log_item:
-    line: ""
-    time: null
-`},
+				Messages: []string{"dmesg xid 79 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                   "dmesg",
@@ -147,55 +108,9 @@ xid_critical_error_marked_by_nvml: true
 					},
 				},
 			},
+			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{
-					`xid event found from nvml:
-
-device_uuid: ""
-event_type: 0
-sample_duration: 0s
-time: null
-xid: 79
-xid_critical_error_marked_by_gpud: true
-xid_critical_error_marked_by_nvml: true
-`,
-					`xid error event found from dmesg:
-
-- detail:
-    bus_error: false
-    critical_error_marked_by_gpud: true
-    description: ""
-    documentation_version: ""
-    driver_error: false
-    fb_corruption: false
-    hw_error: false
-    name: ""
-    system_memory_corruption: false
-    thermal_issue: false
-    user_app_error: false
-    xid: 79
-  detail_found: true
-  log_item:
-    line: ""
-    time: null
-- detail:
-    bus_error: false
-    critical_error_marked_by_gpud: true
-    description: ""
-    documentation_version: ""
-    driver_error: false
-    fb_corruption: false
-    hw_error: false
-    name: ""
-    system_memory_corruption: false
-    thermal_issue: false
-    user_app_error: false
-    xid: 80
-  detail_found: true
-  log_item:
-    line: ""
-    time: null
-`},
+				Messages: []string{"nvml xid 79 event (critical)", "dmesg xid 80 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                   "nvml",
@@ -217,7 +132,7 @@ xid_critical_error_marked_by_nvml: true
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotReason, gotHealthy, err := tt.input.Evaluate()
+			gotReason, gotHealthy, err := tt.input.Evaluate(tt.onlyGPUdCritical)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Output.Evaluate() error = %v, wantErr %v", err, tt.wantErr)
 				return
