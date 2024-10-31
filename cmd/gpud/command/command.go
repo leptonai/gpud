@@ -504,7 +504,6 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "provider",
 					Usage: "provider of the machine",
-					Value: "personal",
 				},
 				cli.StringFlag{
 					Name:  "node-group",

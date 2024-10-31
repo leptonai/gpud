@@ -118,7 +118,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			publicIP = strings.TrimSpace(input)
 		}
 
-		if provider == "personal" {
+		if provider == "" {
 			fmt.Printf("Provider name not specified, we detected your provider is %v, if correct, press Enter. If not, please enter your provider's name below\n", detectProvider)
 			input, err = reader.ReadString('\n')
 			if err != nil {
@@ -141,6 +141,8 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		if input != "\n" {
 			region = strings.TrimSpace(input)
 		}
+	} else {
+		provider = detectProvider
 	}
 
 	type payload struct {
