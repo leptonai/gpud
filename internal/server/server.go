@@ -1090,6 +1090,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
+	components.GlobalStartTime = time.Now()
 	if err = login.Gossip(endpoint, uid, config.Address); err != nil {
 		log.Logger.Debugf("failed to gossip: %v", err)
 	}

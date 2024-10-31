@@ -91,6 +91,42 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		if time.Since(components.GlobalStartTime) > 2*time.Minute && time.Since(components.GlobalStartTime) < 7*time.Minute {
+			reason := Reason{
+				Messages: []string{},
+				Errors:   make(map[uint64]XidError),
+			}
+			reason.Errors[32] = XidError{
+				DataSource:                   "fake failure",
+				DeviceUUID:                   "some-uuid-for-gpu",
+				Xid:                          32,
+				XidDescription:               "this is a critical xid",
+				XidCriticalErrorMarkedByGPUd: true,
+				XidCriticalErrorMarkedByNVML: true,
+				SuggestedActions: &common.SuggestedActions{
+					RepairActions: []common.RepairActionType{
+						common.RepairActionTypeRebootSystem,
+						common.RepairActionTypeRepairHardware,
+					},
+					Descriptions: []string{
+						"32 is critical, need reboot the system",
+						"this is critical xid(32), need repair the hardware",
+					},
+				},
+			}
+			rawB, _ := reason.JSON()
+			return []components.State{
+				{
+					Name:    StateNameErrorXid,
+					Healthy: false,
+					Reason:  string(rawB),
+					ExtraInfo: map[string]string{
+						StateKeyErrorXidData:     "fake failure",
+						StateKeyErrorXidEncoding: StateValueErrorXidEncodingJSON,
+					},
+				},
+			}, nil
+		}
 		return []components.State{
 			{
 				Name:    Name,

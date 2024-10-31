@@ -22,6 +22,8 @@ type WatchableComponent interface {
 	Component
 }
 
+var GlobalStartTime time.Time
+
 // Component represents an individual component of the system.
 //
 // Each component check is independent of each other.
