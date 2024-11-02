@@ -12,15 +12,17 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/shirou/gopsutil/v4/host"
 )
 
 type Output struct {
-	Host     Host     `json:"host"`
-	Kernel   Kernel   `json:"kernel"`
-	Platform Platform `json:"platform"`
-	Uptimes  Uptimes  `json:"uptimes"`
+	Host                  Host           `json:"host"`
+	Kernel                Kernel         `json:"kernel"`
+	Platform              Platform       `json:"platform"`
+	Uptimes               Uptimes        `json:"uptimes"`
+	ProcessCountsByStatus map[string]int `json:"process_counts_by_status"`
 }
 
 type Host struct {
@@ -76,6 +78,9 @@ const (
 	StateKeyUptimesHumanized           = "uptime_humanized"
 	StateKeyUptimesBootTimeUnixSeconds = "boot_time_unix_seconds"
 	StateKeyUptimesBootTimeHumanized   = "boot_time_humanized"
+
+	StateNameProcessCountsByStatus = "process_counts_by_status"
+	StateKeyProcessCountsByStatus  = "process_counts_by_status"
 )
 
 func ParseStateHost(m map[string]string) (Host, error) {
@@ -118,6 +123,17 @@ func ParseStateUptimes(m map[string]string) (Uptimes, error) {
 	return u, nil
 }
 
+func ParseStateProcessCountsByStatus(m map[string]string) (map[string]int, error) {
+	counts := make(map[string]int)
+	s, ok := m[StateKeyProcessCountsByStatus]
+	if ok {
+		if err := json.Unmarshal([]byte(s), &counts); err != nil {
+			return nil, err
+		}
+	}
+	return counts, nil
+}
+
 func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
@@ -149,6 +165,15 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 				return nil, err
 			}
 			o.Uptimes = uptimes
+
+		case StateNameProcessCountsByStatus:
+			counts, err := ParseStateProcessCountsByStatus(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+			if len(counts) > 0 {
+				o.ProcessCountsByStatus = counts
+			}
 
 		default:
 			return nil, fmt.Errorf("unknown state name: %s", state.Name)
@@ -265,6 +290,16 @@ func Get(ctx context.Context) (_ any, e error) {
 		BootTimeUnixSeconds: boottime,
 		BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
 	}
+
+	counts, err := process.CountProcessesByStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	processCountsByStatus := make(map[string]int)
+	for status, count := range counts {
+		processCountsByStatus[string(status)] = len(count)
+	}
+	o.ProcessCountsByStatus = processCountsByStatus
 
 	return o, nil
 }
