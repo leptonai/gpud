@@ -109,6 +109,14 @@ var (
 	defaultSet   = make(map[string]Component)
 )
 
+func IsComponentRegistered(name string) bool {
+	defaultSetMu.RLock()
+	defer defaultSetMu.RUnlock()
+
+	_, ok := defaultSet[name]
+	return ok
+}
+
 func RegisterComponent(name string, comp Component) error {
 	defaultSetMu.Lock()
 	defer defaultSetMu.Unlock()
