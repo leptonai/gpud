@@ -297,7 +297,7 @@ func Get(ctx context.Context) (_ any, e error) {
 	}
 	processCountsByStatus := make(map[string]int)
 	for status, count := range counts {
-		processCountsByStatus[string(status)] = len(count)
+		processCountsByStatus[status] = len(count)
 	}
 	o.ProcessCountsByStatus = processCountsByStatus
 
