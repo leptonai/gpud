@@ -94,6 +94,7 @@ func (inst *instance) pollXidEvents() {
 		}
 
 		if ret != nvml.SUCCESS {
+			log.Logger.Warnw("notifying event set wait failure", "error", nvml.ErrorString(ret))
 			select {
 			case <-inst.rootCtx.Done():
 				return
@@ -103,9 +104,9 @@ func (inst *instance) pollXidEvents() {
 				Message: "event set wait returned non-success",
 				Error:   fmt.Errorf("event set wait failed: %v", nvml.ErrorString(ret)),
 			}:
-				log.Logger.Debugw("event set wait failure notified", "error", nvml.ErrorString(ret))
+				log.Logger.Warnw("notified event set wait failure", "error", nvml.ErrorString(ret))
 			default:
-				log.Logger.Debugw("xid event channel is full, skipping event")
+				log.Logger.Warnw("xid event channel is full -- skipping sending wait failure event")
 			}
 
 			continue
