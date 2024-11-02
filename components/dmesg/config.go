@@ -1,6 +1,7 @@
 package dmesg
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"os"
@@ -47,7 +48,12 @@ func DmesgExists() bool {
 
 const DefaultDmesgFile = "/var/log/dmesg"
 
-func DefaultConfig() Config {
+func DefaultConfig(ctx context.Context) (Config, error) {
+	defaultFilters, err := DefaultLogFilters(ctx)
+	if err != nil {
+		return Config{}, err
+	}
+
 	scanCommands := [][]string{
 		{"cat", DefaultDmesgFile},
 
@@ -78,9 +84,9 @@ func DefaultConfig() Config {
 				Commands:    scanCommands,
 				LinesToTail: 10000,
 			},
+
+			SelectFilters: defaultFilters,
 		},
 	}
-	cfg.Log.SelectFilters = append(cfg.Log.SelectFilters, defaultFilters...)
-
-	return cfg
+	return cfg, nil
 }

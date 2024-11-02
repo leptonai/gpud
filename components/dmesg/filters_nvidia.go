@@ -1,13 +1,9 @@
 package dmesg
 
 import (
-	"context"
-	"time"
-
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/query/nccl"
 	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
@@ -16,25 +12,6 @@ import (
 
 	"k8s.io/utils/ptr"
 )
-
-func init() {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
-	if err != nil {
-		return
-	}
-
-	if nvidiaInstalled {
-		defaultFilters = append(defaultFilters, DefaultDmesgFiltersForNvidia()...)
-	}
-	for i := range defaultFilters {
-		if err := defaultFilters[i].Compile(); err != nil {
-			panic(err)
-		}
-	}
-}
 
 const (
 	// e.g.,

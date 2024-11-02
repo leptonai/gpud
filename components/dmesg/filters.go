@@ -1,6 +1,9 @@
 package dmesg
 
 import (
+	"context"
+
+	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/memory"
 	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 
@@ -29,29 +32,48 @@ const (
 	EventOOMCgroupRegex = `Memory cgroup out of memory`
 )
 
-var defaultFilters = []*query_log_filter.Filter{
-	{
-		Name:            EventOOMKill,
-		Regex:           ptr.To(EventOOMKillRegex),
-		OwnerReferences: []string{memory.Name},
-	},
-	{
-		Name:            EventOOMKillConstraint,
-		Regex:           ptr.To(EventOOMKillConstraintRegex),
-		OwnerReferences: []string{memory.Name},
-	},
-	{
-		Name:            EventOOMKiller,
-		Regex:           ptr.To(EventOOMKillerRegex),
-		OwnerReferences: []string{memory.Name},
-	},
-	{
-		Name:            EventOOMCgroup,
-		Regex:           ptr.To(EventOOMCgroupRegex),
-		OwnerReferences: []string{memory.Name},
-	},
-}
+func DefaultLogFilters(ctx context.Context) ([]*query_log_filter.Filter, error) {
+	defaultFilters := []*query_log_filter.Filter{
+		{
+			Name:            EventOOMKill,
+			Regex:           ptr.To(EventOOMKillRegex),
+			OwnerReferences: []string{memory.Name},
+		},
+		{
+			Name:            EventOOMKillConstraint,
+			Regex:           ptr.To(EventOOMKillConstraintRegex),
+			OwnerReferences: []string{memory.Name},
+		},
+		{
+			Name:            EventOOMKiller,
+			Regex:           ptr.To(EventOOMKillerRegex),
+			OwnerReferences: []string{memory.Name},
+		},
+		{
+			Name:            EventOOMCgroup,
+			Regex:           ptr.To(EventOOMCgroupRegex),
+			OwnerReferences: []string{memory.Name},
+		},
+	}
 
-func DefaultLogFilters() []*query_log_filter.Filter {
-	return defaultFilters
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !nvidiaInstalled {
+		for i := range defaultFilters {
+			if err := defaultFilters[i].Compile(); err != nil {
+				return nil, err
+			}
+		}
+		return defaultFilters, nil
+	}
+
+	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForNvidia()...)
+	for i := range defaultFilters {
+		if err := defaultFilters[i].Compile(); err != nil {
+			return nil, err
+		}
+	}
+	return defaultFilters, nil
 }
