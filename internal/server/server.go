@@ -1032,14 +1032,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 
 				for i := range componentsToAdd {
-					metrics.SetRegistered(componentsToAdd[i].Name())
-					componentsToAdd[i] = metrics.NewWatchableComponent(componentsToAdd[i])
-
-					// fails if already registered
-					if err := components.RegisterComponent(componentsToAdd[i].Name(), componentsToAdd[i]); err != nil {
-						log.Logger.Warnw("failed to register component", "name", componentsToAdd[i].Name(), "error", err)
+					if components.IsComponentRegistered(componentsToAdd[i].Name()) {
 						continue
 					}
+					if err := components.RegisterComponent(componentsToAdd[i].Name(), componentsToAdd[i]); err != nil {
+						// fails if already registered
+						log.Logger.Errorw("failed to register component", "name", componentsToAdd[i].Name(), "error", err)
+						continue
+					}
+
+					metrics.SetRegistered(componentsToAdd[i].Name())
+					componentsToAdd[i] = metrics.NewWatchableComponent(componentsToAdd[i])
 
 					if orig, ok := componentsToAdd[i].(interface{ Unwrap() interface{} }); ok {
 						if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
