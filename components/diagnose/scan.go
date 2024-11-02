@@ -163,7 +163,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	println()
 
 	fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
-	defaultDmesgCfg := dmesg.DefaultConfig()
+	defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
+	if err != nil {
+		return err
+	}
 	matched, err := query_log_tail.Scan(
 		ctx,
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),

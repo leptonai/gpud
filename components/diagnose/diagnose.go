@@ -139,7 +139,10 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 	}
 
 	fmt.Printf("%s scanning dmesg with regexes\n", inProgress)
-	defaultDmesgCfg := dmesg.DefaultConfig()
+	defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
+	if err != nil {
+		return err
+	}
 	matched, err := query_log_tail.Scan(
 		ctx,
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
