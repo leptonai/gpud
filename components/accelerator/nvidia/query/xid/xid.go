@@ -1,7 +1,9 @@
 // Package xid provides the NVIDIA XID error details.
 package xid
 
-import "github.com/leptonai/gpud/components/common"
+import (
+	"github.com/leptonai/gpud/components/common"
+)
 
 // Defines the Xid error information that is static.
 type Detail struct {

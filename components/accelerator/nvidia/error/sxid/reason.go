@@ -1,4 +1,4 @@
-package xid
+package sxid
 
 import (
 	"encoding/json"
@@ -12,25 +12,25 @@ type Reason struct {
 	// And do not include the errors.
 	Messages []string `json:"messages"`
 
-	// Errors are the xid errors that happened, keyed by the Xid.
-	Errors map[uint64]XidError `json:"errors"`
+	// Errors are the xid errors that happened, keyed by the SXid.
+	Errors map[uint64]SXidError `json:"errors"`
 }
 
 func (r Reason) JSON() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-// XidError represents an Xid error in the reason.
-type XidError struct {
+// SXidError represents an SXid error in the reason.
+type SXidError struct {
 	// DataSource is the source of the data.
 	DataSource string `json:"data_source"`
 
 	// DeviceUUID is the UUID of the device that has the error.
 	DeviceUUID string `json:"device_uuid"`
 
-	// Xid is the corresponding Xid from the raw event.
-	// The monitoring component can use this Xid to decide its own action.
-	Xid uint64 `json:"xid"`
+	// SXid is the corresponding SXid from the raw event.
+	// The monitoring component can use this SXid to decide its own action.
+	SXid uint64 `json:"sxid"`
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
 	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
