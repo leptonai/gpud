@@ -28,7 +28,7 @@ type XidError struct {
 	// DeviceUUID is the UUID of the device that has the error.
 	DeviceUUID string `json:"device_uuid"`
 
-	// Xid is the corresponding XID from the raw event.
+	// Xid is the corresponding Xid from the raw event.
 	// The monitoring component can use this Xid to decide its own action.
 	Xid uint64 `json:"xid"`
 

@@ -32,9 +32,7 @@ func TestOutputEvaluate(t *testing.T) {
 			name: "nvml xid error",
 			input: &Output{
 				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
-					Xid:                          79,
-					XidCriticalErrorMarkedByNVML: true,
-					XidCriticalErrorMarkedByGPUd: true,
+					Xid: 79,
 					Detail: &nvidia_query_xid.Detail{
 						Description:               "GPU has fallen off the bus",
 						CriticalErrorMarkedByGPUd: true,
@@ -61,7 +59,7 @@ func TestOutputEvaluate(t *testing.T) {
 				DmesgErrors: []nvidia_query_xid.DmesgError{
 					{
 						Detail: &nvidia_query_xid.Detail{
-							XID:                       79,
+							Xid:                       79,
 							CriticalErrorMarkedByGPUd: true,
 						},
 					},
@@ -85,8 +83,7 @@ func TestOutputEvaluate(t *testing.T) {
 			name: "both nvml and dmesg errors",
 			input: &Output{
 				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
-					Xid:                          79,
-					XidCriticalErrorMarkedByGPUd: true,
+					Xid: 79,
 					Detail: &nvidia_query_xid.Detail{
 						CriticalErrorMarkedByGPUd: true,
 					},
@@ -94,13 +91,13 @@ func TestOutputEvaluate(t *testing.T) {
 				DmesgErrors: []nvidia_query_xid.DmesgError{
 					{
 						Detail: &nvidia_query_xid.Detail{
-							XID:                       79,
+							Xid:                       79,
 							CriticalErrorMarkedByGPUd: true,
 						},
 					},
 					{
 						Detail: &nvidia_query_xid.Detail{
-							XID:                       80,
+							Xid:                       80,
 							CriticalErrorMarkedByGPUd: true,
 						},
 					},

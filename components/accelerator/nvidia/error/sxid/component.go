@@ -63,11 +63,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
-			if o.SuggestedActions == nil {
-				o.SuggestedActions = &common.SuggestedActions{}
+		if ev.Detail != nil && ev.Detail.SuggestedActionsByGPUd != nil && len(ev.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
+			if o.SuggestedActionsByGPUd == nil {
+				o.SuggestedActionsByGPUd = &common.SuggestedActions{}
 			}
-			o.SuggestedActions.Add(ev.Detail.SuggestedActions)
+			o.SuggestedActionsByGPUd.Add(ev.Detail.SuggestedActionsByGPUd)
 		}
 	}
 	return o.States()
@@ -110,11 +110,11 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 
-		if ev.Detail != nil && ev.Detail.SuggestedActions != nil && len(ev.Detail.SuggestedActions.RepairActions) > 0 {
-			if o.SuggestedActionsPerLogLine == nil {
-				o.SuggestedActionsPerLogLine = make(map[string]*common.SuggestedActions)
+		if ev.Detail != nil && ev.Detail.SuggestedActionsByGPUd != nil && len(ev.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
+			if o.SuggestedActionsByGPUdPerLogLine == nil {
+				o.SuggestedActionsByGPUdPerLogLine = make(map[string]*common.SuggestedActions)
 			}
-			o.SuggestedActionsPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActions
+			o.SuggestedActionsByGPUdPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActionsByGPUd
 		}
 	}
 	return o.Events(), nil

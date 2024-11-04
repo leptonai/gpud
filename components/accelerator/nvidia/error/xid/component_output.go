@@ -133,17 +133,21 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 		}
 
 		criticalMsg := "(non-critical)"
-		if o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd {
+		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd {
 			criticalMsg = "(critical)"
 		}
 
 		xidErr := XidError{
-			DataSource:                "nvml",
-			DeviceUUID:                o.NVMLXidEvent.DeviceUUID,
-			Xid:                       o.NVMLXidEvent.Xid,
-			SuggestedActionsByGPUd:    suggestedActions,
-			CriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
+			DataSource:             "nvml",
+			DeviceUUID:             o.NVMLXidEvent.DeviceUUID,
+			Xid:                    o.NVMLXidEvent.Xid,
+			SuggestedActionsByGPUd: suggestedActions,
 		}
+
+		if o.NVMLXidEvent.Detail != nil {
+			xidErr.CriticalErrorMarkedByGPUd = o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd
+		}
+
 		reason.Errors[o.NVMLXidEvent.Xid] = xidErr
 		reason.Messages = append(reason.Messages, fmt.Sprintf("nvml xid %d event %s", xidErr.Xid, criticalMsg))
 	}
@@ -154,7 +158,7 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 				continue
 			}
 
-			xid := uint64(de.Detail.XID)
+			xid := uint64(de.Detail.Xid)
 
 			// already detected by NVML wait/watch API
 			if _, ok := reason.Errors[xid]; ok {
