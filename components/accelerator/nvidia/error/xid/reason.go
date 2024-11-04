@@ -14,9 +14,6 @@ type Reason struct {
 
 	// Errors are the xid errors that happened, keyed by the XID.
 	Errors map[uint64]XidError `json:"errors"`
-
-	// OtherErrors are other errors that happened during the evaluation.
-	OtherErrors []string `json:"other_errors,omitempty"`
 }
 
 func (r Reason) JSON() ([]byte, error) {
@@ -35,15 +32,9 @@ type XidError struct {
 	// The monitoring component can use this Xid to decide its own action.
 	Xid uint64 `json:"xid"`
 
-	// Description is the description of the error.
-	XidDescription string `json:"xid_description"`
-
-	// XidCriticalErrorMarkedByNVML is true if the NVML marks this error as a critical error.
-	XidCriticalErrorMarkedByNVML bool `json:"xid_critical_error_marked_by_nvml"`
-
-	// XidCriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
-	XidCriticalErrorMarkedByGPUd bool `json:"xid_critical_error_marked_by_gpud"`
-
-	// SuggestedActions are the suggested actions for the error.
-	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
+	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
+	// You may use this field to decide whether to alert or not.
+	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+	// SuggestedActionsByGPUd are the suggested actions for the error.
+	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 }

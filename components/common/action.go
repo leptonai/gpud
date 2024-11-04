@@ -19,11 +19,14 @@ const (
 
 // SuggestedActions represents a set of suggested actions to mitigate an issue.
 type SuggestedActions struct {
+	// References to the descriptions.
+	References []string `json:"references,omitempty"`
+
+	// A list of reasons and descriptions for the suggested actions.
+	Descriptions []string `json:"descriptions"`
+
 	// A list of repair actions to mitigate the issue.
 	RepairActions []RepairActionType `json:"repair_actions"`
-
-	// A list of descriptions for the suggested actions.
-	Descriptions []string `json:"descriptions"`
 }
 
 func (s *SuggestedActions) RequiresReboot() bool {
@@ -76,13 +79,13 @@ func (s *SuggestedActions) Add(other *SuggestedActions) {
 		return
 	}
 
-	existingActions := make(map[RepairActionType]struct{})
-	for _, action := range s.RepairActions {
-		existingActions[action] = struct{}{}
+	existingReferences := make(map[string]struct{})
+	for _, reference := range s.References {
+		existingReferences[reference] = struct{}{}
 	}
-	for _, action := range other.RepairActions {
-		if _, ok := existingActions[action]; !ok {
-			s.RepairActions = append(s.RepairActions, action)
+	for _, reference := range other.References {
+		if _, ok := existingReferences[reference]; !ok {
+			s.References = append(s.References, reference)
 		}
 	}
 
@@ -93,6 +96,16 @@ func (s *SuggestedActions) Add(other *SuggestedActions) {
 	for _, description := range other.Descriptions {
 		if _, ok := existingDescriptions[description]; !ok {
 			s.Descriptions = append(s.Descriptions, description)
+		}
+	}
+
+	existingActions := make(map[RepairActionType]struct{})
+	for _, action := range s.RepairActions {
+		existingActions[action] = struct{}{}
+	}
+	for _, action := range other.RepairActions {
+		if _, ok := existingActions[action]; !ok {
+			s.RepairActions = append(s.RepairActions, action)
 		}
 	}
 }
