@@ -41,7 +41,6 @@ func TestOutputEvaluate(t *testing.T) {
 			},
 			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{"nvml xid 79 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                "nvml",
@@ -67,7 +66,6 @@ func TestOutputEvaluate(t *testing.T) {
 			},
 			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{"dmesg xid 79 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                "dmesg",
@@ -105,7 +103,6 @@ func TestOutputEvaluate(t *testing.T) {
 			},
 			onlyGPUdCritical: false,
 			wantReason: Reason{
-				Messages: []string{"nvml xid 79 event (critical)", "dmesg xid 80 event (critical)"},
 				Errors: map[uint64]XidError{
 					79: {
 						DataSource:                "nvml",
