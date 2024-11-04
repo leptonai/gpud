@@ -18,11 +18,11 @@ import (
 )
 
 type Output struct {
-	Host                  Host           `json:"host"`
-	Kernel                Kernel         `json:"kernel"`
-	Platform              Platform       `json:"platform"`
-	Uptimes               Uptimes        `json:"uptimes"`
-	ProcessCountsByStatus map[string]int `json:"process_counts_by_status"`
+	Host                        Host     `json:"host"`
+	Kernel                      Kernel   `json:"kernel"`
+	Platform                    Platform `json:"platform"`
+	Uptimes                     Uptimes  `json:"uptimes"`
+	ProcessCountZombieProcesses int      `json:"process_count_zombie_processes"`
 }
 
 type Host struct {
@@ -79,8 +79,8 @@ const (
 	StateKeyUptimesBootTimeUnixSeconds = "boot_time_unix_seconds"
 	StateKeyUptimesBootTimeHumanized   = "boot_time_humanized"
 
-	StateNameProcessCountsByStatus = "process_counts_by_status"
-	StateKeyProcessCountsByStatus  = "process_counts_by_status"
+	StateNameProcessCountsByStatus      = "process_counts_by_status"
+	StateKeyProcessCountZombieProcesses = "process_count_zombie_processes"
 )
 
 func ParseStateHost(m map[string]string) (Host, error) {
@@ -123,15 +123,16 @@ func ParseStateUptimes(m map[string]string) (Uptimes, error) {
 	return u, nil
 }
 
-func ParseStateProcessCountsByStatus(m map[string]string) (map[string]int, error) {
-	counts := make(map[string]int)
-	s, ok := m[StateKeyProcessCountsByStatus]
+func ParseStateProcessCountZombieProcesses(m map[string]string) (int, error) {
+	s, ok := m[StateKeyProcessCountZombieProcesses]
 	if ok {
-		if err := json.Unmarshal([]byte(s), &counts); err != nil {
-			return nil, err
+		count, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, err
 		}
+		return count, nil
 	}
-	return counts, nil
+	return 0, nil
 }
 
 func ParseStatesToOutput(states ...components.State) (*Output, error) {
@@ -167,12 +168,10 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 			o.Uptimes = uptimes
 
 		case StateNameProcessCountsByStatus:
-			counts, err := ParseStateProcessCountsByStatus(state.ExtraInfo)
+			var err error
+			o.ProcessCountZombieProcesses, err = ParseStateProcessCountZombieProcesses(state.ExtraInfo)
 			if err != nil {
 				return nil, err
-			}
-			if len(counts) > 0 {
-				o.ProcessCountsByStatus = counts
 			}
 
 		default:
@@ -299,7 +298,7 @@ func Get(ctx context.Context) (_ any, e error) {
 	for status, count := range counts {
 		processCountsByStatus[status] = len(count)
 	}
-	o.ProcessCountsByStatus = processCountsByStatus
+	o.ProcessCountZombieProcesses = processCountsByStatus
 
 	return o, nil
 }
