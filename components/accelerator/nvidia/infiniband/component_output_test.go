@@ -93,7 +93,7 @@ func TestOutputStates(t *testing.T) {
 				if state.SuggestedActions == nil {
 					t.Error("expected SuggestedActions to be non-nil for unhealthy state")
 				} else {
-					if len(state.SuggestedActions.RepairActions) != 1 || state.SuggestedActions.RepairActions[0] != common.RepairActionTypeRepairHardware {
+					if len(state.SuggestedActions.RepairActions) != 1 || state.SuggestedActions.RepairActions[0] != common.RepairActionTypeInspectAndRepairHardware {
 						t.Errorf("expected RepairActions to be [RepairHardware], got %v", state.SuggestedActions.RepairActions)
 					}
 					if len(state.SuggestedActions.Descriptions) != 1 || state.SuggestedActions.Descriptions[0] != "potential infiniband switch/hardware issue needs immediate attention" {

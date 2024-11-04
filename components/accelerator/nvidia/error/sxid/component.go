@@ -9,7 +9,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/log"
 )
@@ -62,14 +61,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
-
-		if ev.Detail != nil && ev.Detail.SuggestedActionsByGPUd != nil && len(ev.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
-			if o.SuggestedActionsByGPUd == nil {
-				o.SuggestedActionsByGPUd = &common.SuggestedActions{}
-			}
-			o.SuggestedActionsByGPUd.Add(ev.Detail.SuggestedActionsByGPUd)
-		}
 	}
+
 	return o.States()
 }
 
@@ -109,14 +102,8 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			return nil, err
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
-
-		if ev.Detail != nil && ev.Detail.SuggestedActionsByGPUd != nil && len(ev.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
-			if o.SuggestedActionsByGPUdPerLogLine == nil {
-				o.SuggestedActionsByGPUdPerLogLine = make(map[string]*common.SuggestedActions)
-			}
-			o.SuggestedActionsByGPUdPerLogLine[ev.LogItem.Line] = ev.Detail.SuggestedActionsByGPUd
-		}
 	}
+
 	return o.Events(), nil
 }
 

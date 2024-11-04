@@ -3,7 +3,7 @@ package sxid
 
 import "github.com/leptonai/gpud/components/common"
 
-// Defines the SXID error type.
+// Defines the SXid error information that is static.
 // ref. https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 type Detail struct {
 	DocumentVersion string `json:"documentation_version"`
@@ -32,7 +32,7 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
-// D.5 Fatal NVSwitch SXid Errors
+// D.5 Fatal NVSwitch SXid Errors; "Restart the guest VM to see if the associated NVSwitch comes back up."
 var defaultPotentialFatalErr = Detail{
 	Description: "The hypervisor must track these SXid source ports (NVLink) to determine whether the error occurred on an NVSwitch trunk port or NVSwitch access port. The fatal SXid will be propagated to the GPU as Xid 74 when applicable.",
 
@@ -46,11 +46,11 @@ var defaultPotentialFatalErr = Detail{
 
 If the errors occurred on an NVSwitch trunk port, to reset the trunk ports and recover, shut down the guest VM partitions that are crossing the trunk port. The partitions can be recreated. Currently, the partitions that are using NVSwitch trunk ports are the 16x GPU partition and the 8x GPU partitions with four GPUs per baseboard.
 `,
-	Recovery:    "Restart the guest VM.",
+	Recovery:    "Restart the guest VM to see if the associated NVSwitch comes back up.",
 	OtherImpact: "",
 }
 
-// D.6 Always Fatal NVSwitch SXid Errors
+// D.6 Always Fatal NVSwitch SXid Errors; "Restart the host to reset the entire fabric/system."
 var defaultAlwaysFatalErr = Detail{
 	Description: `Always fatal to the entire fabric/system. After an always fatal SXid error has occurred, the guest VM partitions need to be shut down and one of the following tasks must occur:
 
@@ -66,7 +66,7 @@ var defaultAlwaysFatalErr = Detail{
 	PotentialFatal: true,
 	AlwaysFatal:    true,
 	Impact:         `Always fatal to the entire fabric/system.`,
-	Recovery:       "Restart the guest VM.",
+	Recovery:       "Restart the host to reset the entire fabric/system.",
 	OtherImpact:    "",
 }
 

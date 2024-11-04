@@ -83,9 +83,7 @@ func ParseDmesgLogLine(line string) (DmesgError, error) {
 
 	errCode := ExtractNVRMXid(line)
 	errDetail, ok := GetDetail(errCode)
-	if !ok {
-		de.Detail = nil
-	} else {
+	if ok {
 		de.Detail = errDetail
 	}
 

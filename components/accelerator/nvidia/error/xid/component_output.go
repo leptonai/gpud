@@ -21,14 +21,6 @@ import (
 type Output struct {
 	DmesgErrors  []nvidia_query_xid.DmesgError `json:"dmesg_errors,omitempty"`
 	NVMLXidEvent *nvidia_query_nvml.XidEvent   `json:"nvml_xid_event,omitempty"`
-
-	// Recommended course of actions for any of the GPUs with a known issue.
-	// For individual GPU details, see each per-GPU states.
-	// Used for states calls.
-	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
-
-	// Used for events calls.
-	SuggestedActionsPerLogLine map[string]*common.SuggestedActions `json:"suggested_actions_per_log_line,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -114,16 +106,16 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	return nil, errors.New("no state found")
 }
 
-// Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
+func (o *Output) GetReason() Reason {
 	if len(o.DmesgErrors) == 0 && (o.NVMLXidEvent == nil || o.NVMLXidEvent.Detail == nil) {
-		return Reason{Messages: []string{"no xid error found"}}, true, nil
+		return Reason{
+			Messages: []string{"no xid error found"},
+		}
 	}
 
 	// non-zero xid events, thus state itself as unhealthy
 	reason := Reason{
-		Messages: []string{},
-		Errors:   make(map[uint64]XidError),
+		Errors: make(map[uint64]XidError),
 	}
 
 	if o.NVMLXidEvent != nil {
@@ -132,24 +124,16 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActionsByGPUd
 		}
 
-		criticalMsg := "(non-critical)"
-		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd {
-			criticalMsg = "(critical)"
-		}
+		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
+			DataSource: "nvml",
 
-		xidErr := XidError{
-			DataSource:             "nvml",
-			DeviceUUID:             o.NVMLXidEvent.DeviceUUID,
-			Xid:                    o.NVMLXidEvent.Xid,
-			SuggestedActionsByGPUd: suggestedActions,
-		}
+			DeviceUUID: o.NVMLXidEvent.DeviceUUID,
 
-		if o.NVMLXidEvent.Detail != nil {
-			xidErr.CriticalErrorMarkedByGPUd = o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd
-		}
+			Xid: o.NVMLXidEvent.Xid,
 
-		reason.Errors[o.NVMLXidEvent.Xid] = xidErr
-		reason.Messages = append(reason.Messages, fmt.Sprintf("nvml xid %d event %s", xidErr.Xid, criticalMsg))
+			SuggestedActionsByGPUd:    suggestedActions,
+			CriticalErrorMarkedByGPUd: o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd,
+		}
 	}
 
 	if len(o.DmesgErrors) > 0 {
@@ -165,21 +149,25 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 				continue
 			}
 
-			criticalMsg := "(non-critical)"
-			if de.Detail.CriticalErrorMarkedByGPUd {
-				criticalMsg = "(critical)"
-			}
+			reason.Errors[xid] = XidError{
+				DataSource: "dmesg",
 
-			// this is the error found from dmesg, thus no NVML related info
-			xidErr := XidError{
-				DataSource:                "dmesg",
-				Xid:                       xid,
+				DeviceUUID: "",
+
+				Xid: xid,
+
+				SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
 				CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
 			}
-			reason.Errors[xid] = xidErr
-			reason.Messages = append(reason.Messages, fmt.Sprintf("dmesg xid %d event %s", xidErr.Xid, criticalMsg))
 		}
 	}
+
+	return reason
+}
+
+// Returns the output evaluation reason and its healthy-ness.
+func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
+	reason := o.GetReason()
 
 	// if none of the Xid errors is marked as critical in GPUd,
 	// the component is then healthy
@@ -205,6 +193,7 @@ func (o *Output) States() ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	reasonB, err := reason.JSON()
 	if err != nil {
 		return nil, err
@@ -225,10 +214,6 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
-	if o.SuggestedActions != nil {
-		state.SuggestedActions = o.SuggestedActions
-	}
-
 	return []components.State{state}, nil
 }
 
@@ -246,11 +231,6 @@ func (o *Output) Events() []components.Event {
 	for _, de := range o.DmesgErrors {
 		b, _ := de.JSON()
 
-		var actions *common.SuggestedActions = nil
-		if o.SuggestedActionsPerLogLine != nil {
-			actions = o.SuggestedActionsPerLogLine[de.LogItem.Line]
-		}
-
 		des = append(des, components.Event{
 			Time: de.LogItem.Time,
 			Name: EventNameErroXid,
@@ -259,7 +239,6 @@ func (o *Output) Events() []components.Event {
 				EventKeyErroXidData:        string(b),
 				EventKeyErroXidEncoding:    StateValueErrorXidEncodingJSON,
 			},
-			SuggestedActions: actions,
 		})
 	}
 	if len(des) == 0 {
