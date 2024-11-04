@@ -66,7 +66,7 @@ func (inst *instance) RecvXidEvents() <-chan *XidEvent {
 //
 // we want to cover all events and decide the criticality by ourselves
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/gen/nvml/nvml.h
-const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
+const defaultXidEventMask = uint64(nvml.EventTypeAll)
 
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
 func (inst *instance) pollXidEvents() {
