@@ -48,6 +48,45 @@ type Detail struct {
 	PotentialFBCorruption bool `json:"potential_fb_corruption"`
 }
 
+// if nvidia says only possible reason is hw, then we do hard inspections directly
+func (d Detail) IsOnlyHWError() bool {
+	if !d.PotentialHWError {
+		return false
+	}
+	return !d.PotentialDriverError &&
+		!d.PotentialUserAppError &&
+		!d.PotentialSystemMemoryCorruption &&
+		!d.PotentialBusError &&
+		!d.PotentialThermalIssue &&
+		!d.PotentialFBCorruption
+}
+
+// if nvidia says this can be only because of user error, then we ignore, don’t mark it as critical
+func (d Detail) IsOnlyUserAppError() bool {
+	if !d.PotentialUserAppError {
+		return false
+	}
+	return !d.PotentialHWError &&
+		!d.PotentialDriverError &&
+		!d.PotentialSystemMemoryCorruption &&
+		!d.PotentialBusError &&
+		!d.PotentialThermalIssue &&
+		!d.PotentialFBCorruption
+}
+
+// if nvidia says this can be only because of driver error, then we only reboot
+func (d Detail) IsOnlyDriverError() bool {
+	if !d.PotentialDriverError {
+		return false
+	}
+	return !d.PotentialHWError &&
+		!d.PotentialUserAppError &&
+		!d.PotentialSystemMemoryCorruption &&
+		!d.PotentialBusError &&
+		!d.PotentialThermalIssue &&
+		!d.PotentialFBCorruption
+}
+
 // IsMarkedAsCriticalByGPUd returns true if the GPUd marks this Xid as a critical error.
 func (d Detail) IsMarkedAsCriticalByGPUd() bool {
 	return d.CriticalErrorMarkedByGPUd
@@ -716,7 +755,7 @@ var details = map[int]Detail{
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -842,7 +881,7 @@ var details = map[int]Detail{
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1796,7 +1835,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1912,7 +1951,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2172,7 +2211,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 
 			Descriptions: []string{
@@ -2308,7 +2347,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2792,7 +2831,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
@@ -3187,7 +3226,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,

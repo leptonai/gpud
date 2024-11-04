@@ -3,13 +3,19 @@ package common
 type RepairActionType string
 
 const (
+	// RepairActionTypeIgnoreNoActionRequired represents a suggested action to ignore the issue,
+	// meaning no action is needed until further notice.
+	RepairActionTypeIgnoreNoActionRequired RepairActionType = "IGNORE_NO_ACTION_REQUIRED"
+
 	// RepairActionTypeRebootSystem represents a suggested action to reboot the system.
 	// Specific to NVIDIA GPUs, this implies GPU reset by rebooting the system.
 	RepairActionTypeRebootSystem RepairActionType = "REBOOT_SYSTEM"
 
-	// RepairActionTypeRepairHardware represents a suggested action to repair the hardware, externally.
-	// This often involves data center (or cloud provider) support to physically check/repair the machine.
-	RepairActionTypeRepairHardware RepairActionType = "REPAIR_HARDWARE"
+	// RepairActionTypeInspectAndRepairHardware represents a suggested action for hardware inspection
+	// and repair if any issue is found. This often involves data center (or cloud provider) support
+	// to physically check/repair the machine.
+	// TODO: rename to "INSPECT_AND_REPAIR_HARDWARE"
+	RepairActionTypeInspectAndRepairHardware RepairActionType = "REPAIR_HARDWARE"
 
 	// RepairActionTypeCheckUserApp represents a suggested action to check the user application.
 	// For instance, NVIDIA may report XID 45 as user app error, but the underlying GPU might have other issues
@@ -52,7 +58,7 @@ func (s *SuggestedActions) RequiresRepair() bool {
 		return false
 	}
 	for _, action := range s.RepairActions {
-		if action == RepairActionTypeRepairHardware {
+		if action == RepairActionTypeInspectAndRepairHardware {
 			return true
 		}
 	}

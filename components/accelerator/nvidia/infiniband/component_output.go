@@ -109,7 +109,7 @@ func (o *Output) States() ([]components.State, error) {
 	if !healthy {
 		suggestedActions = &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRepairHardware,
+				common.RepairActionTypeInspectAndRepairHardware,
 			},
 			Descriptions: []string{
 				"potential infiniband switch/hardware issue needs immediate attention",

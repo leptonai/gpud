@@ -160,6 +160,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 	}
+
 	return o.Events(), nil
 }
 
