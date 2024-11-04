@@ -40,9 +40,8 @@ func ExtractNVRMXid(line string) int {
 }
 
 type DmesgError struct {
-	Detail      *Detail        `json:"detail,omitempty"`
-	DetailFound bool           `json:"detail_found"`
-	LogItem     query_log.Item `json:"log_item"`
+	Detail  *Detail        `json:"detail,omitempty"`
+	LogItem query_log.Item `json:"log_item"`
 }
 
 func (de *DmesgError) JSON() ([]byte, error) {
@@ -86,10 +85,8 @@ func ParseDmesgLogLine(line string) (DmesgError, error) {
 	errDetail, ok := GetDetail(errCode)
 	if !ok {
 		de.Detail = nil
-		de.DetailFound = false
 	} else {
 		de.Detail = errDetail
-		de.DetailFound = true
 	}
 
 	return de, nil

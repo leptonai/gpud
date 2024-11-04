@@ -127,41 +127,38 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 	}
 
 	if o.NVMLXidEvent != nil {
-		desc := ""
-		if o.NVMLXidEvent.Detail != nil {
-			desc = o.NVMLXidEvent.Detail.Description
-		}
-
 		var suggestedActions *common.SuggestedActions = nil
-		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.SuggestedActions != nil {
-			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActions
+		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.SuggestedActionsByGPUd != nil {
+			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActionsByGPUd
 		}
 
 		criticalMsg := "(non-critical)"
-		if o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd {
+		if o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd {
 			criticalMsg = "(critical)"
 		}
 
 		xidErr := XidError{
-			DataSource:                   "nvml",
-			DeviceUUID:                   o.NVMLXidEvent.DeviceUUID,
-			Xid:                          o.NVMLXidEvent.Xid,
-			XidDescription:               desc,
-			XidCriticalErrorMarkedByNVML: o.NVMLXidEvent.XidCriticalErrorMarkedByNVML,
-			XidCriticalErrorMarkedByGPUd: o.NVMLXidEvent.XidCriticalErrorMarkedByGPUd,
-			SuggestedActions:             suggestedActions,
+			DataSource:             "nvml",
+			DeviceUUID:             o.NVMLXidEvent.DeviceUUID,
+			Xid:                    o.NVMLXidEvent.Xid,
+			SuggestedActionsByGPUd: suggestedActions,
 		}
+
+		if o.NVMLXidEvent.Detail != nil {
+			xidErr.CriticalErrorMarkedByGPUd = o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd
+		}
+
 		reason.Errors[o.NVMLXidEvent.Xid] = xidErr
 		reason.Messages = append(reason.Messages, fmt.Sprintf("nvml xid %d event %s", xidErr.Xid, criticalMsg))
 	}
 
 	if len(o.DmesgErrors) > 0 {
 		for _, de := range o.DmesgErrors {
-			if de.Detail == nil || !de.DetailFound {
+			if de.Detail == nil {
 				continue
 			}
 
-			xid := uint64(de.Detail.XID)
+			xid := uint64(de.Detail.Xid)
 
 			// already detected by NVML wait/watch API
 			if _, ok := reason.Errors[xid]; ok {
@@ -175,9 +172,9 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 
 			// this is the error found from dmesg, thus no NVML related info
 			xidErr := XidError{
-				DataSource:                   "dmesg",
-				Xid:                          xid,
-				XidCriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
+				DataSource:                "dmesg",
+				Xid:                       xid,
+				CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
 			}
 			reason.Errors[xid] = xidErr
 			reason.Messages = append(reason.Messages, fmt.Sprintf("dmesg xid %d event %s", xidErr.Xid, criticalMsg))
@@ -191,7 +188,7 @@ func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
 	healthy := true
 	criticals := make(map[uint64]XidError)
 	for _, e := range reason.Errors {
-		if e.XidCriticalErrorMarkedByGPUd {
+		if e.CriticalErrorMarkedByGPUd {
 			healthy = false
 			criticals[e.Xid] = e
 		}

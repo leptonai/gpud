@@ -18,16 +18,18 @@ type XidEvent struct {
 	// The duration of the sample.
 	SampleDuration metav1.Duration `json:"sample_duration"`
 
-	EventType uint64 `json:"event_type"`
-
 	DeviceUUID string `json:"device_uuid"`
-	Xid        uint64 `json:"xid"`
 
-	// XidCriticalErrorMarkedByNVML is true if the NVML marks this error as a critical error.
-	XidCriticalErrorMarkedByNVML bool `json:"xid_critical_error_marked_by_nvml"`
+	Xid uint64 `json:"xid"`
 
-	// XidCriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
-	XidCriticalErrorMarkedByGPUd bool `json:"xid_critical_error_marked_by_gpud"`
+	NVMLEventType                  uint64 `json:"nvml_event_type"`
+	NVMLEventTypeSingleBitEccError bool   `json:"nvml_event_type_single_bit_ecc_error"`
+	NVMLEventTypeDoubleBitEccError bool   `json:"nvml_event_type_double_bit_ecc_error"`
+	NVMLEventTypePState            bool   `json:"nvml_event_type_p_state"`
+	NVMLEventTypeXidCriticalError  bool   `json:"nvml_event_type_xid_critical_error"`
+	NVMLEventTypeClock             bool   `json:"nvml_event_type_clock"`
+	NVMLEventTypePowerSourceChange bool   `json:"nvml_event_type_power_source_change"`
+	NVMLEventMigConfigChange       bool   `json:"nvml_event_type_mig_config_change"`
 
 	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
 
@@ -59,7 +61,11 @@ func (inst *instance) RecvXidEvents() <-chan *XidEvent {
 	return inst.xidEventCh
 }
 
+// k8s-device-plugin uses only nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
+//
+// we want to cover all events and decide the criticality by ourselves
+// ref. https://github.com/NVIDIA/go-nvml/blob/main/gen/nvml/nvml.h
 const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
 
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
@@ -137,13 +143,17 @@ func (inst *instance) pollXidEvents() {
 			Time:           metav1.Time{Time: time.Now().UTC()},
 			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
 
-			EventType: e.EventType,
-
 			DeviceUUID: deviceUUID,
 			Xid:        xid,
 
-			XidCriticalErrorMarkedByNVML: e.EventType == nvml.EventTypeXidCriticalError,
-			XidCriticalErrorMarkedByGPUd: xidDetail.IsCritical(),
+			NVMLEventType:                  e.EventType,
+			NVMLEventTypeSingleBitEccError: e.EventType == nvml.EventTypeSingleBitEccError,
+			NVMLEventTypeDoubleBitEccError: e.EventType == nvml.EventTypeDoubleBitEccError,
+			NVMLEventTypePState:            e.EventType == nvml.EventTypePState,
+			NVMLEventTypeXidCriticalError:  e.EventType == nvml.EventTypeXidCriticalError,
+			NVMLEventTypeClock:             e.EventType == nvml.EventTypeClock,
+			NVMLEventTypePowerSourceChange: e.EventType == nvml.EventTypePowerSourceChange,
+			NVMLEventMigConfigChange:       e.EventType == nvml.EventMigConfigChange,
 
 			Detail: xidDetail,
 

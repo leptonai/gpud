@@ -19,10 +19,10 @@ type Output struct {
 	// Recommended course of actions for any of the GPUs with a known issue.
 	// For individual GPU details, see each per-GPU states.
 	// Used for states calls.
-	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
+	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 
 	// Used for events calls.
-	SuggestedActionsPerLogLine map[string]*common.SuggestedActions `json:"suggested_actions_per_log_line,omitempty"`
+	SuggestedActionsByGPUdPerLogLine map[string]*common.SuggestedActions `json:"suggested_actions_by_gpud_per_log_line,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -107,8 +107,8 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
-	if o.SuggestedActions != nil {
-		state.SuggestedActions = o.SuggestedActions
+	if o.SuggestedActionsByGPUd != nil {
+		state.SuggestedActions = o.SuggestedActionsByGPUd
 	}
 
 	return []components.State{state}, nil
@@ -129,8 +129,8 @@ func (o *Output) Events() []components.Event {
 		b, _ := de.JSON()
 
 		var actions *common.SuggestedActions = nil
-		if o.SuggestedActionsPerLogLine != nil {
-			actions = o.SuggestedActionsPerLogLine[de.LogItem.Line]
+		if o.SuggestedActionsByGPUdPerLogLine != nil {
+			actions = o.SuggestedActionsByGPUdPerLogLine[de.LogItem.Line]
 		}
 
 		des = append(des, components.Event{
