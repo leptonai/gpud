@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components/common"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/log"
 
 	"github.com/dustin/go-humanize"
 	"sigs.k8s.io/yaml"
@@ -249,18 +250,22 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 
 	nonCriticals := make(map[uint64]XidError)
 	for _, e := range reason.Errors {
-		if !e.CriticalErrorMarkedByGPUd {
-			nonCriticals[e.Xid] = e
+		if e.CriticalErrorMarkedByGPUd {
+			log.Logger.Warnw("skipping xid event for /events due to being critical", "xid", e.Xid, "time", e.Time, "since", since)
+			continue
 		}
+
+		// if the event is older than since or undefined, skip
+		if e.Time.IsZero() || e.Time.Time.Before(since) {
+			log.Logger.Warnw("skipping xid event for /events due to being undefined time or too old", "xid", e.Xid, "time", e.Time, "since", since)
+			continue
+		}
+
+		nonCriticals[e.Xid] = e
 	}
 
 	des := make([]components.Event, 0)
 	for _, xidErr := range nonCriticals {
-		// if the event is older than since or undefined, skip
-		if xidErr.Time.IsZero() || xidErr.Time.Time.Before(since) {
-			continue
-		}
-
 		xidErrBytes, _ := xidErr.JSON()
 
 		des = append(des, components.Event{
