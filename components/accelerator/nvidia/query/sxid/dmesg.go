@@ -40,7 +40,7 @@ func ExtractNVSwitchSXid(line string) int {
 }
 
 type DmesgError struct {
-	Detail  *Detail        `json:"detail,omitempty"`
+	Detail  *Detail        `json:"detail"`
 	LogItem query_log.Item `json:"log_item"`
 }
 

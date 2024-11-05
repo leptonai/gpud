@@ -108,7 +108,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -476,7 +476,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -504,7 +504,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,

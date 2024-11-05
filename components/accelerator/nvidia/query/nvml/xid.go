@@ -31,7 +31,7 @@ type XidEvent struct {
 	NVMLEventTypePowerSourceChange bool   `json:"nvml_event_type_power_source_change"`
 	NVMLEventMigConfigChange       bool   `json:"nvml_event_type_mig_config_change"`
 
-	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
+	Detail *nvidia_query_xid.Detail `json:"detail"`
 
 	Message string `json:"message,omitempty"`
 
