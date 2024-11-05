@@ -1,6 +1,10 @@
 package xid
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/leptonai/gpud/components/common"
+)
 
 func TestDetail_IsOnlyHWError(t *testing.T) {
 	tests := []struct {
@@ -176,11 +180,33 @@ func TestDetailsValidation(t *testing.T) {
 		if d.CriticalErrorMarkedByGPUd && len(d.SuggestedActionsByGPUd.RepairActions) == 0 {
 			t.Errorf("xid %d is marked as critical in GPUd, but has no repair actions", d.Xid)
 		}
-		if d.SuggestedActionsByGPUd == nil {
-			continue
+
+		// if nvidia says only possible reason is hw, then we do hard inspections directly
+		if d.Xid != 48 && d.IsOnlyHWError() && (d.SuggestedActionsByGPUd == nil || len(d.SuggestedActionsByGPUd.RepairActions) == 0) {
+			t.Fatalf("xid %d is only hardware error, but has no suggested actions", d.Xid)
+		}
+		if d.Xid != 48 && d.IsOnlyHWError() && d.SuggestedActionsByGPUd != nil {
+			if d.SuggestedActionsByGPUd.RepairActions[0] != common.RepairActionTypeInspectAndRepairHardware {
+				t.Errorf("xid %d is only hardware error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
+			}
 		}
 
-		if len(d.SuggestedActionsByGPUd.Descriptions) > 0 &&
+		// if nvidia says this can be only because of user error, then we ignore, don’t mark it as critical
+		if d.IsOnlyUserAppError() && d.CriticalErrorMarkedByGPUd {
+			t.Errorf("xid %d is only user app error, but is marked as critical", d.Xid)
+		}
+
+		// if nvidia says this can be only because of driver error, then we only reboot
+		if d.Xid != 38 && d.Xid != 44 && d.IsOnlyDriverError() && (d.SuggestedActionsByGPUd == nil || len(d.SuggestedActionsByGPUd.RepairActions) != 1) {
+			t.Fatalf("xid %d is only driver error expecting 1 action, but %+v", d.Xid, d.SuggestedActionsByGPUd)
+		}
+		if d.Xid != 38 && d.Xid != 44 && d.IsOnlyDriverError() && d.SuggestedActionsByGPUd != nil {
+			if d.SuggestedActionsByGPUd.RepairActions[0] != common.RepairActionTypeRebootSystem {
+				t.Fatalf("xid %d is only driver error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
+			}
+		}
+
+		if d.SuggestedActionsByGPUd != nil && len(d.SuggestedActionsByGPUd.Descriptions) > 0 &&
 			len(d.SuggestedActionsByGPUd.Descriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
 			t.Errorf("xid %d has %d descriptions and %d repair actions",
 				d.Xid,

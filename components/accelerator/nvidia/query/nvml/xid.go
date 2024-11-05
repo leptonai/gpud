@@ -31,7 +31,7 @@ type XidEvent struct {
 	NVMLEventTypePowerSourceChange bool   `json:"nvml_event_type_power_source_change"`
 	NVMLEventMigConfigChange       bool   `json:"nvml_event_type_mig_config_change"`
 
-	Detail *nvidia_query_xid.Detail `json:"detail,omitempty"`
+	Detail *nvidia_query_xid.Detail `json:"detail"`
 
 	Message string `json:"message,omitempty"`
 
@@ -66,7 +66,7 @@ func (inst *instance) RecvXidEvents() <-chan *XidEvent {
 //
 // we want to cover all events and decide the criticality by ourselves
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/gen/nvml/nvml.h
-const defaultXidEventMask = uint64(nvml.EventTypeXidCriticalError | nvml.EventTypeDoubleBitEccError | nvml.EventTypeSingleBitEccError)
+const defaultXidEventMask = uint64(nvml.EventTypeAll)
 
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
 func (inst *instance) pollXidEvents() {

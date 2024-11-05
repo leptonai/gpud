@@ -70,14 +70,24 @@ var defaultAlwaysFatalErr = Detail{
 	OtherImpact:    "",
 }
 
-// These are copied from:
-// "D.4 Non-Fatal NVSwitch SXid Errors"
-// "D.5 Fatal NVSwitch SXid Errors"
-// "D.6 Always Fatal NVSwitch SXid Errors"
-// "D.7 Other Notable NVSwitch SXid Errors"
+// References:
+// "Non-Fatal NVSwitch SXid Errors"
+// "Fatal NVSwitch SXid Errors"
+// "Always Fatal NVSwitch SXid Errors"
+// "Other Notable NVSwitch SXid Errors"
 // ref. https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 var details = map[int]Detail{
-	// D.4 Non-Fatal NVSwitch SXid Errors
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	// Non-Fatal NVSwitch SXid Errors
 	11004: {
 		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
 
@@ -85,9 +95,20 @@ var details = map[int]Detail{
 		Name:        "Ingress invalid ACL",
 		Description: "This SXid error can happen only because of an incorrect FM partition configuration and is expected not to occur in the field.",
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -102,7 +123,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -119,7 +140,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -136,7 +157,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -153,7 +174,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -170,7 +191,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -187,7 +208,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -204,7 +225,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -221,7 +242,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -238,7 +259,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -255,7 +276,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -272,7 +293,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -289,7 +310,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -306,7 +327,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -323,7 +344,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -340,7 +361,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -357,7 +378,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -374,7 +395,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -391,7 +412,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -408,7 +429,7 @@ var details = map[int]Detail{
 		Name:        "Single bit ECC errors",
 		Description: "",
 
-		// TODO
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -425,7 +446,7 @@ var details = map[int]Detail{
 		Name:        "TX Replay Error",
 		Description: "",
 
-		// TODO
+		// NVLink packet needs to transmitted, may impact NVLink throughput
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -442,9 +463,20 @@ var details = map[int]Detail{
 		Name:        "egress nonposted PRIV error",
 		Description: "",
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the GPUs and NVSwitches.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -459,32 +491,26 @@ var details = map[int]Detail{
 		Name:        "AN1 Heartbeat Timeout Error",
 		Description: "",
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the GPUs and NVSwitches.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "This error is usually accompanied by a fatal SXid error that will affect the corresponding GPU NVLink traffic.",
 		Recovery:       "Reset all GPUs and all NVSwitches (refer to section D.9).",
 		OtherImpact:    "If the error is observed on a Trunk port, the partitions that are using NVSwitch trunk ports will be affected.",
-	},
-	20012: {
-		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
-
-		SXid:        20012,
-		Name:        "Broken/inconsistent connection",
-		Description: "",
-
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-
-		PotentialFatal: false,
-		AlwaysFatal:    false,
-		Impact:         "This error could occur due to a broken/inconsistent connection or uncoordinated shutdown.",
-		Recovery:       "If this issue was not due to an uncoordinated shutdown, check link mechanical connections.",
-		OtherImpact:    "No impact if error is confined to a single GPU.",
 	},
 	22013: {
 		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
@@ -493,7 +519,7 @@ var details = map[int]Detail{
 		Name:        "Minion Link DLREQ interrupt",
 		Description: "",
 
-		// TODO
+		// this SXid can be safely ignored
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
@@ -503,8 +529,35 @@ var details = map[int]Detail{
 		Recovery:       "Not Applicable.",
 		OtherImpact:    "No Impact.",
 	},
+	20012: {
+		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
 
-	// D.5 Potential Fatal NVSwitch SXid Errors
+		SXid:        20012,
+		Name:        "Broken/inconsistent connection",
+		Description: "",
+
+		// due to a broken/inconsistent connection or uncoordinated shutdown
+		SuggestedActionsByGPUd:    nil,
+		CriticalErrorMarkedByGPUd: false,
+
+		PotentialFatal: false,
+		AlwaysFatal:    false,
+		Impact:         "This error could occur due to a broken/inconsistent connection or uncoordinated shutdown.",
+		Recovery:       "If this issue was not due to an uncoordinated shutdown, check link mechanical connections.",
+		OtherImpact:    "No impact if error is confined to a single GPU.",
+	},
+
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	// Fatal NVSwitch SXid Errors
 	11001: {
 		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
 
@@ -512,9 +565,22 @@ var details = map[int]Detail{
 		Name:        "ingress invalid command",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -529,9 +595,22 @@ var details = map[int]Detail{
 		Name:        "ingress invalid VCSet",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -546,9 +625,22 @@ var details = map[int]Detail{
 		Name:        "ingress header DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -563,9 +655,22 @@ var details = map[int]Detail{
 		Name:        "ingress RID DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -580,9 +685,22 @@ var details = map[int]Detail{
 		Name:        "ingress RLAN DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -597,9 +715,22 @@ var details = map[int]Detail{
 		Name:        "ingress control parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -614,9 +745,22 @@ var details = map[int]Detail{
 		Name:        "egress crossbar overflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -631,9 +775,22 @@ var details = map[int]Detail{
 		Name:        "egress packet route",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -648,9 +805,22 @@ var details = map[int]Detail{
 		Name:        "egress input ECC DBE error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -665,9 +835,22 @@ var details = map[int]Detail{
 		Name:        "egress output ECC DBE error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -682,9 +865,22 @@ var details = map[int]Detail{
 		Name:        "egress credit overflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -699,9 +895,22 @@ var details = map[int]Detail{
 		Name:        "egress destination request ID error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -716,9 +925,22 @@ var details = map[int]Detail{
 		Name:        "egress destination response ID error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -750,9 +972,22 @@ var details = map[int]Detail{
 		Name:        "egress credit parity error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -767,9 +1002,22 @@ var details = map[int]Detail{
 		Name:        "egress flit type mismatch",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -784,9 +1032,22 @@ var details = map[int]Detail{
 		Name:        "TS ATO timeout",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -801,9 +1062,22 @@ var details = map[int]Detail{
 		Name:        "route buffer over/underflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -818,9 +1092,22 @@ var details = map[int]Detail{
 		Name:        "route transdone over/underflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -835,9 +1122,22 @@ var details = map[int]Detail{
 		Name:        "route GLT DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -852,9 +1152,22 @@ var details = map[int]Detail{
 		Name:        "route parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -869,9 +1182,22 @@ var details = map[int]Detail{
 		Name:        "route incoming DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -886,9 +1212,22 @@ var details = map[int]Detail{
 		Name:        "route credit parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -903,9 +1242,22 @@ var details = map[int]Detail{
 		Name:        "NCISOC HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -920,9 +1272,22 @@ var details = map[int]Detail{
 		Name:        "NCISOC DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -937,9 +1302,22 @@ var details = map[int]Detail{
 		Name:        "HDR RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -954,9 +1332,22 @@ var details = map[int]Detail{
 		Name:        "DAT0 RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -971,9 +1362,22 @@ var details = map[int]Detail{
 		Name:        "DAT1 RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -988,9 +1392,22 @@ var details = map[int]Detail{
 		Name:        "CREQ RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1005,9 +1422,22 @@ var details = map[int]Detail{
 		Name:        "CREQ RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1022,9 +1452,22 @@ var details = map[int]Detail{
 		Name:        "Response RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1039,9 +1482,22 @@ var details = map[int]Detail{
 		Name:        "Response RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1056,9 +1512,22 @@ var details = map[int]Detail{
 		Name:        "COM RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1073,9 +1542,22 @@ var details = map[int]Detail{
 		Name:        "COM RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1090,9 +1572,22 @@ var details = map[int]Detail{
 		Name:        "RSP1 RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1107,9 +1602,22 @@ var details = map[int]Detail{
 		Name:        "RSP1 RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1124,9 +1632,22 @@ var details = map[int]Detail{
 		Name:        "LTSSM Fault Up",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1149,9 +1670,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion Link NA interrupt",
 		Description: "",
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -1166,9 +1700,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN0 crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1183,9 +1730,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN0 TD crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1200,9 +1760,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN1 crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1217,9 +1790,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack timeout error",
 		Description: defaultPotentialFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1228,7 +1814,17 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		OtherImpact:    defaultPotentialFatalErr.OtherImpact,
 	},
 
-	// D.6 Always Fatal NVSwitch SXid Errors
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	// Always Fatal NVSwitch SXid Errors
 	12020: {
 		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
 
@@ -1236,9 +1832,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress sequence ID error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1253,9 +1862,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion Halt",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1270,9 +1892,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion exterror",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1287,9 +1922,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1304,9 +1952,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1321,9 +1982,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1338,9 +2012,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1355,9 +2042,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet burst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1372,9 +2072,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet sticky error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1389,9 +2102,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "possible bubbles at ingress",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1406,9 +2132,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet invalid dst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1423,9 +2162,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet parity error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1440,9 +2192,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1457,9 +2222,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1474,9 +2252,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1491,9 +2282,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1508,9 +2312,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet burst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1525,9 +2342,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet sticky error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1542,9 +2372,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "possible bubbles at ingress",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1559,9 +2402,22 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress credit parity error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
+			},
+
+			Descriptions: []string{
+				"Restart the system to reset the NVSwitch access port.",
+				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeRebootSystem,
+				common.RepairActionTypeInspectAndRepairHardware,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1570,7 +2426,17 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		OtherImpact:    defaultAlwaysFatalErr.OtherImpact,
 	},
 
-	// D.7 Other Notable NVSwitch SXid Error
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	// Other Notable NVSwitch SXid Error
 	10001: {
 		DocumentVersion: "DU-09883-001_v1.3 (October 2023)",
 
