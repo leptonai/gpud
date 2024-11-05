@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
@@ -125,7 +127,7 @@ func (o *Output) GetReason() Reason {
 	return reason
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) getStates() ([]components.State, error) {
 	outputBytes, err := o.JSON()
 	if err != nil {
 		return nil, err
@@ -173,7 +175,7 @@ const (
 	EventValueErroSXidEncodingJSON = "json"
 )
 
-func (o *Output) Events() []components.Event {
+func (o *Output) getEvents(since time.Time) []components.Event {
 	reason := o.GetReason()
 
 	nonCriticals := make(map[uint64]SXidError)
@@ -185,6 +187,11 @@ func (o *Output) Events() []components.Event {
 
 	des := make([]components.Event, 0)
 	for _, sxidErr := range nonCriticals {
+		// if the event is older than since or undefined, skip
+		if sxidErr.Time.IsZero() || sxidErr.Time.Time.Before(since) {
+			continue
+		}
+
 		sxidErrBytes, _ := sxidErr.JSON()
 
 		des = append(des, components.Event{
@@ -200,5 +207,10 @@ func (o *Output) Events() []components.Event {
 	if len(des) == 0 {
 		return nil
 	}
+
+	sort.Slice(des, func(i, j int) bool {
+		// puts earlier times first, latest time last
+		return des[i].Time.Before(&des[j].Time)
+	})
 	return des
 }

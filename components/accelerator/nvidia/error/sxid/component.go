@@ -74,7 +74,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	return o.States()
+	return o.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -82,7 +82,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	if err != nil {
 		return nil, err
 	}
-	return o.Events(), nil
+	return o.getEvents(since), nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

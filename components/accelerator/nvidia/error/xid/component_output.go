@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
@@ -195,7 +196,7 @@ func (o *Output) GetReason() Reason {
 	return reason
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) getStates() ([]components.State, error) {
 	outputBytes, err := o.JSON()
 	if err != nil {
 		return nil, err
@@ -243,7 +244,7 @@ const (
 	EventValueErroXidEncodingJSON = "json"
 )
 
-func (o *Output) Events() []components.Event {
+func (o *Output) getEvents(since time.Time) []components.Event {
 	reason := o.GetReason()
 
 	nonCriticals := make(map[uint64]XidError)
@@ -255,6 +256,11 @@ func (o *Output) Events() []components.Event {
 
 	des := make([]components.Event, 0)
 	for _, xidErr := range nonCriticals {
+		// if the event is older than since or undefined, skip
+		if xidErr.Time.IsZero() || xidErr.Time.Time.Before(since) {
+			continue
+		}
+
 		xidErrBytes, _ := xidErr.JSON()
 
 		des = append(des, components.Event{
