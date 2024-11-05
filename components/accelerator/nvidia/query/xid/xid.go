@@ -276,7 +276,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -348,7 +348,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -486,7 +486,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -539,7 +539,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -573,7 +573,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -721,7 +721,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -755,7 +755,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -789,7 +789,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -823,7 +823,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -857,7 +857,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1029,7 +1029,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1063,7 +1063,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1097,7 +1097,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1131,7 +1131,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1306,7 +1306,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1546,7 +1546,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1580,7 +1580,7 @@ var details = map[int]Detail{
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1882,7 +1882,7 @@ The error is also reported to your application. In most cases, you need to reset
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1916,7 +1916,7 @@ The error is also reported to your application. In most cases, you need to reset
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2253,17 +2253,17 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				//
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeCheckUserAppAndGPU,
-				common.RepairActionTypeRebootSystem,
-			},
-
 			Descriptions: []string{
 				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
 				"System reboot is recommended when convenient, but not required immediately.",
 			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeCheckUserAppAndGPU,
+				common.RepairActionTypeRebootSystem,
+			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2703,7 +2703,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 				common.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3939,7 +3939,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4025,7 +4025,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				common.RepairActionTypeInspectAndRepairHardware,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
+		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
