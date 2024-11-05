@@ -11,11 +11,10 @@ const (
 	// Specific to NVIDIA GPUs, this implies GPU reset by rebooting the system.
 	RepairActionTypeRebootSystem RepairActionType = "REBOOT_SYSTEM"
 
-	// RepairActionTypeInspectAndRepairHardware represents a suggested action for hardware inspection
+	// RepairActionTypeHardwareInspection represents a suggested action for hardware inspection
 	// and repair if any issue is found. This often involves data center (or cloud provider) support
 	// to physically check/repair the machine.
-	// TODO: rename to "INSPECT_AND_REPAIR_HARDWARE"
-	RepairActionTypeInspectAndRepairHardware RepairActionType = "REPAIR_HARDWARE"
+	RepairActionTypeHardwareInspection RepairActionType = "HARDWARE_INSPECTION"
 
 	// RepairActionTypeCheckUserApp represents a suggested action to check the user application.
 	// For instance, NVIDIA may report XID 45 as user app error, but the underlying GPU might have other issues
@@ -58,7 +57,7 @@ func (s *SuggestedActions) RequiresRepair() bool {
 		return false
 	}
 	for _, action := range s.RepairActions {
-		if action == RepairActionTypeInspectAndRepairHardware {
+		if action == RepairActionTypeHardwareInspection {
 			return true
 		}
 	}

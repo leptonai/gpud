@@ -921,7 +921,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeCheckUserAppAndGPU,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
@@ -992,7 +992,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1212,7 +1212,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1436,7 +1436,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1655,7 +1655,7 @@ The error is also reported to your application. In most cases, you need to reset
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2046,7 +2046,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2135,7 +2135,7 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2224,7 +2224,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2364,7 +2364,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		// TODO
@@ -2436,7 +2436,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2609,7 +2609,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2774,7 +2774,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2827,7 +2827,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
@@ -3283,7 +3283,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -3583,7 +3583,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
@@ -3802,7 +3802,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -3869,7 +3869,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -3936,7 +3936,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
@@ -4022,7 +4022,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
@@ -4419,7 +4419,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
