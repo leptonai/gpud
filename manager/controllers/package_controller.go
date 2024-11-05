@@ -47,6 +47,7 @@ func (c *PackageController) Run(ctx context.Context) error {
 	go c.updateRunner(ctx)
 	go c.installRunner(ctx)
 	go c.statusRunner(ctx)
+	go c.deleteRunner(ctx)
 	return nil
 }
 
@@ -235,6 +236,28 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Progress = 100
 				c.Unlock()
 			}()
+		}
+	}
+}
+
+func (c *PackageController) deleteRunner(ctx context.Context) {
+	ticker := time.NewTicker(c.syncPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(c.syncPeriod)
+		}
+		for _, pkg := range c.packageStatus {
+			if err := runCommand(ctx, pkg.ScriptPath, "needDelete", nil); err != nil {
+				continue
+			}
+			err := runCommand(ctx, pkg.ScriptPath, "delete", nil)
+			if err != nil {
+				log.Logger.Infof("[package controller]: %v failed to delete: %v", pkg.Name, err)
+			}
 		}
 	}
 }
