@@ -25,7 +25,10 @@ type component struct{}
 
 func (c *component) Name() string { return Name }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+// fetchOutput fetches the latest output from the dmesg
+// it is ok to call this function multiple times for the following reasons (thus shared with events method)
+// 1) dmesg "FetchStateWithTailScanner" is cheap (just tails the last x number of lines)
+func (c *component) fetchOutput() (*Output, error) {
 	dmesgC, err := components.GetComponent(dmesg.Name)
 	if err != nil {
 		return nil, err
@@ -39,13 +42,13 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
 		}
 	}
-	dmesgState, err := dmesgComponent.State()
+	dmesgTailResults, err := dmesgComponent.FetchStateWithTailScanner()
 	if err != nil {
 		return nil, err
 	}
 
 	o := &Output{}
-	for _, logItem := range dmesgState.TailScanMatched {
+	for _, logItem := range dmesgTailResults.TailScanMatched {
 		if logItem.Error != nil {
 			continue
 		}
@@ -63,47 +66,22 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 	}
 
+	return o, nil
+}
+
+func (c *component) States(ctx context.Context) ([]components.State, error) {
+	o, err := c.fetchOutput()
+	if err != nil {
+		return nil, err
+	}
 	return o.States()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
+	o, err := c.fetchOutput()
 	if err != nil {
 		return nil, err
 	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgState, err := dmesgComponent.State()
-	if err != nil {
-		return nil, err
-	}
-
-	o := &Output{}
-	for _, logItem := range dmesgState.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNVSwitchSXid {
-			continue
-		}
-
-		ev, err := nvidia_query_sxid.ParseDmesgLogLine(logItem.Line)
-		if err != nil {
-			return nil, err
-		}
-		o.DmesgErrors = append(o.DmesgErrors, ev)
-	}
-
 	return o.Events(), nil
 }
 

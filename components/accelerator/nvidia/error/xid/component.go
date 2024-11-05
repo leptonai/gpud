@@ -42,7 +42,11 @@ type component struct {
 
 func (c *component) Name() string { return Name }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+// fetchOutput fetches the latest output from the dmesg and the NVML poller
+// it is ok to call this function multiple times for the following reasons (thus shared with events method)
+// 1) dmesg "FetchStateWithTailScanner" is cheap (just tails the last x number of lines)
+// 2) NVML poller "Last" costs nothing, since we simply read the last state in the queue (no NVML call involved)
+func (c *component) fetchOutput() (*Output, error) {
 	dmesgC, err := components.GetComponent(dmesg.Name)
 	if err != nil {
 		return nil, err
@@ -56,13 +60,13 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
 		}
 	}
-	dmesgState, err := dmesgComponent.State()
+	dmesgTailResults, err := dmesgComponent.FetchStateWithTailScanner()
 	if err != nil {
 		return nil, err
 	}
 
 	o := &Output{}
-	for _, logItem := range dmesgState.TailScanMatched {
+	for _, logItem := range dmesgTailResults.TailScanMatched {
 		if logItem.Error != nil {
 			continue
 		}
@@ -81,86 +85,50 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+
+	// no data yet from realtime xid poller
+	// just return whatever we got from dmesg
+	if err == query.ErrNoData {
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
-		return []components.State{
-			{
-				Name:    Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
+		return o, nil
 	}
+
+	// something went wrong in the poller
+	// just return an error to surface the issue
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
+
+	// no output from the poller
+	// just return whatever we got from dmesg
 	if last.Output == nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Reason:  "no output",
-			},
-		}, nil
+		return o, nil
 	}
 
 	ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
-	if !ok {
+	if !ok { // shoild never happen
 		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
 	}
 	if ev != nil && ev.Xid > 0 {
 		o.NVMLXidEvent = ev
 	}
 
+	return o, nil
+}
+
+func (c *component) States(_ context.Context) ([]components.State, error) {
+	o, err := c.fetchOutput()
+	if err != nil {
+		return nil, err
+	}
 	return o.States()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
+	o, err := c.fetchOutput()
 	if err != nil {
 		return nil, err
 	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgState, err := dmesgComponent.State()
-	if err != nil {
-		return nil, err
-	}
-
-	o := &Output{}
-	for _, logItem := range dmesgState.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNVRMXid {
-			continue
-		}
-
-		ev, err := nvidia_query_xid.ParseDmesgLogLine(logItem.Line)
-		if err != nil {
-			return nil, err
-		}
-		o.DmesgErrors = append(o.DmesgErrors, ev)
-	}
-
 	return o.Events(), nil
 }
 

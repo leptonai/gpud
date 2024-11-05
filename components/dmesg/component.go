@@ -46,7 +46,7 @@ type Component struct {
 
 func (c *Component) Name() string { return Name }
 
-func (c *Component) State() (*State, error) {
+func (c *Component) FetchStateWithTailScanner() (*State, error) {
 	s := &State{
 		File:         c.logPoller.File(),
 		LastSeekInfo: c.logPoller.SeekInfo(),
@@ -70,14 +70,21 @@ func (c *Component) State() (*State, error) {
 	return s, nil
 }
 
+// The dmesg component fetches the latest state from the dmesg tail scanner,
+// rather than querying the log poller, which watches for the realtime dmesg streaming outputs.
+// This is because the tail scanner is cheaper and can read historical logs
+// in case the dmesg log watcher had restarted. It is more important that dmesg
+// state calls DOES NOT miss any logs than having the logs available real-time.
+// The real-time dmesg events can be fetched via the events API.
 func (c *Component) States(ctx context.Context) ([]components.State, error) {
-	s, err := c.State()
+	s, err := c.FetchStateWithTailScanner()
 	if err != nil {
 		return nil, err
 	}
 	return s.States(), nil
 }
 
+// The dmesg component events returns the realtime events from the dmesg log poller.
 func (c *Component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {

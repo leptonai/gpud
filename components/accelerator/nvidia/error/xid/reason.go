@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/leptonai/gpud/components/common"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Reason defines the reason for the output evaluation in the JSON format.
@@ -22,6 +24,9 @@ func (r Reason) JSON() ([]byte, error) {
 
 // XidError represents an Xid error in the reason.
 type XidError struct {
+	// Time is the time of the event.
+	Time metav1.Time `json:"time"`
+
 	// DataSource is the source of the data.
 	DataSource string `json:"data_source"`
 
@@ -37,4 +42,8 @@ type XidError struct {
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+}
+
+func (xidErr XidError) JSON() ([]byte, error) {
+	return json.Marshal(xidErr)
 }

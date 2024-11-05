@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -15,6 +16,7 @@ import (
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 
+	"github.com/dustin/go-humanize"
 	"sigs.k8s.io/yaml"
 )
 
@@ -113,9 +115,9 @@ func (o *Output) GetReason() Reason {
 		}
 	}
 
-	// non-zero xid events, thus state itself as unhealthy
 	reason := Reason{
-		Errors: make(map[uint64]XidError),
+		Messages: make([]string, 0),
+		Errors:   make(map[uint64]XidError),
 	}
 
 	if o.NVMLXidEvent != nil {
@@ -125,6 +127,8 @@ func (o *Output) GetReason() Reason {
 		}
 
 		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
+			Time: o.NVMLXidEvent.Time,
+
 			DataSource: "nvml",
 
 			DeviceUUID: o.NVMLXidEvent.DeviceUUID,
@@ -134,6 +138,13 @@ func (o *Output) GetReason() Reason {
 			SuggestedActionsByGPUd:    suggestedActions,
 			CriticalErrorMarkedByGPUd: o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd,
 		}
+
+		reason.Messages = append(reason.Messages,
+			fmt.Sprintf("xid %d detected by NVML (%s)",
+				o.NVMLXidEvent.Xid,
+				humanize.Time(o.NVMLXidEvent.Time.UTC()),
+			),
+		)
 	}
 
 	if len(o.DmesgErrors) > 0 {
@@ -145,11 +156,22 @@ func (o *Output) GetReason() Reason {
 			xid := uint64(de.Detail.Xid)
 
 			// already detected by NVML wait/watch API
-			if _, ok := reason.Errors[xid]; ok {
+			// and always treat NVML event as more important, more recent
+			// thus we DO NOT overwrite here
+			prev, ok := reason.Errors[xid]
+			if ok && prev.DataSource == "nvml" {
 				continue
 			}
 
+			// only overwrite if it's more recent
+			if ok && prev.Time.After(de.LogItem.Time.UTC()) {
+				continue
+			}
+
+			// either never found by NVML or found in dmesg but older
 			reason.Errors[xid] = XidError{
+				Time: de.LogItem.Time,
+
 				DataSource: "dmesg",
 
 				DeviceUUID: "",
@@ -159,57 +181,52 @@ func (o *Output) GetReason() Reason {
 				SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
 				CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
 			}
+
+			reason.Messages = append(reason.Messages,
+				fmt.Sprintf(
+					"xid %d detected by dmesg (%s)",
+					xid,
+					humanize.Time(de.LogItem.Time.UTC()),
+				),
+			)
 		}
 	}
 
 	return reason
 }
 
-// Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate(onlyGPUdCritical bool) (Reason, bool, error) {
+func (o *Output) States() ([]components.State, error) {
+	outputBytes, err := o.JSON()
+	if err != nil {
+		return nil, err
+	}
+
 	reason := o.GetReason()
 
-	// if none of the Xid errors is marked as critical in GPUd,
-	// the component is then healthy
-	// we still provide other information where the monitoring component
-	// can still take its own action
-	healthy := true
+	// to overwrite the reason with only critical errors
 	criticals := make(map[uint64]XidError)
 	for _, e := range reason.Errors {
 		if e.CriticalErrorMarkedByGPUd {
-			healthy = false
 			criticals[e.Xid] = e
 		}
 	}
-	if onlyGPUdCritical {
-		reason.Errors = criticals
-	}
+	reason.Errors = criticals
 
-	return reason, healthy, nil
-}
-
-func (o *Output) States() ([]components.State, error) {
-	reason, healthy, err := o.Evaluate(true)
-	if err != nil {
-		return nil, err
-	}
-
-	reasonB, err := reason.JSON()
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := o.JSON()
+	reasonBytes, err := reason.JSON()
 	if err != nil {
 		return nil, err
 	}
 
 	state := components.State{
-		Name:    StateNameErrorXid,
-		Healthy: healthy,
-		Reason:  string(reasonB),
+		Name: StateNameErrorXid,
+
+		// only unhealthy if critical xid is found
+		// see events for non-critical xids
+		Healthy: len(reason.Errors) > 0,
+		Reason:  string(reasonBytes),
+
 		ExtraInfo: map[string]string{
-			StateKeyErrorXidData:     string(b),
+			StateKeyErrorXidData:     string(outputBytes), // includes all data
 			StateKeyErrorXidEncoding: StateValueErrorXidEncodingJSON,
 		},
 	}
@@ -227,16 +244,25 @@ const (
 )
 
 func (o *Output) Events() []components.Event {
+	reason := o.GetReason()
+
+	nonCriticals := make(map[uint64]XidError)
+	for _, e := range reason.Errors {
+		if !e.CriticalErrorMarkedByGPUd {
+			nonCriticals[e.Xid] = e
+		}
+	}
+
 	des := make([]components.Event, 0)
-	for _, de := range o.DmesgErrors {
-		b, _ := de.JSON()
+	for _, xidErr := range nonCriticals {
+		xidErrBytes, _ := xidErr.JSON()
 
 		des = append(des, components.Event{
-			Time: de.LogItem.Time,
+			Time: xidErr.Time,
 			Name: EventNameErroXid,
 			ExtraInfo: map[string]string{
-				EventKeyErroXidUnixSeconds: strconv.FormatInt(de.LogItem.Time.Unix(), 10),
-				EventKeyErroXidData:        string(b),
+				EventKeyErroXidUnixSeconds: strconv.FormatInt(xidErr.Time.Unix(), 10),
+				EventKeyErroXidData:        string(xidErrBytes),
 				EventKeyErroXidEncoding:    StateValueErrorXidEncodingJSON,
 			},
 		})
@@ -244,6 +270,11 @@ func (o *Output) Events() []components.Event {
 	if len(des) == 0 {
 		return nil
 	}
+
+	sort.Slice(des, func(i, j int) bool {
+		// puts earlier times first, latest time last
+		return des[i].Time.Before(&des[j].Time)
+	})
 	return des
 }
 
