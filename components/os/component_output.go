@@ -12,15 +12,18 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/shirou/gopsutil/v4/host"
+	procs "github.com/shirou/gopsutil/v4/process"
 )
 
 type Output struct {
-	Host     Host     `json:"host"`
-	Kernel   Kernel   `json:"kernel"`
-	Platform Platform `json:"platform"`
-	Uptimes  Uptimes  `json:"uptimes"`
+	Host                        Host     `json:"host"`
+	Kernel                      Kernel   `json:"kernel"`
+	Platform                    Platform `json:"platform"`
+	Uptimes                     Uptimes  `json:"uptimes"`
+	ProcessCountZombieProcesses int      `json:"process_count_zombie_processes"`
 }
 
 type Host struct {
@@ -76,6 +79,9 @@ const (
 	StateKeyUptimesHumanized           = "uptime_humanized"
 	StateKeyUptimesBootTimeUnixSeconds = "boot_time_unix_seconds"
 	StateKeyUptimesBootTimeHumanized   = "boot_time_humanized"
+
+	StateNameProcessCountsByStatus      = "process_counts_by_status"
+	StateKeyProcessCountZombieProcesses = "process_count_zombie_processes"
 )
 
 func ParseStateHost(m map[string]string) (Host, error) {
@@ -118,6 +124,18 @@ func ParseStateUptimes(m map[string]string) (Uptimes, error) {
 	return u, nil
 }
 
+func ParseStateProcessCountZombieProcesses(m map[string]string) (int, error) {
+	s, ok := m[StateKeyProcessCountZombieProcesses]
+	if ok {
+		count, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, err
+		}
+		return count, nil
+	}
+	return 0, nil
+}
+
 func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
@@ -150,6 +168,13 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 			}
 			o.Uptimes = uptimes
 
+		case StateNameProcessCountsByStatus:
+			var err error
+			o.ProcessCountZombieProcesses, err = ParseStateProcessCountZombieProcesses(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+
 		default:
 			return nil, fmt.Errorf("unknown state name: %s", state.Name)
 		}
@@ -158,7 +183,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 func (o *Output) States() ([]components.State, error) {
-	return []components.State{
+	states := []components.State{
 		{
 			Name:    StateNameHost,
 			Healthy: true,
@@ -197,8 +222,25 @@ func (o *Output) States() ([]components.State, error) {
 				StateKeyUptimesBootTimeHumanized:   o.Uptimes.BootTimeHumanized,
 			},
 		},
-	}, nil
+	}
+
+	stateProcCounts := components.State{
+		Name:    StateNameProcessCountsByStatus,
+		Healthy: true,
+		ExtraInfo: map[string]string{
+			StateKeyProcessCountZombieProcesses: fmt.Sprintf("%d", o.ProcessCountZombieProcesses),
+		},
+	}
+	if o.ProcessCountZombieProcesses >= DefaultZombieProcessCountThreshold {
+		stateProcCounts.Healthy = false
+		stateProcCounts.Reason = fmt.Sprintf("too many zombie processes: %d", o.ProcessCountZombieProcesses)
+	}
+
+	states = append(states, stateProcCounts)
+	return states, nil
 }
+
+const DefaultZombieProcessCountThreshold = 1000
 
 var (
 	defaultPollerOnce sync.Once
@@ -264,6 +306,18 @@ func Get(ctx context.Context) (_ any, e error) {
 		SecondsHumanized:    humanize.RelTime(now.Add(time.Duration(-int64(uptime))*time.Second), now, "ago", "from now"),
 		BootTimeUnixSeconds: boottime,
 		BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
+	}
+
+	allProcs, err := process.CountProcessesByStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for status, procsWithStatus := range allProcs {
+		if status == procs.Zombie {
+			o.ProcessCountZombieProcesses = len(procsWithStatus)
+			break
+		}
 	}
 
 	return o, nil

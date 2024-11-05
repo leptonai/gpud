@@ -1,0 +1,53 @@
+package process
+
+import (
+	"context"
+	"strings"
+
+	"github.com/leptonai/gpud/log"
+
+	procs "github.com/shirou/gopsutil/v4/process"
+)
+
+// CountProcessesByStatus counts all processes by its process status.
+func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, error) {
+	processes, err := procs.ProcessesWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(processes) == 0 {
+		return nil, nil
+	}
+
+	all := make(map[string][]*procs.Process)
+	for _, p := range processes {
+		if p == nil {
+			continue
+		}
+
+		status, err := p.Status()
+		if err != nil {
+			// e.g., Not Found
+			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+				continue
+			}
+
+			log.Logger.Warnw("failed to get status", "error", err)
+			continue
+		}
+		if len(status) < 1 {
+			log.Logger.Warnw("no status found", "pid", p.Pid)
+			continue
+		}
+		s := status[0]
+
+		prev, ok := all[s]
+		if !ok {
+			all[s] = []*procs.Process{p}
+		} else {
+			all[s] = append(prev, p)
+		}
+	}
+
+	return all, nil
+}

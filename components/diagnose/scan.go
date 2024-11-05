@@ -17,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 const (
@@ -43,6 +44,16 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
 
+	processCountsByStatus, err := process.CountProcessesByStatus(ctx)
+	if err != nil {
+		log.Logger.Warnw("error counting processes by status", "error", err)
+	} else {
+		fmt.Printf("%s counted processes by status\n", checkMark)
+		for status, count := range processCountsByStatus {
+			fmt.Printf("%s %q %d\n", checkMark, status, len(count))
+		}
+	}
+
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {
 		log.Logger.Warnw("error checking nvidia gpu installation", "error", err)
@@ -50,7 +61,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	if nvidiaInstalled {
-		fmt.Printf("%s scanning nvidia accelerators\n", inProgress)
+		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
 
 		for _, lib := range defaultNVIDIALibraries {
 			libPath, err := file.FindLibrary(lib, file.WithSearchDirs(
