@@ -186,7 +186,7 @@ func TestDetailsValidation(t *testing.T) {
 			t.Fatalf("xid %d is only hardware error, but has no suggested actions", d.Xid)
 		}
 		if d.Xid != 48 && d.IsOnlyHWError() && d.SuggestedActionsByGPUd != nil {
-			if d.SuggestedActionsByGPUd.RepairActions[0] != common.RepairActionTypeInspectAndRepairHardware {
+			if d.SuggestedActionsByGPUd.RepairActions[0] != common.RepairActionTypeHardwareInspection {
 				t.Errorf("xid %d is only hardware error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
 			}
 		}

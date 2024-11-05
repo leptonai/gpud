@@ -577,7 +577,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -607,7 +607,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -637,7 +637,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -667,7 +667,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -697,7 +697,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -727,7 +727,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -757,7 +757,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -787,7 +787,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -817,7 +817,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -847,7 +847,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -877,7 +877,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -907,7 +907,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -937,7 +937,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -984,7 +984,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1014,7 +1014,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1044,7 +1044,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1074,7 +1074,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1104,7 +1104,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1134,7 +1134,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1164,7 +1164,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1194,7 +1194,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1224,7 +1224,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1254,7 +1254,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1284,7 +1284,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1314,7 +1314,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1344,7 +1344,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1374,7 +1374,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1404,7 +1404,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1434,7 +1434,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1464,7 +1464,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1494,7 +1494,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1524,7 +1524,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1554,7 +1554,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1584,7 +1584,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1614,7 +1614,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1644,7 +1644,7 @@ var details = map[int]Detail{
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1682,7 +1682,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1712,7 +1712,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1742,7 +1742,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1772,7 +1772,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1802,7 +1802,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1844,7 +1844,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1874,7 +1874,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1904,7 +1904,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1934,7 +1934,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1964,7 +1964,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -1994,7 +1994,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2024,7 +2024,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2054,7 +2054,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2084,7 +2084,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2114,7 +2114,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2144,7 +2144,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2174,7 +2174,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2204,7 +2204,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2234,7 +2234,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2264,7 +2264,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2294,7 +2294,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2324,7 +2324,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2354,7 +2354,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2384,7 +2384,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
@@ -2414,7 +2414,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 
 			RepairActions: []common.RepairActionType{
 				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeInspectAndRepairHardware,
+				common.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,

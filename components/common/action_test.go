@@ -25,14 +25,14 @@ func TestSuggestedActions_RequiresReboot(t *testing.T) {
 		{
 			name: "requires reboot and repair hardware",
 			sa: SuggestedActions{
-				RepairActions: []RepairActionType{RepairActionTypeRebootSystem, RepairActionTypeInspectAndRepairHardware},
+				RepairActions: []RepairActionType{RepairActionTypeRebootSystem, RepairActionTypeHardwareInspection},
 			},
 			want: true,
 		},
 		{
 			name: "does not require reboot",
 			sa: SuggestedActions{
-				RepairActions: []RepairActionType{RepairActionTypeInspectAndRepairHardware},
+				RepairActions: []RepairActionType{RepairActionTypeHardwareInspection},
 			},
 			want: false,
 		},
