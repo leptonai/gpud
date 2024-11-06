@@ -97,7 +97,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		reader := bufio.NewReader(os.Stdin)
 		var input string
 		if productName != "unknown" {
-			fmt.Printf("We detect your gpu type is %v, if this is corrent, press Enter. If not, please enter your gpu shape below\n", productName)
+			fmt.Printf("We detect your gpu type is %v, if this is correct, press Enter. If not, please enter your gpu shape below\n", productName)
 			input, err = reader.ReadString('\n')
 			if err != nil {
 				fmt.Println("Error reading input:", err)
@@ -108,7 +108,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			}
 		}
 
-		fmt.Printf("We detect your public IP is %v, if this is corrent, press Enter. If not, please enter your public IP below\n", publicIP)
+		fmt.Printf("We detect your public IP is %v, if this is correct, press Enter. If not, please enter your public IP below\n", publicIP)
 		input, err = reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Error reading input:", err)
@@ -132,7 +132,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			}
 		}
 
-		fmt.Printf("We detect your region is %v, if this is corrent, press Enter. If not, please enter your region below\n", region)
+		fmt.Printf("We detect your region is %v, if this is correct, press Enter. If not, please enter your region below\n", region)
 		input, err = reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Error reading input:", err)
