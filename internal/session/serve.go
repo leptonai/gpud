@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -72,6 +75,8 @@ func (s *Session) serve() {
 			events, err := s.getEvents(ctx, payload)
 			response.Error = err
 			response.Events = events
+		case "delete":
+			go s.deleteMachine(ctx, payload)
 
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
@@ -125,6 +130,33 @@ func (s *Session) serve() {
 			os.Exit(s.autoUpdateExitCode)
 		}
 	}
+}
+
+func (s *Session) deleteMachine(ctx context.Context, payload Request) {
+	// cleanup packages
+	if err := createNeedDeleteFiles("/var/lib/gpud/packages"); err != nil {
+		log.Logger.Errorw("failed to delete packages",
+			"error", err,
+		)
+	}
+}
+
+func createNeedDeleteFiles(rootPath string) error {
+	return filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() && path != rootPath {
+			needDeleteFilePath := filepath.Join(path, "needDelete")
+			file, err := os.Create(needDeleteFilePath)
+			if err != nil {
+				return fmt.Errorf("failed to create needDelete file in %s: %w", path, err)
+			}
+			defer file.Close()
+		}
+		return nil
+	})
 }
 
 func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEvents, error) {
