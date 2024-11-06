@@ -2522,4 +2522,38 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Recovery:       "Ensure that the system cooling is sufficient.",
 		OtherImpact:    "",
 	},
+
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+	// Others
+	20009: {
+		DocumentVersion: "N/A",
+
+		SXid: 20009,
+		Name: "RX Short Error Rate",
+		Description: `Non-fatal link errors
+
+Source:
+NVSWITCH_ERR_HW_DLPL_RX_SHORT_ERROR_RATE in https://github.com/NVIDIA/open-gpu-kernel-modules/blob/1739a20efc4acb55fd1dc53dcc66057b70c2613c/src/common/nvswitch/interface/ctrl_dev_nvswitch.h#L1063
+_RX_SHORT_ERROR_RATE in https://github.com/NVIDIA/open-gpu-kernel-modules/blob/d5a0858f901d15bda4c3d6db19a271507722a860/src/common/nvswitch/kernel/ls10/intr_ls10.c#L6077-L6095
+
+`,
+
+		SuggestedActionsByGPUd:    nil,
+		CriticalErrorMarkedByGPUd: false,
+
+		PotentialFatal: false,
+		AlwaysFatal:    false,
+		Impact:         "",
+		Recovery:       "",
+		OtherImpact:    "",
+	},
 }

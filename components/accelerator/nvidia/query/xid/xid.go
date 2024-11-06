@@ -2368,7 +2368,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 			},
 		},
 		// TODO
-		// ignore first 68 occurrences
+		// ignore first xid 68 occurrences
 		CriticalErrorMarkedByGPUd: true,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
@@ -3199,6 +3199,7 @@ This event is generated if the error suppression mechanism successfully suppress
 			},
 		},
 		// TODO
+		// ignore the first few occurrences and then suggest reboot
 		CriticalErrorMarkedByGPUd: true,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
