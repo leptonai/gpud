@@ -25,6 +25,14 @@ type component struct{}
 
 func (c *component) Name() string { return Name }
 
+func (c *component) States(ctx context.Context) ([]components.State, error) {
+	return []components.State{{
+		Name:    StateNameErrorSXid,
+		Healthy: true,
+		Reason:  "sxid monitoring working",
+	}}, nil
+}
+
 // fetchOutput fetches the latest output from the dmesg
 // it is ok to call this function multiple times for the following reasons (thus shared with events method)
 // 1) dmesg "FetchStateWithTailScanner" is cheap (just tails the last x number of lines)
@@ -67,14 +75,6 @@ func (c *component) fetchOutput() (*Output, error) {
 	}
 
 	return o, nil
-}
-
-func (c *component) States(ctx context.Context) ([]components.State, error) {
-	o, err := c.fetchOutput()
-	if err != nil {
-		return nil, err
-	}
-	return o.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {

@@ -76,15 +76,10 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 func (o *Output) GetReason() Reason {
 	if len(o.DmesgErrors) == 0 {
-		return Reason{
-			Messages: []string{"no sxid error found"},
-		}
+		return Reason{}
 	}
 
-	reason := Reason{
-		Messages: make([]string, 0),
-		Errors:   make(map[uint64]SXidError),
-	}
+	reason := Reason{}
 
 	for _, de := range o.DmesgErrors {
 		if de.Detail == nil {
@@ -93,17 +88,7 @@ func (o *Output) GetReason() Reason {
 
 		sxid := uint64(de.Detail.SXid)
 
-		// already detected by previous dmesg event
-		// only overwrite if it's more recent
-		// in other words, we skip if this is the older dmesg event
-		prev, ok := reason.Errors[sxid]
-		if ok && prev.Time.After(de.LogItem.Time.UTC()) {
-			continue
-		}
-
-		// either never found by previous dmesg event or found newer dmesg event
-		// thus insert or overwrite
-		reason.Errors[sxid] = SXidError{
+		reason.Errors = append(reason.Errors, SXidError{
 			Time: de.LogItem.Time,
 
 			DataSource: "dmesg",
@@ -114,57 +99,21 @@ func (o *Output) GetReason() Reason {
 
 			SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
 			CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
-		}
+		})
+	}
 
+	sort.Slice(reason.Errors, func(i, j int) bool {
+		// puts earlier times first, latest time last
+		return reason.Errors[i].Time.Before(&reason.Errors[j].Time)
+	})
+	for _, e := range reason.Errors {
 		reason.Messages = append(reason.Messages,
-			fmt.Sprintf(
-				"sxid %d detected by dmesg (%s)",
-				sxid,
-				humanize.Time(de.LogItem.Time.UTC()),
+			fmt.Sprintf("sxid %d detected by %s (%s)",
+				e.SXid, e.DataSource, humanize.Time(e.Time.UTC()),
 			),
 		)
 	}
-
 	return reason
-}
-
-func (o *Output) getStates() ([]components.State, error) {
-	outputBytes, err := o.JSON()
-	if err != nil {
-		return nil, err
-	}
-
-	reason := o.GetReason()
-
-	// to overwrite the reason with only critical errors
-	criticals := make(map[uint64]SXidError)
-	for _, e := range reason.Errors {
-		if e.CriticalErrorMarkedByGPUd {
-			criticals[e.SXid] = e
-		}
-	}
-	reason.Errors = criticals
-
-	reasonBytes, err := reason.JSON()
-	if err != nil {
-		return nil, err
-	}
-
-	state := components.State{
-		Name: StateNameErrorSXid,
-
-		// only unhealthy if critical sxid is found
-		// see events for non-critical sxids
-		Healthy: len(reason.Errors) > 0,
-		Reason:  string(reasonBytes),
-
-		ExtraInfo: map[string]string{
-			StateKeyErrorSXidData:     string(outputBytes),
-			StateKeyErrorSXidEncoding: StateValueErrorSXidEncodingJSON,
-		},
-	}
-
-	return []components.State{state}, nil
 }
 
 const (
@@ -179,29 +128,24 @@ const (
 func (o *Output) getEvents(since time.Time) []components.Event {
 	reason := o.GetReason()
 
-	nonCriticals := make(map[uint64]SXidError)
-	for _, e := range reason.Errors {
-		if e.CriticalErrorMarkedByGPUd {
-			log.Logger.Warnw("skipping sxid event for /events due to being critical", "sxid", e.SXid, "time", e.Time, "since", since)
-			continue
-		}
-
-		// if the event is older than since or undefined, skip
-		if e.Time.IsZero() || e.Time.Time.Before(since) {
-			log.Logger.Warnw("skipping sxid event for /events due to being undefined time or too old", "sxid", e.SXid, "time", e.Time, "since", since)
-			continue
-		}
-
-		nonCriticals[e.SXid] = e
-	}
-
 	des := make([]components.Event, 0)
-	for _, sxidErr := range nonCriticals {
+	for i, sxidErr := range reason.Errors {
+		if sxidErr.Time.IsZero() {
+			log.Logger.Warnw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
+			continue
+		}
+		if sxidErr.Time.Time.Before(since) {
+			log.Logger.Warnw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
+			continue
+		}
+
+		msg := reason.Messages[i]
 		sxidErrBytes, _ := sxidErr.JSON()
 
 		des = append(des, components.Event{
-			Time: sxidErr.Time,
-			Name: EventNameErroSXid,
+			Time:    sxidErr.Time,
+			Name:    EventNameErroSXid,
+			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroSXidUnixSeconds: strconv.FormatInt(sxidErr.Time.Unix(), 10),
 				EventKeyErroSXidData:        string(sxidErrBytes),
@@ -212,10 +156,5 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 	if len(des) == 0 {
 		return nil
 	}
-
-	sort.Slice(des, func(i, j int) bool {
-		// puts earlier times first, latest time last
-		return des[i].Time.Before(&des[j].Time)
-	})
 	return des
 }

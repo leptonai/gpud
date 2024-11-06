@@ -14,8 +14,8 @@ type Reason struct {
 	// And do not include the errors.
 	Messages []string `json:"messages"`
 
-	// Errors are the xid errors that happened, keyed by the Xid.
-	Errors map[uint64]XidError `json:"errors"`
+	// Errors are the xid errors that happened, sorted by the event time in ascending order.
+	Errors []XidError `json:"errors"`
 }
 
 func (r Reason) JSON() ([]byte, error) {

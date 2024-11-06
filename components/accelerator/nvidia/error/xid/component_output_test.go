@@ -24,11 +24,9 @@ func TestOutputGetReason(t *testing.T) {
 		wantReason Reason
 	}{
 		{
-			name:  "no errors",
-			input: &Output{},
-			wantReason: Reason{
-				Messages: []string{"no xid error found"},
-			},
+			name:       "no errors",
+			input:      &Output{},
+			wantReason: Reason{},
 		},
 		{
 			name: "nvml xid error",
@@ -44,10 +42,10 @@ func TestOutputGetReason(t *testing.T) {
 			},
 			wantReason: Reason{
 				Messages: []string{
-					fmt.Sprintf("xid 79 detected by NVML (%s)", humanize.Time(ts.UTC())),
+					fmt.Sprintf("xid 79 detected by nvml (%s)", humanize.Time(ts.UTC())),
 				},
-				Errors: map[uint64]XidError{
-					79: {
+				Errors: []XidError{
+					{
 						Time:                      metav1.Time{Time: ts},
 						DataSource:                "nvml",
 						Xid:                       79,
@@ -75,8 +73,8 @@ func TestOutputGetReason(t *testing.T) {
 				Messages: []string{
 					fmt.Sprintf("xid 79 detected by dmesg (%s)", humanize.Time(ts.UTC())),
 				},
-				Errors: map[uint64]XidError{
-					79: {
+				Errors: []XidError{
+					{
 						Time:                      metav1.Time{Time: ts},
 						DataSource:                "dmesg",
 						Xid:                       79,
@@ -118,17 +116,24 @@ func TestOutputGetReason(t *testing.T) {
 			},
 			wantReason: Reason{
 				Messages: []string{
-					fmt.Sprintf("xid 79 detected by NVML (%s)", humanize.Time(ts.UTC())),
+					fmt.Sprintf("xid 79 detected by nvml (%s)", humanize.Time(ts.UTC())),
+					fmt.Sprintf("xid 79 detected by dmesg (%s)", humanize.Time(ts.UTC())),
 					fmt.Sprintf("xid 80 detected by dmesg (%s)", humanize.Time(ts.UTC())),
 				},
-				Errors: map[uint64]XidError{
-					79: {
+				Errors: []XidError{
+					{
 						Time:                      metav1.Time{Time: ts},
 						DataSource:                "nvml",
 						Xid:                       79,
 						CriticalErrorMarkedByGPUd: true,
 					},
-					80: {
+					{
+						Time:                      metav1.Time{Time: ts},
+						DataSource:                "dmesg",
+						Xid:                       79,
+						CriticalErrorMarkedByGPUd: true,
+					},
+					{
 						Time:                      metav1.Time{Time: ts},
 						DataSource:                "dmesg",
 						Xid:                       80,
@@ -149,97 +154,6 @@ func TestOutputGetReason(t *testing.T) {
 				gotJSON, _ := json.MarshalIndent(gotReason, "", "  ")
 				wantJSON, _ := json.MarshalIndent(tt.wantReason, "", "  ")
 				t.Errorf("Output.GetReason() = \n%s\n\nwant\n%s", string(gotJSON), string(wantJSON))
-			}
-		})
-	}
-}
-
-func TestOutput_GetReason_ErrorPrioritization(t *testing.T) {
-	testTime := time.Now()
-	olderTime := metav1.Time{Time: testTime.Add(-1 * time.Hour)}
-	newerTime := metav1.Time{Time: testTime.Add(1 * time.Hour)}
-
-	tests := []struct {
-		name     string
-		input    Output
-		wantXid  uint64
-		wantSrc  string
-		wantTime time.Time
-	}{
-		{
-			name: "prefer nvml over older dmesg",
-			input: Output{
-				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
-					Xid:  123,
-					Time: metav1.Time{Time: testTime},
-				},
-				DmesgErrors: []nvidia_query_xid.DmesgError{
-					{
-						LogItem: query_log.Item{Time: olderTime},
-						Detail:  &nvidia_query_xid.Detail{Xid: 123},
-					},
-				},
-			},
-			wantXid:  123,
-			wantSrc:  "nvml",
-			wantTime: testTime,
-		},
-		{
-			name: "prefer nvml over newer dmesg",
-			input: Output{
-				NVMLXidEvent: &nvidia_query_nvml.XidEvent{
-					Xid:  123,
-					Time: metav1.Time{Time: testTime},
-				},
-				DmesgErrors: []nvidia_query_xid.DmesgError{
-					{
-						LogItem: query_log.Item{Time: newerTime},
-						Detail:  &nvidia_query_xid.Detail{Xid: 123},
-					},
-				},
-			},
-			wantXid:  123,
-			wantSrc:  "nvml",
-			wantTime: testTime,
-		},
-		{
-			name: "prefer newer dmesg when no nvml",
-			input: Output{
-				DmesgErrors: []nvidia_query_xid.DmesgError{
-					{
-						LogItem: query_log.Item{Time: olderTime},
-						Detail:  &nvidia_query_xid.Detail{Xid: 123},
-					},
-					{
-						LogItem: query_log.Item{Time: newerTime},
-						Detail:  &nvidia_query_xid.Detail{Xid: 123},
-					},
-				},
-			},
-			wantXid:  123,
-			wantSrc:  "dmesg",
-			wantTime: newerTime.Time,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			reason := tt.input.GetReason()
-
-			if len(reason.Errors) != 1 {
-				t.Errorf("expected 1 error, got %d", len(reason.Errors))
-				return
-			}
-
-			err := reason.Errors[tt.wantXid]
-			if err.Xid != tt.wantXid {
-				t.Errorf("wrong XID, want %d, got %d", tt.wantXid, err.Xid)
-			}
-			if err.DataSource != tt.wantSrc {
-				t.Errorf("wrong source, want %s, got %s", tt.wantSrc, err.DataSource)
-			}
-			if !err.Time.Time.Equal(tt.wantTime) {
-				t.Errorf("wrong time, want %v, got %v", tt.wantTime, err.Time)
 			}
 		})
 	}

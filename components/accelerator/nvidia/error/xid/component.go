@@ -42,6 +42,41 @@ type component struct {
 
 func (c *component) Name() string { return Name }
 
+// Just checks if the xid poller is working.
+func (c *component) States(_ context.Context) ([]components.State, error) {
+	last, err := c.poller.Last()
+
+	// no data yet from realtime xid poller
+	// just return whatever we got from dmesg
+	if err == query.ErrNoData {
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		return []components.State{
+			{
+				Name:    StateNameErrorXid,
+				Healthy: true,
+				Reason:  "no xid error event",
+			},
+		}, nil
+	}
+
+	// something went wrong in the poller
+	// just return an error to surface the issue
+	if err != nil {
+		return nil, err
+	}
+	if last.Error != nil {
+		return nil, last.Error
+	}
+
+	return []components.State{
+		{
+			Name:    StateNameErrorXid,
+			Healthy: true,
+			Reason:  "xid event polling is working",
+		},
+	}, nil
+}
+
 // fetchOutput fetches the latest output from the dmesg and the NVML poller
 // it is ok to call this function multiple times for the following reasons (thus shared with events method)
 // 1) dmesg "FetchStateWithTailScanner" is cheap (just tails the last x number of lines)
@@ -98,6 +133,9 @@ func (c *component) fetchOutput() (*Output, error) {
 	if err != nil {
 		return nil, err
 	}
+	if last.Error != nil {
+		return nil, last.Error
+	}
 
 	// no output from the poller
 	// just return whatever we got from dmesg
@@ -114,14 +152,6 @@ func (c *component) fetchOutput() (*Output, error) {
 	}
 
 	return o, nil
-}
-
-func (c *component) States(_ context.Context) ([]components.State, error) {
-	o, err := c.fetchOutput()
-	if err != nil {
-		return nil, err
-	}
-	return o.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
