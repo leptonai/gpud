@@ -20,8 +20,6 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/leptonai/gpud/components/accelerator"
-	"github.com/leptonai/gpud/components/state"
-	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/asn"
@@ -38,19 +36,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
 
-	stateFile, err := config.DefaultStateFile()
+	uid, err := GetUID(rootCtx)
 	if err != nil {
-		return fmt.Errorf("failed to get state file: %w", err)
-	}
-	db, err := state.Open(stateFile)
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer db.Close()
-
-	uid, _, err := state.CreateMachineIDIfNotExist(rootCtx, db, "")
-	if err != nil {
-		return fmt.Errorf("failed to get machine uid: %w", err)
+		return err
 	}
 
 	cmd := exec.Command("nproc", "--all")
