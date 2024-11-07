@@ -41,6 +41,8 @@ import (
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
+	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
+	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -610,6 +612,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
 			allComponents = append(allComponents, fabricManagerLogComponent)
+
+		case nvidia_gsp_firmware_mode_id.Name:
+			cfg := nvidia_gsp_firmware_mode.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_gsp_firmware_mode.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_gsp_firmware_mode.New(ctx, cfg))
 
 		case nvidia_infiniband.Name:
 			cfg := nvidia_infiniband.Config{Query: defaultQueryCfg}
