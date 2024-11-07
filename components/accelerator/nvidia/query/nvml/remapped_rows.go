@@ -53,18 +53,20 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	return remRws, nil
 }
 
+// Returns true if a GPU requires a reset to remap the rows.
+func (r RemappedRows) RequiresReset() bool {
+	// "isPending indicates whether or not there are pending remappings. A reset will be required to actually remap the row."
+	return r.RemappingPending
+}
+
 // Returns true if a GPU qualifies for RMA.
 // ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds-for-row-remapping
 func (r RemappedRows) QualifiesForRMA() bool {
+	// "Regarding row-remapping failures, the RMA criteria is met when the row-remapping failure flag is set and validated by the field diagnostic."
+	// "Any of the following events will trigger a row-remapping failure flag:"
 	// "remapping attempt for an uncorrectable memory error on a bank that already has eight uncorrectable error rows remapped."
 	if r.RemappingFailed && r.RemappedDueToUncorrectableErrors >= 8 {
 		return true
 	}
 	return false
-}
-
-// Returns true if a GPU requires a reset to remap the rows.
-func (r RemappedRows) RequiresReset() bool {
-	// "isPending indicates whether or not there are pending remappings. A reset will be required to actually remap the row."
-	return r.RemappingPending
 }
