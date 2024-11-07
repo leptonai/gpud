@@ -22,6 +22,9 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		MemoryErrorManagementCapabilities: i.MemoryErrorManagementCapabilities,
 	}
 
+	rmaMsgs := make([]string, 0)
+	needRebootMsgs := make([]string, 0)
+
 	if i.SMI != nil {
 		for _, g := range i.SMI.GPUs {
 			if g.RemappedRows == nil {
@@ -34,32 +37,24 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			}
 			o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
 
-			rma, err := parsed.QualifiesForRMA()
-			if err != nil {
-				log.Logger.Warnw("failed to determine if GPU qualifies for RMA", "error", err)
-				continue
-			}
-			if rma {
-				if o.SuggestedActions == nil {
-					o.SuggestedActions = &common.SuggestedActions{}
-				}
-				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors))
-			}
-
 			requiresReset, err := parsed.RequiresReset()
 			if err != nil {
 				log.Logger.Warnw("failed to determine if GPU needs reset", "error", err)
 				continue
 			}
 			if requiresReset {
-				if o.SuggestedActions == nil {
-					o.SuggestedActions = &common.SuggestedActions{}
-				}
+				msg := fmt.Sprintf("nvidia-smi indicates GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset)
+				needRebootMsgs = append(needRebootMsgs, msg)
+			}
 
-				// for now, when we need GPU reset, we recommend simple reboot
-				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
-
-				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset))
+			rma, err := parsed.QualifiesForRMA()
+			if err != nil {
+				log.Logger.Warnw("failed to determine if GPU qualifies for RMA", "error", err)
+				continue
+			}
+			if rma {
+				msg := fmt.Sprintf("nvidia-smi indicates GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors)
+				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}
 	}
@@ -68,26 +63,35 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		for _, device := range i.NVML.DeviceInfos {
 			o.RemappedRowsNVML = append(o.RemappedRowsNVML, device.RemappedRows)
 
-			rma := device.RemappedRows.QualifiesForRMA()
-			if rma {
-				if o.SuggestedActions == nil {
-					o.SuggestedActions = &common.SuggestedActions{}
-				}
-				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed))
-			}
-
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
-				if o.SuggestedActions == nil {
-					o.SuggestedActions = &common.SuggestedActions{}
-				}
+				msg := fmt.Sprintf("NVML indicates GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
+				needRebootMsgs = append(needRebootMsgs, msg)
+			}
 
-				// for now, when we need GPU reset, we recommend simple reboot
-				o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
-
-				o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset))
+			rma := device.RemappedRows.QualifiesForRMA()
+			if rma {
+				msg := fmt.Sprintf("NVML indicates GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
+				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}
+	}
+
+	if len(needRebootMsgs) > 0 {
+		if o.SuggestedActions == nil {
+			o.SuggestedActions = &common.SuggestedActions{}
+		}
+
+		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(needRebootMsgs, ", "))
+		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
+	}
+	if len(rmaMsgs) > 0 {
+		if o.SuggestedActions == nil {
+			o.SuggestedActions = &common.SuggestedActions{}
+		}
+
+		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(rmaMsgs, ", "))
+		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeHardwareInspection)
 	}
 
 	return o
