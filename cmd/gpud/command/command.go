@@ -382,6 +382,43 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 
+		// for notifying control plane state change
+		{
+			Name:    "notify",
+			Aliases: []string{"nt"},
+
+			Usage: "notify control plane of state change",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
+				cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+					Value: "mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:        "uid",
+					Usage:       "uid for this machine",
+					Destination: &uid,
+				},
+			},
+			Subcommands: []cli.Command{
+				{
+					Name:   "startup",
+					Usage:  "notify machine startup",
+					Action: cmdNotifyStartup,
+				},
+				{
+					Name:   "shutdown",
+					Usage:  "notify machine shutdown",
+					Action: cmdNotifyShutdown,
+				},
+			},
+		},
+
 		// for checking gpud status
 		{
 			Name:    "status",
