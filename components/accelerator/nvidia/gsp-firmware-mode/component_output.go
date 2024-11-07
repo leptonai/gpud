@@ -78,7 +78,7 @@ func (o *Output) States() ([]components.State, error) {
 	reasons := []string{}
 	for _, mode := range o.GSPFirmwareModesNVML {
 		if !mode.Enabled {
-			reasons = append(reasons, fmt.Sprintf("device %s does not enable GSP firmware mode", mode.UUID))
+			reasons = append(reasons, fmt.Sprintf("device %s does not enable GSP firmware mode (GSP mode supported: %v)", mode.UUID, mode.Supported))
 		}
 	}
 	reason := "GSP firmware mode is disabled for all devices"
