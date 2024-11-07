@@ -103,6 +103,7 @@ type DeviceInfo struct {
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
+	GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
 	PersistenceMode PersistenceMode `json:"persistence_mode"`
 	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
 	ClockSpeed      ClockSpeed      `json:"clock_speed"`
@@ -415,6 +416,12 @@ func (inst *instance) Get() (*Output, error) {
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
 		var err error
+
+		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devInfo.device)
+		if err != nil {
+			return st, err
+		}
+
 		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
 		if err != nil {
 			return st, err

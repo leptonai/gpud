@@ -512,6 +512,12 @@ func (o *Output) PrintInfo(debug bool) {
 		for _, dev := range o.NVML.DeviceInfos {
 			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
 
+			if dev.GSPFirmwareMode.Enabled {
+				fmt.Printf("%s NVML GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
+			} else {
+				fmt.Printf("%s NVML GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
+			}
+
 			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
 			if dev.PersistenceMode.Enabled {
 				fmt.Printf("%s NVML persistence mode is enabled (nvidia-persistenced running %v)\n", checkMark, o.PersistencedRunning)

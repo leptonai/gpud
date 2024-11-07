@@ -46,7 +46,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return []components.State{
 			{
 				Name:    nvidia_peermem_id.Name,
-				Healthy: false,
+				Healthy: true,
 				Error:   query.ErrNoData.Error(),
 				Reason:  query.ErrNoData.Error(),
 			},

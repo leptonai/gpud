@@ -17,6 +17,7 @@ import (
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
+	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -272,6 +273,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_nccl_id.Name] = nil
 		cfg.Components[nvidia_peermem_id.Name] = nil
 		cfg.Components[nvidia_persistence_mode_id.Name] = nil
+		cfg.Components[nvidia_gsp_firmware_mode_id.Name] = nil
 	} else {
 		log.Logger.Debugw("auto-detect nvidia not supported -- skipping", "os", runtime.GOOS)
 	}
