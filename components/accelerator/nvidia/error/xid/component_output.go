@@ -112,15 +112,10 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 func (o *Output) GetReason() Reason {
 	if len(o.DmesgErrors) == 0 && (o.NVMLXidEvent == nil || o.NVMLXidEvent.Detail == nil) {
-		return Reason{
-			Messages: []string{"no xid error found"},
-		}
+		return Reason{}
 	}
 
-	reason := Reason{
-		Messages: make([]string, 0),
-		Errors:   make(map[uint64]XidError),
-	}
+	reason := Reason{}
 
 	if o.NVMLXidEvent != nil {
 		var suggestedActions *common.SuggestedActions = nil
@@ -128,7 +123,7 @@ func (o *Output) GetReason() Reason {
 			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActionsByGPUd
 		}
 
-		reason.Errors[o.NVMLXidEvent.Xid] = XidError{
+		reason.Errors = append(reason.Errors, XidError{
 			Time: o.NVMLXidEvent.Time,
 
 			DataSource: "nvml",
@@ -139,101 +134,42 @@ func (o *Output) GetReason() Reason {
 
 			SuggestedActionsByGPUd:    suggestedActions,
 			CriticalErrorMarkedByGPUd: o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd,
+		})
+	}
+
+	for _, de := range o.DmesgErrors {
+		if de.Detail == nil {
+			continue
 		}
 
+		xid := uint64(de.Detail.Xid)
+
+		reason.Errors = append(reason.Errors, XidError{
+			Time: de.LogItem.Time,
+
+			DataSource: "dmesg",
+
+			DeviceUUID: "",
+
+			Xid: xid,
+
+			SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
+			CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
+		})
+	}
+
+	sort.Slice(reason.Errors, func(i, j int) bool {
+		// puts earlier times first, latest time last
+		return reason.Errors[i].Time.Before(&reason.Errors[j].Time)
+	})
+	for _, e := range reason.Errors {
 		reason.Messages = append(reason.Messages,
-			fmt.Sprintf("xid %d detected by NVML (%s)",
-				o.NVMLXidEvent.Xid,
-				humanize.Time(o.NVMLXidEvent.Time.UTC()),
+			fmt.Sprintf("xid %d detected by %s (%s)",
+				e.Xid, e.DataSource, humanize.Time(e.Time.UTC()),
 			),
 		)
 	}
-
-	if len(o.DmesgErrors) > 0 {
-		for _, de := range o.DmesgErrors {
-			if de.Detail == nil {
-				continue
-			}
-
-			xid := uint64(de.Detail.Xid)
-
-			// already detected by NVML wait/watch API
-			// and always treat NVML event as more important, more recent
-			// thus we DO NOT overwrite here
-			prev, ok := reason.Errors[xid]
-			if ok && prev.DataSource == "nvml" {
-				continue
-			}
-
-			// only overwrite if it's more recent
-			if ok && prev.Time.After(de.LogItem.Time.UTC()) {
-				continue
-			}
-
-			// either never found by NVML or found in dmesg but older
-			reason.Errors[xid] = XidError{
-				Time: de.LogItem.Time,
-
-				DataSource: "dmesg",
-
-				DeviceUUID: "",
-
-				Xid: xid,
-
-				SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
-				CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
-			}
-
-			reason.Messages = append(reason.Messages,
-				fmt.Sprintf(
-					"xid %d detected by dmesg (%s)",
-					xid,
-					humanize.Time(de.LogItem.Time.UTC()),
-				),
-			)
-		}
-	}
-
 	return reason
-}
-
-func (o *Output) getStates() ([]components.State, error) {
-	outputBytes, err := o.JSON()
-	if err != nil {
-		return nil, err
-	}
-
-	reason := o.GetReason()
-
-	// to overwrite the reason with only critical errors
-	criticals := make(map[uint64]XidError)
-	for _, e := range reason.Errors {
-		if e.CriticalErrorMarkedByGPUd {
-			criticals[e.Xid] = e
-		}
-	}
-	reason.Errors = criticals
-
-	reasonBytes, err := reason.JSON()
-	if err != nil {
-		return nil, err
-	}
-
-	state := components.State{
-		Name: StateNameErrorXid,
-
-		// only unhealthy if critical xid is found
-		// see events for non-critical xids
-		Healthy: len(reason.Errors) > 0,
-		Reason:  string(reasonBytes),
-
-		ExtraInfo: map[string]string{
-			StateKeyErrorXidData:     string(outputBytes), // includes all data
-			StateKeyErrorXidEncoding: StateValueErrorXidEncodingJSON,
-		},
-	}
-
-	return []components.State{state}, nil
 }
 
 const (
@@ -248,29 +184,24 @@ const (
 func (o *Output) getEvents(since time.Time) []components.Event {
 	reason := o.GetReason()
 
-	nonCriticals := make(map[uint64]XidError)
-	for _, e := range reason.Errors {
-		if e.CriticalErrorMarkedByGPUd {
-			log.Logger.Warnw("skipping xid event for /events due to being critical", "xid", e.Xid, "time", e.Time, "since", since)
-			continue
-		}
-
-		// if the event is older than since or undefined, skip
-		if e.Time.IsZero() || e.Time.Time.Before(since) {
-			log.Logger.Warnw("skipping xid event for /events due to being undefined time or too old", "xid", e.Xid, "time", e.Time, "since", since)
-			continue
-		}
-
-		nonCriticals[e.Xid] = e
-	}
-
 	des := make([]components.Event, 0)
-	for _, xidErr := range nonCriticals {
+	for i, xidErr := range reason.Errors {
+		if xidErr.Time.IsZero() {
+			log.Logger.Warnw("skipping event because it's too old", "xid", xidErr.Xid, "since", since, "event_time", xidErr.Time.Time)
+			continue
+		}
+		if xidErr.Time.Time.Before(since) {
+			log.Logger.Warnw("skipping event because it's too old", "xid", xidErr.Xid, "since", since, "event_time", xidErr.Time.Time)
+			continue
+		}
+
+		msg := reason.Messages[i]
 		xidErrBytes, _ := xidErr.JSON()
 
 		des = append(des, components.Event{
-			Time: xidErr.Time,
-			Name: EventNameErroXid,
+			Time:    xidErr.Time,
+			Name:    EventNameErroXid,
+			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroXidUnixSeconds: strconv.FormatInt(xidErr.Time.Unix(), 10),
 				EventKeyErroXidData:        string(xidErrBytes),
@@ -281,11 +212,6 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 	if len(des) == 0 {
 		return nil
 	}
-
-	sort.Slice(des, func(i, j int) bool {
-		// puts earlier times first, latest time last
-		return des[i].Time.Before(&des[j].Time)
-	})
 	return des
 }
 
