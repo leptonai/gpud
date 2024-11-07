@@ -513,9 +513,9 @@ func (o *Output) PrintInfo(debug bool) {
 			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
 
 			if dev.GSPFirmwareMode.Enabled {
-				fmt.Printf("%s NVML GSP firmware mode is enabled\n", checkMark)
+				fmt.Printf("%s NVML GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
 			} else {
-				fmt.Printf("%s NVML GSP firmware mode is disabled\n", warningSign)
+				fmt.Printf("%s NVML GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
 			}
 
 			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
