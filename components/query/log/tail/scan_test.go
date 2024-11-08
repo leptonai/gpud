@@ -1,6 +1,7 @@
 package tail
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -512,103 +513,317 @@ func TestScan_DedupWithFilters(t *testing.T) {
 	}
 }
 
-// go test -bench=BenchmarkScan -benchmem
-// go test -bench=BenchmarkScan_DmesgLog -benchmem
-func BenchmarkScan_DmesgLog(b *testing.B) {
-	ctx := context.Background()
+func TestScan_EmptyAndSmallFiles(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	benchmarks := []struct {
+	tests := []struct {
 		name        string
+		content     string
 		linesToTail int
-		withFilter  bool
-		dedup       bool
+		want        []string
+		wantCount   int
 	}{
-		{"Tail100NoFilter", 100, false, false},
-		{"Tail1000NoFilter", 1000, false, false},
-		{"Tail100WithFilter", 100, true, false},
-		{"Tail1000WithFilter", 1000, true, false},
-
-		{"Tail100NoFilterWithDedup", 100, false, true},
-		{"Tail1000NoFilterWithDedup", 1000, false, true},
-		{"Tail100WithFilterWithDedup", 100, true, true},
-		{"Tail1000WithFilterWithDedup", 1000, true, true},
+		{
+			name:        "empty file",
+			content:     "",
+			linesToTail: 10,
+			want:        []string{},
+			wantCount:   0,
+		},
+		{
+			name:        "single line without newline",
+			content:     "single line",
+			linesToTail: 10,
+			want:        []string{"single line"},
+			wantCount:   1,
+		},
+		{
+			name:        "single line with newline",
+			content:     "single line\n",
+			linesToTail: 10,
+			want:        []string{"single line"},
+			wantCount:   1,
+		},
+		{
+			name:        "multiple empty lines",
+			content:     "\n\n\n\n",
+			linesToTail: 10,
+			want:        nil,
+			wantCount:   0,
+		},
+		{
+			name:        "lines smaller than chunk size",
+			content:     strings.Repeat("short\n", 1000),
+			linesToTail: 5,
+			want: []string{
+				"short",
+				"short",
+				"short",
+				"short",
+				"short",
+			},
+			wantCount: 5,
+		},
 	}
 
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			var opts []OpOption
-			opts = append(opts,
-				WithFile("testdata/dmesg.0.log"),
-				WithLinesToTail(bm.linesToTail),
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpf, err := os.CreateTemp("", "test_empty*.txt")
+			if err != nil {
+				t.Fatalf("failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpf.Name())
+
+			if _, err := tmpf.Write([]byte(tt.content)); err != nil {
+				t.Fatalf("failed to write to temp file: %v", err)
+			}
+			if err := tmpf.Close(); err != nil {
+				t.Fatalf("failed to close temp file: %v", err)
+			}
+
+			var got []string
+			count, err := Scan(
+				ctx,
+				WithFile(tmpf.Name()),
+				WithLinesToTail(tt.linesToTail),
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
 			)
 
-			if bm.withFilter {
-				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
-					Substring: ptr.To("error"),
-				}))
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
 			}
 
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, err := Scan(ctx, opts...)
-				if err != nil {
-					b.Fatal(err)
-				}
+			if count != tt.wantCount {
+				t.Errorf("got count = %d, want %d", count, tt.wantCount)
+			}
+
+			if len(got) == 0 && len(tt.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got lines = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-// go test -bench=BenchmarkScan -benchmem
-// go test -bench=BenchmarkScan_KubeletLog -benchmem
-func BenchmarkScan_KubeletLog(b *testing.B) {
+func TestScan_LongLines(t *testing.T) {
 	ctx := context.Background()
 
-	benchmarks := []struct {
-		name        string
-		linesToTail int
-		withFilter  bool
-		dedup       bool
-	}{
-		{"Tail100NoFilter", 100, false, false},
-		{"Tail1000NoFilter", 1000, false, false},
-		{"Tail100WithFilter", 100, true, false},
-		{"Tail1000WithFilter", 1000, true, false},
+	// Create lines longer than the chunk size (4096 bytes)
+	longLine := strings.Repeat("x", 5000)
+	veryLongLine := strings.Repeat("y", 10000)
 
-		{"Tail100NoFilterWithDedup", 100, false, true},
-		{"Tail1000NoFilterWithDedup", 1000, false, true},
-		{"Tail100WithFilterWithDedup", 100, true, true},
-		{"Tail1000WithFilterWithDedup", 1000, true, true},
+	tests := []struct {
+		name        string
+		content     string
+		linesToTail int
+		want        []string
+		wantCount   int
+	}{
+		{
+			name:        "single long line",
+			content:     longLine,
+			linesToTail: 1,
+			want:        []string{longLine},
+			wantCount:   1,
+		},
+		{
+			name:        "multiple long lines",
+			content:     longLine + "\n" + veryLongLine,
+			linesToTail: 2,
+			want:        []string{veryLongLine, longLine},
+			wantCount:   2,
+		},
+		{
+			name: "mix of long and short lines",
+			content: strings.Join([]string{
+				"short line",
+				longLine,
+				"another short line",
+				veryLongLine,
+			}, "\n"),
+			linesToTail: 3,
+			want: []string{
+				veryLongLine,
+				"another short line",
+				longLine,
+			},
+			wantCount: 3,
+		},
 	}
 
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			var opts []OpOption
-			opts = append(opts,
-				WithFile("testdata/kubelet.0.log"),
-				WithLinesToTail(bm.linesToTail),
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpf, err := os.CreateTemp("", "test_longlines*.txt")
+			if err != nil {
+				t.Fatalf("failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpf.Name())
+
+			if _, err := tmpf.Write([]byte(tt.content)); err != nil {
+				t.Fatalf("failed to write to temp file: %v", err)
+			}
+			if err := tmpf.Close(); err != nil {
+				t.Fatalf("failed to close temp file: %v", err)
+			}
+
+			var got []string
+			count, err := Scan(
+				ctx,
+				WithFile(tmpf.Name()),
+				WithLinesToTail(tt.linesToTail),
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
 			)
 
-			if bm.withFilter {
-				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
-					Substring: ptr.To("error"),
-				}))
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
 			}
 
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, err := Scan(ctx, opts...)
-				if err != nil {
-					b.Fatal(err)
+			if count != tt.wantCount {
+				t.Errorf("got count = %d, want %d", count, tt.wantCount)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got lines = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScan_CommandOutput(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		commands    [][]string
+		linesToTail int
+		wantErr     bool
+		wantCount   int
+	}{
+		{
+			name: "simple echo command",
+			commands: [][]string{
+				{"echo", "line1\necho line2\necho line3"},
+			},
+			linesToTail: 2,
+			wantCount:   2,
+		},
+		{
+			name: "multiple commands",
+			commands: [][]string{
+				{"echo", "line1"},
+				{"echo", "line2"},
+			},
+			linesToTail: 5,
+			wantCount:   2,
+		},
+		{
+			name: "command with error",
+			commands: [][]string{
+				{"nonexistent_command"},
+			},
+			linesToTail: 5,
+			wantErr:     true,
+		},
+		{
+			name:        "no commands",
+			commands:    [][]string{},
+			linesToTail: 5,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			count, err := Scan(
+				ctx,
+				WithCommands(tt.commands),
+				WithLinesToTail(tt.linesToTail),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
+			)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error but got none")
 				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if count != tt.wantCount {
+				t.Errorf("got count = %d, want %d", count, tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestReverse(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []byte
+		want  []byte
+	}{
+		{
+			name:  "empty",
+			input: []byte{},
+			want:  []byte{},
+		},
+		{
+			name:  "single byte",
+			input: []byte{1},
+			want:  []byte{1},
+		},
+		{
+			name:  "even length",
+			input: []byte{1, 2, 3, 4},
+			want:  []byte{4, 3, 2, 1},
+		},
+		{
+			name:  "odd length",
+			input: []byte{1, 2, 3},
+			want:  []byte{3, 2, 1},
+		},
+		{
+			name:  "string content",
+			input: []byte("hello"),
+			want:  []byte("olleh"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Make a copy to avoid modifying test data
+			input := make([]byte, len(tt.input))
+			copy(input, tt.input)
+
+			reverse(input)
+
+			if !bytes.Equal(input, tt.want) {
+				t.Errorf("reverse() = %v, want %v", input, tt.want)
 			}
 		})
 	}
