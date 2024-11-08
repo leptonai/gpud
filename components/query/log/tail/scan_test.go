@@ -218,3 +218,77 @@ func generateExpectedLines(total, n int) []string {
 	}
 	return result
 }
+
+func TestScan_LastLineWithoutNewline(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create temp file with content that doesn't end in newline
+	tmpf, err := os.CreateTemp("", "test_nonewline*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpf.Name())
+
+	// Write content without final newline
+	content := "line1\nline2\nline3\nfinal_line_no_newline"
+	if _, err := tmpf.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	if err := tmpf.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		linesToTail   int
+		selectFilters []*query_log_filter.Filter
+		want          []string
+	}{
+		{
+			name:        "tail 2 lines with last line having no newline",
+			linesToTail: 2,
+			want:        []string{"final_line_no_newline", "line3"},
+		},
+		{
+			name:        "tail all lines with last line having no newline",
+			linesToTail: 5,
+			want:        []string{"final_line_no_newline", "line3", "line2", "line1"},
+		},
+		{
+			name:        "tail with filter matching last line",
+			linesToTail: 5,
+			selectFilters: []*query_log_filter.Filter{
+				{Substring: ptr.To("final")},
+			},
+			want: []string{"final_line_no_newline"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			_, err := Scan(
+				ctx,
+				WithFile(tmpf.Name()),
+				WithLinesToTail(tt.linesToTail),
+				WithSelectFilter(tt.selectFilters...),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
+			)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Scan = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
