@@ -38,7 +38,9 @@ import (
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
@@ -244,7 +246,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 			// nvidia_error_xid cannot be used without dmesg
 			nvrmXidFilterFound := false
-			if _, ok := config.Components[nvidia_error_xid.Name]; ok {
+			if _, ok := config.Components[nvidia_component_error_xid_id.Name]; ok {
 				for _, f := range cfg.Log.SelectFilters {
 					if f.Name == dmesg.EventNvidiaNVRMXid {
 						nvrmXidFilterFound = true
@@ -252,13 +254,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					}
 				}
 				if !nvrmXidFilterFound {
-					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_error_xid.Name, dmesg.EventNvidiaNVRMXid)
+					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_xid_id.Name, dmesg.EventNvidiaNVRMXid)
 				}
 			}
 
 			// nvidia_error_sxid cannot be used without dmesg
 			nvswitchSXidFilterFound := false
-			if _, ok := config.Components[nvidia_error_sxid.Name]; ok {
+			if _, ok := config.Components[nvidia_component_error_sxid_id.Name]; ok {
 				for _, f := range cfg.Log.SelectFilters {
 					if f.Name == dmesg.EventNvidiaNVSwitchSXid {
 						nvswitchSXidFilterFound = true
@@ -266,7 +268,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					}
 				}
 				if !nvswitchSXidFilterFound {
-					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_error_sxid.Name, dmesg.EventNvidiaNVSwitchSXid)
+					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_sxid_id.Name, dmesg.EventNvidiaNVSwitchSXid)
 				}
 			}
 
@@ -424,7 +426,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_error.New(ctx, cfg))
 
-		case nvidia_error_xid.Name:
+		case nvidia_component_error_xid_id.Name:
 			cfg := nvidia_error_xid.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := nvidia_error_xid.ParseConfig(configValue, db)
@@ -438,7 +440,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg))
 
-		case nvidia_error_sxid.Name:
+		case nvidia_component_error_sxid_id.Name:
 			allComponents = append(allComponents, nvidia_error_sxid.New())
 
 		case nvidia_clock.Name:
