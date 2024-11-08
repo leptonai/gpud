@@ -120,14 +120,15 @@ func (inst *instance) pollXidEvents() {
 
 		xid := e.EventData
 
-		var xidDetail *nvidia_query_xid.Detail
-		msg := "received event but xid unknown"
-		if xid > 0 {
-			var ok bool
-			xidDetail, ok = nvidia_query_xid.GetDetail(int(xid))
-			if ok {
-				msg = "received event with a known xid"
-			}
+		if xid == 0 {
+			log.Logger.Debugw("received xid 0 as an event -- skipping", "return", ret)
+			continue
+		}
+
+		msg := "received event with a known xid"
+		xidDetail, ok := nvidia_query_xid.GetDetail(int(xid))
+		if !ok {
+			msg = "received event but xid unknown"
 		}
 
 		var deviceUUID string
@@ -162,7 +163,7 @@ func (inst *instance) pollXidEvents() {
 			Error: deviceUUIDErr,
 		}
 
-		log.Logger.Warnw("detected xid event", "event", event)
+		log.Logger.Warnw("detected xid event", "xid", xid, "event", event)
 		select {
 		case <-inst.rootCtx.Done():
 			return
