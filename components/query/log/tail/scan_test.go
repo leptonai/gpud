@@ -293,6 +293,225 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 	}
 }
 
+func TestScan_Dedup(t *testing.T) {
+	ctx := context.Background()
+
+	// Create temp file with duplicate lines
+	tmpf, err := os.CreateTemp("", "test_dedup*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpf.Name())
+
+	// Write content with duplicate lines in different patterns
+	content := strings.Join([]string{
+		"unique_line_1",
+		"duplicate_line",
+		"unique_line_2",
+		"duplicate_line", // Immediate duplicate
+		"unique_line_3",
+		"duplicate_line", // Distant duplicate
+		"unique_line_4",
+		"DUPLICATE_LINE", // Case different but same content when lowercased
+		"unique_line_5",
+		"duplicate_line\n", // With trailing newline
+		"unique_line_6",
+	}, "\n")
+
+	if _, err := tmpf.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	if err := tmpf.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		linesToTail int
+		dedup       bool
+		want        []string
+		wantCount   int
+	}{
+		{
+			name:        "no dedup",
+			linesToTail: 100,
+			dedup:       false,
+			want: []string{
+				"unique_line_6",
+				"duplicate_line",
+				"unique_line_5",
+				"DUPLICATE_LINE",
+				"unique_line_4",
+				"duplicate_line",
+				"unique_line_3",
+				"duplicate_line",
+				"unique_line_2",
+				"duplicate_line",
+				"unique_line_1",
+			},
+			wantCount: 11,
+		},
+		{
+			name:        "with dedup",
+			linesToTail: 100,
+			dedup:       true,
+			want: []string{
+				"unique_line_6",
+				"duplicate_line",
+				"unique_line_5",
+				"DUPLICATE_LINE",
+				"unique_line_4",
+				"unique_line_3",
+				"unique_line_2",
+				"unique_line_1",
+			},
+			wantCount: 8,
+		},
+		{
+			name:        "dedup with limited lines",
+			linesToTail: 5,
+			dedup:       true,
+			want: []string{
+				"unique_line_6",
+				"duplicate_line",
+				"unique_line_5",
+				"DUPLICATE_LINE",
+				"unique_line_4",
+			},
+			wantCount: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			count, err := Scan(
+				ctx,
+				WithFile(tmpf.Name()),
+				WithLinesToTail(tt.linesToTail),
+				WithDedup(tt.dedup),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
+			)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if count != tt.wantCount {
+				t.Errorf("got count = %d, want %d", count, tt.wantCount)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got lines = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScan_DedupWithFilters(t *testing.T) {
+	ctx := context.Background()
+
+	// Create temp file with duplicate lines and different patterns
+	tmpf, err := os.CreateTemp("", "test_dedup_filter*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpf.Name())
+
+	content := strings.Join([]string{
+		"error: duplicate error message",
+		"info: some info",
+		"error: duplicate error message",
+		"warning: some warning",
+		"error: different error",
+		"error: duplicate error message",
+		"info: another info",
+	}, "\n")
+
+	if _, err := tmpf.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	if err := tmpf.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		linesToTail   int
+		dedup         bool
+		selectFilters []*query_log_filter.Filter
+		want          []string
+		wantCount     int
+	}{
+		{
+			name:        "filter without dedup",
+			linesToTail: 100,
+			dedup:       false,
+			selectFilters: []*query_log_filter.Filter{
+				{Substring: ptr.To("error")},
+			},
+			want: []string{
+				"error: duplicate error message",
+				"error: different error",
+				"error: duplicate error message",
+				"error: duplicate error message",
+			},
+			wantCount: 4,
+		},
+		{
+			name:        "filter with dedup",
+			linesToTail: 100,
+			dedup:       true,
+			selectFilters: []*query_log_filter.Filter{
+				{Substring: ptr.To("error")},
+			},
+			want: []string{
+				"error: duplicate error message",
+				"error: different error",
+			},
+			wantCount: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			count, err := Scan(
+				ctx,
+				WithFile(tmpf.Name()),
+				WithLinesToTail(tt.linesToTail),
+				WithDedup(tt.dedup),
+				WithSelectFilter(tt.selectFilters...),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+					got = append(got, string(line))
+				}),
+			)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if count != tt.wantCount {
+				t.Errorf("got count = %d, want %d", count, tt.wantCount)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got lines = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // go test -bench=BenchmarkScan -benchmem
 // go test -bench=BenchmarkScan_DmesgLog -benchmem
 func BenchmarkScan_DmesgLog(b *testing.B) {
@@ -302,11 +521,17 @@ func BenchmarkScan_DmesgLog(b *testing.B) {
 		name        string
 		linesToTail int
 		withFilter  bool
+		dedup       bool
 	}{
-		{"Tail100NoFilter", 100, false},
-		{"Tail1000NoFilter", 1000, false},
-		{"Tail100WithFilter", 100, true},
-		{"Tail1000WithFilter", 1000, true},
+		{"Tail100NoFilter", 100, false, false},
+		{"Tail1000NoFilter", 1000, false, false},
+		{"Tail100WithFilter", 100, true, false},
+		{"Tail1000WithFilter", 1000, true, false},
+
+		{"Tail100NoFilterWithDedup", 100, false, true},
+		{"Tail1000NoFilterWithDedup", 1000, false, true},
+		{"Tail100WithFilterWithDedup", 100, true, true},
+		{"Tail1000WithFilterWithDedup", 1000, true, true},
 	}
 
 	for _, bm := range benchmarks {
@@ -347,11 +572,17 @@ func BenchmarkScan_KubeletLog(b *testing.B) {
 		name        string
 		linesToTail int
 		withFilter  bool
+		dedup       bool
 	}{
-		{"Tail100NoFilter", 100, false},
-		{"Tail1000NoFilter", 1000, false},
-		{"Tail100WithFilter", 100, true},
-		{"Tail1000WithFilter", 1000, true},
+		{"Tail100NoFilter", 100, false, false},
+		{"Tail1000NoFilter", 1000, false, false},
+		{"Tail100WithFilter", 100, true, false},
+		{"Tail1000WithFilter", 1000, true, false},
+
+		{"Tail100NoFilterWithDedup", 100, false, true},
+		{"Tail1000NoFilterWithDedup", 1000, false, true},
+		{"Tail100WithFilterWithDedup", 100, true, true},
+		{"Tail1000WithFilterWithDedup", 1000, true, true},
 	}
 
 	for _, bm := range benchmarks {

@@ -5,10 +5,17 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
+
+var dedupMapPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]struct{}, 200)
+	},
+}
 
 // Scan scans the file or commands output from the end of the file
 // and return the number of matched lines.
@@ -70,13 +77,26 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 	}
 	fileSize := stat.Size()
 
-	// pre-allocate buffers
+	// use regular buffers for chunk and line reading
 	chunkBuf := make([]byte, 4096)
 	lineBuf := make([]byte, 0, 256)
 
 	// read backwards from the end of the file
 	scannedLines := 0
 	matchedLines := 0
+
+	var dedupedLines map[string]struct{}
+	if op.dedup {
+		// only use sync.Pool for dedup map
+		dedupedLines = dedupMapPool.Get().(map[string]struct{})
+		defer func() {
+			// clear the map before returning it to pool
+			for k := range dedupedLines {
+				delete(dedupedLines, k)
+			}
+			dedupMapPool.Put(dedupedLines)
+		}()
+	}
 
 	processLine := func(buf []byte) error {
 		reverse(buf)
@@ -90,14 +110,26 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		if err != nil {
 			return err
 		}
-		if shouldInclude {
-			matchedLines++
-			parsedTime, err := op.parseTime(buf)
-			if err != nil {
-				return err
-			}
-			op.processMatched(buf, parsedTime, matchedFilter)
+		if !shouldInclude {
+			return nil
 		}
+
+		if op.dedup {
+			if _, ok := dedupedLines[string(buf)]; ok {
+				// skip duplicate
+				return nil
+			}
+
+			dedupedLines[string(buf)] = struct{}{}
+		}
+
+		matchedLines++
+		parsedTime, err := op.parseTime(buf)
+		if err != nil {
+			return err
+		}
+		op.processMatched(buf, parsedTime, matchedFilter)
+
 		return nil
 	}
 

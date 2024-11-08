@@ -12,6 +12,7 @@ type Op struct {
 	commands [][]string
 
 	linesToTail int
+	dedup       bool
 
 	perLineFunc func([]byte)
 
@@ -80,6 +81,15 @@ func WithCommands(commands [][]string) OpOption {
 func WithLinesToTail(n int) OpOption {
 	return func(op *Op) {
 		op.linesToTail = n
+	}
+}
+
+// If true, dedup lines by the log line string.
+// This is useful for logs that have the same message
+// repeated multiple times with the same timestamp.
+func WithDedup(dedup bool) OpOption {
+	return func(op *Op) {
+		op.dedup = dedup
 	}
 }
 
