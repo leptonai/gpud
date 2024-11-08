@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/log"
@@ -16,24 +15,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-func ConvertToTableName(name string) string {
-	// sqlite doesn't allow "-" in the table name
-	return strings.ReplaceAll(name, "-", "_")
-}
-
-func Open(file string) (*sql.DB, error) {
-	// no need to run separate PRAGMA commands
-	// ref. https://www.sqlite.org/pragma.html#pragma_busy_timeout
-	// ref. https://www.sqlite.org/pragma.html#pragma_journal_mode
-	// ref. https://www.sqlite.org/pragma.html#pragma_synchronous
-	conns := fmt.Sprintf("%s?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL", file)
-	db, err := sql.Open("sqlite3", conns)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
 
 const (
 	TableNameMachineMetadata = "machine_metadata"

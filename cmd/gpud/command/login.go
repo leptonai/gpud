@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/urfave/cli"
 )
@@ -30,7 +31,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
-	db, err := state.Open(stateFile)
+	db, err := sqlite.Open(stateFile)
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}

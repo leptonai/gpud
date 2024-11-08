@@ -7,7 +7,6 @@ import (
 	"time"
 
 	query_config "github.com/leptonai/gpud/components/query/config"
-	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +60,6 @@ type GetFunc func(context.Context) (any, error)
 func New(id string, cfg query_config.Config, getFunc GetFunc) Poller {
 	return &poller{
 		id:                 id,
-		tableName:          GetTableName(id),
 		startPollFunc:      startPoll,
 		getFunc:            getFunc,
 		cfg:                cfg,
@@ -72,8 +70,7 @@ func New(id string, cfg query_config.Config, getFunc GetFunc) Poller {
 var _ Poller = (*poller)(nil)
 
 type poller struct {
-	id        string
-	tableName string
+	id string
 
 	startPollFunc startPollFunc
 	getFunc       GetFunc
@@ -164,10 +161,6 @@ func (pl *poller) Config() query_config.Config {
 	pl.cfgMu.RLock()
 	defer pl.cfgMu.RUnlock()
 	return pl.cfg
-}
-
-func GetTableName(componentName string) string {
-	return "poll_results_" + state.ConvertToTableName(componentName)
 }
 
 // "caller" is used for reference counting

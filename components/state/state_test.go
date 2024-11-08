@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestOpenMemory(t *testing.T) {
 	t.Parallel()
 
-	db, err := Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}

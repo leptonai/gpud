@@ -9,11 +9,11 @@ import (
 	"time"
 
 	logstate "github.com/leptonai/gpud/components/query/log/state"
-	"github.com/leptonai/gpud/components/state"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestOpenMemory(t *testing.T) {
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestOpen(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 
-	db, err := state.Open(f.Name())
+	db, err := sqlite.Open(f.Name())
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestOpen(t *testing.T) {
 
 	db.Close()
 
-	db, err = state.Open(f.Name())
+	db, err = sqlite.Open(f.Name())
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}

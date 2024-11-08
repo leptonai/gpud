@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components/state"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -20,7 +20,7 @@ func TestState(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}

@@ -89,6 +89,7 @@ import (
 	"github.com/leptonai/gpud/internal/session"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 // Server is the gpud main daemon
@@ -117,7 +118,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if config.State != "" {
 		stateFile = config.State
 	}
-	db, err := state.Open(stateFile)
+	db, err := sqlite.Open(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open state file: %w", err)
 	}
