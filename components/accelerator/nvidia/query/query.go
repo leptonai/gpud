@@ -25,6 +25,7 @@ import (
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
 
+	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -52,7 +53,20 @@ func GetSuccessOnce() <-chan any {
 
 // Get all nvidia component queries.
 func Get(ctx context.Context) (output any, err error) {
-	if err := nvml.StartDefaultInstance(ctx); err != nil {
+	if err := nvml.StartDefaultInstance(
+		ctx,
+		nvml.WithGPMMetricsID(
+			go_nvml.GPM_METRIC_SM_OCCUPANCY,
+			go_nvml.GPM_METRIC_INTEGER_UTIL,
+			go_nvml.GPM_METRIC_ANY_TENSOR_UTIL,
+			go_nvml.GPM_METRIC_DFMA_TENSOR_UTIL,
+			go_nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
+			go_nvml.GPM_METRIC_IMMA_TENSOR_UTIL,
+			go_nvml.GPM_METRIC_FP64_UTIL,
+			go_nvml.GPM_METRIC_FP32_UTIL,
+			go_nvml.GPM_METRIC_FP16_UTIL,
+		),
+	); err != nil {
 		return nil, err
 	}
 
