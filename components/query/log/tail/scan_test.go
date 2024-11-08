@@ -292,3 +292,93 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 		})
 	}
 }
+
+// go test -bench=BenchmarkScan -benchmem
+// go test -bench=BenchmarkScan_DmesgLog -benchmem
+func BenchmarkScan_DmesgLog(b *testing.B) {
+	ctx := context.Background()
+
+	benchmarks := []struct {
+		name        string
+		linesToTail int
+		withFilter  bool
+	}{
+		{"Tail100NoFilter", 100, false},
+		{"Tail1000NoFilter", 1000, false},
+		{"Tail100WithFilter", 100, true},
+		{"Tail1000WithFilter", 1000, true},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			var opts []OpOption
+			opts = append(opts,
+				WithFile("testdata/dmesg.0.log"),
+				WithLinesToTail(bm.linesToTail),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+			)
+
+			if bm.withFilter {
+				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
+					Substring: ptr.To("error"),
+				}))
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := Scan(ctx, opts...)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// go test -bench=BenchmarkScan -benchmem
+// go test -bench=BenchmarkScan_KubeletLog -benchmem
+func BenchmarkScan_KubeletLog(b *testing.B) {
+	ctx := context.Background()
+
+	benchmarks := []struct {
+		name        string
+		linesToTail int
+		withFilter  bool
+	}{
+		{"Tail100NoFilter", 100, false},
+		{"Tail1000NoFilter", 1000, false},
+		{"Tail100WithFilter", 100, true},
+		{"Tail1000WithFilter", 1000, true},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			var opts []OpOption
+			opts = append(opts,
+				WithFile("testdata/kubelet.0.log"),
+				WithLinesToTail(bm.linesToTail),
+				WithParseTime(func(line []byte) (time.Time, error) {
+					return time.Time{}, nil
+				}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+			)
+
+			if bm.withFilter {
+				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
+					Substring: ptr.To("error"),
+				}))
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := Scan(ctx, opts...)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
