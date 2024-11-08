@@ -121,7 +121,7 @@ func (inst *instance) pollXidEvents() {
 		xid := e.EventData
 
 		if xid == 0 {
-			log.Logger.Warnw("received xid 0 as an event -- skipping", "return", ret)
+			log.Logger.Debugw("received xid 0 as an event -- skipping", "return", ret)
 			continue
 		}
 
