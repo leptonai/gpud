@@ -44,6 +44,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
 
+	fmt.Printf("%s scanning the process counts\n", inProgress)
 	processCountsByStatus, err := process.CountProcessesByStatus(ctx)
 	if err != nil {
 		log.Logger.Warnw("error counting processes by status", "error", err)
