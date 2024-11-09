@@ -20,6 +20,17 @@ linters-settings:
     # Setting locale to US will correct the British spelling of 'colour' to 'color'.
     locale: US
 
+  custom:
+
+    # ref. https://github.com/uber-go/nilaway
+    nilaway:
+      type: "module"
+      description: Static analysis tool to detect potential nil panics in Go code.
+      settings:
+        include-pkgs: "github.com/leptonai/gpud"
+        exclude-pkgs: "github.com/leptonai/gpud/third_party"
+        experimental-anonymous-function: "true"
+
 linters:
   fast: false
   disable-all: true
