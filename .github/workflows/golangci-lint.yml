@@ -31,13 +31,11 @@ jobs:
           cache: false
           go-version-file: go.mod
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          args: --config=.golangci.yml -v
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
 
       - name: Build custom golangci-lint
         run: golangci-lint custom
 
-      - name: Run custom golangci-lint
-        run: ./custom-gcl run --verbose ./...
+      - name: Run golangci-lint
+        run: ./custom-gcl run --verbose --config=.golangci.yml ./...
