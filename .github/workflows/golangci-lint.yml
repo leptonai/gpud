@@ -40,4 +40,4 @@ jobs:
         run: golangci-lint custom
 
       - name: Run custom golangci-lint
-        run: ./custom-gcl run
+        run: ./custom-gcl run --verbose ./...
