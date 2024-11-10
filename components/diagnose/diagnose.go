@@ -11,7 +11,7 @@ import (
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/dmesg"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
@@ -149,7 +149,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		query_log_tail.WithLinesToTail(5000),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
 		query_log_tail.WithParseTime(dmesg.ExtractTimeFromLogLine),
-		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_filter.Filter) {
+		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_common.Filter) {
 			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg match: %s", string(line)))
 		}),
 	)

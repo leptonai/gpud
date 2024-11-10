@@ -9,7 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"github.com/nxadm/tail"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,10 +78,10 @@ func ParseStateDmesgTailScanMatched(m map[string]string) (query_log.Item, error)
 	}
 	ev.Line = m[StateKeyDmesgTailScanMatchedLine]
 
-	var f *query_log_filter.Filter
+	var f *query_log_common.Filter
 	if m[StateKeyDmesgTailScanMatchedFilter] != "" {
 		var err error
-		f, err = query_log_filter.ParseFilterJSON([]byte(m[StateKeyDmesgTailScanMatchedFilter]))
+		f, err = query_log_common.ParseFilterJSON([]byte(m[StateKeyDmesgTailScanMatchedFilter]))
 		if err != nil {
 			return query_log.Item{}, err
 		}

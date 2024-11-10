@@ -9,7 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -49,9 +49,9 @@ func ParseEventDmesgMatched(m map[string]string) (query_log.Item, error) {
 	ev.Time = metav1.Time{Time: time.Unix(unixSeconds, 0)}
 	ev.Line = m[EventKeyDmesgMatchedLine]
 
-	var f *query_log_filter.Filter
+	var f *query_log_common.Filter
 	if m[EventKeyDmesgMatchedFilter] != "" {
-		f, err = query_log_filter.ParseFilterJSON([]byte(m[EventKeyDmesgMatchedFilter]))
+		f, err = query_log_common.ParseFilterJSON([]byte(m[EventKeyDmesgMatchedFilter]))
 		if err != nil {
 			return query_log.Item{}, err
 		}

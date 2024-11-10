@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 
@@ -80,7 +80,7 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		ts            time.Time
 		err           error
 		shouldInclude bool
-		matchedFilter *query_log_filter.Filter
+		matchedFilter *query_log_common.Filter
 	)
 
 	for scanner.Scan() {

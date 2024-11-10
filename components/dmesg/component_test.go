@@ -7,8 +7,8 @@ import (
 	"time"
 
 	query_config "github.com/leptonai/gpud/components/query/config"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -31,7 +31,7 @@ func TestComponent(t *testing.T) {
 	defer cancel()
 
 	xidErr := "NVRM: Xid (0000:03:00): 14, Channel 00000001"
-	filters := []*query_log_filter.Filter{
+	filters := []*query_log_common.Filter{
 		{
 			Name:      "xid error check",
 			Substring: &xidErr,
