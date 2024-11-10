@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	query_log "github.com/leptonai/gpud/components/query/log"
-	"github.com/leptonai/gpud/pkg/dmesg"
+	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 
 var (
@@ -20,7 +20,7 @@ func createDefaultLogPoller(ctx context.Context, cfg Config) error {
 		defaultLogPoller, err = query_log.New(
 			ctx,
 			cfg.Log,
-			dmesg.ParseCtimeWithError,
+			pkg_dmesg.ParseCtimeWithError,
 		)
 		if err != nil {
 			panic(err)
