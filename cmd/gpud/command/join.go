@@ -130,7 +130,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			region = strings.TrimSpace(input)
 		}
 	} else {
-		provider = detectProvider
+		if provider == "" {
+			provider = detectProvider
+		}
 	}
 
 	type payload struct {
