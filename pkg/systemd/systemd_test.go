@@ -82,6 +82,11 @@ func TestParseSystemdUnitUptime(t *testing.T) {
 			expectedErr: false,
 		},
 		{
+			name:        "Valid input - Saturday",
+			input:       "Sat 2024-11-02 13:51:36 UTC\n",
+			expectedErr: false,
+		},
+		{
 			name:        "Invalid input",
 			input:       "Invalid input",
 			expectedErr: true,
