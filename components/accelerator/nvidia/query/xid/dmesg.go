@@ -2,12 +2,12 @@ package xid
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strconv"
 	"time"
 
 	query_log "github.com/leptonai/gpud/components/query/log"
+	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -68,7 +68,7 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 }
 
 func ParseDmesgLogLine(line string) (DmesgError, error) {
-	timestamp, err := parseDmesgLine(line)
+	timestamp, err := pkg_dmesg.ParseCtimeWithError([]byte(line))
 	if err != nil {
 		timestamp = time.Now()
 	}
@@ -87,21 +87,4 @@ func ParseDmesgLogLine(line string) (DmesgError, error) {
 	}
 
 	return de, nil
-}
-
-// parseDmesgLine parses a single line from dmesg -T output
-// Example line: [Thu Aug  8 11:50:58 2024] IPv6: ADDRCONF(NETDEV_CHANGE): calic8a3d4799be: link becomes ready
-func parseDmesgLine(line string) (time.Time, error) {
-	r := regexp.MustCompile(`^\[(.*)\]`)
-	matches := r.FindStringSubmatch(line)
-	if len(matches) < 1 {
-		return time.Time{}, fmt.Errorf("failed to parse line: %s", line)
-	}
-	timeStr := matches[1]
-	const timeLayout = "Mon Jan 2 15:04:05 2006"
-	parsedTime, err := time.Parse(timeLayout, timeStr)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse time: %s", timeStr)
-	}
-	return parsedTime, nil
 }
