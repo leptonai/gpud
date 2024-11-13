@@ -1,8 +1,6 @@
 module github.com/leptonai/gpud
 
-go 1.23.1
-
-toolchain go1.23.2
+go 1.23.2
 
 require (
 	github.com/NVIDIA/go-nvlib v0.7.0
@@ -21,7 +19,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/hdevalence/ed25519consensus v0.2.0
-	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/mattn/go-sqlite3 v1.14.25-0.20241004145844-82bc911e85b3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nxadm/tail v1.4.11
 	github.com/olekukonko/tablewriter v0.0.5
