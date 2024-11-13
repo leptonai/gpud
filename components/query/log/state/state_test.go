@@ -22,7 +22,7 @@ func TestOpenMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if err := logstate.CreateTable(ctx, db); err != nil {
+	if err := logstate.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		t.Fatalf("failed to create log table: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestOpen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if err := logstate.CreateTable(ctx, db); err != nil {
+	if err := logstate.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		t.Fatalf("failed to create log table: %v", err)
 	}
 

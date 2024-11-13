@@ -27,7 +27,7 @@ func TestState(t *testing.T) {
 	defer db.Close()
 
 	tableName := "test_metrics"
-	if err := CreateTable(ctx, db, tableName); err != nil {
+	if err := CreateTableMetrics(ctx, db, tableName); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 
 	tableName := "test_metrics"
 
-	if err := CreateTable(ctx, db, tableName); err != nil {
+	if err := CreateTableMetrics(ctx, db, tableName); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 

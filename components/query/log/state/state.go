@@ -18,7 +18,7 @@ const (
 	ColumnWhence = "whence"
 )
 
-func CreateTable(ctx context.Context, db *sql.DB) error {
+func CreateTableLogFileSeekInfo(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s TEXT NOT NULL PRIMARY KEY,
@@ -49,5 +49,3 @@ func Get(ctx context.Context, db *sql.DB, file string) (int64, int64, error) {
 	err := row.Scan(&offset, &whence)
 	return offset, whence, err
 }
-
-// TODO: implement delete

@@ -21,7 +21,7 @@ func TestNewAverager(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := metrics_state.CreateTable(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestAveragerObserve(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := metrics_state.CreateTable(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -172,7 +172,7 @@ func TestAveragerAll(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := metrics_state.CreateTable(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -227,7 +227,7 @@ func TestEmptyAverager(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := metrics_state.CreateTable(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -256,7 +256,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 	}
 	defer db.Close()
 
-	if err := metrics_state.CreateTable(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 

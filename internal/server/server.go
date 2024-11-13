@@ -140,10 +140,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := state.CreateTable(ctx, db); err != nil {
+	if err := state.CreateTableMachineMetadata(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
-	if err := state.CreateAPIVersionTable(ctx, db); err != nil {
+	if err := state.CreateTableAPIVersion(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
 	ver, err := state.UpdateAPIVersionIfNotExists(ctx, db, "v1")
@@ -155,10 +155,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
-	if err := components_metrics_state.CreateTable(ctx, db, components_metrics_state.DefaultTableName); err != nil {
+	if err := components_metrics_state.CreateTableMetrics(ctx, db, components_metrics_state.DefaultTableName); err != nil {
 		return nil, fmt.Errorf("failed to create metrics table: %w", err)
 	}
-	if err := query_log_state.CreateTable(ctx, db); err != nil {
+	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 

@@ -30,7 +30,7 @@ const (
 	ColumnMetricValue         = "metric_value"
 )
 
-func CreateTable(ctx context.Context, db *sql.DB, tableName string) error {
+func CreateTableMetrics(ctx context.Context, db *sql.DB, tableName string) error {
 	_, err := db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,

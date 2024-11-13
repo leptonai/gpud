@@ -12,7 +12,7 @@ const (
 	ColumnAPIVersion = "version"
 )
 
-func CreateAPIVersionTable(ctx context.Context, db *sql.DB) error {
+func CreateTableAPIVersion(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s TEXT PRIMARY KEY
