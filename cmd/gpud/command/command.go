@@ -546,6 +546,10 @@ sudo gpud join
 					Name:  "node-group",
 					Usage: "node group to join",
 				},
+				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
 				cli.BoolFlag{
 					Name:  "skip-interactive",
 					Usage: "use detected value instead of prompting for user input",

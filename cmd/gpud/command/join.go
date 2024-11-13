@@ -35,6 +35,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	provider := cliContext.String("provider")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
+	privateIP := cliContext.String("private-ip")
 
 	uid, err := GetUID(rootCtx)
 	if err != nil {
@@ -145,6 +146,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		NodeGroup        string `json:"node_group"`
 		ExtraInfo        string `json:"extra_info"`
 		Region           string `json:"region"`
+		PrivateIP        string `json:"private_ip"`
 	}
 	type RespErr struct {
 		Error  string `json:"error"`
@@ -160,6 +162,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		NodeGroup:        nodeGroup,
 		ExtraInfo:        extraInfo,
 		Region:           region,
+		PrivateIP:        privateIP,
 	}
 	rawPayload, _ := json.Marshal(&content)
 	fmt.Println("Your machine will be initialized with following configuration, please press Enter if it is ok")
