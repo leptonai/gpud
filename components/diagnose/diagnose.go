@@ -146,6 +146,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 	}
 	matched, err := query_log_tail.Scan(
 		ctx,
+		query_log_tail.WithDedup(true),
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
 		query_log_tail.WithLinesToTail(5000),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
