@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/dmesg"
@@ -16,14 +17,12 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
-const Name = "accelerator-nvidia-error-xid"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, Name)
+	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -40,7 +39,7 @@ type component struct {
 	poller  query.Poller
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return nvidia_component_error_xid_id.Name }
 
 // Just checks if the xid poller is working.
 func (c *component) States(_ context.Context) ([]components.State, error) {
@@ -49,7 +48,7 @@ func (c *component) States(_ context.Context) ([]components.State, error) {
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
 	if err == query.ErrNoData {
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
 		return []components.State{
 			{
 				Name:    StateNameErrorXid,
@@ -124,7 +123,7 @@ func (c *component) tailScan() (*Output, error) {
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
 	if err == query.ErrNoData {
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
 		return o, nil
 	}
 
@@ -172,7 +171,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(Name)
+	c.poller.Stop(nvidia_component_error_xid_id.Name)
 
 	return nil
 }

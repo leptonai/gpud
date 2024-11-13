@@ -1,7 +1,8 @@
 package dmesg
 
 import (
-	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/query/nccl"
@@ -50,12 +51,12 @@ func DefaultDmesgFiltersForNvidia() []*query_log_common.Filter {
 		{
 			Name:            EventNvidiaNVRMXid,
 			Regex:           ptr.To(nvidia_query_xid.RegexNVRMXidDmesg),
-			OwnerReferences: []string{nvidia_error.Name},
+			OwnerReferences: []string{nvidia_component_error_xid_id.Name},
 		},
 		{
 			Name:            EventNvidiaNVSwitchSXid,
 			Regex:           ptr.To(nvidia_query_sxid.RegexNVSwitchSXidDmesg),
-			OwnerReferences: []string{nvidia_error.Name},
+			OwnerReferences: []string{nvidia_component_error_sxid_id.Name},
 		},
 		{
 			Name:            EventNvidiaPeermemInvalidContext,

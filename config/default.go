@@ -13,8 +13,8 @@ import (
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
@@ -236,8 +236,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_ecc.Name] = nil
 		cfg.Components[nvidia_error.Name] = nil
 		if _, ok := cfg.Components[dmesg.Name]; ok {
-			cfg.Components[nvidia_error_xid.Name] = nil
-			cfg.Components[nvidia_error_sxid.Name] = nil
+			cfg.Components[nvidia_component_error_xid_id.Name] = nil
+			cfg.Components[nvidia_component_error_sxid_id.Name] = nil
 		}
 		cfg.Components[nvidia_info.Name] = nil
 

@@ -3,16 +3,16 @@ package server
 import (
 	"fmt"
 
-	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	"github.com/leptonai/gpud/components/dmesg"
 	lepconfig "github.com/leptonai/gpud/config"
 )
 
 // componentDependencies defines which components depend on other components
 var componentDependencies = map[string][]string{
-	nvidia_error_xid.Name:  {dmesg.Name},
-	nvidia_error_sxid.Name: {dmesg.Name},
+	nvidia_component_error_xid_id.Name:  {dmesg.Name},
+	nvidia_component_error_sxid_id.Name: {dmesg.Name},
 }
 
 func checkDependencies(config *lepconfig.Config) error {

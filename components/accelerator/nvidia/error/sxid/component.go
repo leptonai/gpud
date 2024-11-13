@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/log"
 )
-
-const Name = "accelerator-nvidia-error-sxid"
 
 func New() components.Component {
 	return &component{}
@@ -23,7 +22,7 @@ var _ components.Component = (*component)(nil)
 
 type component struct{}
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return nvidia_component_error_sxid_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return []components.State{{

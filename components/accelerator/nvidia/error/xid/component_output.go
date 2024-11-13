@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/common"
@@ -223,7 +224,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, CreateGet())
+		defaultPoller = query.New(nvidia_component_error_xid_id.Name, cfg.Query, CreateGet())
 	})
 }
 
@@ -237,9 +238,9 @@ func CreateGet() query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
-				components_metrics.SetGetFailed(Name)
+				components_metrics.SetGetFailed(nvidia_component_error_xid_id.Name)
 			} else {
-				components_metrics.SetGetSuccess(Name)
+				components_metrics.SetGetSuccess(nvidia_component_error_xid_id.Name)
 			}
 		}()
 
