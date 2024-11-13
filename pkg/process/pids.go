@@ -27,8 +27,15 @@ func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, e
 
 		status, err := p.Status()
 		if err != nil {
+			ee := strings.ToLower(err.Error())
+
 			// e.g., Not Found
-			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			if strings.Contains(ee, "not found") {
+				continue
+			}
+
+			// e.g., "open /proc/2342816/status: no such file or directory"
+			if strings.Contains(ee, "no such file") {
 				continue
 			}
 
