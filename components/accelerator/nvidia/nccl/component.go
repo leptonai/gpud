@@ -72,7 +72,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
 		}
 	}
-	dmesgTailResults, err := dmesgComponent.FetchStateWithTailScanner()
+	dmesgTailResults, err := dmesgComponent.TailScan()
 	if err != nil {
 		return nil, err
 	}

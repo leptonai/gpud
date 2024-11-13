@@ -46,7 +46,7 @@ type Component struct {
 
 func (c *Component) Name() string { return Name }
 
-func (c *Component) FetchStateWithTailScanner() (*State, error) {
+func (c *Component) TailScan() (*State, error) {
 	s := &State{
 		File:         c.logPoller.File(),
 		LastSeekInfo: c.logPoller.SeekInfo(),
@@ -77,7 +77,7 @@ func (c *Component) FetchStateWithTailScanner() (*State, error) {
 // state calls DOES NOT miss any logs than having the logs available real-time.
 // The real-time dmesg events can be fetched via the events API.
 func (c *Component) States(ctx context.Context) ([]components.State, error) {
-	s, err := c.FetchStateWithTailScanner()
+	s, err := c.TailScan()
 	if err != nil {
 		return nil, err
 	}

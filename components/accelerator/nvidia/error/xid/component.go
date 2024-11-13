@@ -77,11 +77,11 @@ func (c *component) States(_ context.Context) ([]components.State, error) {
 	}, nil
 }
 
-// fetchOutput fetches the latest output from the dmesg and the NVML poller
+// tailScan fetches the latest output from the dmesg and the NVML poller
 // it is ok to call this function multiple times for the following reasons (thus shared with events method)
-// 1) dmesg "FetchStateWithTailScanner" is cheap (just tails the last x number of lines)
+// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
 // 2) NVML poller "Last" costs nothing, since we simply read the last state in the queue (no NVML call involved)
-func (c *component) fetchOutput() (*Output, error) {
+func (c *component) tailScan() (*Output, error) {
 	dmesgC, err := components.GetComponent(dmesg.Name)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (c *component) fetchOutput() (*Output, error) {
 			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
 		}
 	}
-	dmesgTailResults, err := dmesgComponent.FetchStateWithTailScanner()
+	dmesgTailResults, err := dmesgComponent.TailScan()
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (c *component) fetchOutput() (*Output, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	o, err := c.fetchOutput()
+	o, err := c.tailScan()
 	if err != nil {
 		return nil, err
 	}
