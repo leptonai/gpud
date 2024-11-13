@@ -126,6 +126,7 @@ const (
 	EventKeyFabricManagerNVSwitchLogError       = "fabricmanager_nvswitch_log_error"
 )
 
+// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leptonai/gpud/components/query"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
@@ -29,6 +30,10 @@ func TestPoller(t *testing.T) {
 		t.Fatalf("failed to create log poller: %v", err)
 	}
 	defer poller.Stop("test")
+
+	if _, err := poller.Find(time.Now().Add(time.Hour)); err != query.ErrNoData {
+		t.Fatalf("expected no data, got %v", err)
+	}
 
 	synced := 0
 

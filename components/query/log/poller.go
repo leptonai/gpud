@@ -51,6 +51,7 @@ type Poller interface {
 	// Returns all the events for the given "since" time.
 	// If none, it returns all events that are already filtered
 	// by the default filters in the configuration.
+	// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 	Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error)
 
 	// Returns the last seek info.
@@ -221,6 +222,7 @@ func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption)
 	return items, nil
 }
 
+// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error) {
 	// 1. filter the already flushed/in-queue ones
 	polledItems, err := pl.Poller.All(since)
