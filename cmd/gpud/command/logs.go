@@ -26,6 +26,7 @@ func cmdLogs(cliContext *cli.Context) error {
 	lines := make([]string, 0, tailLines)
 	_, err := tail.Scan(
 		rootCtx,
+		tail.WithDedup(true),
 		tail.WithFile(logFile),
 		tail.WithLinesToTail(tailLines),
 		tail.WithPerLineFunc(func(line []byte) {

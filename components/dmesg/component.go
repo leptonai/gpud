@@ -55,6 +55,7 @@ func (c *Component) TailScan() (*State, error) {
 	if c.cfg != nil && c.cfg.Log.Scan != nil {
 		items, err := c.logPoller.TailScan(
 			c.rootCtx,
+			query_log_tail.WithDedup(true),
 			query_log_tail.WithFile(c.cfg.Log.Scan.File),
 			query_log_tail.WithCommands(c.cfg.Log.Scan.Commands),
 			query_log_tail.WithLinesToTail(c.cfg.Log.Scan.LinesToTail),

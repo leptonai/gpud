@@ -5,10 +5,17 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
+
+var dedupMapPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]struct{}, 200)
+	},
+}
 
 // Scan scans the file or commands output from the end of the file
 // and return the number of matched lines.
@@ -70,13 +77,61 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 	}
 	fileSize := stat.Size()
 
-	// pre-allocate buffers
+	// use regular buffers for chunk and line reading
 	chunkBuf := make([]byte, 4096)
 	lineBuf := make([]byte, 0, 256)
 
 	// read backwards from the end of the file
 	scannedLines := 0
 	matchedLines := 0
+
+	var dedupedLines map[string]struct{}
+	if op.dedup {
+		// only use sync.Pool for dedup map
+		dedupedLines = dedupMapPool.Get().(map[string]struct{})
+		defer func() {
+			// clear the map before returning it to pool
+			for k := range dedupedLines {
+				delete(dedupedLines, k)
+			}
+			dedupMapPool.Put(dedupedLines)
+		}()
+	}
+
+	processLine := func(buf []byte) error {
+		reverse(buf)
+		scannedLines++
+
+		if op.perLineFunc != nil {
+			op.perLineFunc(buf)
+		}
+
+		shouldInclude, matchedFilter, err := op.applyFilter(buf)
+		if err != nil {
+			return err
+		}
+		if !shouldInclude {
+			return nil
+		}
+
+		if op.dedup {
+			if _, ok := dedupedLines[string(buf)]; ok {
+				// skip duplicate
+				return nil
+			}
+
+			dedupedLines[string(buf)] = struct{}{}
+		}
+
+		matchedLines++
+		parsedTime, err := op.parseTime(buf)
+		if err != nil {
+			return err
+		}
+		op.processMatched(buf, parsedTime, matchedFilter)
+
+		return nil
+	}
 
 	defer func() {
 		log.Logger.Debugw("scanned lines", "lines", scannedLines, "matched", matchedLines)
@@ -96,60 +151,32 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		}
 
 		for i := chunkSize - 1; i >= 0; i-- {
-			if chunkBuf[i] == '\n' {
-				if len(lineBuf) > 0 {
-					reverse(lineBuf)
-					scannedLines++
-
-					if op.perLineFunc != nil {
-						op.perLineFunc(lineBuf)
-					}
-
-					shouldInclude, matchedFilter, err := op.applyFilter(lineBuf)
-					if err != nil {
-						return 0, err
-					}
-					if shouldInclude {
-						matchedLines++
-
-						parsedTime, err := op.parseTime(lineBuf)
-						if err != nil {
-							return 0, err
-						}
-						op.processMatched(lineBuf, parsedTime, matchedFilter)
-					}
-
-					lineBuf = lineBuf[:0]
-				}
-			} else {
-				lineBuf = append(lineBuf, chunkBuf[i])
-			}
-
 			if scannedLines == op.linesToTail {
 				return matchedLines, nil
 			}
+
+			// still processing a line
+			if chunkBuf[i] != '\n' {
+				lineBuf = append(lineBuf, chunkBuf[i])
+				continue
+			}
+
+			// end of a line but no content
+			if len(lineBuf) == 0 {
+				continue
+			}
+
+			if err := processLine(lineBuf); err != nil {
+				return 0, err
+			}
+
+			lineBuf = lineBuf[:0]
 		}
 	}
 
 	if len(lineBuf) > 0 && scannedLines < op.linesToTail {
-		reverse(lineBuf)
-
-		if op.perLineFunc != nil {
-			op.perLineFunc(lineBuf)
-		}
-
-		shouldInclude, matchedFilter, err := op.applyFilter(lineBuf)
-		if err != nil {
+		if err := processLine(lineBuf); err != nil {
 			return 0, err
-		}
-		if shouldInclude {
-			matchedLines++
-
-			parsedTime, err := op.parseTime(lineBuf)
-			if err != nil {
-				return 0, err
-			}
-			op.processMatched(lineBuf, parsedTime, matchedFilter)
 		}
 	}
 
