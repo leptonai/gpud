@@ -177,12 +177,19 @@ func CreateGet(cfg Config) query.GetFunc {
 				}
 			}
 
-			now := time.Now().UTC()
+			uptimeSeconds := int64(0)
+			uptimeDescription := "n/a"
+			if uptime != nil {
+				uptimeSeconds = int64(uptime.Seconds())
+
+				now := time.Now().UTC()
+				uptimeDescription = humanize.RelTime(now.Add(-*uptime), now, "ago", "from now")
+			}
 			o.Units = append(o.Units, Unit{
 				Name:            unit,
 				Active:          active,
-				UptimeSeconds:   int64(uptime.Seconds()),
-				UptimeHumanized: humanize.RelTime(now.Add(-uptime), now, "ago", "from now"),
+				UptimeSeconds:   uptimeSeconds,
+				UptimeHumanized: uptimeDescription,
 			})
 		}
 

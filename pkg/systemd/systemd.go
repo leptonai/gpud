@@ -99,11 +99,12 @@ func IsActive(service string) (bool, error) {
 const uptimeTimeLayout = "Mon 2006-01-02 15:04:05 MST"
 
 // GetUptime returns the uptime duration of the systemd service.
+// Returns nil if the service is not found (thus uptime is not applicable, "n/a").
 // ref. https://github.com/kubernetes/node-problem-detector/blob/c4e5400ed6d7ca30d3a803248ae5b55c53557e59/pkg/healthchecker/health_checker_linux.go
-func GetUptime(service string) (time.Duration, error) {
+func GetUptime(service string) (*time.Duration, error) {
 	p, err := exec.LookPath("systemctl")
 	if err != nil {
-		return 0, fmt.Errorf("systemd uptime check requires systemctl (%w)", err)
+		return nil, fmt.Errorf("systemd uptime check requires systemctl (%w)", err)
 	}
 
 	// below is copied from https://github.com/kubernetes/node-problem-detector/blob/c4e5400ed6d7ca30d3a803248ae5b55c53557e59/pkg/healthchecker/health_checker_linux.go
@@ -114,16 +115,24 @@ func GetUptime(service string) (time.Duration, error) {
 	// RestartSec of systemd and invoke interval of plugin got in sync. The service was repeatedly killed in
 	// activating state and hence ActiveEnterTimestamp was never updated.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	b, err := exec.CommandContext(ctx, p, "show", service, "--property=InactiveExitTimestamp").CombinedOutput()
+	b, err := exec.CommandContext(ctx, p, "show", "--property=InactiveExitTimestamp", service).CombinedOutput()
 	cancel()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	val := strings.Split(string(b), "=")
 	if len(val) < 2 {
-		return time.Duration(0), errors.New("could not parse the service uptime time correctly")
+		return nil, errors.New("could not parse the service uptime time correctly")
 	}
-	return parseSystemdUnitUptime(val[1])
+	if val[1] == "" || val[1] == "n/a" {
+		return nil, nil
+	}
+
+	uptime, err := parseSystemdUnitUptime(val[1])
+	if err != nil {
+		return nil, err
+	}
+	return &uptime, nil
 }
 
 func parseSystemdUnitUptime(s string) (time.Duration, error) {
