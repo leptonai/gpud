@@ -140,10 +140,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := state.CreateTable(ctx, db); err != nil {
+	if err := state.CreateTableMachineMetadata(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
-	if err := state.CreateAPIVersionTable(ctx, db); err != nil {
+	if err := state.CreateTableAPIVersion(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
 	ver, err := state.UpdateAPIVersionIfNotExists(ctx, db, "v1")
@@ -155,10 +155,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
-	if err := components_metrics_state.CreateTable(ctx, db, components_metrics_state.DefaultTableName); err != nil {
+	if err := components_metrics_state.CreateTableMetrics(ctx, db, components_metrics_state.DefaultTableName); err != nil {
 		return nil, fmt.Errorf("failed to create metrics table: %w", err)
 	}
-	if err := query_log_state.CreateTable(ctx, db); err != nil {
+	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 
@@ -171,7 +171,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			case <-time.After(dur):
 				now := time.Now().UTC()
 				before := now.Add(-dur)
-				purged, err := components_metrics_state.Purge(ctx, db, components_metrics_state.DefaultTableName, before)
+				purged, err := components_metrics_state.PurgeMetrics(ctx, db, components_metrics_state.DefaultTableName, before)
 				if err != nil {
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {
@@ -187,7 +187,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		Query: defaultQueryCfg,
 		DB:    db,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-			if err := query_log_state.Insert(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
+			if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 				log.Logger.Errorw("failed to sync seek info", "error", err)
 			}
 		},

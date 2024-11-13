@@ -25,7 +25,7 @@ func TestOpenMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := CreateTable(ctx, db); err != nil {
+	if err := CreateTableMachineMetadata(ctx, db); err != nil {
 		t.Fatal("failed to create table:", err)
 	}
 	id, _, err := CreateMachineIDIfNotExist(ctx, db, "")

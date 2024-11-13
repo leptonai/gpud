@@ -27,11 +27,11 @@ func TestState(t *testing.T) {
 	defer db.Close()
 
 	tableName := "test_metrics"
-	if err := CreateTable(ctx, db, tableName); err != nil {
+	if err := CreateTableMetrics(ctx, db, tableName); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	if readMetric, err := ReadLast(ctx, db, tableName, "test_metric", ""); readMetric != nil || err != nil {
+	if readMetric, err := ReadLastMetric(ctx, db, tableName, "test_metric", ""); readMetric != nil || err != nil {
 		t.Errorf("expected no metric + no error, got %v, %v", readMetric, err)
 	}
 
@@ -63,13 +63,13 @@ func TestState(t *testing.T) {
 	}
 
 	for _, m := range metrics {
-		if err := Insert(ctx, db, tableName, m); err != nil {
+		if err := InsertMetric(ctx, db, tableName, m); err != nil {
 			t.Errorf("failed to insert metric: %v", err)
 			return
 		}
 	}
 
-	readMetric, err := ReadLast(ctx, db, tableName, "test_metric", "")
+	readMetric, err := ReadLastMetric(ctx, db, tableName, "test_metric", "")
 	if err != nil {
 		t.Errorf("failed to read last metric: %v", err)
 		return
@@ -123,11 +123,11 @@ func TestStateMoreDataPoints(t *testing.T) {
 
 	tableName := "test_metrics"
 
-	if err := CreateTable(ctx, db, tableName); err != nil {
+	if err := CreateTableMetrics(ctx, db, tableName); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	if readMetric, err := ReadLast(ctx, db, tableName, "test_metric", ""); readMetric != nil || err != nil {
+	if readMetric, err := ReadLastMetric(ctx, db, tableName, "test_metric", ""); readMetric != nil || err != nil {
 		t.Errorf("expected no metric + no error, got %v, %v", readMetric, err)
 	}
 
@@ -166,14 +166,14 @@ func TestStateMoreDataPoints(t *testing.T) {
 			MetricSecondaryName: "",
 			Value:               value,
 		}
-		if err := Insert(ctx, db, tableName, metric); err != nil {
+		if err := InsertMetric(ctx, db, tableName, metric); err != nil {
 			t.Fatalf("failed to insert metric: %v", err)
 		}
 	}
 
 	for _, metricName := range metricNames {
 		since := now.Add(-30 * time.Minute)
-		readMetrics, err := ReadSince(ctx, db, tableName, metricName, "", since)
+		readMetrics, err := ReadMetricsSince(ctx, db, tableName, metricName, "", since)
 		if err != nil {
 			t.Errorf("failed to read metrics for %s since %v: %v", metricName, since, err)
 			continue
@@ -227,7 +227,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 
 	purgeTime := now.Add(-200 * time.Minute)
-	purged, err := Purge(ctx, db, tableName, purgeTime)
+	purged, err := PurgeMetrics(ctx, db, tableName, purgeTime)
 	if err != nil {
 		t.Fatalf("failed to purge data: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 
 	purgeTime = now.Add(5 * time.Minute)
-	purged, err = Purge(ctx, db, tableName, purgeTime)
+	purged, err = PurgeMetrics(ctx, db, tableName, purgeTime)
 	if err != nil {
 		t.Fatalf("failed to purge data: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 
 	for _, metricName := range metricNames {
-		readMetrics, err := ReadSince(ctx, db, tableName, metricName, "", purgeTime)
+		readMetrics, err := ReadMetricsSince(ctx, db, tableName, metricName, "", purgeTime)
 		if errors.Is(err, sql.ErrNoRows) {
 			t.Errorf("expected no data for %s, got %d", metricName, len(readMetrics))
 		}
@@ -273,7 +273,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 
 	for _, m := range secondaryMetrics {
-		if err := Insert(ctx, db, tableName, m); err != nil {
+		if err := InsertMetric(ctx, db, tableName, m); err != nil {
 			t.Fatalf("failed to insert metric with secondary ID: %v", err)
 		}
 	}

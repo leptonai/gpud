@@ -100,7 +100,7 @@ func (c *continuousAverager) Last(ctx context.Context, opts ...OpOption) (float6
 	}
 
 	if len(c.secondaryNameToValue) == 0 {
-		m, err := state.ReadLast(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName)
+		m, err := state.ReadLastMetric(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName)
 		if err != nil {
 			return 0.0, false, err
 		}
@@ -137,7 +137,7 @@ func (c *continuousAverager) Observe(ctx context.Context, value float64, opts ..
 	c.secondaryNameToValue[op.metricSecondaryName] = value
 	c.secondaryNameToValueMu.Unlock()
 
-	return state.Insert(ctx, c.db, c.tableName, m)
+	return state.InsertMetric(ctx, c.db, c.tableName, m)
 }
 
 // Avg returns the average value from the "since" time.
@@ -165,7 +165,7 @@ func (c *continuousAverager) Read(ctx context.Context, opts ...OpOption) (state.
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
-	return state.ReadSince(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName, op.since)
+	return state.ReadMetricsSince(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName, op.since)
 }
 
 type Op struct {

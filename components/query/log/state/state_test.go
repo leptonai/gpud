@@ -22,17 +22,17 @@ func TestOpenMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if err := logstate.CreateTable(ctx, db); err != nil {
+	if err := logstate.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		t.Fatalf("failed to create log table: %v", err)
 	}
 
 	offset := rand.Int63n(10000)
 	whence := rand.Int63n(100)
-	if err := logstate.Insert(ctx, db, "test-file", offset, whence); err != nil {
+	if err := logstate.InsertLogFileSeekInfo(ctx, db, "test-file", offset, whence); err != nil {
 		t.Fatalf("failed to insert log: %v", err)
 	}
 
-	offset2, whence2, err := logstate.Get(ctx, db, "test-file")
+	offset2, whence2, err := logstate.GetLogFileSeekInfo(ctx, db, "test-file")
 	if err != nil {
 		t.Fatalf("failed to get log: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestOpenMemory(t *testing.T) {
 		t.Fatalf("log mismatch: %d %d %d %d", offset, whence, offset2, whence2)
 	}
 
-	if _, _, err := logstate.Get(ctx, db, "invalid"); err != sql.ErrNoRows {
+	if _, _, err := logstate.GetLogFileSeekInfo(ctx, db, "invalid"); err != sql.ErrNoRows {
 		t.Fatalf("expected sql.ErrNoRows, got %v", err)
 	}
 }
@@ -60,20 +60,20 @@ func TestOpen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if err := logstate.CreateTable(ctx, db); err != nil {
+	if err := logstate.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		t.Fatalf("failed to create log table: %v", err)
 	}
 
 	offset := rand.Int63n(10000)
 	whence := rand.Int63n(100)
-	if err := logstate.Insert(ctx, db, "test-file", offset, whence); err != nil {
+	if err := logstate.InsertLogFileSeekInfo(ctx, db, "test-file", offset, whence); err != nil {
 		t.Fatalf("failed to insert log: %v", err)
 	}
-	if err := logstate.Insert(ctx, db, "test-file", offset+1, whence); err != nil {
+	if err := logstate.InsertLogFileSeekInfo(ctx, db, "test-file", offset+1, whence); err != nil {
 		t.Fatalf("failed to insert log: %v", err)
 	}
 
-	offset2, whence2, err := logstate.Get(ctx, db, "test-file")
+	offset2, whence2, err := logstate.GetLogFileSeekInfo(ctx, db, "test-file")
 	if err != nil {
 		t.Fatalf("failed to get log: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestOpen(t *testing.T) {
 		t.Fatalf("log mismatch: %d %d %d %d", offset+1, whence, offset2, whence2)
 	}
 
-	if _, _, err := logstate.Get(ctx, db, "invalid"); err != sql.ErrNoRows {
+	if _, _, err := logstate.GetLogFileSeekInfo(ctx, db, "invalid"); err != sql.ErrNoRows {
 		t.Fatalf("expected sql.ErrNoRows, got %v", err)
 	}
 
@@ -93,7 +93,7 @@ func TestOpen(t *testing.T) {
 	}
 	defer db.Close()
 
-	offset3, whence3, err := logstate.Get(ctx, db, "test-file")
+	offset3, whence3, err := logstate.GetLogFileSeekInfo(ctx, db, "test-file")
 	if err != nil {
 		t.Fatalf("failed to get log: %v", err)
 	}

@@ -20,7 +20,7 @@ func TestAPIVersion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if err := CreateAPIVersionTable(ctx, db); err != nil {
+	if err := CreateTableAPIVersion(ctx, db); err != nil {
 		t.Fatalf("failed to create api version table: %v", err)
 	}
 

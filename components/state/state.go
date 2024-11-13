@@ -25,7 +25,7 @@ const (
 	ColumnComponents  = "components"
 )
 
-func CreateTable(ctx context.Context, db *sql.DB) error {
+func CreateTableMachineMetadata(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s TEXT PRIMARY KEY,
