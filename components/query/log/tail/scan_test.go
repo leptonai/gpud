@@ -243,7 +243,7 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 	tests := []struct {
 		name          string
 		linesToTail   int
-		selectFilters []*query_log_filter.Filter
+		selectFilters []*query_log_common.Filter
 		want          []string
 	}{
 		{
@@ -259,7 +259,7 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 		{
 			name:        "tail with filter matching last line",
 			linesToTail: 5,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("final")},
 			},
 			want: []string{"final_line_no_newline"},
@@ -277,7 +277,7 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -394,7 +394,7 @@ func TestScan_Dedup(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -446,7 +446,7 @@ func TestScan_DedupWithFilters(t *testing.T) {
 		name          string
 		linesToTail   int
 		dedup         bool
-		selectFilters []*query_log_filter.Filter
+		selectFilters []*query_log_common.Filter
 		want          []string
 		wantCount     int
 	}{
@@ -454,7 +454,7 @@ func TestScan_DedupWithFilters(t *testing.T) {
 			name:        "filter without dedup",
 			linesToTail: 100,
 			dedup:       false,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("error")},
 			},
 			want: []string{
@@ -469,7 +469,7 @@ func TestScan_DedupWithFilters(t *testing.T) {
 			name:        "filter with dedup",
 			linesToTail: 100,
 			dedup:       true,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("error")},
 			},
 			want: []string{
@@ -492,7 +492,7 @@ func TestScan_DedupWithFilters(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -590,7 +590,7 @@ func TestScan_EmptyAndSmallFiles(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -683,7 +683,7 @@ func TestScan_LongLines(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -757,7 +757,7 @@ func TestScan_CommandOutput(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)

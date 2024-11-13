@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -41,11 +41,11 @@ func BenchmarkScan_DmesgLog(b *testing.B) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {}),
 			)
 
 			if bm.withFilter {
-				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
+				opts = append(opts, WithSelectFilter(&query_log_common.Filter{
 					Substring: ptr.To("error"),
 				}))
 			}
@@ -92,11 +92,11 @@ func BenchmarkScan_KubeletLog(b *testing.B) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_filter.Filter) {}),
+				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {}),
 			)
 
 			if bm.withFilter {
-				opts = append(opts, WithSelectFilter(&query_log_filter.Filter{
+				opts = append(opts, WithSelectFilter(&query_log_common.Filter{
 					Substring: ptr.To("error"),
 				}))
 			}
