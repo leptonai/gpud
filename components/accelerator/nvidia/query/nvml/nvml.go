@@ -532,7 +532,8 @@ func StartDefaultInstance(ctx context.Context, opts ...OpOption) error {
 		return nil
 	}
 
-	defaultInstance, err := NewInstance(ctx, opts...)
+	var err error
+	defaultInstance, err = NewInstance(ctx, opts...)
 	if err != nil {
 		return err
 	}
