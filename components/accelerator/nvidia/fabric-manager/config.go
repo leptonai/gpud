@@ -6,8 +6,8 @@ import (
 
 	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
 	query_config "github.com/leptonai/gpud/components/query/config"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 
 	"k8s.io/utils/ptr"
 )
@@ -54,7 +54,7 @@ const (
 )
 
 var (
-	filters = []*query_log_filter.Filter{
+	filters = []*query_log_common.Filter{
 		{
 			Name:            eventNVSwitchFatailSXid,
 			Regex:           ptr.To(fabric_manager_log.RegexNVSwitchFatalSXidFromLog),

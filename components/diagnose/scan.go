@@ -12,7 +12,7 @@ import (
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/dmesg"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
@@ -185,7 +185,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		query_log_tail.WithLinesToTail(op.lines),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
 		query_log_tail.WithParseTime(dmesg.ExtractTimeFromLogLine),
-		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_filter.Filter) {
+		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
 			matchedB, _ := matched.YAML()
 			fmt.Println(string(matchedB))

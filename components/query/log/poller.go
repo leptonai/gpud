@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components/query"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 
@@ -51,7 +51,7 @@ type Poller interface {
 	// Returns all the events for the given "since" time.
 	// If none, it returns all events that are already filtered
 	// by the default filters in the configuration.
-	Find(since time.Time, selectFilters ...*query_log_filter.Filter) ([]Item, error)
+	Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error)
 
 	// Returns the last seek info.
 	SeekInfo() tail.SeekInfo
@@ -65,7 +65,7 @@ type Item struct {
 	Line string      `json:"line"`
 
 	// Matched filter that was applied to this item/line.
-	Matched *query_log_filter.Filter `json:"matched,omitempty"`
+	Matched *query_log_common.Filter `json:"matched,omitempty"`
 
 	Error error `json:"error,omitempty"`
 }
@@ -84,11 +84,11 @@ type poller struct {
 	bufferedItems   []Item
 }
 
-func New(ctx context.Context, cfg query_log_config.Config, parseTime query_log_tail.ParseTimeFunc) (Poller, error) {
+func New(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc) (Poller, error) {
 	return newPoller(ctx, cfg, parseTime)
 }
 
-func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query_log_tail.ParseTimeFunc) (*poller, error) {
+func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc) (*poller, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (pl *poller) Commands() [][]string {
 
 func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption) ([]Item, error) {
 	items := make([]Item, 0)
-	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_filter.Filter) {
+	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_common.Filter) {
 		items = append(items, Item{
 			Time:    metav1.Time{Time: time},
 			Line:    string(line),
@@ -221,7 +221,7 @@ func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption)
 	return items, nil
 }
 
-func (pl *poller) Find(since time.Time, selectFilters ...*query_log_filter.Filter) ([]Item, error) {
+func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error) {
 	// 1. filter the already flushed/in-queue ones
 	polledItems, err := pl.Poller.All(since)
 	if err != nil {
@@ -245,7 +245,7 @@ func (pl *poller) Find(since time.Time, selectFilters ...*query_log_filter.Filte
 				continue
 			}
 
-			var matchedFilter *query_log_filter.Filter
+			var matchedFilter *query_log_common.Filter
 			for _, f := range selectFilters {
 				matched, err := f.MatchString(item.Line)
 				if err != nil {
@@ -280,7 +280,7 @@ func (pl *poller) Find(since time.Time, selectFilters ...*query_log_filter.Filte
 			continue
 		}
 
-		var matchedFilter *query_log_filter.Filter
+		var matchedFilter *query_log_common.Filter
 		for _, f := range selectFilters {
 			matched, err := f.MatchString(item.Line)
 			if err != nil {

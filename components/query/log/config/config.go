@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"github.com/nxadm/tail"
 )
@@ -32,12 +32,12 @@ type Config struct {
 	// An event is generated if any of the filters match.
 	// Useful for explicit blacklisting "error" logs
 	// (e.g., GPU error messages in dmesg).
-	SelectFilters []*query_log_filter.Filter `json:"select_filters"`
+	SelectFilters []*query_log_common.Filter `json:"select_filters"`
 	// "AND" conditions to select logs.
 	// An event is generated if all of the filters do not match.
 	// Useful for explicit whitelisting logs and catch all other
 	// (e.g., good healthy log messages).
-	RejectFilters []*query_log_filter.Filter `json:"reject_filters"`
+	RejectFilters []*query_log_common.Filter `json:"reject_filters"`
 
 	DB       *sql.DB        `json:"-"`
 	SeekInfo *tail.SeekInfo `json:"seek_info,omitempty"`

@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
-
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"k8s.io/utils/ptr"
 )
 
@@ -54,7 +53,7 @@ func TestScan(t *testing.T) {
 		fileName      string
 		commandArgs   []string
 		n             int
-		selectFilters []*query_log_filter.Filter
+		selectFilters []*query_log_common.Filter
 		want          []string
 		wantError     bool
 	}{
@@ -74,7 +73,7 @@ func TestScan(t *testing.T) {
 			name:     "tail with match function",
 			fileName: tmpf.Name(),
 			n:        3,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Regex: ptr.To("3")},
 				{Regex: ptr.To("5")},
 			},
@@ -84,7 +83,7 @@ func TestScan(t *testing.T) {
 			name:     "tail with match function",
 			fileName: tmpf.Name(),
 			n:        3,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("3")},
 				{Substring: ptr.To("5")},
 			},
@@ -127,7 +126,7 @@ func TestScan(t *testing.T) {
 			name:     "tail with regex filter on large file",
 			fileName: largeTmpf.Name(),
 			n:        1000,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Regex: ptr.To("line(50|100|150)")},
 			},
 			want: []string{"line1000", "line509", "line508", "line507", "line506", "line505", "line504", "line503", "line502", "line501", "line500", "line150", "line100", "line50"},
@@ -136,7 +135,7 @@ func TestScan(t *testing.T) {
 			name:        "tail with regex filter on large file but with cat",
 			commandArgs: []string{"cat", largeTmpf.Name()},
 			n:           1000,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Regex: ptr.To("line(50|100|150)")},
 			},
 			want: []string{"line1000", "line509", "line508", "line507", "line506", "line505", "line504", "line503", "line502", "line501", "line500", "line150", "line100", "line50"},
@@ -159,7 +158,7 @@ func TestScan(t *testing.T) {
 			name:     "tail kubelet.0.log with filter",
 			fileName: "testdata/kubelet.0.log",
 			n:        1000,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("error")},
 			},
 			want: nil, // We'll check the length instead of exact content
@@ -168,7 +167,7 @@ func TestScan(t *testing.T) {
 			name:        "tail kubelet.0.log with filter but with cat",
 			commandArgs: []string{"cat", "testdata/kubelet.0.log"},
 			n:           1000,
-			selectFilters: []*query_log_filter.Filter{
+			selectFilters: []*query_log_common.Filter{
 				{Substring: ptr.To("error")},
 			},
 			want: nil, // We'll check the length instead of exact content
@@ -187,7 +186,7 @@ func TestScan(t *testing.T) {
 				WithParseTime(func(line []byte) (time.Time, error) {
 					return time.Time{}, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_filter.Filter) {
+				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)

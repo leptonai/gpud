@@ -5,7 +5,7 @@ import (
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/memory"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -32,8 +32,8 @@ const (
 	EventOOMCgroupRegex = `Memory cgroup out of memory`
 )
 
-func DefaultLogFilters(ctx context.Context) ([]*query_log_filter.Filter, error) {
-	defaultFilters := []*query_log_filter.Filter{
+func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
+	defaultFilters := []*query_log_common.Filter{
 		{
 			Name:            EventOOMKill,
 			Regex:           ptr.To(EventOOMKillRegex),

@@ -1,8 +1,7 @@
 package tail
 
 import (
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
-
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"github.com/nxadm/tail"
 )
 
@@ -19,5 +18,5 @@ type Streamer interface {
 
 type Line struct {
 	*tail.Line
-	MatchedFilter *query_log_filter.Filter
+	MatchedFilter *query_log_common.Filter
 }

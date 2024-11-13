@@ -1,5 +1,4 @@
-// Package filter provides the log filter implementation.
-package filter
+package common
 
 import (
 	"bytes"

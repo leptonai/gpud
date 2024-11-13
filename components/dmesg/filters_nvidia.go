@@ -8,7 +8,7 @@ import (
 	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	query_log_filter "github.com/leptonai/gpud/components/query/log/filter"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -45,8 +45,8 @@ const (
 	EventNvidiaNCCLSegfaultInLibnccl = "nvidia_nccl_segfault_in_libnccl"
 )
 
-func DefaultDmesgFiltersForNvidia() []*query_log_filter.Filter {
-	return []*query_log_filter.Filter{
+func DefaultDmesgFiltersForNvidia() []*query_log_common.Filter {
+	return []*query_log_common.Filter{
 		{
 			Name:            EventNvidiaNVRMXid,
 			Regex:           ptr.To(nvidia_query_xid.RegexNVRMXidDmesg),
