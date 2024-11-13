@@ -33,11 +33,11 @@ type Poller interface {
 	// Returns "true" if the poller was stopped with its reference count being zero.
 	Stop(componentName string) bool
 
-	// Last returns the last result.
-	// Useful for constructing the state.
+	// Last returns the last item in the queue.
+	// It returns ErrNoData if no item is collected yet.
 	Last() (*Item, error)
-	// All returns all results.
-	// Useful for constructing the events.
+	// All returns all results in the queue since the given time.
+	// It returns ErrNoData if no item is collected yet.
 	All(since time.Time) ([]Item, error)
 }
 
@@ -259,9 +259,8 @@ func (pl *poller) All(since time.Time) ([]Item, error) {
 	defer pl.lastItemsMu.RUnlock()
 
 	// nothing in memory (e.g., process restart)
-	// we removed db support to simplify the code
 	if len(pl.lastItems) == 0 {
-		return nil, nil
+		return nil, ErrNoData
 	}
 
 	items := make([]Item, 0)

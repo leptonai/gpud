@@ -86,6 +86,7 @@ func (c *Component) States(ctx context.Context) ([]components.State, error) {
 }
 
 // The dmesg component events returns the realtime events from the dmesg log poller.
+// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 func (c *Component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {
