@@ -6,7 +6,7 @@ import (
 	"time"
 
 	metrics_state "github.com/leptonai/gpud/components/metrics/state"
-	"github.com/leptonai/gpud/components/state"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestNewAverager(t *testing.T) {
@@ -15,7 +15,7 @@ func TestNewAverager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestAveragerObserve(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestAveragerAll(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestEmptyAverager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := state.Open(":memory:")
+	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
