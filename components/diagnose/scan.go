@@ -15,6 +15,7 @@ import (
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/file"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
@@ -184,7 +185,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
 		query_log_tail.WithLinesToTail(op.lines),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithParseTime(dmesg.ExtractTimeFromLogLine),
+		query_log_tail.WithParseTime(pkg_dmesg.ParseCtimeWithError),
 		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
 			matchedB, _ := matched.YAML()
