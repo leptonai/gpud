@@ -187,7 +187,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		Query: defaultQueryCfg,
 		DB:    db,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-			if err := query_log_state.Insert(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
+			if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 				log.Logger.Errorw("failed to sync seek info", "error", err)
 			}
 		},
