@@ -171,7 +171,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			case <-time.After(dur):
 				now := time.Now().UTC()
 				before := now.Add(-dur)
-				purged, err := components_metrics_state.Purge(ctx, db, components_metrics_state.DefaultTableName, before)
+				purged, err := components_metrics_state.PurgeMetrics(ctx, db, components_metrics_state.DefaultTableName, before)
 				if err != nil {
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {

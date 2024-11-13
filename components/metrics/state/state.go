@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-func Insert(ctx context.Context, db *sql.DB, tableName string, metric Metric) error {
+func InsertMetric(ctx context.Context, db *sql.DB, tableName string, metric Metric) error {
 	query := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 `,
@@ -62,7 +62,7 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 
 // Reads the last metric.
 // Returns nil if no record is found ("database/sql.ErrNoRows").
-func ReadLast(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string) (*Metric, error) {
+func ReadLastMetric(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string) (*Metric, error) {
 	if secondaryName == "" {
 		return readLastWithAllSecondaryNames(ctx, db, tableName, name)
 	}
@@ -128,7 +128,7 @@ LIMIT 1;
 }
 
 // Returns nil if no record is found ("database/sql.ErrNoRows").
-func ReadSince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, since time.Time) (Metrics, error) {
+func ReadMetricsSince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, since time.Time) (Metrics, error) {
 	if secondaryName == "" {
 		return readSinceWithAllSecondaryNames(ctx, db, tableName, name, since)
 	}
@@ -320,7 +320,7 @@ func EMASince(ctx context.Context, db *sql.DB, tableName string, name string, se
 	return ema.Float64, nil
 }
 
-func Purge(ctx context.Context, db *sql.DB, tableName string, before time.Time) (int, error) {
+func PurgeMetrics(ctx context.Context, db *sql.DB, tableName string, before time.Time) (int, error) {
 	query := fmt.Sprintf(`
 DELETE FROM %s WHERE %s < ?;`, tableName, ColumnUnixSeconds)
 	rs, err := db.ExecContext(ctx, query, before.Unix())
