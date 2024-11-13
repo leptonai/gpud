@@ -524,7 +524,7 @@ var (
 // NVML_GPM_METRIC_FP32_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP32 math (0.0 - 100.0).
 // NVML_GPM_METRIC_FP16_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP16 math (0.0 - 100.0).
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
-func StartDefaultInstance(ctx context.Context) error {
+func StartDefaultInstance(ctx context.Context, opts ...OpOption) error {
 	defaultInstanceMu.Lock()
 	defer defaultInstanceMu.Unlock()
 
@@ -532,18 +532,7 @@ func StartDefaultInstance(ctx context.Context) error {
 		return nil
 	}
 
-	var err error
-	defaultInstance, err = NewInstance(ctx,
-		WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY,
-			nvml.GPM_METRIC_INTEGER_UTIL,
-			nvml.GPM_METRIC_ANY_TENSOR_UTIL,
-			nvml.GPM_METRIC_DFMA_TENSOR_UTIL,
-			nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
-			nvml.GPM_METRIC_IMMA_TENSOR_UTIL,
-			nvml.GPM_METRIC_FP64_UTIL,
-			nvml.GPM_METRIC_FP32_UTIL,
-			nvml.GPM_METRIC_FP16_UTIL,
-		))
+	defaultInstance, err := NewInstance(ctx, opts...)
 	if err != nil {
 		return err
 	}
