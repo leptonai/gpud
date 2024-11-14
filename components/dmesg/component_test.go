@@ -58,6 +58,7 @@ func TestComponent(t *testing.T) {
 				SelectFilters: filters,
 			},
 		},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create component: %v", err)

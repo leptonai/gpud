@@ -12,6 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var ErrNoData = errors.New("no data collected yet in the poller")
+
 // Defines the common query/poller interface.
 // It polls the data source (rather than watch) in order
 // to share the same data source with multiple components (consumer).
@@ -21,13 +23,14 @@ type Poller interface {
 	// Returns the poller ID.
 	ID() string
 
+	// Starts the poller routine.
+	// Redundant calls will be skipped if there's an existing poller.
+	Start(ctx context.Context, cfg query_config.Config, componentName string)
+
 	// Config returns the config used to start the poller.
 	// This is useful for debugging and logging.
 	Config() query_config.Config
 
-	// Starts the poller routine.
-	// Redundant calls will be skipped if there's an existing poller.
-	Start(ctx context.Context, cfg query_config.Config, componentName string)
 	// Stops the poller routine.
 	// Safe to call multiple times.
 	// Returns "true" if the poller was stopped with its reference count being zero.
@@ -230,6 +233,10 @@ func (pl *poller) processItem(item Item) {
 		return
 	}
 
+	pl.insertItemToInMemoryQueue(item)
+}
+
+func (pl *poller) insertItemToInMemoryQueue(item Item) {
 	queueN := pl.Config().QueueSize
 
 	pl.lastItemsMu.Lock()
@@ -241,9 +248,13 @@ func (pl *poller) processItem(item Item) {
 	pl.lastItems = append(pl.lastItems, item)
 }
 
-var ErrNoData = errors.New("no data collected yet in the poller")
-
+// Last returns the last item in the queue.
+// It returns ErrNoData if no item is collected yet.
 func (pl *poller) Last() (*Item, error) {
+	return pl.readLastItemFromInMemoryQueue()
+}
+
+func (pl *poller) readLastItemFromInMemoryQueue() (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
@@ -254,7 +265,13 @@ func (pl *poller) Last() (*Item, error) {
 	return &pl.lastItems[len(pl.lastItems)-1], nil
 }
 
+// All returns all results in the queue since the given time.
+// It returns ErrNoData if no item is collected yet.
 func (pl *poller) All(since time.Time) ([]Item, error) {
+	return pl.readAllItemsFromInMemoryQueue(since)
+}
+
+func (pl *poller) readAllItemsFromInMemoryQueue(since time.Time) ([]Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
@@ -270,5 +287,10 @@ func (pl *poller) All(since time.Time) ([]Item, error) {
 		}
 		items = append(items, item)
 	}
+
+	if len(items) == 0 {
+		return nil, ErrNoData
+	}
+
 	return items, nil
 }

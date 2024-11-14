@@ -24,6 +24,7 @@ func CreateDefaultPoller(ctx context.Context, cfg query_log_config.Config) error
 			ctx,
 			cfg,
 			ExtractTimeFromLogLine,
+			nil,
 		)
 		if err != nil {
 			panic(err)

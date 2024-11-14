@@ -103,6 +103,10 @@ func (sr *fileStreamer) pollLoops() {
 			line.Time = time.Now().UTC()
 		}
 
+		if sr.op.processMatched != nil {
+			sr.op.processMatched([]byte(line.Text), line.Time, matchedFilter)
+		}
+
 		lineToSend := Line{
 			Line:          line,
 			MatchedFilter: matchedFilter,

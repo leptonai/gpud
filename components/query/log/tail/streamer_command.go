@@ -112,7 +112,7 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 			sr.dedup.mu.Unlock()
 		}
 
-		ts, err = sr.op.parseTime([]byte(s))
+		ts, err = sr.op.parseTime(scanner.Bytes())
 		if err != nil {
 			log.Logger.Warnw("error parsing time", "error", err)
 			continue
@@ -128,6 +128,10 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		}
 		if !shouldInclude {
 			continue
+		}
+
+		if sr.op.processMatched != nil {
+			sr.op.processMatched(scanner.Bytes(), ts, matchedFilter)
 		}
 
 		lineToSend := Line{

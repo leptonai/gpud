@@ -3,7 +3,6 @@ package config
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -39,7 +38,6 @@ type Config struct {
 	// (e.g., good healthy log messages).
 	RejectFilters []*query_log_common.Filter `json:"reject_filters"`
 
-	DB       *sql.DB        `json:"-"`
 	SeekInfo *tail.SeekInfo `json:"seek_info,omitempty"`
 
 	// Used to commit the last seek info to disk.

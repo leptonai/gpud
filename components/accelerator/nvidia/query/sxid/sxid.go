@@ -1,7 +1,11 @@
 // Package sxid provides the NVIDIA SXID error details.
 package sxid
 
-import "github.com/leptonai/gpud/components/common"
+import (
+	"encoding/json"
+
+	"github.com/leptonai/gpud/components/common"
+)
 
 // Defines the SXid error information that is static.
 // ref. https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
@@ -23,6 +27,10 @@ type Detail struct {
 	Impact         string `json:"impact"`
 	Recovery       string `json:"recovery"`
 	OtherImpact    string `json:"other_impact"`
+}
+
+func (d Detail) JSON() ([]byte, error) {
+	return json.Marshal(d)
 }
 
 // Returns the error if found.
