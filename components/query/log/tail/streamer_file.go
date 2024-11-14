@@ -1,13 +1,14 @@
 package tail
 
 import (
+	"context"
 	"time"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/nxadm/tail"
 )
 
-func NewFromFile(file string, seek *tail.SeekInfo, opts ...OpOption) (Streamer, error) {
+func NewFromFile(ctx context.Context, file string, seek *tail.SeekInfo, opts ...OpOption) (Streamer, error) {
 	op := &Op{
 		file: file,
 	}
@@ -36,10 +37,16 @@ func NewFromFile(file string, seek *tail.SeekInfo, opts ...OpOption) (Streamer, 
 	}
 
 	sr := &fileStreamer{
-		op:    op,
-		file:  f,
-		lineC: make(chan Line, 100),
+		ctx:          ctx,
+		op:           op,
+		file:         f,
+		lineC:        make(chan Line, 100),
+		dedupEnabled: op.dedup,
 	}
+	if op.dedup {
+		sr.dedup = seenPool.Get().(*streamDeduper)
+	}
+
 	go sr.pollLoops()
 
 	return sr, nil
@@ -48,9 +55,12 @@ func NewFromFile(file string, seek *tail.SeekInfo, opts ...OpOption) (Streamer, 
 var _ Streamer = (*fileStreamer)(nil)
 
 type fileStreamer struct {
-	op    *Op
-	file  *tail.Tail
-	lineC chan Line
+	ctx          context.Context
+	op           *Op
+	file         *tail.Tail
+	lineC        chan Line
+	dedupEnabled bool
+	dedup        *streamDeduper
 }
 
 func (sr *fileStreamer) File() string {
@@ -76,13 +86,44 @@ func (sr *fileStreamer) pollLoops() {
 			continue
 		}
 
+		s := line.Text
+
+		if sr.dedupEnabled {
+			sr.dedup.mu.Lock()
+			_, exists := sr.dedup.seen[s]
+			if exists {
+				sr.dedup.mu.Unlock()
+				continue
+			}
+			sr.dedup.seen[s] = struct{}{}
+			sr.dedup.mu.Unlock()
+		}
+
 		if line.Time.IsZero() {
 			line.Time = time.Now().UTC()
 		}
 
-		sr.lineC <- Line{
+		lineToSend := Line{
 			Line:          line,
 			MatchedFilter: matchedFilter,
+		}
+
+		select {
+		case <-sr.ctx.Done():
+			sr.file.Done()
+
+			sr.dedup.mu.Lock()
+			for k := range sr.dedup.seen {
+				delete(sr.dedup.seen, k)
+			}
+			sr.dedup.mu.Unlock()
+			seenPool.Put(sr.dedup)
+			return
+
+		case sr.lineC <- lineToSend:
+
+		default:
+			log.Logger.Warnw("channel is full -- dropped output")
 		}
 	}
 }

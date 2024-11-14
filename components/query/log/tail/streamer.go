@@ -1,6 +1,8 @@
 package tail
 
 import (
+	"sync"
+
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"github.com/nxadm/tail"
 )
@@ -19,4 +21,17 @@ type Streamer interface {
 type Line struct {
 	*tail.Line
 	MatchedFilter *query_log_common.Filter
+}
+
+type streamDeduper struct {
+	seen map[string]struct{}
+	mu   sync.Mutex
+}
+
+var seenPool = sync.Pool{
+	New: func() interface{} {
+		return &streamDeduper{
+			seen: make(map[string]struct{}, 1000),
+		}
+	},
 }
