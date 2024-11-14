@@ -282,13 +282,16 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 
 			// NOTE: for cases like 'Process Name: [celeryd: ...]'
 			// it should be converted to 'Process Name: "[celeryd: ...]"'
-			if bytes.Contains(currentLine, []byte("Process Name")) && bytes.Contains(currentLine, []byte(":")) {
+			if bytes.Contains(currentLine, []byte(":")) && bytes.Contains(currentLine, []byte("[")) {
 				s := string(currentLine)
 				splits := strings.Split(s, ":")
-
-				key := splits[0]
-				value := strings.TrimSpace(splits[1])
-				currentLine = []byte(fmt.Sprintf("%s: %q", key, value))
+				if len(splits) > 1 {
+					key := splits[0]
+					value := strings.TrimSpace(splits[1])
+					if len(value) > 0 {
+						currentLine = []byte(fmt.Sprintf("%s: %q", key, value))
+					}
+				}
 			}
 		}
 
