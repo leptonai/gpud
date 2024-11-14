@@ -55,8 +55,6 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 	}
 
 	scanCommands := [][]string{
-		{"cat", DefaultDmesgFile},
-
 		// some old dmesg versions don't support --since, thus fall back to the one without --since and tail the last 200 lines
 		// ref. https://github.com/leptonai/gpud/issues/32
 		{"dmesg --ctime --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
