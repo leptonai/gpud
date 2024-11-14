@@ -25,7 +25,7 @@ func TestComponent(t *testing.T) {
 		},
 	)
 
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	states, err := component.States(ctx)
 	if err != nil {

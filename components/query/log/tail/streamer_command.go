@@ -41,11 +41,17 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 	stderrScanner := bufio.NewScanner(p.StderrReader())
 
 	streamer := &commandStreamer{
-		op:    op,
-		ctx:   ctx,
-		proc:  p,
-		lineC: make(chan Line, 200),
+		op:           op,
+		ctx:          ctx,
+		proc:         p,
+		lineC:        make(chan Line, 200),
+		dedupEnabled: op.dedup,
 	}
+
+	if op.dedup {
+		streamer.dedup = seenPool.Get().(*streamDeduper)
+	}
+
 	go streamer.pollLoops(stdoutScanner)
 	go streamer.pollLoops(stderrScanner)
 	go streamer.waitCommand()
@@ -60,6 +66,9 @@ type commandStreamer struct {
 	ctx   context.Context
 	proc  process.Process
 	lineC chan Line
+
+	dedupEnabled bool
+	dedup        *streamDeduper
 }
 
 func (sr *commandStreamer) File() string {
@@ -91,6 +100,18 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		}
 
 		s = scanner.Text()
+
+		if sr.dedupEnabled {
+			sr.dedup.mu.Lock()
+			_, exists := sr.dedup.seen[s]
+			if exists {
+				sr.dedup.mu.Unlock()
+				continue
+			}
+			sr.dedup.seen[s] = struct{}{}
+			sr.dedup.mu.Unlock()
+		}
+
 		ts, err = sr.op.parseTime([]byte(s))
 		if err != nil {
 			log.Logger.Warnw("error parsing time", "error", err)
@@ -109,22 +130,40 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 			continue
 		}
 
-		select {
-		case sr.lineC <- Line{
+		lineToSend := Line{
 			Line: &tail.Line{
 				Text: s,
 				Time: ts,
 			},
 			MatchedFilter: matchedFilter,
-		}:
+		}
+
+		select {
+		case <-sr.ctx.Done():
+			return
+
+		case sr.lineC <- lineToSend:
+
 		default:
-			log.Logger.Debugw("channel is full -- dropped output", "pid", sr.proc.PID())
+			log.Logger.Warnw("channel is full -- dropped output", "pid", sr.proc.PID())
 		}
 	}
 }
 
 func (sr *commandStreamer) waitCommand() {
-	defer close(sr.lineC)
+	defer func() {
+		close(sr.lineC)
+
+		if sr.dedupEnabled {
+			sr.dedup.mu.Lock()
+			for k := range sr.dedup.seen {
+				delete(sr.dedup.seen, k)
+			}
+			sr.dedup.mu.Unlock()
+			seenPool.Put(sr.dedup)
+		}
+	}()
+
 	select {
 	case <-sr.ctx.Done():
 	case <-sr.proc.Wait():

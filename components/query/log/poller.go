@@ -96,6 +96,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query
 	cfg.SetDefaultsIfNotSet()
 
 	options := []query_log_tail.OpOption{
+		query_log_tail.WithDedup(true),
 		query_log_tail.WithSelectFilter(cfg.SelectFilters...),
 		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
 		query_log_tail.WithParseTime(parseTime),
@@ -104,7 +105,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query
 	var tailLogger query_log_tail.Streamer
 	var err error
 	if cfg.File != "" {
-		tailLogger, err = query_log_tail.NewFromFile(cfg.File, cfg.SeekInfo, options...)
+		tailLogger, err = query_log_tail.NewFromFile(ctx, cfg.File, cfg.SeekInfo, options...)
 	} else {
 		tailLogger, err = query_log_tail.NewFromCommand(ctx, cfg.Commands, options...)
 	}
