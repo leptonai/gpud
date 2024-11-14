@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func TestParse4090Valid(t *testing.T) {
+	data, err := os.ReadFile("testdata/nvidia-smi-query.535.154.05.out.0.valid.4090")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	parsed, err := ParseSMIQueryOutput(data)
+	if err != nil {
+		t.Fatalf("Parse returned an error: %v", err)
+	}
+	if parsed.GPUs[0].ID != "GPU 00000000:01:00.0" {
+		t.Errorf("GPU0.ID mismatch: %+v", parsed.GPUs[0].ID)
+	}
+}
+
 func TestParseWithRemappedRows(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.129.03.out.0.valid.a10")
 	if err != nil {
