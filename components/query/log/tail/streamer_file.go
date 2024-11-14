@@ -112,12 +112,14 @@ func (sr *fileStreamer) pollLoops() {
 		case <-sr.ctx.Done():
 			sr.file.Done()
 
-			sr.dedup.mu.Lock()
-			for k := range sr.dedup.seen {
-				delete(sr.dedup.seen, k)
+			if sr.dedupEnabled {
+				sr.dedup.mu.Lock()
+				for k := range sr.dedup.seen {
+					delete(sr.dedup.seen, k)
+				}
+				sr.dedup.mu.Unlock()
+				seenPool.Put(sr.dedup)
 			}
-			sr.dedup.mu.Unlock()
-			seenPool.Put(sr.dedup)
 			return
 
 		case sr.lineC <- lineToSend:
