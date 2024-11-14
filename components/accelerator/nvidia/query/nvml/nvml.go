@@ -4,12 +4,14 @@ package nvml
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	components_nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -58,6 +60,8 @@ type instance struct {
 
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
+
+	db *sql.DB
 
 	xidErrorSupported   bool
 	xidEventMask        uint64
@@ -159,6 +163,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
+
 	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
 	for id := range op.gpmMetricsIDs {
 		gpmMetricsIDs = append(gpmMetricsIDs, id)
@@ -216,6 +221,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
 
+		db: op.db,
+
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
 		xidEventMask:        defaultXidEventMask,
@@ -243,6 +250,12 @@ func (inst *instance) Start() error {
 
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
+	defer cancel()
+	if err := components_nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.db); err != nil {
+		return err
+	}
 
 	devices, err := inst.deviceLib.GetDevices()
 	if err != nil {

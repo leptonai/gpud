@@ -4,6 +4,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"sync"
@@ -30,17 +31,31 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var DefaultPoller = query.New(
-	"shared-nvidia-poller",
-	query_config.Config{
-		Interval:  metav1.Duration{Duration: query_config.DefaultPollInterval},
-		QueueSize: query_config.DefaultQueueSize,
-		State: &query_config.State{
-			Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
-		},
-	},
-	Get,
+var (
+	defaultPollerOnce sync.Once
+	defaultPoller     query.Poller
 )
+
+// only set once since it relies on the kube client and specific port
+func SetDefaultPoller(db *sql.DB) {
+	defaultPollerOnce.Do(func() {
+		defaultPoller = query.New(
+			"shared-nvidia-poller",
+			query_config.Config{
+				Interval:  metav1.Duration{Duration: query_config.DefaultPollInterval},
+				QueueSize: query_config.DefaultQueueSize,
+				State: &query_config.State{
+					Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
+				},
+			},
+			CreateGet(db),
+		)
+	})
+}
+
+func GetDefaultPoller() query.Poller {
+	return defaultPoller
+}
 
 var (
 	getSuccessOnceCloseOnce sync.Once
@@ -51,10 +66,17 @@ func GetSuccessOnce() <-chan any {
 	return getSuccessOnce
 }
 
+func CreateGet(db *sql.DB) query.GetFunc {
+	return func(ctx context.Context) (_ any, e error) {
+		return Get(ctx, db)
+	}
+}
+
 // Get all nvidia component queries.
-func Get(ctx context.Context) (output any, err error) {
+func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	if err := nvml.StartDefaultInstance(
 		ctx,
+		nvml.WithDB(db),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,

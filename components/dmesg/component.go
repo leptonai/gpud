@@ -8,30 +8,31 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	query_log "github.com/leptonai/gpud/components/query/log"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 )
 
 const Name = "dmesg"
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
+func New(ctx context.Context, cfg Config, processMatched query_log_common.ProcessMatchedFunc) (components.Component, error) {
 	if err := cfg.Log.Validate(); err != nil {
 		return nil, err
 	}
 	cfg.Log.SetDefaultsIfNotSet()
 
-	if err := createDefaultLogPoller(ctx, cfg); err != nil {
+	if err := createDefaultLogPoller(ctx, cfg, processMatched); err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	GetDefaultLogPoller().Start(cctx, cfg.Log.Query, Name)
+	defaultLogPoller.Start(cctx, cfg.Log.Query, Name)
 
 	return &Component{
 		cfg:       &cfg,
 		rootCtx:   ctx,
 		cancel:    ccancel,
-		logPoller: GetDefaultLogPoller(),
+		logPoller: defaultLogPoller,
 	}, nil
 }
 

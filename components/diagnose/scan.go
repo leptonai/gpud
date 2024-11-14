@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/file"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 const (
@@ -87,7 +88,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			}
 		}
 
-		outputRaw, err := nvidia_query.Get(ctx)
+		db, err := sqlite.Open(":memory:")
+		if err != nil {
+			log.Logger.Fatalw("failed to open database", "error", err)
+		}
+		defer db.Close()
+
+		outputRaw, err := nvidia_query.Get(ctx, db)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
 		} else {

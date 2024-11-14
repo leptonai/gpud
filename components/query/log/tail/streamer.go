@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+
 	"github.com/nxadm/tail"
 )
 

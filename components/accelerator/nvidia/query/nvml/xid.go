@@ -1,10 +1,12 @@
 package nvml
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	components_nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -164,6 +166,21 @@ func (inst *instance) pollXidEvents() {
 		}
 
 		log.Logger.Warnw("detected xid event", "xid", xid, "event", event)
+
+		// no need to check duplicate entries, assuming nvml event poller does not return old events
+		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
+		werr := components_nvidia_xid_sxid_state.InsertEvent(ctx, inst.db, components_nvidia_xid_sxid_state.Event{
+			UnixSeconds:  event.Time.Unix(),
+			DataSource:   "nvml",
+			EventType:    "xid",
+			EventID:      int64(event.Xid),
+			EventDetails: "",
+		})
+		cancel()
+		if werr != nil {
+			log.Logger.Errorw("failed to insert xid event into database", "error", werr)
+		}
+
 		select {
 		case <-inst.rootCtx.Done():
 			return

@@ -25,7 +25,7 @@ func TestPoller(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	poller, err := newPoller(ctx, cfg, nil)
+	poller, err := newPoller(ctx, cfg, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create log poller: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestPollerTail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	poller, err := newPoller(ctx, cfg, nil)
+	poller, err := newPoller(ctx, cfg, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create log poller: %v", err)
 	}

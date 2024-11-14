@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	"github.com/leptonai/gpud/pkg/sqlite"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestComponentLog(t *testing.T) {
@@ -28,6 +29,12 @@ func TestComponentLog(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
 	pollInterval := 3 * time.Second
 	component, err := New(
 		ctx,
@@ -35,6 +42,9 @@ func TestComponentLog(t *testing.T) {
 			Log: query_log_config.Config{
 				Query: query_config.Config{
 					Interval: metav1.Duration{Duration: pollInterval},
+					State: &query_config.State{
+						DB: db,
+					},
 				},
 				BufferSize:    query_log_config.DefaultBufferSize,
 				File:          f.Name(),

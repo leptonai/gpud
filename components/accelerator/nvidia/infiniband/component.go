@@ -19,12 +19,13 @@ func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.DefaultPoller.Start(cctx, cfg.Query, Name)
+	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	return &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
-		poller:  nvidia_query.DefaultPoller,
+		poller:  nvidia_query.GetDefaultPoller(),
 	}
 }
 

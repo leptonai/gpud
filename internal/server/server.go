@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gin-contrib/gzip"
-
 	"github.com/gin-gonic/gin"
 	"github.com/nxadm/tail"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,6 +36,8 @@ import (
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
+	nvidia_component_error_xid_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid"
+	nvidia_component_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
@@ -59,6 +60,9 @@ import (
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
+	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	components_nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
@@ -79,6 +83,7 @@ import (
 	"github.com/leptonai/gpud/components/os"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	query_config "github.com/leptonai/gpud/components/query/config"
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	query_log_state "github.com/leptonai/gpud/components/query/log/state"
 	"github.com/leptonai/gpud/components/state"
@@ -155,13 +160,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
-	if err := components_metrics_state.CreateTableMetrics(ctx, db, components_metrics_state.DefaultTableName); err != nil {
-		return nil, fmt.Errorf("failed to create metrics table: %w", err)
-	}
 	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 
+	if err := components_metrics_state.CreateTableMetrics(ctx, db, components_metrics_state.DefaultTableName); err != nil {
+		return nil, fmt.Errorf("failed to create metrics table: %w", err)
+	}
 	go func() {
 		dur := config.RetentionPeriod.Duration
 		for {
@@ -181,11 +186,117 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
+	// create nvidia-specific table regardless of whether nvidia components are enabled
+	if err := components_nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, db); err != nil {
+		return nil, fmt.Errorf("failed to create nvidia xid/sxid state table: %w", err)
+	}
+	go func() {
+		dur := config.RetentionPeriod.Duration
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+				now := time.Now().UTC()
+				before := now.Add(-dur)
+
+				purged, err := components_nvidia_xid_sxid_state.Purge(ctx, db, components_nvidia_xid_sxid_state.WithBefore(before))
+				if err != nil {
+					log.Logger.Warnw("failed to delete nvidia xid/sxid events", "error", err)
+				} else {
+					log.Logger.Debugw("deleted nvidia xid/sxid events", "before", before, "purged", purged)
+				}
+			}
+		}
+	}()
+
+	dmesgProcessMatched := func(line []byte, ts time.Time, matchedFilter *query_log_common.Filter) {
+		if len(line) == 0 {
+			return
+		}
+		if ts.IsZero() {
+			return
+		}
+		if matchedFilter == nil {
+			return
+		}
+
+		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+		defer ccancel()
+
+		for _, ref := range matchedFilter.OwnerReferences {
+			switch ref {
+			case nvidia_component_error_xid_id.Name:
+				ev, err := nvidia_query_xid.ParseDmesgLogLine(string(line))
+				if err != nil {
+					log.Logger.Errorw("failed to parse xid dmesg line", "line", string(line), "error", err)
+					continue
+				}
+				if ev.Detail == nil {
+					log.Logger.Errorw("failed to parse xid dmesg line", "line", string(line), "error", "no detail")
+					continue
+				}
+
+				eventToInsert := components_nvidia_xid_sxid_state.Event{
+					UnixSeconds:  ts.Unix(),
+					DataSource:   "dmesg",
+					EventType:    "xid",
+					EventID:      int64(ev.Detail.Xid),
+					EventDetails: ev.LogItem.Line,
+				}
+
+				found, err := components_nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				if err != nil {
+					log.Logger.Errorw("failed to find xid event in database", "error", err)
+					continue
+				}
+				if found {
+					continue
+				}
+				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+					log.Logger.Errorw("failed to insert xid event into database", "error", werr)
+					continue
+				}
+
+			case nvidia_component_error_sxid_id.Name:
+				ev, err := nvidia_query_sxid.ParseDmesgLogLine(string(line))
+				if err != nil {
+					log.Logger.Errorw("failed to parse sxid dmesg line", "line", string(line), "error", err)
+					continue
+				}
+				if ev.Detail == nil {
+					log.Logger.Errorw("failed to parse sxid dmesg line", "line", string(line), "error", "no detail")
+					continue
+				}
+
+				eventToInsert := components_nvidia_xid_sxid_state.Event{
+					UnixSeconds:  ts.Unix(),
+					DataSource:   "dmesg",
+					EventType:    "sxid",
+					EventID:      int64(ev.Detail.SXid),
+					EventDetails: ev.LogItem.Line,
+				}
+
+				found, err := components_nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				if err != nil {
+					log.Logger.Errorw("failed to find sxid event in database", "error", err)
+					continue
+				}
+				if found {
+					continue
+				}
+				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+					log.Logger.Errorw("failed to insert sxid event into database", "error", werr)
+					continue
+				}
+			}
+		}
+	}
+
 	defaultStateCfg := query_config.State{DB: db}
 	defaultQueryCfg := query_config.Config{State: &defaultStateCfg}
 	defaultLogCfg := query_log_config.Config{
 		Query: defaultQueryCfg,
-		DB:    db,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
 			if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 				log.Logger.Errorw("failed to sync seek info", "error", err)
@@ -233,21 +344,30 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, disk.New(ctx, cfg))
 
 		case dmesg.Name:
+			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
 			cfg := dmesg.Config{Log: defaultLogCfg}
 			if configValue != nil {
 				parsed, err := dmesg.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
+
+				parsed.Log.SeekInfoSyncer = func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
+					if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
+						log.Logger.Errorw("failed to sync seek info", "error", err)
+					}
+				}
+
 				cfg = *parsed
 			}
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 
-			// nvidia_error_xid cannot be used without dmesg
-			nvrmXidFilterFound := false
 			if _, ok := config.Components[nvidia_component_error_xid_id.Name]; ok {
+				// nvidia_error_xid cannot be used without dmesg
+				nvrmXidFilterFound := false
+
 				for _, f := range cfg.Log.SelectFilters {
 					if f.Name == dmesg.EventNvidiaNVRMXid {
 						nvrmXidFilterFound = true
@@ -258,10 +378,25 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_xid_id.Name, dmesg.EventNvidiaNVRMXid)
 				}
 			}
+			if _, ok := config.Components[nvidia_component_error_xid_sxid_id.Name]; ok {
+				// nvidia_error_xid cannot be used without dmesg
+				nvrmXidFilterFound := false
 
-			// nvidia_error_sxid cannot be used without dmesg
-			nvswitchSXidFilterFound := false
+				for _, f := range cfg.Log.SelectFilters {
+					if f.Name == dmesg.EventNvidiaNVRMXid {
+						nvrmXidFilterFound = true
+						break
+					}
+				}
+				if !nvrmXidFilterFound {
+					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_xid_sxid_id.Name, dmesg.EventNvidiaNVRMXid)
+				}
+			}
+
 			if _, ok := config.Components[nvidia_component_error_sxid_id.Name]; ok {
+				// nvidia_error_sxid cannot be used without dmesg
+				nvswitchSXidFilterFound := false
+
 				for _, f := range cfg.Log.SelectFilters {
 					if f.Name == dmesg.EventNvidiaNVSwitchSXid {
 						nvswitchSXidFilterFound = true
@@ -272,8 +407,22 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_sxid_id.Name, dmesg.EventNvidiaNVSwitchSXid)
 				}
 			}
+			if _, ok := config.Components[nvidia_component_error_xid_sxid_id.Name]; ok {
+				// nvidia_error_sxid cannot be used without dmesg
+				nvswitchSXidFilterFound := false
 
-			c, err := dmesg.New(ctx, cfg)
+				for _, f := range cfg.Log.SelectFilters {
+					if f.Name == dmesg.EventNvidiaNVSwitchSXid {
+						nvswitchSXidFilterFound = true
+						break
+					}
+				}
+				if !nvswitchSXidFilterFound {
+					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_xid_sxid_id.Name, dmesg.EventNvidiaNVSwitchSXid)
+				}
+			}
+
+			c, err := dmesg.New(ctx, cfg, dmesgProcessMatched)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -428,6 +577,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error.New(ctx, cfg))
 
 		case nvidia_component_error_xid_id.Name:
+			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
 			cfg := nvidia_error_xid.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := nvidia_error_xid.ParseConfig(configValue, db)
@@ -442,7 +592,22 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg))
 
 		case nvidia_component_error_sxid_id.Name:
+			// db object to read sxid events (read-only, writes are done in poller)
 			allComponents = append(allComponents, nvidia_error_sxid.New())
+
+		case nvidia_component_error_xid_sxid_id.Name:
+			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
 		case nvidia_clock.Name:
 			cfg := nvidia_clock.Config{Query: defaultQueryCfg}

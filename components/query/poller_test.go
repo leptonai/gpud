@@ -11,6 +11,46 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestPoller_ReadLastItemFromInMemoryQueue(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{},
+	}
+
+	// Test empty queue
+	item, err := pl.readLastItemFromInMemoryQueue()
+	if err != ErrNoData {
+		t.Errorf("expected ErrNoData, got %v", err)
+	}
+	if item != nil {
+		t.Errorf("expected nil item, got %v", item)
+	}
+}
+
+func TestPoller_ReadAllItemsFromInMemoryQueue(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{},
+	}
+
+	// Test empty queue
+	items, err := pl.readAllItemsFromInMemoryQueue(time.Time{})
+	if err != ErrNoData {
+		t.Errorf("expected ErrNoData, got %v", err)
+	}
+	if items != nil {
+		t.Errorf("expected nil items, got %v", items)
+	}
+
+	// Test with since time but empty queue
+	since := time.Now()
+	items, err = pl.readAllItemsFromInMemoryQueue(since)
+	if err != ErrNoData {
+		t.Errorf("expected ErrNoData, got %v", err)
+	}
+	if items != nil {
+		t.Errorf("expected nil items, got %v", items)
+	}
+}
+
 func TestPoller_processResult(t *testing.T) {
 	now := time.Now()
 

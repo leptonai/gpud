@@ -76,20 +76,21 @@ type poller struct {
 
 	cfg query_log_config.Config
 
-	tailLogger             query_log_tail.Streamer
+	tailLogger query_log_tail.Streamer
+
 	tailFileSeekInfoMu     sync.RWMutex
 	tailFileSeekInfo       tail.SeekInfo
-	tailFileSeekInfoSyncer func(ctx context.Context, file string, seekInfo tail.SeekInfo) `json:"-"`
+	tailFileSeekInfoSyncer func(ctx context.Context, file string, seekInfo tail.SeekInfo)
 
 	bufferedItemsMu sync.RWMutex
 	bufferedItems   []Item
 }
 
-func New(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc) (Poller, error) {
-	return newPoller(ctx, cfg, parseTime)
+func New(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (Poller, error) {
+	return newPoller(ctx, cfg, parseTime, processMatched)
 }
 
-func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc) (*poller, error) {
+func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (*poller, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -100,6 +101,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query
 		query_log_tail.WithSelectFilter(cfg.SelectFilters...),
 		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
 		query_log_tail.WithParseTime(parseTime),
+		query_log_tail.WithProcessMatched(processMatched),
 	}
 
 	var tailLogger query_log_tail.Streamer
@@ -149,6 +151,9 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query
 	return pl, nil
 }
 
+// pollSync polls the log tail from the specified file or long-running commands
+// and syncs the items to the buffered items.
+// This only catches the realtime/latest and all the future logs.
 func (pl *poller) pollSync(ctx context.Context) {
 	for line := range pl.tailLogger.Line() {
 		item := Item{
@@ -157,6 +162,7 @@ func (pl *poller) pollSync(ctx context.Context) {
 			Matched: line.MatchedFilter,
 			Error:   line.Err,
 		}
+
 		pl.bufferedItemsMu.Lock()
 		pl.bufferedItems = append(pl.bufferedItems, item)
 		pl.bufferedItemsMu.Unlock()
@@ -182,47 +188,7 @@ func (pl *poller) Commands() [][]string {
 	return pl.tailLogger.Commands()
 }
 
-func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption) ([]Item, error) {
-	items := make([]Item, 0)
-	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_common.Filter) {
-		items = append(items, Item{
-			Time:    metav1.Time{Time: time},
-			Line:    string(line),
-			Matched: matchedFilter,
-		})
-	}
-
-	options := []query_log_tail.OpOption{
-		query_log_tail.WithProcessMatched(processMatchedFunc),
-	}
-	if pl.cfg.File != "" {
-		options = append(options, query_log_tail.WithFile(pl.cfg.File))
-	}
-	if len(pl.cfg.Commands) > 0 {
-		options = append(options, query_log_tail.WithCommands(pl.cfg.Commands))
-	}
-	if pl.cfg.Scan != nil && pl.cfg.Scan.File != "" {
-		options = append(options, query_log_tail.WithFile(pl.cfg.Scan.File))
-	}
-	if pl.cfg.Scan != nil && len(pl.cfg.Scan.Commands) > 0 {
-		options = append(options, query_log_tail.WithCommands(pl.cfg.Scan.Commands))
-	}
-	if len(pl.cfg.SelectFilters) > 0 {
-		options = append(options, query_log_tail.WithSelectFilter(pl.cfg.SelectFilters...))
-	}
-	if _, err := query_log_tail.Scan(
-		ctx,
-		append(options, opts...)...,
-	); err != nil {
-		return nil, err
-	}
-	if len(items) == 0 {
-		return nil, nil
-	}
-
-	return items, nil
-}
-
+// This only catches the realtime/latest and all the future logs.
 // Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error) {
 	// 1. filter the already flushed/in-queue ones

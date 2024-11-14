@@ -29,7 +29,6 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 	if cfg.Log.Query.State != nil {
 		cfg.Log.Query.State.DB = db
 	}
-	cfg.Log.DB = db
 
 	return cfg, nil
 }
