@@ -24,6 +24,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 
 	// this starts the Xid poller via "nvml.StartDefaultInstance"
 	cctx, ccancel := context.WithCancel(ctx)
+	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_error_xid_sxid_id.Name)
 
 	return &component{
