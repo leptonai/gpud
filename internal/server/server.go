@@ -251,7 +251,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					continue
 				}
 				if found {
-					log.Logger.Infow("xid event already exists in database", "event", eventToInsert)
+					log.Logger.Debugw("xid event already exists in database", "event", eventToInsert)
 					continue
 				}
 				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
@@ -284,7 +284,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					continue
 				}
 				if found {
-					log.Logger.Infow("sxid event already exists in database", "event", eventToInsert)
+					log.Logger.Debugw("sxid event already exists in database", "event", eventToInsert)
 					continue
 				}
 				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {

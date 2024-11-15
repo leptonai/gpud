@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 func InsertEvent(ctx context.Context, db *sql.DB, event Event) error {
-	log.Logger.Infow("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "eventID", event.EventID, "details", event.EventDetails)
+	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "eventID", event.EventID, "details", event.EventDetails)
 
 	insertStatement := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''));
