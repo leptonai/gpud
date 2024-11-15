@@ -24,7 +24,7 @@ var dedupMapPool = sync.Pool{
 // If the match function is nil, returns all.
 func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
+	if err := op.ApplyOpts(opts); err != nil {
 		return 0, err
 	}
 
@@ -128,7 +128,7 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		if err != nil {
 			return err
 		}
-		op.processMatched(buf, parsedTime, matchedFilter)
+		op.ProcessMatched(buf, parsedTime, matchedFilter)
 
 		return nil
 	}

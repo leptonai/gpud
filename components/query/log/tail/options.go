@@ -20,12 +20,12 @@ type Op struct {
 	rejectFilters []*query_log_common.Filter
 
 	parseTime      query_log_common.ParseTimeFunc
-	processMatched query_log_common.ProcessMatchedFunc
+	ProcessMatched query_log_common.ProcessMatchedFunc
 }
 
 type OpOption func(*Op)
 
-func (op *Op) applyOpts(opts []OpOption) error {
+func (op *Op) ApplyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -57,8 +57,8 @@ func (op *Op) applyOpts(opts []OpOption) error {
 			return time.Time{}, nil
 		}
 	}
-	if op.processMatched == nil {
-		op.processMatched = func([]byte, time.Time, *query_log_common.Filter) {}
+	if op.ProcessMatched == nil {
+		op.ProcessMatched = func([]byte, time.Time, *query_log_common.Filter) {}
 	}
 
 	return nil
@@ -200,7 +200,7 @@ func WithParseTime(f query_log_common.ParseTimeFunc) OpOption {
 func WithProcessMatched(f query_log_common.ProcessMatchedFunc) OpOption {
 	return func(op *Op) {
 		if f != nil {
-			op.processMatched = f
+			op.ProcessMatched = f
 		}
 	}
 }

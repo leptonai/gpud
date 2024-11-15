@@ -17,7 +17,7 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 	op := &Op{
 		commands: commands,
 	}
-	if err := op.applyOpts(opts); err != nil {
+	if err := op.ApplyOpts(opts); err != nil {
 		return nil, err
 	}
 
@@ -130,8 +130,8 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 			continue
 		}
 
-		if sr.op.processMatched != nil {
-			sr.op.processMatched(scanner.Bytes(), ts, matchedFilter)
+		if sr.op.ProcessMatched != nil {
+			sr.op.ProcessMatched(scanner.Bytes(), ts, matchedFilter)
 		}
 
 		lineToSend := Line{
