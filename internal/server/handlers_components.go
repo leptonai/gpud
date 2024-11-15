@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	lep_components "github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/log"
 
@@ -230,6 +231,11 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		}
 		event, err := component.Events(c, startTime)
 		if err != nil {
+			if errors.Is(err, query.ErrNoData) {
+				log.Logger.Debugw("no event found", "component", componentName)
+				continue
+			}
+
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetEvents",
 				"component", componentName,
@@ -325,6 +331,11 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		}
 		events, err := component.Events(c, startTime)
 		if err != nil {
+			if errors.Is(err, query.ErrNoData) {
+				log.Logger.Debugw("no event found", "component", componentName)
+				continue
+			}
+
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetInfo",
 				"component", componentName,
