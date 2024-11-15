@@ -196,7 +196,7 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 		event, err := component.Events(ctx, startTime)
 		if err != nil {
 			if errors.Is(err, query.ErrNoData) {
-				log.Logger.Debugw("no events found", "component", componentName)
+				log.Logger.Debugw("no event found", "component", componentName)
 				continue
 			}
 
