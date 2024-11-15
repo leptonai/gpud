@@ -964,7 +964,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				continue
 			}
 
-			log.Logger.Infow("components status",
+			log.Logger.Debugw("components status",
 				"inflight_components", total,
 				"evaluated_healthy_states", healthy,
 				"evaluated_unhealthy_states", unhealthy,
