@@ -14,9 +14,7 @@ import (
 // This only catches the old logs, not the future ones.
 func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption) ([]Item, error) {
 	tailOpts := &query_log_tail.Op{}
-	if err := tailOpts.ApplyOpts(opts); err != nil {
-		return nil, err
-	}
+	_ = tailOpts.ApplyOpts(opts)
 
 	items := make([]Item, 0)
 	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_common.Filter) {
