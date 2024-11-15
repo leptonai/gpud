@@ -232,7 +232,7 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		event, err := component.Events(c, startTime)
 		if err != nil {
 			if errors.Is(err, query.ErrNoData) {
-				log.Logger.Warnw("no events found", "component", componentName)
+				log.Logger.Debugw("no events found", "component", componentName)
 				continue
 			}
 
@@ -332,7 +332,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		events, err := component.Events(c, startTime)
 		if err != nil {
 			if errors.Is(err, query.ErrNoData) {
-				log.Logger.Warnw("no events found", "component", componentName)
+				log.Logger.Debugw("no events found", "component", componentName)
 				continue
 			}
 
