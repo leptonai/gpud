@@ -65,6 +65,12 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, err
 	}
 
+	if len(events) == 0 {
+		log.Logger.Debugw("no event found", "component", c.Name(), "since", humanize.Time(since))
+		return nil, nil
+	}
+
+	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
 	convertedEvents := make([]components.Event, 0, len(events))
 	for _, event := range events {
 		if xidDetail := event.ToXidDetail(); xidDetail != nil {

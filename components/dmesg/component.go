@@ -29,20 +29,22 @@ func New(ctx context.Context, cfg Config, processMatched query_log_common.Proces
 	defaultLogPoller.Start(cctx, cfg.Log.Query, Name)
 
 	return &Component{
-		cfg:       &cfg,
-		rootCtx:   ctx,
-		cancel:    ccancel,
-		logPoller: defaultLogPoller,
+		cfg:            &cfg,
+		rootCtx:        ctx,
+		cancel:         ccancel,
+		logPoller:      defaultLogPoller,
+		processMatched: processMatched,
 	}, nil
 }
 
 var _ components.Component = (*Component)(nil)
 
 type Component struct {
-	cfg       *Config
-	rootCtx   context.Context
-	cancel    context.CancelFunc
-	logPoller query_log.Poller
+	cfg            *Config
+	rootCtx        context.Context
+	cancel         context.CancelFunc
+	logPoller      query_log.Poller
+	processMatched query_log_common.ProcessMatchedFunc
 }
 
 func (c *Component) Name() string { return Name }
@@ -60,6 +62,7 @@ func (c *Component) TailScan() (*State, error) {
 			query_log_tail.WithFile(c.cfg.Log.Scan.File),
 			query_log_tail.WithCommands(c.cfg.Log.Scan.Commands),
 			query_log_tail.WithLinesToTail(c.cfg.Log.Scan.LinesToTail),
+			query_log_tail.WithProcessMatched(c.processMatched), // used for backfilling
 		)
 		if err != nil {
 			return nil, err

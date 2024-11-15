@@ -12,7 +12,7 @@ func NewFromFile(ctx context.Context, file string, seek *tail.SeekInfo, opts ...
 	op := &Op{
 		file: file,
 	}
-	if err := op.applyOpts(opts); err != nil {
+	if err := op.ApplyOpts(opts); err != nil {
 		return nil, err
 	}
 
@@ -103,8 +103,8 @@ func (sr *fileStreamer) pollLoops() {
 			line.Time = time.Now().UTC()
 		}
 
-		if sr.op.processMatched != nil {
-			sr.op.processMatched([]byte(line.Text), line.Time, matchedFilter)
+		if sr.op.ProcessMatched != nil {
+			sr.op.ProcessMatched([]byte(line.Text), line.Time, matchedFilter)
 		}
 
 		lineToSend := Line{

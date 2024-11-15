@@ -13,6 +13,9 @@ import (
 // TailScan tails the last N lines without polling, just by reading the file.
 // This only catches the old logs, not the future ones.
 func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption) ([]Item, error) {
+	tailOpts := &query_log_tail.Op{}
+	_ = tailOpts.ApplyOpts(opts)
+
 	items := make([]Item, 0)
 	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_common.Filter) {
 		items = append(items, Item{
@@ -20,6 +23,10 @@ func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption)
 			Line:    string(line),
 			Matched: matchedFilter,
 		})
+
+		if tailOpts.ProcessMatched != nil {
+			tailOpts.ProcessMatched(line, time, matchedFilter)
+		}
 	}
 
 	options := []query_log_tail.OpOption{

@@ -9,6 +9,7 @@ import (
 
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	"github.com/leptonai/gpud/log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -81,6 +82,8 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 func InsertEvent(ctx context.Context, db *sql.DB, event Event) error {
+	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "eventID", event.EventID, "details", event.EventDetails)
+
 	insertStatement := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''));
 `,
