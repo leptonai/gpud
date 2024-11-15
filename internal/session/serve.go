@@ -13,6 +13,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -194,6 +195,11 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 		}
 		event, err := component.Events(ctx, startTime)
 		if err != nil {
+			if errors.Is(err, query.ErrNoData) {
+				log.Logger.Warnw("no events found", "component", componentName)
+				continue
+			}
+
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetEvents",
 				"component", componentName,
