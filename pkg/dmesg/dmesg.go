@@ -2,10 +2,33 @@
 package dmesg
 
 import (
+	"bytes"
 	"errors"
 	"regexp"
 	"time"
 )
+
+const isoTimeFormat = "2006-01-02T15:04:05,999999-07:00"
+
+var isoTimeFormatN = len(isoTimeFormat)
+
+// Parses the timestamp from "dmesg --time-format=iso" output lines.
+// ref.
+// "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
+func ParseISOtimeWithError(line []byte) (time.Time, []byte, error) {
+	if len(line) < isoTimeFormatN {
+		return time.Time{}, nil, errors.New("line is too short")
+	}
+
+	// Example input: 2024-11-15T12:02:03,561522+00:00
+	parsedTime, err := time.Parse("2006-01-02T15:04:05,999999-07:00", string(line[:isoTimeFormatN]))
+	if err != nil {
+		return time.Time{}, nil, err
+	}
+
+	extractedLine := bytes.TrimSpace(line[isoTimeFormatN:])
+	return parsedTime, extractedLine, nil
+}
 
 var regexForDmesgTime = regexp.MustCompile(`^\[([^\]]+)\]`)
 

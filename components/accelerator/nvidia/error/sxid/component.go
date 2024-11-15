@@ -66,7 +66,7 @@ func (c *component) tailScan() (*Output, error) {
 			continue
 		}
 
-		ev, err := nvidia_query_sxid.ParseDmesgLogLine(logItem.Line)
+		ev, err := nvidia_query_sxid.ParseDmesgLogLine(logItem.Time, logItem.Line)
 		if err != nil {
 			return nil, err
 		}

@@ -85,8 +85,6 @@ func (sr *commandStreamer) Line() <-chan Line {
 
 func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 	var (
-		s             string
-		ts            time.Time
 		err           error
 		shouldInclude bool
 		matchedFilter *query_log_common.Filter
@@ -99,29 +97,20 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		default:
 		}
 
-		s = scanner.Text()
+		scannedLine := scanner.Text()
 
 		if sr.dedupEnabled {
 			sr.dedup.mu.Lock()
-			_, exists := sr.dedup.seen[s]
+			_, exists := sr.dedup.seen[scannedLine]
 			if exists {
 				sr.dedup.mu.Unlock()
 				continue
 			}
-			sr.dedup.seen[s] = struct{}{}
+			sr.dedup.seen[scannedLine] = struct{}{}
 			sr.dedup.mu.Unlock()
 		}
 
-		ts, err = sr.op.parseTime(scanner.Bytes())
-		if err != nil {
-			log.Logger.Warnw("error parsing time", "error", err)
-			continue
-		}
-		if ts.IsZero() {
-			ts = time.Now().UTC()
-		}
-
-		shouldInclude, matchedFilter, err = sr.op.applyFilter(s)
+		shouldInclude, matchedFilter, err = sr.op.applyFilter(scannedLine)
 		if err != nil {
 			log.Logger.Warnw("error applying filter", "error", err)
 			continue
@@ -130,14 +119,31 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 			continue
 		}
 
+		var extractedTime time.Time
+		scannedBytes := scanner.Bytes()
+
+		if sr.op.extractTime != nil {
+			parsedTime, extractedLine, err := sr.op.extractTime(scannedBytes)
+			if err != nil {
+				log.Logger.Errorw("error extracting time", "error", err)
+			} else if len(extractedLine) > 0 {
+				extractedTime = parsedTime.UTC()
+				scannedBytes = extractedLine
+			}
+		}
+
+		if extractedTime.IsZero() {
+			extractedTime = time.Now().UTC()
+		}
+
 		if sr.op.ProcessMatched != nil {
-			sr.op.ProcessMatched(scanner.Bytes(), ts, matchedFilter)
+			sr.op.ProcessMatched(extractedTime, scannedBytes, matchedFilter)
 		}
 
 		lineToSend := Line{
 			Line: &tail.Line{
-				Text: s,
-				Time: ts,
+				Text: string(scannedBytes),
+				Time: extractedTime,
 			},
 			MatchedFilter: matchedFilter,
 		}

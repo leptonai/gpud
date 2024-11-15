@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -124,11 +125,22 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		}
 
 		matchedLines++
-		parsedTime, err := op.parseTime(buf)
-		if err != nil {
-			return err
+
+		var extractedTime time.Time
+		if op.extractTime != nil {
+			parsedTime, extractedLine, err := op.extractTime(buf)
+			if err != nil {
+				return err
+			}
+			if len(extractedLine) > 0 {
+				extractedTime = parsedTime.UTC()
+				buf = extractedLine
+			}
 		}
-		op.ProcessMatched(buf, parsedTime, matchedFilter)
+
+		if op.ProcessMatched != nil {
+			op.ProcessMatched(extractedTime, buf, matchedFilter)
+		}
 
 		return nil
 	}

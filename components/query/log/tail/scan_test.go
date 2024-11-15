@@ -185,10 +185,10 @@ func TestScan(t *testing.T) {
 				WithCommands([][]string{tt.commandArgs}),
 				WithLinesToTail(tt.n),
 				WithSelectFilter(tt.selectFilters...),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
+				WithProcessMatched(func(time time.Time, line []byte, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -275,10 +275,10 @@ func TestScan_LastLineWithoutNewline(t *testing.T) {
 				WithFile(tmpf.Name()),
 				WithLinesToTail(tt.linesToTail),
 				WithSelectFilter(tt.selectFilters...),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
+				WithProcessMatched(func(time time.Time, line []byte, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -392,10 +392,10 @@ func TestScan_Dedup(t *testing.T) {
 				WithFile(tmpf.Name()),
 				WithLinesToTail(tt.linesToTail),
 				WithDedup(tt.dedup),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
+				WithProcessMatched(func(time time.Time, line []byte, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -490,10 +490,10 @@ func TestScan_DedupWithFilters(t *testing.T) {
 				WithLinesToTail(tt.linesToTail),
 				WithDedup(tt.dedup),
 				WithSelectFilter(tt.selectFilters...),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, time time.Time, filter *query_log_common.Filter) {
+				WithProcessMatched(func(time time.Time, line []byte, filter *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -588,10 +588,10 @@ func TestScan_EmptyAndSmallFiles(t *testing.T) {
 				ctx,
 				WithFile(tmpf.Name()),
 				WithLinesToTail(tt.linesToTail),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
+				WithProcessMatched(func(_ time.Time, line []byte, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -681,10 +681,10 @@ func TestScan_LongLines(t *testing.T) {
 				ctx,
 				WithFile(tmpf.Name()),
 				WithLinesToTail(tt.linesToTail),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
+				WithProcessMatched(func(_ time.Time, line []byte, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)
@@ -755,10 +755,10 @@ func TestScan_CommandOutput(t *testing.T) {
 				ctx,
 				WithCommands(tt.commands),
 				WithLinesToTail(tt.linesToTail),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {
+				WithProcessMatched(func(_ time.Time, line []byte, _ *query_log_common.Filter) {
 					got = append(got, string(line))
 				}),
 			)

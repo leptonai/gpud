@@ -97,6 +97,8 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/sqlite"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Server is the gpud main daemon
@@ -210,11 +212,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	dmesgProcessMatched := func(line []byte, ts time.Time, matchedFilter *query_log_common.Filter) {
-		if len(line) == 0 {
+	dmesgProcessMatched := func(ts time.Time, line []byte, matchedFilter *query_log_common.Filter) {
+		if ts.IsZero() {
 			return
 		}
-		if ts.IsZero() {
+		if len(line) == 0 {
 			return
 		}
 		if matchedFilter == nil {
@@ -227,7 +229,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		for _, ref := range matchedFilter.OwnerReferences {
 			switch ref {
 			case nvidia_component_error_xid_id.Name:
-				ev, err := nvidia_query_xid.ParseDmesgLogLine(string(line))
+				ev, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: ts}, string(line))
 				if err != nil {
 					log.Logger.Errorw("failed to parse xid dmesg line", "line", string(line), "error", err)
 					continue
@@ -260,7 +262,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 
 			case nvidia_component_error_sxid_id.Name:
-				ev, err := nvidia_query_sxid.ParseDmesgLogLine(string(line))
+				ev, err := nvidia_query_sxid.ParseDmesgLogLine(metav1.Time{Time: ts}, string(line))
 				if err != nil {
 					log.Logger.Errorw("failed to parse sxid dmesg line", "line", string(line), "error", err)
 					continue

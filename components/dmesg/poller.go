@@ -21,7 +21,7 @@ func createDefaultLogPoller(ctx context.Context, cfg Config, processMatched quer
 		defaultLogPoller, err = query_log.New(
 			ctx,
 			cfg.Log,
-			pkg_dmesg.ParseCtimeWithError,
+			pkg_dmesg.ParseISOtimeWithError,
 			processMatched,
 		)
 		if err != nil {

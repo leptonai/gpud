@@ -125,8 +125,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, err
 	}
 
+	// dedup by minute level
+	seenMinute := make(map[int64]struct{})
 	events := make([]components.Event, 0)
-	for i, logItem := range dmesgTailResults.TailScanMatched {
+	for _, logItem := range dmesgTailResults.TailScanMatched {
 		if logItem.Error != nil {
 			continue
 		}
@@ -137,11 +139,11 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			continue
 		}
 
-		// "TailScanMatched" are sorted by the time from new to old
-		// thus keeping the first 30 latest, to prevent too many events
-		if i > 30 {
-			break
+		minute := logItem.Time.Unix() / 60
+		if _, ok := seenMinute[minute]; ok {
+			continue
 		}
+		seenMinute[minute] = struct{}{}
 
 		events = append(events, components.Event{
 			Time: logItem.Time,

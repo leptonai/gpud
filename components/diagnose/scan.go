@@ -20,6 +20,8 @@ import (
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -193,14 +195,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
 		query_log_tail.WithLinesToTail(op.lines),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithParseTime(pkg_dmesg.ParseCtimeWithError),
-		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_common.Filter) {
+		query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
 			matchedB, _ := matched.YAML()
 			fmt.Println(string(matchedB))
 
 			if xid := nvidia_query_xid.ExtractNVRMXid(string(line)); xid > 0 {
-				if dm, err := nvidia_query_xid.ParseDmesgLogLine(string(line)); err == nil {
+				if dm, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
 					log.Logger.Warnw("known xid", "line", string(line))
 					yb, _ := dm.YAML()
 					fmt.Println(string(yb))
@@ -208,7 +210,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			}
 
 			if sxid := nvidia_query_sxid.ExtractNVSwitchSXid(string(line)); sxid > 0 {
-				if dm, err := nvidia_query_sxid.ParseDmesgLogLine(string(line)); err == nil {
+				if dm, err := nvidia_query_sxid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
 					log.Logger.Warnw("known sxid", "line", string(line))
 					yb, _ := dm.YAML()
 					fmt.Println(string(yb))

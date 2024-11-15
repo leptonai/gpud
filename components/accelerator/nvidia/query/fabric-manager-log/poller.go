@@ -2,6 +2,7 @@
 package fabricmanagerlog
 
 import (
+	"bytes"
 	"context"
 	"regexp"
 	"sync"
@@ -39,21 +40,32 @@ func GetDefaultPoller() query_log.Poller {
 
 var regexForFabricmanagerLog = regexp.MustCompile(`^\[([^\]]+)\]`)
 
+const fabricmanagerLogTimeFormat = "Jan 02 2006 15:04:05"
+
+var fabricmanagerLogTimeFormatN = len(fabricmanagerLogTimeFormat) + 2 // [ ]
+
 // does not return error for now
 // example log line: "[May 02 2024 18:41:23] [INFO] [tid 404868] Abort CUDA jobs when FM exits = 1"
 // TODO: once stable return error
-func ExtractTimeFromLogLine(line []byte) (time.Time, error) {
+func ExtractTimeFromLogLine(line []byte) (time.Time, []byte, error) {
 	matches := regexForFabricmanagerLog.FindStringSubmatch(string(line))
 	if len(matches) == 0 {
 		log.Logger.Debugw("no timestamp matches found", "line", string(line))
-		return time.Time{}, nil
+		return time.Time{}, nil, nil
 	}
 
 	s := matches[1]
-	timestamp, err := time.Parse("Jan 02 2006 15:04:05", s)
+
+	parsedTime, err := time.Parse("Jan 02 2006 15:04:05", s)
 	if err != nil {
 		log.Logger.Debugw("failed to parse timestamp", "line", string(line), "error", err)
-		return time.Time{}, nil
+		return time.Time{}, nil, nil
 	}
-	return timestamp, nil
+
+	if len(line) <= fabricmanagerLogTimeFormatN {
+		return parsedTime, nil, nil
+	}
+
+	extractedLine := bytes.TrimSpace(line[fabricmanagerLogTimeFormatN:])
+	return parsedTime, extractedLine, nil
 }

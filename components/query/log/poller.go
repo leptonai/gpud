@@ -86,11 +86,11 @@ type poller struct {
 	bufferedItems   []Item
 }
 
-func New(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (Poller, error) {
-	return newPoller(ctx, cfg, parseTime, processMatched)
+func New(ctx context.Context, cfg query_log_config.Config, extractTime query_log_common.ExtractTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (Poller, error) {
+	return newPoller(ctx, cfg, extractTime, processMatched)
 }
 
-func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query_log_common.ParseTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (*poller, error) {
+func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime query_log_common.ExtractTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (*poller, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, parseTime query
 		query_log_tail.WithDedup(true),
 		query_log_tail.WithSelectFilter(cfg.SelectFilters...),
 		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
-		query_log_tail.WithParseTime(parseTime),
+		query_log_tail.WithExtractTime(extractTime),
 		query_log_tail.WithProcessMatched(processMatched),
 	}
 

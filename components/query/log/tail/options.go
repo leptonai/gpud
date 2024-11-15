@@ -19,7 +19,7 @@ type Op struct {
 	selectFilters []*query_log_common.Filter
 	rejectFilters []*query_log_common.Filter
 
-	parseTime      query_log_common.ParseTimeFunc
+	extractTime    query_log_common.ExtractTimeFunc
 	ProcessMatched query_log_common.ProcessMatchedFunc
 }
 
@@ -52,13 +52,13 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 		}
 	}
 
-	if op.parseTime == nil {
-		op.parseTime = func([]byte) (time.Time, error) {
-			return time.Time{}, nil
+	if op.extractTime == nil {
+		op.extractTime = func(line []byte) (time.Time, []byte, error) {
+			return time.Time{}, line, nil
 		}
 	}
 	if op.ProcessMatched == nil {
-		op.ProcessMatched = func([]byte, time.Time, *query_log_common.Filter) {}
+		op.ProcessMatched = func(time.Time, []byte, *query_log_common.Filter) {}
 	}
 
 	return nil
@@ -185,10 +185,10 @@ func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_lo
 	return true, matchedFilter, nil
 }
 
-func WithParseTime(f query_log_common.ParseTimeFunc) OpOption {
+func WithExtractTime(f query_log_common.ExtractTimeFunc) OpOption {
 	return func(op *Op) {
 		if f != nil {
-			op.parseTime = f
+			op.extractTime = f
 		}
 	}
 }

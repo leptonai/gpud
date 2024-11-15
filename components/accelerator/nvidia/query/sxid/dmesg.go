@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strconv"
-	"time"
 
 	query_log "github.com/leptonai/gpud/components/query/log"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -67,16 +65,12 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 	return de, nil
 }
 
-func ParseDmesgLogLine(line string) (DmesgError, error) {
-	timestamp, err := pkg_dmesg.ParseCtimeWithError([]byte(line))
-	if err != nil {
-		timestamp = time.Now()
-	}
+func ParseDmesgLogLine(time metav1.Time, line string) (DmesgError, error) {
 	de := DmesgError{
 		LogItem: query_log.Item{
 			Line:    line,
 			Matched: nil,
-			Time:    metav1.Time{Time: timestamp.UTC()},
+			Time:    time,
 		},
 	}
 

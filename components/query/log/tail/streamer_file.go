@@ -104,7 +104,7 @@ func (sr *fileStreamer) pollLoops() {
 		}
 
 		if sr.op.ProcessMatched != nil {
-			sr.op.ProcessMatched([]byte(line.Text), line.Time, matchedFilter)
+			sr.op.ProcessMatched(line.Time, []byte(line.Text), matchedFilter)
 		}
 
 		lineToSend := Line{

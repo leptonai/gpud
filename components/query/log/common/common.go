@@ -5,6 +5,6 @@ import (
 	"time"
 )
 
-type ParseTimeFunc func([]byte) (time.Time, error)
+type ExtractTimeFunc func([]byte) (time.Time, []byte, error)
 
-type ProcessMatchedFunc func(line []byte, parsedTime time.Time, filter *Filter)
+type ProcessMatchedFunc func(parsedTime time.Time, line []byte, filter *Filter)
