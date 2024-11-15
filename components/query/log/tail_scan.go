@@ -17,7 +17,7 @@ func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption)
 	_ = tailOpts.ApplyOpts(opts)
 
 	items := make([]Item, 0)
-	processMatchedFunc := func(line []byte, time time.Time, matchedFilter *query_log_common.Filter) {
+	processMatchedFunc := func(time time.Time, line []byte, matchedFilter *query_log_common.Filter) {
 		items = append(items, Item{
 			Time:    metav1.Time{Time: time},
 			Line:    string(line),
@@ -25,7 +25,7 @@ func (pl *poller) TailScan(ctx context.Context, opts ...query_log_tail.OpOption)
 		})
 
 		if tailOpts.ProcessMatched != nil {
-			tailOpts.ProcessMatched(line, time, matchedFilter)
+			tailOpts.ProcessMatched(time, line, matchedFilter)
 		}
 	}
 

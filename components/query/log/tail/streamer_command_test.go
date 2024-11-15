@@ -5,9 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"testing"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/dmesg"
 )
 
 func TestCommandStreamer(t *testing.T) {
@@ -57,27 +58,10 @@ func TestCommandStreamerDmesg(t *testing.T) {
 	}
 	defer os.Remove(tmpf.Name())
 
-	re := regexp.MustCompile(`^\[([^\]]+)\]`)
-
 	streamer, err := NewFromCommand(
 		ctx,
 		[][]string{{"tail", "-f", tmpf.Name()}},
-		WithParseTime(func(b []byte) (time.Time, error) {
-			matches := re.FindStringSubmatch(string(b))
-			if len(matches) == 0 {
-				t.Logf("no timestamp matches found for %s", string(b))
-				return time.Time{}, nil
-			}
-
-			s := matches[1]
-			timestamp, err := time.Parse("Mon Jan 2 15:04:05 2006", s)
-			if err != nil {
-				t.Logf("failed to parse timestamp %s", s)
-				return time.Time{}, nil
-			}
-
-			return timestamp, nil
-		}),
+		WithExtractTime(dmesg.ParseISOtimeWithError),
 	)
 	if err != nil {
 		t.Fatal(err)

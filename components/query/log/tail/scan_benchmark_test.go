@@ -38,10 +38,10 @@ func BenchmarkScan_DmesgLog(b *testing.B) {
 			opts = append(opts,
 				WithFile("testdata/dmesg.0.log"),
 				WithLinesToTail(bm.linesToTail),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {}),
+				WithProcessMatched(func(_ time.Time, line []byte, _ *query_log_common.Filter) {}),
 			)
 
 			if bm.withFilter {
@@ -89,10 +89,10 @@ func BenchmarkScan_KubeletLog(b *testing.B) {
 			opts = append(opts,
 				WithFile("testdata/kubelet.0.log"),
 				WithLinesToTail(bm.linesToTail),
-				WithParseTime(func(line []byte) (time.Time, error) {
-					return time.Time{}, nil
+				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
+					return time.Time{}, nil, nil
 				}),
-				WithProcessMatched(func(line []byte, _ time.Time, _ *query_log_common.Filter) {}),
+				WithProcessMatched(func(_ time.Time, line []byte, _ *query_log_common.Filter) {}),
 			)
 
 			if bm.withFilter {

@@ -150,8 +150,8 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
 		query_log_tail.WithLinesToTail(5000),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithParseTime(pkg_dmesg.ParseCtimeWithError),
-		query_log_tail.WithProcessMatched(func(line []byte, time time.Time, matched *query_log_common.Filter) {
+		query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg match: %s", string(line)))
 		}),
 	)

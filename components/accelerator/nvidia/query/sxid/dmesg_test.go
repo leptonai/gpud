@@ -1,6 +1,8 @@
 package sxid
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestExtractNVSwitchSXid(t *testing.T) {
 	t.Parallel()

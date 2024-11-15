@@ -56,13 +56,13 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 	scanCommands := [][]string{
 		// some old dmesg versions don't support --since, thus fall back to the one without --since and tail the last 200 lines
 		// ref. https://github.com/leptonai/gpud/issues/32
-		{"dmesg --ctime --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
+		{"dmesg --time-format=iso --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --time-format=iso --nopager --buffer-size 163920 | tail -n 200"},
 	}
 	if _, err := os.Stat(DefaultDmesgFile); os.IsNotExist(err) {
 		scanCommands = [][]string{
 			// some old dmesg versions don't support --since, thus fall back to the one without --since and tail the last 200 lines
 			// ref. https://github.com/leptonai/gpud/issues/32
-			{"dmesg --ctime --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --ctime --nopager --buffer-size 163920 | tail -n 200"},
+			{"dmesg --time-format=iso --nopager --buffer-size 163920 --since '1 hour ago' || dmesg --time-format=iso --nopager --buffer-size 163920 | tail -n 200"},
 		}
 	}
 
@@ -73,8 +73,8 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 
 			Commands: [][]string{
 				// run last commands as fallback, in case dmesg flag only works in some machines
-				{"dmesg --ctime --nopager --buffer-size 163920 -w || true"},
-				{"dmesg --ctime --nopager --buffer-size 163920 -W"},
+				{"dmesg --time-format=iso --nopager --buffer-size 163920 -w || true"},
+				{"dmesg --time-format=iso --nopager --buffer-size 163920 -W"},
 			},
 
 			Scan: &query_log_config.Scan{
