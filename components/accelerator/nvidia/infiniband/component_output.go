@@ -101,7 +101,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 		if len(o.Ibstat.Errors) > 0 {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 		}
-		if o.Ibstat.Parsed != nil && len(o.Ibstat.Parsed) > 0 {
+		if len(o.Ibstat.Parsed) > 0 {
 			upCards := o.Ibstat.Parsed.CountByRates(o.GPUCount, "Active", "LinkUp")
 			if upCards != o.GPUCount {
 				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up", upCards, o.GPUCount), false, nil
