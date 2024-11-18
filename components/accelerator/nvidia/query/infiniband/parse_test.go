@@ -43,10 +43,63 @@ func TestParseIBStatFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read file %s: %v", file, err)
 		}
-		parsed, err := ParseIBStat(string(content))
-		if err != nil {
+		if _, err := ParseIBStat(string(content)); err != nil {
 			t.Fatalf("Failed to parse ibstat file %s: %v", file, err)
 		}
-		t.Logf("parsed:\n%+v", parsed)
+	}
+}
+
+func TestParseIBStatCountRates(t *testing.T) {
+	tt := []struct {
+		fileName              string
+		rate                  int
+		expectedState         string
+		expectedPhysicalState string
+		expectedCount         int
+	}{
+		{
+			fileName:              "testdata/ibstat.47.0.all.active.0",
+			rate:                  400,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         8,
+		},
+		{
+			fileName:              "testdata/ibstat.47.0.all.active.1",
+			rate:                  400,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         8,
+		},
+		{
+			fileName:              "testdata/ibstat.47.0.some.down.0",
+			rate:                  400,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         8,
+		},
+		{
+			fileName:              "testdata/ibstat.47.0.some.down.1",
+			rate:                  400,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         6,
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.fileName, func(t *testing.T) {
+			content, err := os.ReadFile(tc.fileName)
+			if err != nil {
+				t.Fatalf("Failed to read file %s: %v", tc.fileName, err)
+			}
+			parsed, err := ParseIBStat(string(content))
+			if err != nil {
+				t.Fatalf("Failed to parse ibstat file %s: %v", tc.fileName, err)
+			}
+			count := parsed.CountRates(tc.rate, tc.expectedState, tc.expectedPhysicalState)
+			if count != tc.expectedCount {
+				t.Errorf("Expected %d cards, got %d", tc.expectedCount, count)
+			}
+		})
 	}
 }

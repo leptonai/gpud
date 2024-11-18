@@ -2,7 +2,6 @@ package infiniband
 
 import (
 	"bufio"
-	"fmt"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -10,23 +9,53 @@ import (
 
 type IBStatCards []IBStatCard
 
+// Counts the number of cards whose "Port 1"."Rate" is equal to or greater
+// than the specified rate (e.g., count all the cards whose rate is >= 400).
+// If `expectedState` is not empty, it only counts the cards whose "Port 1"."State" is equal to the expected state.
+// If `expectedPhysicalState` is not empty, it only counts the cards whose "Port 1"."Physical state" is equal to the expected physical state.
+func (cards IBStatCards) CountRates(rate int, expectedState string, expectedPhysicalState string) int {
+	cnt := 0
+	for _, card := range cards {
+		if card.Port1.Rate < rate {
+			continue
+		}
+
+		// e.g.,
+		// State: Active
+		// State: Down
+		if expectedState != "" && card.Port1.State != expectedState {
+			continue
+		}
+
+		// e.g.,
+		// Physical state: LinkUp
+		// Physical state: Disabled
+		if expectedPhysicalState != "" && card.Port1.PhysicalState != expectedPhysicalState {
+			continue
+		}
+
+		cnt++
+	}
+	return cnt
+}
+
 type IBStatCard struct {
-	Name            string     `yaml:"CA name"`
-	Type            string     `yaml:"CA type"`
-	NumPorts        string     `yaml:"Number of ports"`
-	FirmwareVersion string     `yaml:"Firmware version"`
-	HardwareVersion string     `yaml:"Hardware version"`
-	NodeGUID        string     `yaml:"Node GUID"`
-	SystemImageGUID string     `yaml:"System image GUID"`
-	Port1           IBStatPort `yaml:"Port 1"`
+	Name            string     `json:"CA name"`
+	Type            string     `json:"CA type"`
+	NumPorts        string     `json:"Number of ports"`
+	FirmwareVersion string     `json:"Firmware version"`
+	HardwareVersion string     `json:"Hardware version"`
+	NodeGUID        string     `json:"Node GUID"`
+	SystemImageGUID string     `json:"System image GUID"`
+	Port1           IBStatPort `json:"Port 1"`
 }
 
 type IBStatPort struct {
-	State         string `yaml:"State"`
-	PhysicalState string `yaml:"Physical state"`
-	Rate          int    `yaml:"Rate"`
-	BaseLid       int    `yaml:"Base lid"`
-	LinkLayer     string `yaml:"Link layer"`
+	State         string `json:"State"`
+	PhysicalState string `json:"Physical state"`
+	Rate          int    `json:"Rate"`
+	BaseLid       int    `json:"Base lid"`
+	LinkLayer     string `json:"Link layer"`
 }
 
 // ParseIBStat parses ibstat output and returns YAML representation
@@ -125,7 +154,6 @@ func ParseIBStat(input string) (IBStatCards, error) {
 	}
 
 	txt := strings.Join(lines, "\n")
-	fmt.Printf("txt:\n\n%s\n\n", txt)
 
 	// Convert to YAML
 	cards := IBStatCards{}
