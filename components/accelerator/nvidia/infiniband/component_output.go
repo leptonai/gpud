@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
 )
 
@@ -35,9 +36,9 @@ type Output struct {
 	// Useful to ignore infiniband states for non-infiniband supported GPUs (e.g., GTX 4090).
 	GPUProductName string `json:"gpu_product_name"`
 
-	InfinibandClassExists bool                      `json:"infiniband_class_exists"`
-	IbstatExists          bool                      `json:"ibstat_exists"`
-	Ibstat                nvidia_query.IbstatOutput `json:"ibstat"`
+	InfinibandClassExists bool                    `json:"infiniband_class_exists"`
+	IbstatExists          bool                    `json:"ibstat_exists"`
+	Ibstat                infiniband.IbstatOutput `json:"ibstat"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -88,7 +89,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
-	if !nvidia_query.SupportsInfinibandProduct(o.GPUProductName) {
+	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
 		return fmt.Sprintf("%q GPUs do not support infiniband", o.GPUProductName), true, nil
 	}
 	if o.InfinibandClassExists && o.IbstatExists && len(o.Ibstat.Errors) > 0 {

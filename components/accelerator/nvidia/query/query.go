@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
 	metrics_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/ecc"
@@ -21,6 +22,7 @@ import (
 	metrics_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/temperature"
 	metrics_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/utilization"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	"github.com/leptonai/gpud/components/query"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
@@ -97,8 +99,8 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		PersistencedExists:    PersistencedExists(),
 		PersistencedRunning:   PersistencedRunning(),
 		FabricManagerExists:   FabricManagerExists(),
-		InfinibandClassExists: InfinibandClassExists(),
-		IbstatExists:          IbstatExists(),
+		InfinibandClassExists: infiniband.InfinibandClassExists(),
+		IbstatExists:          infiniband.IbstatExists(),
 	}
 
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
@@ -179,18 +181,18 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 
 	if o.InfinibandClassExists && o.IbstatExists {
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-		o.Ibstat, err = RunIbstat(cctx)
+		o.Ibstat, err = infiniband.RunIbstat(cctx)
 		ccancel()
 		if err != nil {
 			if o.Ibstat == nil {
-				o.Ibstat = &IbstatOutput{}
+				o.Ibstat = &infiniband.IbstatOutput{}
 			}
 			o.Ibstat.Errors = append(o.Ibstat.Errors, err.Error())
 		}
 	}
 
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-	o.LsmodPeermem, err = CheckLsmodPeermemModule(cctx)
+	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
 		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
@@ -382,12 +384,12 @@ type Output struct {
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
 	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
 
-	InfinibandClassExists bool          `json:"infiniband_class_exists"`
-	IbstatExists          bool          `json:"ibstat_exists"`
-	Ibstat                *IbstatOutput `json:"ibstat,omitempty"`
+	InfinibandClassExists bool                     `json:"infiniband_class_exists"`
+	IbstatExists          bool                     `json:"ibstat_exists"`
+	Ibstat                *infiniband.IbstatOutput `json:"ibstat,omitempty"`
 
-	LsmodPeermem       *LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
-	LsmodPeermemErrors []string                  `json:"lsmod_peermem_errors,omitempty"`
+	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
+	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
 
 	NVML       *nvml.Output `json:"nvml,omitempty"`
 	NVMLErrors []string     `json:"nvml_errors,omitempty"`

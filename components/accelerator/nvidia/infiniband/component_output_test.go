@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
 )
 
@@ -28,7 +29,7 @@ func TestOutputStates(t *testing.T) {
 				GPUProductName:        "NVIDIA A100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
-				Ibstat:                nvidia_query.IbstatOutput{},
+				Ibstat:                infiniband.IbstatOutput{},
 			},
 			expectedHealthy: true,
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
@@ -39,7 +40,7 @@ func TestOutputStates(t *testing.T) {
 				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
-				Ibstat: nvidia_query.IbstatOutput{
+				Ibstat: infiniband.IbstatOutput{
 					Errors: []string{"Error 1", "Error 2"},
 				},
 			},

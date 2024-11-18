@@ -1,4 +1,5 @@
-package query
+// Package infiniband provides utilities to query infiniband status.
+package infiniband
 
 import (
 	"context"

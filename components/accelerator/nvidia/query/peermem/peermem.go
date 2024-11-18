@@ -1,4 +1,4 @@
-package query
+package peermem
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -75,8 +76,8 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	}
 
 	o := &LsmodPeermemModuleOutput{
-		IbstatExists:          IbstatExists(),
-		InfinibandClassExists: InfinibandClassExists(),
+		IbstatExists:          infiniband.IbstatExists(),
+		InfinibandClassExists: infiniband.InfinibandClassExists(),
 		Raw:                   strings.Join(lines, "\n"),
 	}
 	o.IbcoreUsingPeermemModule = HasLsmodInfinibandPeerMem(o.Raw)
