@@ -57,6 +57,29 @@ func TestOutputStates(t *testing.T) {
 			expectedHealthy: true,
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
+		{
+			name: "Not all cards active and up",
+			o: &Output{
+				GPUProductName:        "NVIDIA H100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 400}},
+					},
+				},
+			},
+			expectedHealthy: false,
+			expectedReason:  "only 6 out of 8 ibstat cards are active and link up",
+		},
 	}
 
 	for _, tt := range tests {

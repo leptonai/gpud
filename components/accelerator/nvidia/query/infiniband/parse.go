@@ -13,7 +13,7 @@ type IBStatCards []IBStatCard
 // than the specified rate (e.g., count all the cards whose rate is >= 400).
 // If `expectedState` is not empty, it only counts the cards whose "Port 1"."State" is equal to the expected state.
 // If `expectedPhysicalState` is not empty, it only counts the cards whose "Port 1"."Physical state" is equal to the expected physical state.
-func (cards IBStatCards) CountRates(rate int, expectedState string, expectedPhysicalState string) int {
+func (cards IBStatCards) CountByRates(rate int, expectedState string, expectedPhysicalState string) int {
 	cnt := 0
 	for _, card := range cards {
 		if card.Port1.Rate < rate {

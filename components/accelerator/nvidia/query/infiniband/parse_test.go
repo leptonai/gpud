@@ -49,7 +49,7 @@ func TestParseIBStatFiles(t *testing.T) {
 	}
 }
 
-func TestParseIBStatCountRates(t *testing.T) {
+func TestParseIBStatCountByRates(t *testing.T) {
 	tt := []struct {
 		fileName              string
 		rate                  int
@@ -96,7 +96,7 @@ func TestParseIBStatCountRates(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse ibstat file %s: %v", tc.fileName, err)
 			}
-			count := parsed.CountRates(tc.rate, tc.expectedState, tc.expectedPhysicalState)
+			count := parsed.CountByRates(tc.rate, tc.expectedState, tc.expectedPhysicalState)
 			if count != tc.expectedCount {
 				t.Errorf("Expected %d cards, got %d", tc.expectedCount, count)
 			}
