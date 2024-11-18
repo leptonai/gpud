@@ -59,24 +59,6 @@ func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
 			o.Errors = append(o.Errors, err.Error())
 		}
 	}
-	if len(o.Parsed) > 0 {
-		for _, card := range o.Parsed {
-			// "State: Active"
-			if card.Port1.State == "Active" {
-				continue
-			}
-			// "Physical state: LinkUp"
-			if card.Port1.PhysicalState == "LinkUp" {
-				continue
-			}
-
-			// TODO: implement more checks
-			// some providers have
-			// "State: Down"
-			// "Physical state: Disabled"
-			// "Rate: 40"
-		}
-	}
 
 	return o, nil
 }
