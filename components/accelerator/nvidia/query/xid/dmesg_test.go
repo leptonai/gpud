@@ -72,6 +72,11 @@ func TestExtractNVRMXid(t *testing.T) {
 			input:    "NVRM: Xid (PCI:0000:19:00): 119, pid=2485486, name=nvidia-smi, Timeout after 6s of waiting for RPC response from GPU0 GSP! Expected function 76 (GSP_RM_CONTROL) (0x20803039 0x20).",
 			expected: 119,
 		},
+		{
+			name:     "GSP RPC timeout error after 45s",
+			input:    "NVRM: Xid (PCI:0000:19:00): 119, pid=289957, name=pt_main_thread, Timeout after 45s of waiting for RPC response from GPU0 GSP! Expected function 76 (GSP_RM_CONTROL) (0xa06f0112 0x1).",
+			expected: 119,
+		},
 	}
 
 	for _, tt := range tests {

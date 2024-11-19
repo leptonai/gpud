@@ -165,7 +165,7 @@ func (inst *instance) pollXidEvents() {
 			Error: deviceUUIDErr,
 		}
 
-		log.Logger.Warnw("detected xid event", "xid", xid, "event", event)
+		log.Logger.Warnw("detected xid event", "xid", xid, "message", msg)
 
 		// no need to check duplicate entries, assuming nvml event poller does not return old events
 		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
