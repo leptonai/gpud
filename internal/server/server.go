@@ -800,7 +800,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_gsp_firmware_mode.New(ctx, cfg))
 
 		case nvidia_infiniband.Name:
-			cfg := nvidia_infiniband.Config{Query: defaultQueryCfg}
+			cfg := nvidia_infiniband.Config{
+				Query: defaultQueryCfg,
+
+				// TODO: make these configurable
+				ExpectedPortCount: 0,
+				ExpectedRate:      nvidia_infiniband.DefaultExpectedRate,
+			}
 			if configValue != nil {
 				parsed, err := nvidia_infiniband.ParseConfig(configValue, db)
 				if err != nil {

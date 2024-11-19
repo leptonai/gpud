@@ -11,12 +11,17 @@ import (
 func TestOutputStates(t *testing.T) {
 	tests := []struct {
 		name            string
+		cfg             Config
 		o               *Output
 		expectedHealthy bool
 		expectedReason  string
 	}{
 		{
 			name: "GTX 4090 state",
+			cfg: Config{
+				ExpectedPortCount: 1,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName: "NVIDIA GeForce RTX 4090",
 			},
@@ -25,6 +30,10 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "Healthy state",
+			cfg: Config{
+				ExpectedPortCount: 1,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA A100",
 				InfinibandClassExists: true,
@@ -36,6 +45,10 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "Unhealthy state",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: true,
@@ -49,6 +62,10 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "No ibstat state",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: false,
@@ -59,6 +76,10 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "Not all cards active and up",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
 				GPUCount:              8,
@@ -84,7 +105,7 @@ func TestOutputStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.o.States()
+			states, err := tt.o.States(tt.cfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -93,7 +93,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 // Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate() (string, bool, error) {
+func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
 		return fmt.Sprintf("%q GPUs do not support infiniband", o.GPUProductName), true, nil
 	}
@@ -102,17 +102,23 @@ func (o *Output) Evaluate() (string, bool, error) {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 		}
 		if len(o.Ibstat.Parsed) > 0 {
-			upCards := o.Ibstat.Parsed.CountByRates(o.GPUCount, "Active", "LinkUp")
-			if upCards != o.GPUCount {
-				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up", upCards, o.GPUCount), false, nil
+			expectedPortCount := cfg.ExpectedPortCount
+			if expectedPortCount == 0 {
+				expectedPortCount = o.GPUCount
+			}
+			expectedRate := cfg.ExpectedRate
+
+			upCards := o.Ibstat.Parsed.CountByRates(expectedRate, "Active", "LinkUp")
+			if upCards != expectedPortCount {
+				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up", upCards, expectedPortCount), false, nil
 			}
 		}
 	}
 	return "no infiniband class found or no ibstat exists or no ibstat error found", true, nil
 }
 
-func (o *Output) States() ([]components.State, error) {
-	outputReasons, healthy, err := o.Evaluate()
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	outputReasons, healthy, err := o.Evaluate(cfg)
 	if err != nil {
 		return nil, err
 	}
