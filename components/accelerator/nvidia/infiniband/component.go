@@ -26,6 +26,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
+		cfg:     cfg,
 	}
 }
 
@@ -35,6 +36,7 @@ type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
+	cfg     Config
 }
 
 func (c *component) Name() string { return Name }
@@ -78,7 +80,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	output := ToOutput(allOutput)
-	return output.States()
+	return output.States(c.cfg)
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {

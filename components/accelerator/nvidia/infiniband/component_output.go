@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
 )
 
@@ -20,6 +21,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	o := &Output{
 		GPUProductName:        i.GPUProductName(),
+		GPUCount:              i.GPUCount(),
 		InfinibandClassExists: i.InfinibandClassExists,
 		IbstatExists:          i.IbstatExists,
 	}
@@ -35,9 +37,13 @@ type Output struct {
 	// Useful to ignore infiniband states for non-infiniband supported GPUs (e.g., GTX 4090).
 	GPUProductName string `json:"gpu_product_name"`
 
-	InfinibandClassExists bool                      `json:"infiniband_class_exists"`
-	IbstatExists          bool                      `json:"ibstat_exists"`
-	Ibstat                nvidia_query.IbstatOutput `json:"ibstat"`
+	// Represents the number of GPUs in the system.
+	// This is used to determine how many ibstat cards at certain rate are expected.
+	GPUCount int `json:"gpu_count"`
+
+	InfinibandClassExists bool                    `json:"infiniband_class_exists"`
+	IbstatExists          bool                    `json:"ibstat_exists"`
+	Ibstat                infiniband.IbstatOutput `json:"ibstat"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -87,18 +93,32 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 // Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate() (string, bool, error) {
-	if !nvidia_query.SupportsInfinibandProduct(o.GPUProductName) {
+func (o *Output) Evaluate(cfg Config) (string, bool, error) {
+	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
 		return fmt.Sprintf("%q GPUs do not support infiniband", o.GPUProductName), true, nil
 	}
-	if o.InfinibandClassExists && o.IbstatExists && len(o.Ibstat.Errors) > 0 {
-		return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
+	if o.InfinibandClassExists && o.IbstatExists {
+		if len(o.Ibstat.Errors) > 0 {
+			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
+		}
+		if len(o.Ibstat.Parsed) > 0 {
+			expectedPortCount := cfg.ExpectedPortCount
+			if expectedPortCount == 0 {
+				expectedPortCount = o.GPUCount
+			}
+			expectedRate := cfg.ExpectedRate
+
+			upCards := o.Ibstat.Parsed.CountByRates(expectedRate, "Active", "LinkUp")
+			if upCards != expectedPortCount {
+				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up", upCards, expectedPortCount), false, nil
+			}
+		}
 	}
 	return "no infiniband class found or no ibstat exists or no ibstat error found", true, nil
 }
 
-func (o *Output) States() ([]components.State, error) {
-	outputReasons, healthy, err := o.Evaluate()
+func (o *Output) States(cfg Config) ([]components.State, error) {
+	outputReasons, healthy, err := o.Evaluate(cfg)
 	if err != nil {
 		return nil, err
 	}

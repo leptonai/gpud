@@ -7,6 +7,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -29,8 +30,8 @@ type Output struct {
 	// This is used to determine if ibcore may be expected to use peermem module.
 	GPUCount int `json:"gpu_count"`
 
-	ProductName  string                                `json:"product_name"`
-	LsmodPeermem nvidia_query.LsmodPeermemModuleOutput `json:"lsmod_peermem"`
+	ProductName  string                           `json:"product_name"`
+	LsmodPeermem peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem"`
 }
 
 func (o *Output) JSON() ([]byte, error) {

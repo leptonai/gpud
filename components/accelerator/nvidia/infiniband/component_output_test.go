@@ -4,18 +4,24 @@ import (
 	"testing"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
 )
 
 func TestOutputStates(t *testing.T) {
 	tests := []struct {
 		name            string
+		cfg             Config
 		o               *Output
 		expectedHealthy bool
 		expectedReason  string
 	}{
 		{
 			name: "GTX 4090 state",
+			cfg: Config{
+				ExpectedPortCount: 1,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName: "NVIDIA GeForce RTX 4090",
 			},
@@ -24,22 +30,30 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "Healthy state",
+			cfg: Config{
+				ExpectedPortCount: 1,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA A100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
-				Ibstat:                nvidia_query.IbstatOutput{},
+				Ibstat:                infiniband.IbstatOutput{},
 			},
 			expectedHealthy: true,
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
 		{
 			name: "Unhealthy state",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: true,
 				IbstatExists:          true,
-				Ibstat: nvidia_query.IbstatOutput{
+				Ibstat: infiniband.IbstatOutput{
 					Errors: []string{"Error 1", "Error 2"},
 				},
 			},
@@ -48,6 +62,10 @@ func TestOutputStates(t *testing.T) {
 		},
 		{
 			name: "No ibstat state",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
 				InfinibandClassExists: false,
@@ -56,11 +74,38 @@ func TestOutputStates(t *testing.T) {
 			expectedHealthy: true,
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
+		{
+			name: "Not all cards active and up",
+			cfg: Config{
+				ExpectedPortCount: 0,
+				ExpectedRate:      400,
+			},
+			o: &Output{
+				GPUProductName:        "NVIDIA H100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 400}},
+					},
+				},
+			},
+			expectedHealthy: false,
+			expectedReason:  "only 6 out of 8 ibstat cards are active and link up",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.o.States()
+			states, err := tt.o.States(tt.cfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
