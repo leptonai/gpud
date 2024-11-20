@@ -13,6 +13,7 @@ import (
 	"github.com/leptonai/gpud/components/fd/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/pkg/file"
 
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -194,12 +195,12 @@ func CreateGet(cfg Config) query.GetFunc {
 		// may fail for mac
 		// e.g.,
 		// stat /proc: no such file or directory
-		usage, uerr := getUsage()
+		usage, uerr := file.GetUsage()
 		if uerr != nil {
 			errs = append(errs, uerr.Error())
 		}
 
-		limit, err := getLimit()
+		limit, err := file.GetLimit()
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +217,7 @@ func CreateGet(cfg Config) query.GetFunc {
 			return nil, err
 		}
 
-		fdLimitSupported := checkFDLimitSupported()
+		fdLimitSupported := file.CheckFDLimitSupported()
 
 		var thresholdUsedPct float64
 		if fdLimitSupported && cfg.ThresholdLimit > 0 {
