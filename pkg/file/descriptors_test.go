@@ -1,11 +1,11 @@
-package fd
+package file
 
 import (
 	"testing"
 )
 
 func TestGetLimit(t *testing.T) {
-	limit, err := getLimit()
+	limit, err := GetLimit()
 	if err != nil {
 		t.Fatalf("failed to get limit: %v", err)
 	}

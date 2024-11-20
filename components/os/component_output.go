@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/shirou/gopsutil/v4/host"
@@ -233,14 +234,27 @@ func (o *Output) States() ([]components.State, error) {
 	}
 	if o.ProcessCountZombieProcesses >= DefaultZombieProcessCountThreshold {
 		stateProcCounts.Healthy = false
-		stateProcCounts.Reason = fmt.Sprintf("too many zombie processes: %d", o.ProcessCountZombieProcesses)
+		stateProcCounts.Reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", o.ProcessCountZombieProcesses, DefaultZombieProcessCountThreshold)
+	} else {
+		stateProcCounts.Reason = fmt.Sprintf("zombie processes: %d (threshold: %d)", o.ProcessCountZombieProcesses, DefaultZombieProcessCountThreshold)
 	}
 
 	states = append(states, stateProcCounts)
 	return states, nil
 }
 
-const DefaultZombieProcessCountThreshold = 1000
+var DefaultZombieProcessCountThreshold = 1000
+
+func init() {
+	// e.g., "/proc/sys/fs/file-max" exists on linux
+	if file.CheckFDLimitSupported() {
+		limit, err := file.GetLimit()
+		if limit > 0 && err == nil {
+			// set to 20% of system limit
+			DefaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
+		}
+	}
+}
 
 var (
 	defaultPollerOnce sync.Once

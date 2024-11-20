@@ -14,7 +14,7 @@
 //go:build linux
 // +build linux
 
-package fd
+package file
 
 import (
 	"os"
@@ -26,14 +26,14 @@ import (
 
 const fileMaxLinux = "/proc/sys/fs/file-max"
 
-func checkFDLimitSupported() bool {
+func CheckFDLimitSupported() bool {
 	_, err := os.Stat(fileMaxLinux)
 	return err == nil
 }
 
 // returns the current file descriptor limit for the host, not for the current process.
 // for the current process, use syscall.Getrlimit.
-func getLimit() (uint64, error) {
+func GetLimit() (uint64, error) {
 	data, err := os.ReadFile(fileMaxLinux)
 	if err != nil {
 		return 0, err
@@ -44,7 +44,7 @@ func getLimit() (uint64, error) {
 // "process_open_fds" in prometheus collector
 // ref. https://github.com/prometheus/client_golang/blob/main/prometheus/process_collector_other.go
 // ref. https://pkg.go.dev/github.com/prometheus/procfs
-func getUsage() (uint64, error) {
+func GetUsage() (uint64, error) {
 	procs, err := procfs.AllProcs()
 	if err != nil {
 		return 0, err
