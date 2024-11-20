@@ -174,7 +174,7 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 		startTime = payload.StartTime
 	}
 	if !payload.EndTime.IsZero() {
-		startTime = payload.EndTime
+		endTime = payload.EndTime
 	}
 	var events v1.LeptonEvents
 	for _, componentName := range allComponents {

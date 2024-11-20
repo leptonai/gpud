@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -138,7 +139,7 @@ func (s *Session) keepAlive() {
 }
 
 func (s *Session) startWriter() {
-	ticker := time.NewTicker(1)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -165,7 +166,26 @@ func (s *Session) startWriter() {
 		req.Header.Set("machine_id", s.machineID)
 		req.Header.Set("session_type", "write")
 
-		client := &http.Client{}
+		client := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout: 30 * time.Second,
+					KeepAliveConfig: net.KeepAliveConfig{
+						Enable:   true,
+						Idle:     10 * time.Second,
+						Interval: 15 * time.Second,
+						Count:    3,
+					},
+					FallbackDelay: 300 * time.Millisecond,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          10,
+				IdleConnTimeout:       30 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Logger.Debugf("session writer: error making request: %v, retrying", err)
@@ -207,7 +227,7 @@ func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec <-chan struct{}
 }
 
 func (s *Session) startReader() {
-	ticker := time.NewTicker(1)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -229,7 +249,26 @@ func (s *Session) startReader() {
 		req.Header.Set("machine_id", s.machineID)
 		req.Header.Set("session_type", "read")
 
-		client := &http.Client{}
+		client := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout: 30 * time.Second,
+					KeepAliveConfig: net.KeepAliveConfig{
+						Enable:   true,
+						Idle:     10 * time.Second,
+						Interval: 15 * time.Second,
+						Count:    3,
+					},
+					FallbackDelay: 300 * time.Millisecond,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          10,
+				IdleConnTimeout:       30 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Logger.Debugf("session reader: error making request: %v, retrying", err)
@@ -255,7 +294,10 @@ func (s *Session) startReader() {
 			}
 		}()
 
+		lastPackageTimestamp := &time.Time{}
 		decoder := json.NewDecoder(resp.Body)
+		keepAliveCh := make(chan any)
+		go readerKeepAlive(resp.Body, lastPackageTimestamp, keepAliveCh)
 		for {
 			var content Body
 			err = decoder.Decode(&content)
@@ -267,10 +309,32 @@ func (s *Session) startReader() {
 				s.writerCloseCh <- true
 				break
 			}
-
-			s.reader <- content
+			*lastPackageTimestamp = time.Now()
+			select {
+			case s.reader <- content:
+			default:
+				log.Logger.Errorw("session reader: reader channel full, dropping message")
+			}
 		}
+		close(keepAliveCh)
 		close(goroutineCloseCh)
+	}
+}
+
+func readerKeepAlive(respBody io.ReadCloser, lastPackageTimestamp *time.Time, closeCh chan any) {
+	threshold := 2 * time.Minute
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if time.Since(*lastPackageTimestamp) > threshold {
+				respBody.Close()
+				return
+			}
+		case <-closeCh:
+			return
+		}
 	}
 }
 
