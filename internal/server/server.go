@@ -47,6 +47,7 @@ import (
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
@@ -813,25 +814,21 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_gsp_firmware_mode.New(ctx, cfg))
 
-		case nvidia_infiniband.Name:
-			cfg := nvidia_infiniband.Config{
+		case nvidia_infiniband_id.Name:
+			cfg := &nvidia_infiniband.Config{
 				Query: defaultQueryCfg,
-
-				// TODO: make these configurable
-				ExpectedPortCount: 0,
-				ExpectedRate:      nvidia_infiniband.DefaultExpectedRate,
 			}
 			if configValue != nil {
 				parsed, err := nvidia_infiniband.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
-				cfg = *parsed
+				*cfg = *parsed
 			}
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_infiniband.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_infiniband.New(ctx, *cfg))
 
 		case nvidia_peermem_id.Name:
 			cfg := nvidia_peermem.Config{Query: defaultQueryCfg}

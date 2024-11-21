@@ -14,13 +14,18 @@ const (
 type Config struct {
 	Query query_config.Config `json:"query"`
 
+	ExpectedPortStates
+}
+
+// Configures the expected state of the ports.
+type ExpectedPortStates struct {
 	// The number of ports expected to be "Active" and "LinkUp".
 	// If not set, it defaults to the number of GPUs.
-	ExpectedPortCount int `json:"expected_port_count"`
+	PortCount int `json:"port_count"`
 
-	// The rate expected to be "Active" and "LinkUp".
+	// The expected rate in Gb/sec.
 	// If not set, it defaults to 400.
-	ExpectedRate int `json:"expected_rate"`
+	Rate int `json:"rate"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {
@@ -40,8 +45,8 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.ExpectedRate == 0 {
-		cfg.ExpectedRate = DefaultExpectedRate
+	if cfg.ExpectedPortStates.Rate == 0 {
+		cfg.ExpectedPortStates.Rate = DefaultExpectedRate
 	}
 	return nil
 }
