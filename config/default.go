@@ -415,8 +415,9 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 	if p != "" && err == nil {
 		log.Logger.Debugw("kubelet found in PATH", "path", p)
 		return k8s_pod.Config{
-			Query: query_config.DefaultConfig(),
-			Port:  k8s_pod.DefaultKubeletReadOnlyPort,
+			Query:                  query_config.DefaultConfig(),
+			Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
+			IgnoreConnectionErrors: ignoreConnectionErrors,
 		}, true
 	}
 	log.Logger.Debugw("kubelet not found in PATH -- fallback to kubelet run checks", "error", err)
