@@ -49,6 +49,8 @@ var (
 	filesToCheck         cli.StringSlice
 	kernelModulesToCheck cli.StringSlice
 
+	expectedPortStates string
+
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
 )
@@ -244,6 +246,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "kernel-modules-to-check",
 					Usage: "enable 'kernel-module' component that returns healthy if and only if all the kernel modules are loaded (default: [], use '--kernel-modules-to-check=a --kernel-modules-to-check=b' for multiple modules)",
 					Value: &kernelModulesToCheck,
+				},
+				&cli.StringFlag{
+					Name:        "expected-port-states-nvidia-infiniband",
+					Usage:       "set the expected port states for NVIDIA InfiniBand (e.g., --expected-port-states-nvidia-infiniband='{\"port_count\": 4, \"rate\": 400}')",
+					Destination: &expectedPortStates,
 				},
 				&cli.BoolFlag{
 					Name:        "docker-ignore-connection-errors",

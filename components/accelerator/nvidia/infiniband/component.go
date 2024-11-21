@@ -8,19 +8,18 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
-
-const Name = "accelerator-nvidia-infiniband"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
 	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_infiniband_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -39,15 +38,15 @@ type component struct {
 	cfg     Config
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return nvidia_infiniband_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_infiniband_id.Name)
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    nvidia_infiniband_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -97,7 +96,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
+	_ = c.poller.Stop(nvidia_infiniband_id.Name)
 
 	return nil
 }

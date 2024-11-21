@@ -15,13 +15,15 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "valid config",
 			input: map[string]interface{}{
-				"expected_port_count": 4,
-				"expected_rate":       200,
+				"port_count": 4,
+				"rate":       200,
 			},
 			wantErr: false,
 			want: Config{
-				ExpectedPortCount: 4,
-				ExpectedRate:      200,
+				ExpectedPortStates: ExpectedPortStates{
+					PortCount: 4,
+					Rate:      200,
+				},
 			},
 		},
 		{
@@ -60,18 +62,30 @@ func TestConfig_Validate(t *testing.T) {
 		wantConfig Config
 	}{
 		{
-			name:   "zero expected rate should set default",
-			config: Config{ExpectedRate: 0},
+			name: "zero expected rate should set default",
+			config: Config{
+				ExpectedPortStates: ExpectedPortStates{
+					Rate: 0,
+				},
+			},
 			wantConfig: Config{
-				ExpectedRate: DefaultExpectedRate,
+				ExpectedPortStates: ExpectedPortStates{
+					Rate: DefaultExpectedRate,
+				},
 			},
 			wantError: false,
 		},
 		{
-			name:   "non-zero expected rate should remain unchanged",
-			config: Config{ExpectedRate: 200},
+			name: "non-zero expected rate should remain unchanged",
+			config: Config{
+				ExpectedPortStates: ExpectedPortStates{
+					Rate: 200,
+				},
+			},
 			wantConfig: Config{
-				ExpectedRate: 200,
+				ExpectedPortStates: ExpectedPortStates{
+					Rate: 200,
+				},
 			},
 			wantError: false,
 		},
@@ -90,8 +104,8 @@ func TestConfig_Validate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr = false", err)
 				return
 			}
-			if tt.config.ExpectedRate != tt.wantConfig.ExpectedRate {
-				t.Errorf("ExpectedRate = %v, want %v", tt.config.ExpectedRate, tt.wantConfig.ExpectedRate)
+			if !reflect.DeepEqual(tt.config.ExpectedPortStates, tt.wantConfig.ExpectedPortStates) {
+				t.Errorf("ExpectedPortStates = %v, want %v", tt.config.ExpectedPortStates, tt.wantConfig.ExpectedPortStates)
 			}
 		})
 	}

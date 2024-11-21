@@ -102,11 +102,11 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 		}
 		if len(o.Ibstat.Parsed) > 0 {
-			expectedPortCount := cfg.ExpectedPortCount
+			expectedPortCount := cfg.ExpectedPortStates.PortCount
 			if expectedPortCount == 0 {
 				expectedPortCount = o.GPUCount
 			}
-			expectedRate := cfg.ExpectedRate
+			expectedRate := cfg.ExpectedPortStates.Rate
 
 			upCards := o.Ibstat.Parsed.CountByRates(expectedRate, "Active", "LinkUp")
 			if upCards != expectedPortCount {
