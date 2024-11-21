@@ -104,7 +104,14 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 		if len(o.Ibstat.Parsed) > 0 {
 			// no port count is set, use the gpu count as port count
 			expectedPortCount := cfg.ExpectedPortStates.PortCount
+
+			// some H100 machines only have 1 ib port in ib class dir
 			if expectedPortCount == 0 {
+				expectedPortCount = infiniband.CountInfinibandClass()
+			}
+
+			// H100 machines with 12 ib ports should default to the GPU count 8
+			if expectedPortCount == 0 || expectedPortCount > o.GPUCount {
 				expectedPortCount = o.GPUCount
 			}
 

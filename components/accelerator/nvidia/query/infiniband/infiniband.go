@@ -41,10 +41,30 @@ func IbstatExists() bool {
 	return p != ""
 }
 
-// Checks if "/sys/class/infiniband" directory exists.
-func InfinibandClassExists() bool {
+// Counts the directories in "/sys/class/infiniband".
+// Returns 0 if the directory does not exist.
+func CountInfinibandClass() int {
 	info, err := os.Stat("/sys/class/infiniband")
-	return err == nil && info.IsDir()
+	if err != nil || !info.IsDir() {
+		return 0
+	}
+	dirs, err := os.ReadDir("/sys/class/infiniband")
+	if err != nil {
+		return 0
+	}
+	return len(dirs)
+}
+
+func countInfinibandClass(dir string) int {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return 0
+	}
+	dirs, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	return len(dirs)
 }
 
 func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
