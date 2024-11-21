@@ -73,8 +73,11 @@ import (
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/file"
+	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	kernel_module "github.com/leptonai/gpud/components/kernel-module"
+	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/components/metrics"
@@ -446,7 +449,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, fd.New(ctx, cfg))
 
-		case file.Name:
+		case file_id.Name:
 			if configValue != nil {
 				filesToCheck, ok := configValue.([]string)
 				if !ok {
@@ -454,6 +457,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 				allComponents = append(allComponents, file.New(filesToCheck))
 			}
+
+		case kernel_module_id.Name:
+			kernelModulesToCheck := []string{}
+			if configValue != nil {
+				var ok bool
+				kernelModulesToCheck, ok = configValue.([]string)
+				if !ok {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+			}
+			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
 
 		case library.Name:
 			if configValue != nil {

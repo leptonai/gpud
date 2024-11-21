@@ -39,9 +39,10 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/file"
+	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/info"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
@@ -114,12 +115,13 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// default components that work both in mac/linux
 		Components: map[string]any{
-			cpu.Name:    nil,
-			disk.Name:   disk.DefaultConfig(),
-			fd.Name:     nil,
-			info.Name:   nil,
-			memory.Name: nil,
-			os.Name:     nil,
+			cpu.Name:              nil,
+			disk.Name:             disk.DefaultConfig(),
+			fd.Name:               nil,
+			info.Name:             nil,
+			memory.Name:           nil,
+			os.Name:               nil,
+			kernel_module_id.Name: nil,
 		},
 
 		RetentionPeriod:           DefaultRetentionPeriod,
@@ -137,7 +139,10 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	if len(options.FilesToCheck) > 0 {
-		cfg.Components[file.Name] = options.FilesToCheck
+		cfg.Components[file_id.Name] = options.FilesToCheck
+	}
+	if len(options.KernelModulesToCheck) > 0 {
+		cfg.Components[kernel_module_id.Name] = options.KernelModulesToCheck
 	}
 
 	if cc, exists := DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
