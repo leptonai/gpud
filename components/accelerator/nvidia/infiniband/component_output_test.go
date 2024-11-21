@@ -138,6 +138,35 @@ func TestOutputStates(t *testing.T) {
 			name: "Not all cards active and up (H100) with lower rate",
 			cfg: Config{
 				ExpectedPortStates: ExpectedPortStates{
+					PortCount: 5,
+					Rate:      200,
+				},
+			},
+			o: &Output{
+				GPUProductName:        "NVIDIA H100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+					},
+				},
+			},
+			expectedHealthy: true,
+			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
+		},
+		{
+			name: "Not all cards active and up (H100) with exact same rate",
+			cfg: Config{
+				ExpectedPortStates: ExpectedPortStates{
 					PortCount: 6,
 					Rate:      200,
 				},
@@ -162,6 +191,35 @@ func TestOutputStates(t *testing.T) {
 			},
 			expectedHealthy: true,
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
+		},
+		{
+			name: "Not all cards active and up (H100) with higher rate",
+			cfg: Config{
+				ExpectedPortStates: ExpectedPortStates{
+					PortCount: 10,
+					Rate:      200,
+				},
+			},
+			o: &Output{
+				GPUProductName:        "NVIDIA H100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+					},
+				},
+			},
+			expectedHealthy: false,
+			expectedReason:  "only 6 out of 10 ibstat cards are active and link up (expected rate: 200 Gb/sec)",
 		},
 	}
 
