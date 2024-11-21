@@ -164,3 +164,61 @@ func TestSupportsInfinibandProduct(t *testing.T) {
 		})
 	}
 }
+
+func TestSupportsInfinibandPortRate(t *testing.T) {
+	tests := []struct {
+		name        string
+		productName string
+		want        int
+	}{
+		{
+			// e.g.,
+			// "gpu_1x_h100_sxm5" in Lambda Labs
+			// "gpu_2x_h100_sxm5" in Lambda Labs
+			// "gpu_8x_h100_sxm5" in Lambda Labs
+			// H100s in Paperspace
+			name:        "H100 supports Infiniband",
+			productName: "NVIDIA H100 80GB HBM3",
+			want:        400,
+		},
+		{
+			// e.g.,
+			// "gpu_1x_a100_sxm4" in Lambda Labs
+			name:        "A100 40GB supports Infiniband",
+			productName: "NVIDIA A100-SXM4-40GB",
+			want:        200,
+		},
+		{
+			// e.g.,
+			// "gpu_8x_a100_80gb_sxm4" in Lambda Labs
+			name:        "A100 80GB supports Infiniband",
+			productName: "NVIDIA A100-SXM4-80GB",
+			want:        200,
+		},
+		{
+			// e.g.,
+			// "gpu_1x_a10" in Lambda Labs
+			name:        "A10 does not support Infiniband",
+			productName: "NVIDIA A10",
+			want:        0,
+		},
+		{
+			name:        "RTX 4090 does not support Infiniband",
+			productName: "NVIDIA GeForce RTX 4090",
+			want:        0,
+		},
+		{
+			name:        "TITAN V does not support Infiniband",
+			productName: "NVIDIA TITAN V",
+			want:        0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SupportsInfinibandPortRate(tt.productName); got != tt.want {
+				t.Errorf("SupportsInfinibandPortRate(%q) = %v, want %v", tt.productName, got, tt.want)
+			}
+		})
+	}
+}

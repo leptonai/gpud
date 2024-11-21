@@ -58,28 +58,42 @@ func TestParseIBStatCountByRates(t *testing.T) {
 		expectedCount         int
 	}{
 		{
-			fileName:              "testdata/ibstat.47.0.all.active.0",
+			fileName:              "testdata/ibstat.47.0.a100.all.active.0",
+			rate:                  200,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         9,
+		},
+		{
+			fileName:              "testdata/ibstat.47.0.a100.all.active.0",
+			rate:                  100,
+			expectedState:         "Active",
+			expectedPhysicalState: "LinkUp",
+			expectedCount:         9,
+		},
+		{
+			fileName:              "testdata/ibstat.47.0.h100.all.active.0",
 			rate:                  400,
 			expectedState:         "Active",
 			expectedPhysicalState: "LinkUp",
 			expectedCount:         8,
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.all.active.1",
+			fileName:              "testdata/ibstat.47.0.h100.all.active.1",
 			rate:                  400,
 			expectedState:         "Active",
 			expectedPhysicalState: "LinkUp",
 			expectedCount:         8,
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.some.down.0",
+			fileName:              "testdata/ibstat.47.0.h100.some.down.0",
 			rate:                  400,
 			expectedState:         "Active",
 			expectedPhysicalState: "LinkUp",
 			expectedCount:         8,
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.some.down.1",
+			fileName:              "testdata/ibstat.47.0.h100.some.down.1",
 			rate:                  400,
 			expectedState:         "Active",
 			expectedPhysicalState: "LinkUp",
