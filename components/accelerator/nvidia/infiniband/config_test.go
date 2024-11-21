@@ -70,7 +70,7 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantConfig: Config{
 				ExpectedPortStates: ExpectedPortStates{
-					Rate: DefaultExpectedRate,
+					Rate: 200,
 				},
 			},
 			wantError: false,
@@ -79,12 +79,12 @@ func TestConfig_Validate(t *testing.T) {
 			name: "non-zero expected rate should remain unchanged",
 			config: Config{
 				ExpectedPortStates: ExpectedPortStates{
-					Rate: 200,
+					Rate: 100,
 				},
 			},
 			wantConfig: Config{
 				ExpectedPortStates: ExpectedPortStates{
-					Rate: 200,
+					Rate: 100,
 				},
 			},
 			wantError: false,

@@ -83,12 +83,35 @@ func TestOutputStates(t *testing.T) {
 			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
 		{
-			name: "Not all cards active and up",
+			name: "Not all cards active and up (A100) with default rate",
 			cfg: Config{
-				ExpectedPortStates: ExpectedPortStates{
-					PortCount: 0,
-					Rate:      400,
+				ExpectedPortStates: ExpectedPortStates{},
+			},
+			o: &Output{
+				GPUProductName:        "NVIDIA A100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+					},
 				},
+			},
+			expectedHealthy: false,
+			expectedReason:  "only 6 out of 8 ibstat cards are active and link up (expected rate: 200 Gb/sec)",
+		},
+		{
+			name: "Not all cards active and up (H100) with default rate",
+			cfg: Config{
+				ExpectedPortStates: ExpectedPortStates{},
 			},
 			o: &Output{
 				GPUProductName:        "NVIDIA H100",
@@ -109,7 +132,36 @@ func TestOutputStates(t *testing.T) {
 				},
 			},
 			expectedHealthy: false,
-			expectedReason:  "only 6 out of 8 ibstat cards are active and link up",
+			expectedReason:  "only 6 out of 8 ibstat cards are active and link up (expected rate: 400 Gb/sec)",
+		},
+		{
+			name: "Not all cards active and up (H100) with lower rate",
+			cfg: Config{
+				ExpectedPortStates: ExpectedPortStates{
+					PortCount: 6,
+					Rate:      200,
+				},
+			},
+			o: &Output{
+				GPUProductName:        "NVIDIA H100",
+				GPUCount:              8,
+				InfinibandClassExists: true,
+				IbstatExists:          true,
+				Ibstat: infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+						{Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+					},
+				},
+			},
+			expectedHealthy: true,
+			expectedReason:  "no infiniband class found or no ibstat exists or no ibstat error found",
 		},
 	}
 

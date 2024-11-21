@@ -7,10 +7,6 @@ import (
 	query_config "github.com/leptonai/gpud/components/query/config"
 )
 
-const (
-	DefaultExpectedRate = 400
-)
-
 type Config struct {
 	Query query_config.Config `json:"query"`
 
@@ -24,7 +20,7 @@ type ExpectedPortStates struct {
 	PortCount int `json:"port_count"`
 
 	// The expected rate in Gb/sec.
-	// If not set, it defaults to 400.
+	// If not set, it defaults to 200.
 	Rate int `json:"rate"`
 }
 
@@ -45,8 +41,5 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.ExpectedPortStates.Rate == 0 {
-		cfg.ExpectedPortStates.Rate = DefaultExpectedRate
-	}
 	return nil
 }

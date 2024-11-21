@@ -102,15 +102,21 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 		}
 		if len(o.Ibstat.Parsed) > 0 {
+			// no port count is set, use the gpu count as port count
 			expectedPortCount := cfg.ExpectedPortStates.PortCount
 			if expectedPortCount == 0 {
 				expectedPortCount = o.GPUCount
 			}
+
+			// no rate is set, use the default rate based on the product
 			expectedRate := cfg.ExpectedPortStates.Rate
+			if expectedRate == 0 {
+				expectedRate = infiniband.SupportsInfinibandPortRate(o.GPUProductName)
+			}
 
 			upCards := o.Ibstat.Parsed.CountByRates(expectedRate, "Active", "LinkUp")
 			if upCards != expectedPortCount {
-				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up", upCards, expectedPortCount), false, nil
+				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up (expected rate: %d Gb/sec)", upCards, expectedPortCount, expectedRate), false, nil
 			}
 		}
 	}
