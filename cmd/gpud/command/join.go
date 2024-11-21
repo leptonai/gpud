@@ -156,7 +156,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		ID:               uid,
 		ClusterName:      clusterName,
 		PublicIP:         publicIP,
-		Provider:         provider,
+		Provider:         strings.Replace(provider, " ", "-", -1),
 		ProviderGPUShape: productName,
 		TotalCPU:         totalCPU,
 		NodeGroup:        nodeGroup,
