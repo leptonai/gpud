@@ -1,10 +1,12 @@
 package infiniband
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -97,6 +99,17 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
 		return fmt.Sprintf("%q GPUs do not support infiniband", o.GPUProductName), true, nil
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	count, err := infiniband.CountInfinibandPCIBuses(ctx)
+	if err != nil {
+		return fmt.Sprintf("failed to count infiniband pci buses: %s", err), false, nil
+	}
+	if count == 0 {
+		return "no infiniband pci buses found", true, nil
+	}
+
 	if o.InfinibandClassExists && o.IbstatExists {
 		if len(o.Ibstat.Errors) > 0 {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
