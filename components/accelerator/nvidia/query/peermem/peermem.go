@@ -77,7 +77,7 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 
 	o := &LsmodPeermemModuleOutput{
 		IbstatExists:          infiniband.IbstatExists(),
-		InfinibandClassExists: infiniband.InfinibandClassExists(),
+		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
 		Raw:                   strings.Join(lines, "\n"),
 	}
 	o.IbcoreUsingPeermemModule = HasLsmodInfinibandPeerMem(o.Raw)

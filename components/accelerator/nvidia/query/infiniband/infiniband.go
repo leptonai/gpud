@@ -2,6 +2,8 @@
 package infiniband
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -41,10 +43,57 @@ func IbstatExists() bool {
 	return p != ""
 }
 
-// Checks if "/sys/class/infiniband" directory exists.
-func InfinibandClassExists() bool {
+// lspci | grep -i infiniband
+// 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+// 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
+	p, err := exec.LookPath("lspci")
+	if err != nil {
+		return 0, fmt.Errorf("lspci not found (%w)", err)
+	}
+	b, err := exec.CommandContext(ctx, p).CombinedOutput()
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	s := bufio.NewScanner(bytes.NewReader(b))
+	for s.Scan() {
+		line := s.Text()
+		if strings.Contains(strings.ToLower(line), "infiniband") {
+			count++
+		}
+	}
+	if err := s.Err(); err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
+// Counts the directories in "/sys/class/infiniband".
+// Returns 0 if the directory does not exist.
+func CountInfinibandClass() int {
 	info, err := os.Stat("/sys/class/infiniband")
-	return err == nil && info.IsDir()
+	if err != nil || !info.IsDir() {
+		return 0
+	}
+	dirs, err := os.ReadDir("/sys/class/infiniband")
+	if err != nil {
+		return 0
+	}
+	return len(dirs)
+}
+
+func countInfinibandClass(dir string) int {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return 0
+	}
+	dirs, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	return len(dirs)
 }
 
 func RunIbstat(ctx context.Context) (*IbstatOutput, error) {

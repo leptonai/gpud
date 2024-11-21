@@ -99,7 +99,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		PersistencedExists:    PersistencedExists(),
 		PersistencedRunning:   PersistencedRunning(),
 		FabricManagerExists:   FabricManagerExists(),
-		InfinibandClassExists: infiniband.InfinibandClassExists(),
+		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
 		IbstatExists:          infiniband.IbstatExists(),
 	}
 
