@@ -8,30 +8,29 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/log"
 )
 
-const Name = "file"
-
-func New(files []string) components.Component {
-	return &component{files: files}
+func New(filesToCheck []string) components.Component {
+	return &component{filesToCheck: filesToCheck}
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	files []string
+	filesToCheck []string
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return file_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	unhealthy := []components.State{}
-	for _, file := range c.files {
+	for _, file := range c.filesToCheck {
 		_, err := os.Stat(file)
 		if os.IsNotExist(err) {
 			unhealthy = append(unhealthy, components.State{
-				Name:    Name,
+				Name:    file_id.Name,
 				Healthy: false,
 				Reason:  fmt.Sprintf("file %q does not exist", file),
 			})
@@ -47,7 +46,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	return []components.State{
 		{
-			Name:    Name,
+			Name:    file_id.Name,
 			Healthy: true,
 			Reason:  "all files exist",
 		},

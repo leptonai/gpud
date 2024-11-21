@@ -46,7 +46,8 @@ var (
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	filesToCheck cli.StringSlice
+	filesToCheck         cli.StringSlice
+	kernelModulesToCheck cli.StringSlice
 
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
@@ -238,6 +239,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "files-to-check",
 					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
 					Value: &filesToCheck,
+				},
+				&cli.StringSliceFlag{
+					Name:  "kernel-modules-to-check",
+					Usage: "enable 'kernel-module' component that returns healthy if and only if all the kernel modules are loaded (default: [], use '--kernel-modules-to-check=a --kernel-modules-to-check=b' for multiple modules)",
+					Value: &kernelModulesToCheck,
 				},
 				&cli.BoolFlag{
 					Name:        "docker-ignore-connection-errors",
