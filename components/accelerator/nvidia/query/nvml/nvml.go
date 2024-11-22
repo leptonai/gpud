@@ -257,6 +257,8 @@ func (inst *instance) Start() error {
 		return err
 	}
 
+	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+	// "error getting device handle for index '6': Unknown Error"
 	devices, err := inst.deviceLib.GetDevices()
 	if err != nil {
 		return err

@@ -88,9 +88,7 @@ func GetSMIOutput(ctx context.Context) (*SMIOutput, error) {
 
 	sb, err := RunSMI(ctx)
 	if err != nil {
-		// e.g.,
-		// Unable to determine the device handle for GPU0000:CB:00.0: Unknown Error
-		if strings.Contains(err.Error(), "Unknown Error") {
+		if IsErrDeviceHandleUnknownError(err) {
 			o.SummaryFailure = err
 		} else {
 			return nil, err
