@@ -25,6 +25,9 @@ func GPMSupported() (bool, error) {
 	log.Logger.Debugw("successfully initialized NVML")
 
 	deviceLib := device.New(nvmlLib)
+
+	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+	// "error getting device handle for index '6': Unknown Error"
 	devices, err := deviceLib.GetDevices()
 	if err != nil {
 		return false, err

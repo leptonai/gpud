@@ -3,7 +3,6 @@ package infiniband
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 // Returns true if the product supports infiniband.
@@ -47,26 +48,64 @@ func IbstatExists() bool {
 // 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 // 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
-	p, err := exec.LookPath("lspci")
+	lspciPath, err := file.LocateExecutable("lspci")
 	if err != nil {
-		return 0, fmt.Errorf("lspci not found (%w)", err)
+		return 0, nil
 	}
-	b, err := exec.CommandContext(ctx, p).CombinedOutput()
+	if lspciPath == "" {
+		return 0, nil
+	}
+
+	p, err := process.New(
+		process.WithCommand(lspciPath),
+		process.WithRunAsBashScript(),
+	)
 	if err != nil {
 		return 0, err
 	}
 
+	if err := p.Start(ctx); err != nil {
+		return 0, err
+	}
+
 	count := 0
-	s := bufio.NewScanner(bytes.NewReader(b))
-	for s.Scan() {
-		line := s.Text()
+
+	scanner := bufio.NewScanner(p.StdoutReader())
+	for scanner.Scan() { // returns false at the end of the output
+		line := scanner.Text()
+
+		// e.g.,
+		// 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+		// 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 		if strings.Contains(strings.ToLower(line), "infiniband") {
 			count++
 		}
+
+		select {
+		case err := <-p.Wait():
+			if err != nil {
+				return 0, err
+			}
+		default:
+		}
 	}
-	if err := s.Err(); err != nil {
-		return count, err
+	if serr := scanner.Err(); serr != nil {
+		// process already dead, thus ignore
+		// e.g., "read |0: file already closed"
+		if !strings.Contains(serr.Error(), "file already closed") {
+			return count, serr
+		}
 	}
+
+	select {
+	case err := <-p.Wait():
+		if err != nil {
+			return count, err
+		}
+	case <-ctx.Done():
+		return count, ctx.Err()
+	}
+
 	return count, nil
 }
 

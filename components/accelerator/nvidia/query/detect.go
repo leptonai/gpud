@@ -38,6 +38,9 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	// call NVML C-based API for NVML API
 	gpuDeviceName, err := LoadGPUDeviceName(ctx)
 	if err != nil {
+		if IsErrDeviceHandleUnknownError(err) {
+			log.Logger.Warnw("nvidia device handler failed for unknown error -- likely GPU has fallen off the bus or other Xid error", "error", err)
+		}
 		return false, err
 	}
 	log.Logger.Debugw("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
@@ -63,6 +66,8 @@ func LoadGPUDeviceName(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
 	}
 
+	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+	// "error getting device handle for index '6': Unknown Error"
 	devices, err := deviceLib.GetDevices()
 	if err != nil {
 		return "", err
