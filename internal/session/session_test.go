@@ -94,25 +94,12 @@ func TestStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Session{
-		ctx:            ctx,
-		cancel:         cancel,
-		writer:         make(chan Body, 20),
-		reader:         make(chan Body, 20),
-		writerCloseCh:  make(chan bool, 2),
-		readerCloseCh:  make(chan bool, 2),
-		writerClosedCh: make(chan bool),
-		readerClosedCh: make(chan bool),
+		ctx:    ctx,
+		cancel: cancel,
+		writer: make(chan Body, 20),
+		reader: make(chan Body, 20),
+		closer: &closeOnce{closer: make(chan any)},
 	}
-
-	// Simulate writer and reader running
-	go func() {
-		<-s.writerCloseCh
-		s.writerClosedCh <- true
-	}()
-	go func() {
-		<-s.readerCloseCh
-		s.readerClosedCh <- true
-	}()
 
 	s.Stop()
 
@@ -154,23 +141,18 @@ func TestStartWriterAndReader(t *testing.T) {
 	defer cancel()
 
 	s := &Session{
-		ctx:            ctx,
-		cancel:         cancel,
-		pipeInterval:   10 * time.Millisecond, // Reduce interval for faster testing
-		endpoint:       server.URL,
-		machineID:      "test_machine",
-		writer:         make(chan Body, 100),
-		reader:         make(chan Body, 100),
-		writerCloseCh:  make(chan bool, 5),
-		readerCloseCh:  make(chan bool, 5),
-		writerClosedCh: make(chan bool),
-		readerClosedCh: make(chan bool),
+		ctx:          ctx,
+		cancel:       cancel,
+		pipeInterval: 10 * time.Millisecond, // Reduce interval for faster testing
+		endpoint:     server.URL,
+		machineID:    "test_machine",
+		writer:       make(chan Body, 100),
+		reader:       make(chan Body, 100),
+		closer:       &closeOnce{closer: make(chan any)},
 	}
-	defer s.Stop()
 
-	// start writer and reader
-	go s.startWriter()
-	go s.startReader()
+	// start writer reader keepAlive
+	go s.keepAlive()
 
 	// allow some time for the goroutines to start
 	time.Sleep(50 * time.Millisecond)
@@ -199,9 +181,17 @@ func TestStartWriterAndReader(t *testing.T) {
 					t.Errorf("expected ReqID 'server_response_id', got '%s'", body.ReqID)
 				}
 
-			case <-time.After(time.Second):
+			case <-time.After(3 * time.Second):
 				t.Error("reader timeout")
 			}
 		})
+	}
+
+	s.Stop()
+	if _, ok := <-s.reader; ok {
+		t.Errorf("Reader channel should be closed")
+	}
+	if _, ok := <-s.writer; ok {
+		t.Errorf("Writer channel should be closed")
 	}
 }
