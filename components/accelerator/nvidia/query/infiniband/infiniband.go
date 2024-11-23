@@ -47,6 +47,8 @@ func IbstatExists() bool {
 // lspci | grep -i infiniband
 // 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 // 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+// 1a:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+// 1b:00.0 Ethernet controller: Mellanox Technologies MT2892 Family [ConnectX-6 Dx]
 func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 	lspciPath, err := file.LocateExecutable("lspci")
 	if err != nil {
@@ -74,10 +76,17 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 	for scanner.Scan() { // returns false at the end of the output
 		line := scanner.Text()
 
+		switch {
 		// e.g.,
 		// 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 		// 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
-		if strings.Contains(strings.ToLower(line), "infiniband") {
+		case strings.Contains(strings.ToLower(line), "infiniband"),
+
+			// 1a:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+			// 1b:00.0 Ethernet controller: Mellanox Technologies MT2892 Family [ConnectX-6 Dx]
+			strings.Contains(strings.ToLower(line), "mellanox"),
+
+			strings.Contains(strings.ToLower(line), "qlogic"):
 			count++
 		}
 
