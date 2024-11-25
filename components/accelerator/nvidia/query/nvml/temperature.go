@@ -88,6 +88,10 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		temp.UsedPercentSlowdown = "0.0"
 	}
 
+	// same logic as DCGM "VerifyHBMTemperature" that alerts  "DCGM_FR_TEMP_VIOLATION",
+	// use "DCGM_FI_DEV_MEM_MAX_OP_TEMP" to get the max HBM temperature threshold "NVML_TEMPERATURE_THRESHOLD_MEM_MAX"
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g271ba78911494f33fc079b204a929405
+	// ref. https://github.com/NVIDIA/DCGM/blob/a33560c9c138c617f3ee6cb50df11561302e5743/dcgmlib/src/DcgmCacheManager.cpp#L7738-L7767
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g271ba78911494f33fc079b204a929405
 	tempLimitMemMax, ret := dev.GetTemperatureThreshold(nvml.TEMPERATURE_THRESHOLD_MEM_MAX)
 	if ret == nvml.SUCCESS {
