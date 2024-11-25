@@ -20,7 +20,6 @@ sudo gpud up
 
 var (
 	logLevel    string
-	debug       bool
 	statusWatch bool
 	uid         string
 
@@ -505,16 +504,16 @@ cat summary.txt
 			Usage:  "quick scans the host for any major issues",
 			Action: cmdScan,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
 				&cli.IntFlag{
 					Name:        "lines,n",
 					Usage:       "set the number of lines to tail log files (e.g., /var/log/dmesg)",
 					Destination: &tailLines,
 					Value:       5000,
-				},
-				&cli.BoolFlag{
-					Name:        "debug",
-					Usage:       "enable debug mode (default: false)",
-					Destination: &debug,
 				},
 				&cli.BoolFlag{
 					Name:        "poll-xid-events",

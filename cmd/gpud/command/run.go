@@ -25,7 +25,7 @@ func cmdRun(cliContext *cli.Context) error {
 	if logLevel != "" && logLevel != "info" {
 		lCfg := log.DefaultLoggerConfig()
 		var err error
-		zapLvl, err := zap.ParseAtomicLevel(logLevel)
+		zapLvl, err = zap.ParseAtomicLevel(logLevel)
 		if err != nil {
 			return err
 		}
