@@ -120,15 +120,21 @@ func GetUptime(service string) (*time.Duration, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// e.g.,
+	// systemctl show --property=InactiveExitTimestamp abc
+	// InactiveExitTimestamp=n/a
 	val := strings.Split(string(b), "=")
 	if len(val) < 2 {
 		return nil, errors.New("could not parse the service uptime time correctly")
 	}
-	if val[1] == "" || val[1] == "n/a" {
+
+	uptimeRaw := strings.TrimSpace(strings.Trim(val[1], "\x0a"))
+	if uptimeRaw == "" || uptimeRaw == "n/a" {
 		return nil, nil
 	}
 
-	uptime, err := parseSystemdUnitUptime(val[1])
+	uptime, err := parseSystemdUnitUptime(uptimeRaw)
 	if err != nil {
 		return nil, err
 	}
