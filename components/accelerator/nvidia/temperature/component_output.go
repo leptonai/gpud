@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -100,8 +101,22 @@ func (o *Output) Evaluate() (string, bool, error) {
 		Usage       uint32 `json:"usage"`
 		UsedPercent string `json:"used_percent"`
 	}
+
+	memThresholdExceeded := []string{}
 	ts := make([]temp, len(o.UsagesNVML))
 	for i, u := range o.UsagesNVML {
+		// same logic as DCGM "VerifyHBMTemperature" that alerts  "DCGM_FR_TEMP_VIOLATION",
+		// use "DCGM_FI_DEV_MEM_MAX_OP_TEMP" to get the max HBM temperature threshold "NVML_TEMPERATURE_THRESHOLD_MEM_MAX"
+		if u.ThresholdCelsiusMemMax > 0 && u.CurrentCelsiusGPUCore > u.ThresholdCelsiusMemMax {
+			memThresholdExceeded = append(memThresholdExceeded,
+				fmt.Sprintf("%s current temperature is %d °C exceeding the HBM temperature threshold %d °C",
+					u.UUID,
+					u.CurrentCelsiusGPUCore,
+					u.ThresholdCelsiusMemMax,
+				),
+			)
+		}
+
 		ts[i] = temp{
 			UUID:        u.UUID,
 			Limit:       u.ThresholdCelsiusSlowdown,
@@ -109,6 +124,11 @@ func (o *Output) Evaluate() (string, bool, error) {
 			UsedPercent: u.UsedPercentSlowdown,
 		}
 	}
+
+	if len(memThresholdExceeded) > 0 {
+		return strings.Join(memThresholdExceeded, ", "), false, nil
+	}
+
 	yb, err := yaml.Marshal(ts)
 	if err != nil {
 		return "", false, err
