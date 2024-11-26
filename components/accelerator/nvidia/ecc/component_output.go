@@ -20,6 +20,17 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	o := &Output{}
 
+	if i.NVML != nil {
+		for _, dev := range i.NVML.DeviceInfos {
+			o.ECCModes = append(o.ECCModes, dev.ECCMode)
+			o.ErrorCountsNVML = append(o.ErrorCountsNVML, dev.ECCErrors)
+
+			if errs := dev.ECCErrors.Volatile.FindUncorrectedErrs(); len(errs) > 0 {
+				o.VolatileUncorrectedErrorsFromNVML = append(o.VolatileUncorrectedErrorsFromNVML, fmt.Sprintf("[%s] %s", dev.UUID, strings.Join(errs, ", ")))
+			}
+		}
+	}
+
 	if i.SMI != nil {
 		for _, g := range i.SMI.GPUs {
 			if g.ECCErrors == nil {
@@ -30,17 +41,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 			if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
 				o.VolatileUncorrectedErrorsFromSMI = append(o.VolatileUncorrectedErrorsFromSMI, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
-			}
-		}
-	}
-
-	if i.NVML != nil {
-		for _, dev := range i.NVML.DeviceInfos {
-			o.ECCModes = append(o.ECCModes, dev.ECCMode)
-			o.ErrorCountsNVML = append(o.ErrorCountsNVML, dev.ECCErrors)
-
-			if errs := dev.ECCErrors.Volatile.FindUncorrectedErrs(); len(errs) > 0 {
-				o.VolatileUncorrectedErrorsFromNVML = append(o.VolatileUncorrectedErrorsFromNVML, fmt.Sprintf("[%s] %s", dev.UUID, strings.Join(errs, ", ")))
 			}
 		}
 	}
