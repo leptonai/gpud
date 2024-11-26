@@ -161,7 +161,7 @@ func CreateGet(cfg Config) query.GetFunc {
 		for _, unit := range cfg.Units {
 			uptime, err := systemd.GetUptime(unit)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get uptime for unit %s: %w", unit, err)
+				return nil, fmt.Errorf("failed to get uptime for unit %q: %w", unit, err)
 			}
 
 			active := false
@@ -173,7 +173,7 @@ func CreateGet(cfg Config) query.GetFunc {
 			if defaultConn == nil || err != nil {
 				active, err = systemd.IsActive(unit)
 				if err != nil {
-					return nil, fmt.Errorf("failed to check active status for unit %s: %w", unit, err)
+					return nil, fmt.Errorf("failed to check active status for unit %q: %w", unit, err)
 				}
 			}
 
