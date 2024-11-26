@@ -23,15 +23,15 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		PersistencedRunning: i.PersistencedRunning,
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			o.PersistenceModesSMI = append(o.PersistenceModesSMI, g.GetSMIGPUPersistenceMode())
-		}
-	}
-
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
 			o.PersistenceModesNVML = append(o.PersistenceModesNVML, device.PersistenceMode)
+		}
+	}
+
+	if i.SMI != nil {
+		for _, g := range i.SMI.GPUs {
+			o.PersistenceModesSMI = append(o.PersistenceModesSMI, g.GetSMIGPUPersistenceMode())
 		}
 	}
 

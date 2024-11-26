@@ -25,6 +25,24 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	rmaMsgs := make([]string, 0)
 	needRebootMsgs := make([]string, 0)
 
+	if i.NVML != nil {
+		for _, device := range i.NVML.DeviceInfos {
+			o.RemappedRowsNVML = append(o.RemappedRowsNVML, device.RemappedRows)
+
+			requiresReset := device.RemappedRows.RequiresReset()
+			if requiresReset {
+				msg := fmt.Sprintf("NVML indicates GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
+				needRebootMsgs = append(needRebootMsgs, msg)
+			}
+
+			rma := device.RemappedRows.QualifiesForRMA()
+			if rma {
+				msg := fmt.Sprintf("NVML indicates GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
+				rmaMsgs = append(rmaMsgs, msg)
+			}
+		}
+	}
+
 	if i.SMI != nil {
 		for _, g := range i.SMI.GPUs {
 			if g.RemappedRows == nil {
@@ -54,24 +72,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			}
 			if rma {
 				msg := fmt.Sprintf("nvidia-smi indicates GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors)
-				rmaMsgs = append(rmaMsgs, msg)
-			}
-		}
-	}
-
-	if i.NVML != nil {
-		for _, device := range i.NVML.DeviceInfos {
-			o.RemappedRowsNVML = append(o.RemappedRowsNVML, device.RemappedRows)
-
-			requiresReset := device.RemappedRows.RequiresReset()
-			if requiresReset {
-				msg := fmt.Sprintf("NVML indicates GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
-				needRebootMsgs = append(needRebootMsgs, msg)
-			}
-
-			rma := device.RemappedRows.QualifiesForRMA()
-			if rma {
-				msg := fmt.Sprintf("NVML indicates GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
 				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}

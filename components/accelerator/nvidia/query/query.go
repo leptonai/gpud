@@ -114,19 +114,6 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		})
 	}()
 
-	if o.SMIExists {
-		// call this with a timeout, as a broken GPU may block the command.
-		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-		o.SMI, err = GetSMIOutput(cctx)
-		ccancel()
-		if err != nil {
-			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
-		}
-		if o.SMI != nil && o.SMI.SummaryFailure != nil {
-			o.SMIQueryErrors = append(o.SMIQueryErrors, o.SMI.SummaryFailure.Error())
-		}
-	}
-
 	for k, desc := range nvml.BAD_CUDA_ENV_KEYS {
 		if os.Getenv(k) == "1" {
 			if o.BadEnvVarsForCUDA == nil {
@@ -354,6 +341,23 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 
 	o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
 
+	// check "nvidia-smi" later as fallback,
+	// in order to check NVML first given its context timeout
+	// at some point, we will deprecate "nvidia-smi" parsing
+	// as the NVML API provides all the data we need
+	if o.SMIExists {
+		// call this with a timeout, as a broken GPU may block the command.
+		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+		o.SMI, err = GetSMIOutput(cctx)
+		ccancel()
+		if err != nil {
+			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
+		}
+		if o.SMI != nil && o.SMI.SummaryFailure != nil {
+			o.SMIQueryErrors = append(o.SMIQueryErrors, o.SMI.SummaryFailure.Error())
+		}
+	}
+
 	return o, nil
 }
 
@@ -367,10 +371,6 @@ const (
 type Output struct {
 	// GPU device count from the /dev directory.
 	GPUDeviceCount int `json:"gpu_device_count"`
-
-	SMIExists      bool       `json:"smi_exists"`
-	SMI            *SMIOutput `json:"smi,omitempty"`
-	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`
 
 	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA.
 	// that is set globally for the host.
@@ -395,6 +395,12 @@ type Output struct {
 	NVMLErrors []string     `json:"nvml_errors,omitempty"`
 
 	MemoryErrorManagementCapabilities MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities,omitempty"`
+
+	// at some point, we will deprecate "nvidia-smi" parsing
+	// as the NVML API provides all the data we need
+	SMIExists      bool       `json:"smi_exists"`
+	SMI            *SMIOutput `json:"smi,omitempty"`
+	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`
 }
 
 func (o *Output) YAML() ([]byte, error) {
@@ -405,11 +411,11 @@ func (o *Output) GPUCount() int {
 	if o == nil {
 		return 0
 	}
-	if o.SMI == nil {
-		return 0
-	}
 
-	cnts := o.SMI.AttachedGPUs
+	cnts := 0
+	if o.SMI != nil {
+		cnts = o.SMI.AttachedGPUs
+	}
 
 	// in case of "nvidia-smi" failure
 	if cnts == 0 && o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
@@ -433,11 +439,11 @@ func (o *Output) GPUProductName() string {
 	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
-	if o.SMI.GPUs[0].ProductName != "" {
-		return o.SMI.GPUs[0].ProductName
-	}
 	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
 		return o.NVML.DeviceInfos[0].Name
+	}
+	if o.SMI.GPUs[0].ProductName != "" {
+		return o.SMI.GPUs[0].ProductName
 	}
 	return ""
 }
@@ -480,26 +486,6 @@ func (o *Output) PrintInfo(debug bool) {
 		}
 	} else {
 		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
-	}
-
-	if o.SMI != nil {
-		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
-			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
-			for _, err := range errs {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s scanned nvidia-smi -- found no error\n", checkMark)
-		}
-
-		if errs := o.SMI.FindHWSlowdownErrs(); len(errs) > 0 {
-			fmt.Printf("%s scanned nvidia-smi -- found %d hardware slowdown error(s)\n", warningSign, len(errs))
-			for _, err := range errs {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s scanned nvidia-smi -- found no hardware slowdown error\n", checkMark)
-		}
 	}
 
 	if len(o.FabricManagerErrors) > 0 {
@@ -601,6 +587,26 @@ func (o *Output) PrintInfo(debug bool) {
 			} else {
 				fmt.Printf("%s NVML found no running process\n", checkMark)
 			}
+		}
+	}
+
+	if o.SMI != nil {
+		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
+			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
+			for _, err := range errs {
+				fmt.Println(err)
+			}
+		} else {
+			fmt.Printf("%s scanned nvidia-smi -- found no error\n", checkMark)
+		}
+
+		if errs := o.SMI.FindHWSlowdownErrs(); len(errs) > 0 {
+			fmt.Printf("%s scanned nvidia-smi -- found %d hardware slowdown error(s)\n", warningSign, len(errs))
+			for _, err := range errs {
+				fmt.Println(err)
+			}
+		} else {
+			fmt.Printf("%s scanned nvidia-smi -- found no hardware slowdown error\n", checkMark)
 		}
 	}
 

@@ -23,6 +23,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	o := &Output{}
 
+	if i.NVML != nil {
+		for _, device := range i.NVML.DeviceInfos {
+			o.UsagesNVML = append(o.UsagesNVML, device.Temperature)
+		}
+	}
+
 	if i.SMI != nil {
 		for _, g := range i.SMI.GPUs {
 			if g.Temperature == nil {
@@ -34,12 +40,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			o.UsagesSMI = append(o.UsagesSMI, parsed)
-		}
-	}
-
-	if i.NVML != nil {
-		for _, device := range i.NVML.DeviceInfos {
-			o.UsagesNVML = append(o.UsagesNVML, device.Temperature)
 		}
 	}
 
