@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -187,7 +188,17 @@ func (s *Session) startWriter(writerExit chan any) {
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			DisableKeepAlives: true,
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:       30 * time.Second,
+				KeepAlive:     30 * time.Second,
+				FallbackDelay: 300 * time.Millisecond,
+			}).DialContext,
+			MaxIdleConns:          10,
+			IdleConnTimeout:       30 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 5 * time.Second,
+			DisableKeepAlives:     true,
 		},
 	}
 	resp, err := client.Do(req)
@@ -248,7 +259,17 @@ func (s *Session) startReader(readerExit chan any) {
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			DisableKeepAlives: true,
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:       30 * time.Second,
+				KeepAlive:     30 * time.Second,
+				FallbackDelay: 300 * time.Millisecond,
+			}).DialContext,
+			MaxIdleConns:          10,
+			IdleConnTimeout:       30 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 5 * time.Second,
+			DisableKeepAlives:     true,
 		},
 	}
 	resp, err := client.Do(req)
