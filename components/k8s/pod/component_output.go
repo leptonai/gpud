@@ -73,7 +73,9 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 
 func (o *Output) describeReason() string {
 	if o.ConnectionError != "" {
-		return fmt.Sprintf("connection error to node %s -- %s", o.NodeName, o.ConnectionError)
+		// e.g.,
+		// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
+		return fmt.Sprintf("connection error to node %q -- %s", o.NodeName, o.ConnectionError)
 	}
 	return fmt.Sprintf("total %d pods (node %s)", len(o.Pods), o.NodeName)
 }
@@ -147,6 +149,7 @@ func CreateGet(cfg Config) query.GetFunc {
 
 			// e.g.,
 			// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
+			// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
 			if strings.Contains(err.Error(), "connection refused") {
 				o.ConnectionError = err.Error()
 			}
