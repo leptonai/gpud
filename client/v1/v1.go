@@ -242,7 +242,7 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		return nil, errors.New("server not ready, response not 200")
 	}
 
-	return nil, nil
+	return ReadStates(resp.Body, opts...)
 }
 
 func ReadStates(rd io.Reader, opts ...OpOption) (v1.LeptonStates, error) {
