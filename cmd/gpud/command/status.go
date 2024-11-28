@@ -98,13 +98,13 @@ func checkDiskComponent() error {
 	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
-			log.Logger.Warn("component not found", "component", componentName)
+			log.Logger.Warnw("component not found", "component", componentName)
 			return nil
 		}
 		return err
 	}
 	if len(states) == 0 {
-		log.Logger.Warn("empty state returned", "component", componentName)
+		log.Logger.Warnw("empty state returned", "component", componentName)
 		return errors.New("empty state returned")
 	}
 
@@ -126,13 +126,13 @@ func checkNvidiaInfoComponent() error {
 	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
-			log.Logger.Warn("component not found", "component", componentName)
+			log.Logger.Warnw("component not found", "component", componentName)
 			return nil
 		}
 		return err
 	}
 	if len(states) == 0 {
-		log.Logger.Warn("empty state returned", "component", componentName)
+		log.Logger.Warnw("empty state returned", "component", componentName)
 		return errors.New("empty state returned")
 	}
 

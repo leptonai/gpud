@@ -20,7 +20,7 @@ func main() {
 	states, err := client_v1.GetStates(ctx, baseURL, client_v1.WithComponent(componentName))
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
-			log.Logger.Warn("componentnot found", "component", componentName)
+			log.Logger.Warnw("componentnot found", "component", componentName)
 			return
 		}
 

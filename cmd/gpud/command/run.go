@@ -121,7 +121,7 @@ func cmdRun(cliContext *cli.Context) error {
 
 	if pkd_systemd.SystemctlExists() {
 		if err := notifyReady(rootCtx); err != nil {
-			log.Logger.Warn("notify ready failed")
+			log.Logger.Warnw("notify ready failed")
 		}
 	} else {
 		log.Logger.Debugw("skipped sd notify as systemd is not available")
