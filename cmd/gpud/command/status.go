@@ -93,13 +93,14 @@ func checkNvidiaInfoComponent() error {
 	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
-			log.Logger.Warn("componentnot found", "component", componentName)
+			log.Logger.Warn("component not found", "component", componentName)
 			return nil
 		}
 		return err
 	}
 	if len(states) == 0 {
-		return fmt.Errorf("no states found")
+		log.Logger.Warn("empty state returned", "component", componentName)
+		return errors.New("empty state returned")
 	}
 
 	for _, ss := range states {
