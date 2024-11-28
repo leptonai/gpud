@@ -84,6 +84,34 @@ func cmdStatus(cliContext *cli.Context) error {
 	return nil
 }
 
+func checkDiskComponent() error {
+	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+	componentName := "disk"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
+	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			log.Logger.Warn("component not found", "component", componentName)
+			return nil
+		}
+		return err
+	}
+	if len(states) == 0 {
+		log.Logger.Warn("empty state returned", "component", componentName)
+		return errors.New("empty state returned")
+	}
+
+	for _, ss := range states {
+		for _, s := range ss.States {
+			fmt.Printf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+		}
+	}
+
+	return nil
+}
+
 func checkNvidiaInfoComponent() error {
 	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
 	componentName := "accelerator-nvidia-info"
