@@ -448,7 +448,7 @@ sudo rm /etc/systemd/system/gpud.service
 		},
 		{
 			Name:    "logs",
-			Aliases: []string{"l"},
+			Aliases: []string{"log", "l"},
 
 			Usage:  "checks the gpud logs",
 			Action: cmdLogs,
@@ -499,7 +499,7 @@ cat summary.txt
 		},
 		{
 			Name:    "scan",
-			Aliases: []string{"s"},
+			Aliases: []string{"check", "s"},
 
 			Usage:  "quick scans the host for any major issues",
 			Action: cmdScan,
