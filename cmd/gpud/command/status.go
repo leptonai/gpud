@@ -37,6 +37,11 @@ func cmdStatus(cliContext *cli.Context) error {
 	}
 	fmt.Printf("%s successfully checked gpud status\n", checkMark)
 
+	if err := checkDiskComponent(); err != nil {
+		return err
+	}
+	fmt.Printf("%s successfully checked whether disk component is running\n", checkMark)
+
 	if err := checkNvidiaInfoComponent(); err != nil {
 		return err
 	}
