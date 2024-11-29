@@ -195,3 +195,58 @@ func TestStartWriterAndReader(t *testing.T) {
 		t.Errorf("Writer channel should be closed")
 	}
 }
+
+func TestReaderWriterServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Header.Get("session_type") {
+		case "write":
+			w.WriteHeader(http.StatusInternalServerError)
+		case "read":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			http.Error(w, "Invalid session type", http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	// create session
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := &Session{
+		ctx:          ctx,
+		cancel:       cancel,
+		pipeInterval: 10 * time.Millisecond, // Reduce interval for faster testing
+		endpoint:     server.URL,
+		machineID:    "test_machine",
+		writer:       make(chan Body, 100),
+		reader:       make(chan Body, 100),
+		closer:       &closeOnce{closer: make(chan any)},
+	}
+	// start reader
+	readerExit := make(chan any)
+	go s.startReader(readerExit)
+
+	select {
+	case <-readerExit:
+	case <-time.After(3 * time.Second):
+		t.Error("reader timeout")
+	}
+	// start writer
+	writerExit := make(chan any)
+	go s.startWriter(writerExit)
+
+	select {
+	case <-writerExit:
+	case <-time.After(3 * time.Second):
+		t.Error("writer timeout")
+	}
+
+	s.Stop()
+	if _, ok := <-s.reader; ok {
+		t.Errorf("Reader channel should be closed")
+	}
+	if _, ok := <-s.writer; ok {
+		t.Errorf("Writer channel should be closed")
+	}
+}

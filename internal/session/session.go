@@ -252,6 +252,7 @@ func (s *Session) startReader(readerExit chan any) {
 	req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
+		close(pipeFinishCh)
 		return
 	}
 	req.Header.Set("machine_id", s.machineID)
@@ -275,10 +276,12 @@ func (s *Session) startReader(readerExit chan any) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session reader: error making request: %v, retrying", err)
+		close(pipeFinishCh)
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
 		log.Logger.Debugf("session reader: request resp not ok: %v %v, retrying", resp.StatusCode, resp.Status)
+		close(pipeFinishCh)
 		return
 	}
 
