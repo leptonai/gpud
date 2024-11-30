@@ -49,7 +49,7 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	_, ret := dev.GetCurrentClocksEventReasons()
-	if ret != nvml.ERROR_NOT_SUPPORTED {
+	if ret == nvml.ERROR_NOT_SUPPORTED {
 		return false, nil
 	}
 	if ret != nvml.SUCCESS {
