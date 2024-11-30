@@ -92,44 +92,31 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 
-	hasClockEventError := false
-	reasons := []string{}
+	clockEventsReasons := make([]string, 0)
 	for _, clockEvents := range o.ClockEventsNVML {
-		if len(clockEvents.Reasons) == 0 {
-			continue
+		if len(clockEvents.Reasons) > 0 {
+			clockEventsReasons = append(clockEventsReasons, clockEvents.Reasons...)
 		}
 		if clockEvents.HWSlowdown {
-			hasClockEventError = true
-			reasons = append(reasons, clockEvents.UUID+" hw slowdown")
-			break
+			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown (nvml)")
 		}
 		if clockEvents.HWSlowdownThermal {
-			hasClockEventError = true
-			reasons = append(reasons, clockEvents.UUID+" hw slowdown thermal")
-			break
+			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown thermal (nvml)")
 		}
 		if clockEvents.HWSlowdownPowerBrake {
-			hasClockEventError = true
-			reasons = append(reasons, clockEvents.UUID+" hw slowdown power brake")
-			break
+			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown power brake (nvml)")
 		}
 	}
-
-	yb, err := yaml.Marshal(reasons)
-	if err != nil {
-		return nil, err
+	if len(o.HWSlowdownSMI.Errors) > 0 {
+		clockEventsReasons = append(clockEventsReasons, o.HWSlowdownSMI.Errors...)
 	}
 
-	if !hasClockEventError && len(o.HWSlowdownSMI.Errors) == 0 {
-		rm := "no critical clock event error found"
-		if len(reasons) > 0 {
-			rm = "\n\n(below are other non-critical reasons found)\n\n" + string(yb)
-		}
+	if len(clockEventsReasons) == 0 {
 		return []components.State{
 			{
 				Name:    StateNameHWSlowdown,
 				Healthy: true,
-				Reason:  rm,
+				Reason:  "no critical clock event error found (nvml or nvidia-smi)",
 				ExtraInfo: map[string]string{
 					StateKeyHWSlowdownData:     string(b),
 					StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,
@@ -138,13 +125,15 @@ func (o *Output) States() ([]components.State, error) {
 		}, nil
 	}
 
-	healthy := !hasClockEventError && len(o.HWSlowdownSMI.Errors) == 0
-
+	yb, err := yaml.Marshal(clockEventsReasons)
+	if err != nil {
+		return nil, err
+	}
 	return []components.State{
 		{
 			Name:    StateNameHWSlowdown,
-			Healthy: healthy,
-			Reason:  "clock event found\n\n" + string(yb),
+			Healthy: false,
+			Reason:  "clock events found\n\n" + string(yb),
 			ExtraInfo: map[string]string{
 				StateKeyHWSlowdownData:     string(b),
 				StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,
