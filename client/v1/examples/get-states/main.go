@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	client_v1 "github.com/leptonai/gpud/client/v1"
@@ -29,7 +28,7 @@ func main() {
 
 		for _, ss := range states {
 			for _, s := range ss.States {
-				fmt.Printf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+				log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
 			}
 		}
 	}

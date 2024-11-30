@@ -97,10 +97,7 @@ func checkDiskComponent() error {
 	defer cancel()
 	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
-			log.Logger.Warnw("component not found", "component", componentName)
-			return nil
-		}
+		// assume disk component is enabled for all platforms
 		return err
 	}
 	if len(states) == 0 {
@@ -110,7 +107,7 @@ func checkDiskComponent() error {
 
 	for _, ss := range states {
 		for _, s := range ss.States {
-			fmt.Printf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+			log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
 		}
 	}
 
@@ -138,7 +135,7 @@ func checkNvidiaInfoComponent() error {
 
 	for _, ss := range states {
 		for _, s := range ss.States {
-			fmt.Printf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+			log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
 		}
 	}
 
