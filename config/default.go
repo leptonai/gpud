@@ -231,7 +231,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 					log.Logger.Infow("auto-detected clock events supported")
 					cfg.Components[nvidia_clock.Name] = nil
 				} else {
-					log.Logger.Infow("auto-detected clock events not supported -- skipping", "error", err)
+					log.Logger.Infow("auto-detected clock events not supported -- skipping", "driverVersion", driverVersion)
 				}
 			} else {
 				log.Logger.Warnw("failed to check clock events supported or not", "error", err)

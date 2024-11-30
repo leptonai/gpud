@@ -30,16 +30,23 @@ func ClockEventsSupported() (bool, error) {
 		return false, err
 	}
 
+	// in rare cases, this evaluates the whole system to false
+	// as a result, masking clock events
+	// we must monitor clock events when a single device supports clock events
+	// (probably some undocumented behavior in NVML)
+
 	for _, dev := range devices {
 		supported, err := ClockEventsSupportedByDevice(dev)
 		if err != nil {
 			return false, err
 		}
-		if !supported {
-			return false, nil
+		if supported {
+			return true, nil
 		}
 	}
-	return true, nil
+
+	// no device supports clock events
+	return false, nil
 }
 
 // Returns true if clock events is supported by this device.
