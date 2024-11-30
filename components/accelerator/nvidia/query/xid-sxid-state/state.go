@@ -234,7 +234,7 @@ FROM %s`,
 }
 
 func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
-	log.Logger.Infow("purging nvidia xid/sxid events")
+	log.Logger.Debugw("purging nvidia xid/sxid events")
 	deleteStatement, args, err := createDeleteStatementAndArgs(opts...)
 	if err != nil {
 		return 0, err
