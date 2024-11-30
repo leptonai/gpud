@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -32,6 +33,8 @@ const (
 	// event details; dmesg log line
 	ColumnEventDetails = "event_details"
 )
+
+const DefaultRetentionPeriod = 3 * time.Hour
 
 type Event struct {
 	UnixSeconds  int64
@@ -231,6 +234,7 @@ FROM %s`,
 }
 
 func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
+	log.Logger.Infow("purging nvidia xid/sxid events")
 	deleteStatement, args, err := createDeleteStatementAndArgs(opts...)
 	if err != nil {
 		return 0, err
