@@ -11,7 +11,7 @@ import (
 
 // Fetches the current BPF JIT buffer size in bytes.
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
-func GetCurrentJITBuffer(ctx context.Context) (int, error) {
+func GetCurrentJITBufferBytes(ctx context.Context) (uint64, error) {
 	// e.g.,
 	// cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
 	if _, err := os.Stat("/proc/vmallocinfo"); err != nil {
@@ -24,7 +24,7 @@ func GetCurrentJITBuffer(ctx context.Context) (int, error) {
 	}
 	defer f.Close()
 
-	totalSize := 0
+	totalSize := uint64(0)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -43,7 +43,7 @@ func GetCurrentJITBuffer(ctx context.Context) (int, error) {
 //
 // e.g.,
 // cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
-func processLineJITAllocExec(line []byte) (int, error) {
+func processLineJITAllocExec(line []byte) (uint64, error) {
 	if !bytes.Contains(line, []byte("bpf_jit_alloc_exec")) {
 		return 0, nil
 	}
@@ -55,5 +55,9 @@ func processLineJITAllocExec(line []byte) (int, error) {
 	}
 
 	// Parse the size field (second column)
-	return strconv.Atoi(string(fields[1]))
+	size, err := strconv.ParseUint(string(fields[1]), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return size, nil
 }

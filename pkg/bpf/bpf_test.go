@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 	"testing"
+
+	"github.com/dustin/go-humanize"
 )
 
 func Test_processLineJITAllocExec(t *testing.T) {
@@ -13,7 +15,7 @@ func Test_processLineJITAllocExec(t *testing.T) {
 	}
 	defer f.Close()
 
-	totalSize := 0
+	totalSize := uint64(0)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -24,8 +26,10 @@ func Test_processLineJITAllocExec(t *testing.T) {
 		totalSize += size
 	}
 
-	expected := 3977216
+	expected := uint64(3977216)
 	if totalSize != expected {
 		t.Fatalf("expected %d, got %d", expected, totalSize)
 	}
+
+	t.Logf("totalSize: %s", humanize.Bytes(totalSize))
 }
