@@ -197,7 +197,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to create nvidia xid/sxid state table: %w", err)
 	}
 	go func() {
-		dur := config.RetentionPeriod.Duration
+		dur := components_nvidia_xid_sxid_state.DefaultRetentionPeriod
 		for {
 			select {
 			case <-ctx.Done():
