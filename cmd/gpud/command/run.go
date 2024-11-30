@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/config"
 	lepServer "github.com/leptonai/gpud/internal/server"
 	"github.com/leptonai/gpud/log"
@@ -43,6 +44,14 @@ func cmdRun(cliContext *cli.Context) error {
 		config.WithFilesToCheck(filesToCheck...),
 		config.WithDockerIgnoreConnectionErrors(dockerIgnoreConnectionErrors),
 		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
+	}
+
+	if expectedPortStates != "" {
+		portStates := &infiniband.ExpectedPortStates{}
+		if err := json.Unmarshal([]byte(expectedPortStates), portStates); err != nil {
+			return err
+		}
+		configOpts = append(configOpts, config.WithExpectedPortStates(*portStates))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
