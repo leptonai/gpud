@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
+
 	"github.com/dustin/go-humanize"
 )
 
@@ -159,10 +161,16 @@ func (rw ParsedSMIRemappedRows) QualifiesForRMA() (bool, error) {
 	}
 
 	// "remapping attempt for an uncorrectable memory error on a bank that already has eight uncorrectable error rows remapped."
-	if failureOccurred && uncorrectableErrors >= 8 {
-		return true, nil
+	// "uncorrectableErrors >= 8" was dropped since it is also possible that:
+	// "A remapping attempt for an uncorrectable memory error on a row that was already remapped and can occur with less than eight total remaps to the same bank."
+	//
+	// NVIDIA DCGM also checks for this condition (only check row remapping failure but not the uncorrectable error count)
+	// ref. https://github.com/NVIDIA/DCGM/blob/b0ec3c624ea21e688b0d93cf9b214ae0eeb6fe52/nvvs/plugin_src/software/Software.cpp#L718-L736
+	if failureOccurred && uncorrectableErrors < 8 {
+		log.Logger.Debugw("uncorrectable error count <8 but still qualifies for RMA since remapping failed", "uncorrectableErrors", uncorrectableErrors)
 	}
-	return false, nil
+
+	return failureOccurred, nil
 }
 
 func (rw ParsedSMIRemappedRows) RequiresReset() (bool, error) {
