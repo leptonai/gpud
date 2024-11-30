@@ -283,6 +283,17 @@ func TestGpudHealthzInfo(t *testing.T) {
 	}
 	t.Logf("respMetrics size:\n%s", string(metricsBytes))
 
+	t.Log("now testing with client/v1 basic disk get states")
+	states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
+	if err != nil {
+		t.Errorf("failed to get states: %v", err)
+	}
+	for _, ss := range states {
+		for _, s := range ss.States {
+			t.Logf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+		}
+	}
+
 	t.Log("now testing with client/v1")
 	for _, opts := range [][]client_v1.OpOption{
 		{client_v1.WithRequestContentTypeJSON()},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 
 	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/errdefs"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager/packages"
 	"github.com/leptonai/gpud/pkg/systemd"
 
@@ -33,6 +36,16 @@ func cmdStatus(cliContext *cli.Context) error {
 		fmt.Printf("%s gpud is running\n", checkMark)
 	}
 	fmt.Printf("%s successfully checked gpud status\n", checkMark)
+
+	if err := checkDiskComponent(); err != nil {
+		return err
+	}
+	fmt.Printf("%s successfully checked whether disk component is running\n", checkMark)
+
+	if err := checkNvidiaInfoComponent(); err != nil {
+		return err
+	}
+	fmt.Printf("%s successfully checked whether accelerator-nvidia-info component is running\n", checkMark)
 
 	if err := client.BlockUntilServerReady(
 		rootCtx,
@@ -71,6 +84,59 @@ func cmdStatus(cliContext *cli.Context) error {
 			break
 		}
 		time.Sleep(3 * time.Second)
+	}
+
+	return nil
+}
+
+func checkDiskComponent() error {
+	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+	componentName := "disk"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
+	if err != nil {
+		// assume disk component is enabled for all platforms
+		return err
+	}
+	if len(states) == 0 {
+		log.Logger.Warnw("empty state returned", "component", componentName)
+		return errors.New("empty state returned")
+	}
+
+	for _, ss := range states {
+		for _, s := range ss.States {
+			log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+		}
+	}
+
+	return nil
+}
+
+func checkNvidiaInfoComponent() error {
+	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+	componentName := "accelerator-nvidia-info"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
+	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			log.Logger.Warnw("component not found", "component", componentName)
+			return nil
+		}
+		return err
+	}
+	if len(states) == 0 {
+		log.Logger.Warnw("empty state returned", "component", componentName)
+		return errors.New("empty state returned")
+	}
+
+	for _, ss := range states {
+		for _, s := range ss.States {
+			log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+		}
 	}
 
 	return nil
