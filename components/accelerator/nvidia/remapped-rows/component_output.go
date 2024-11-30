@@ -19,6 +19,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
+		GPUProductName:                    i.GPUProductName(),
 		MemoryErrorManagementCapabilities: i.MemoryErrorManagementCapabilities,
 	}
 
@@ -98,6 +99,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
+	GPUProductName                    string                                         `json:"gpu_product_name"`
 	MemoryErrorManagementCapabilities nvidia_query.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	RemappedRowsSMI                   []nvidia_query.ParsedSMIRemappedRows           `json:"remapped_rows_smi"`
 	RemappedRowsNVML                  []nvidia_query_nvml.RemappedRows               `json:"remapped_rows_nvml"`
@@ -155,10 +157,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 		return "no data", true, nil
 	}
 
-	if !o.MemoryErrorManagementCapabilities.RowRemapping {
-		return "row remapping is not supported", true, nil
-	}
-
 	healthy := true
 	reasons := []string{}
 
@@ -197,10 +195,17 @@ func (o *Output) Evaluate() (string, bool, error) {
 		}
 	}
 
-	reason := strings.Join(reasons, ", ")
-	if len(reason) == 0 {
-		reason = "no issues detected"
+	if len(reasons) == 0 {
+		reasons = append(reasons, "no issue detected")
 	}
+
+	// regardless of the healthy-ness, we want to log the product name
+	// so that we can identify which product name does not support row remapping
+	if !o.MemoryErrorManagementCapabilities.RowRemapping {
+		reasons = append(reasons, fmt.Sprintf("GPU product name %q does not support row remapping", o.GPUProductName))
+	}
+
+	reason := strings.Join(reasons, ", ")
 
 	return reason, healthy, nil
 }
