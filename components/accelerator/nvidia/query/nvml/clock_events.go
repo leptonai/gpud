@@ -120,7 +120,7 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 
 	for flag, description := range clockEventReasons {
 		if reasons&flag != 0 {
-			clockEvents.Reasons = append(clockEvents.Reasons, fmt.Sprintf("%s: %s", uuid, description))
+			clockEvents.Reasons = append(clockEvents.Reasons, fmt.Sprintf("%s: %s (nvml)", uuid, description))
 		}
 	}
 
