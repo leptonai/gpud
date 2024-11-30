@@ -12,7 +12,6 @@ import (
 	"github.com/leptonai/gpud/components/memory/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/pkg/bpf"
 
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -228,7 +227,7 @@ func Get(ctx context.Context) (_ any, e error) {
 		vmAllocUsedPercent *= 100
 	}
 
-	bpfJITBufferBytes, err := bpf.GetCurrentJITBufferBytes(ctx)
+	bpfJITBufferBytes, err := getCurrentBPFJITBufferBytes(ctx)
 	if err != nil {
 		return nil, err
 	}

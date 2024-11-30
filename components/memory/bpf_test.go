@@ -1,4 +1,4 @@
-package bpf
+package memory
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
-func Test_processLineJITAllocExec(t *testing.T) {
+func Test_processLineBPFJITAllocExec(t *testing.T) {
 	f, err := os.Open("testdata/vmallocinfo.bpf_jit_alloc_exec")
 	if err != nil {
 		t.Fatal(err)
@@ -19,7 +19,7 @@ func Test_processLineJITAllocExec(t *testing.T) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		size, err := processLineJITAllocExec(line)
+		size, err := processLineBPFJITAllocExec(line)
 		if err != nil {
 			t.Fatal(err)
 		}

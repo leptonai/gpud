@@ -1,4 +1,4 @@
-package bpf
+package memory
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 
 // Fetches the current BPF JIT buffer size in bytes.
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
-func GetCurrentJITBufferBytes(ctx context.Context) (uint64, error) {
+func getCurrentBPFJITBufferBytes(ctx context.Context) (uint64, error) {
 	// e.g.,
 	// cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
 	if _, err := os.Stat("/proc/vmallocinfo"); err != nil {
@@ -28,7 +28,7 @@ func GetCurrentJITBufferBytes(ctx context.Context) (uint64, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		size, err := processLineJITAllocExec(line)
+		size, err := processLineBPFJITAllocExec(line)
 		if err != nil {
 			return 0, err
 		}
@@ -43,7 +43,7 @@ func GetCurrentJITBufferBytes(ctx context.Context) (uint64, error) {
 //
 // e.g.,
 // cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
-func processLineJITAllocExec(line []byte) (uint64, error) {
+func processLineBPFJITAllocExec(line []byte) (uint64, error) {
 	if !bytes.Contains(line, []byte("bpf_jit_alloc_exec")) {
 		return 0, nil
 	}
