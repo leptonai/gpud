@@ -339,7 +339,13 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 	}
 
-	o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
+	productName := o.GPUProductName()
+	if productName != "" {
+		o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
+	} else {
+		log.Logger.Warnw("no gpu product name found -- skipping evaluating memory error management capabilities")
+	}
+	o.MemoryErrorManagementCapabilities.Message = fmt.Sprintf("GPU product name: %q", productName)
 
 	// check "nvidia-smi" later as fallback,
 	// in order to check NVML first given its context timeout
@@ -439,7 +445,7 @@ func (o *Output) GPUProductName() string {
 	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
 		return ""
 	}
-	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
+	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 && o.NVML.DeviceInfos[0].Name != "" {
 		return o.NVML.DeviceInfos[0].Name
 	}
 	if o.SMI.GPUs[0].ProductName != "" {
