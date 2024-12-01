@@ -442,15 +442,18 @@ func (o *Output) GPUCountFromNVML() int {
 }
 
 func (o *Output) GPUProductName() string {
-	if o == nil || o.SMI == nil || len(o.SMI.GPUs) == 0 {
+	if o == nil {
 		return ""
 	}
+
 	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 && o.NVML.DeviceInfos[0].Name != "" {
 		return o.NVML.DeviceInfos[0].Name
 	}
-	if o.SMI.GPUs[0].ProductName != "" {
+
+	if o.SMI != nil && len(o.SMI.GPUs) > 0 && o.SMI.GPUs[0].ProductName != "" {
 		return o.SMI.GPUs[0].ProductName
 	}
+
 	return ""
 }
 
