@@ -345,6 +345,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	} else {
 		log.Logger.Warnw("no gpu product name found -- skipping evaluating memory error management capabilities")
 	}
+	o.MemoryErrorManagementCapabilities.Message = fmt.Sprintf("GPU product name: %q", productName)
 
 	// check "nvidia-smi" later as fallback,
 	// in order to check NVML first given its context timeout

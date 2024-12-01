@@ -61,4 +61,7 @@ type MemoryErrorManagementCapabilities struct {
 	//
 	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#row-remapping
 	RowRemapping bool `json:"row_remapping"`
+
+	// Message contains the message to the user about the memory error management capabilities.
+	Message string `json:"message,omitempty"`
 }
