@@ -202,7 +202,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 	// regardless of the healthy-ness, we want to log the product name
 	// so that we can identify which product name does not support row remapping
 	if !o.MemoryErrorManagementCapabilities.RowRemapping {
-		reasons = append(reasons, fmt.Sprintf("DEBUG info: GPU product name %q does not support row remapping (message: %q)", o.GPUProductName, o.MemoryErrorManagementCapabilities.Message))
+		reasons = append(reasons, fmt.Sprintf("GPU product name %q does not support row remapping (message: %q)", o.GPUProductName, o.MemoryErrorManagementCapabilities.Message))
 	}
 
 	reason := strings.Join(reasons, ", ")
