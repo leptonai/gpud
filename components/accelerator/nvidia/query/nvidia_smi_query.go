@@ -337,6 +337,7 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 
 	for i := range out.GPUs {
 		id := out.GPUs[i].ID
+
 		if out.GPUs[i].ECCErrors != nil {
 			out.GPUs[i].ECCErrors.ID = id
 		}
@@ -348,6 +349,9 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 		}
 		if out.GPUs[i].FBMemoryUsage != nil {
 			out.GPUs[i].FBMemoryUsage.ID = id
+		}
+		if out.GPUs[i].RemappedRows != nil {
+			out.GPUs[i].RemappedRows.ID = id
 		}
 	}
 

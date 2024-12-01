@@ -62,7 +62,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			if requiresReset {
-				msg := fmt.Sprintf("nvidia-smi indicates GPU %s needs reset (pending remapping %v)", parsed.ID, requiresReset)
+				msg := fmt.Sprintf("nvidia-smi indicates GPU %q needs reset (pending remapping %v)", parsed.ID, requiresReset)
 				needRebootMsgs = append(needRebootMsgs, msg)
 			}
 
@@ -72,7 +72,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 				continue
 			}
 			if rma {
-				msg := fmt.Sprintf("nvidia-smi indicates GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors)
+				msg := fmt.Sprintf("nvidia-smi indicates GPU %q qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors)
 				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}

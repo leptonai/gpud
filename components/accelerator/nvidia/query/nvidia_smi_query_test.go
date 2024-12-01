@@ -34,6 +34,9 @@ func TestParseWithRemappedRows(t *testing.T) {
 		t.Errorf("RemappedRows.UncorrectableError mismatch: %+v", parsed.GPUs[0].RemappedRows.UncorrectableError)
 	}
 
+	if parsed.GPUs[0].RemappedRows.ID != "GPU 00000000:07:00.0" {
+		t.Errorf("RemappedRows.ID mismatch: %q", parsed.GPUs[0].RemappedRows.ID)
+	}
 	if parsed.GPUs[0].RemappedRows.Pending != "true" { // yaml package converts yes to true, no to false
 		t.Errorf("RemappedRows.Pending mismatch: %v", parsed.GPUs[0].RemappedRows.Pending)
 	}
