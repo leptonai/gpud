@@ -223,9 +223,11 @@ func TestReaderWriterServerError(t *testing.T) {
 		reader:       make(chan Body, 100),
 		closer:       &closeOnce{closer: make(chan any)},
 	}
+	localCtx, localCancel := context.WithCancel(context.Background()) // create local context for each session
+	defer localCancel()
 	// start reader
 	readerExit := make(chan any)
-	go s.startReader(readerExit)
+	go s.startReader(localCtx, readerExit)
 
 	select {
 	case <-readerExit:
@@ -234,7 +236,7 @@ func TestReaderWriterServerError(t *testing.T) {
 	}
 	// start writer
 	writerExit := make(chan any)
-	go s.startWriter(writerExit)
+	go s.startWriter(localCtx, writerExit)
 
 	select {
 	case <-writerExit:
