@@ -14,7 +14,7 @@ const (
 	//
 	// ref.
 	// https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
-	EventFileDescriptorVFSFileMaxLimitReached = "nvidia_file_descriptor_vfs_file_max_limit_reached"
+	EventFileDescriptorVFSFileMaxLimitReached = "file_descriptor_vfs_file_max_limit_reached"
 )
 
 func DefaultDmesgFiltersForFileDescriptor() []*query_log_common.Filter {
