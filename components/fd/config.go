@@ -38,10 +38,10 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 }
 
 // DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
-const DefaultThresholdAllocatedFileHandles = 1000000
+const DefaultThresholdAllocatedFileHandles = 900000
 
 // DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
-const DefaultThresholdRunningPIDs = 1000000
+const DefaultThresholdRunningPIDs = 900000
 
 func (cfg *Config) Validate() error {
 	if cfg.ThresholdAllocatedFileHandles == 0 {
