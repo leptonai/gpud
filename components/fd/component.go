@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/components/query"
@@ -83,8 +85,60 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
+const (
+	EventNameErrorVFSFileMaxLimitReached = "error_vfs_file_max_limit_reached"
+
+	EventKeyErrorVFSFileMaxLimitReachedUnixSeconds = "unix_seconds"
+	EventKeyErrorVFSFileMaxLimitReachedLogLine     = "log_line"
+)
+
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return nil, nil
+	dmesgC, err := components.GetComponent(dmesg.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	var dmesgComponent *dmesg.Component
+	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
+		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
+			dmesgComponent = unwrapped
+		} else {
+			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
+		}
+	}
+
+	// tailScan fetches the latest output from the dmesg
+	// it is ok to call this function multiple times for the following reasons (thus shared with events method)
+	// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
+	dmesgTailResults, err := dmesgComponent.TailScan()
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]components.Event, 0)
+	for _, logItem := range dmesgTailResults.TailScanMatched {
+		if logItem.Error != nil {
+			continue
+		}
+		if logItem.Matched == nil {
+			continue
+		}
+		if logItem.Matched.Name != dmesg.EventFileDescriptorVFSFileMaxLimitReached {
+			continue
+		}
+
+		events = append(events, components.Event{
+			Time:    logItem.Time,
+			Name:    EventNameErrorVFSFileMaxLimitReached,
+			Message: "VFS file-max limit reached",
+			ExtraInfo: map[string]string{
+				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
+				EventKeyErrorVFSFileMaxLimitReachedLogLine:     logItem.Line,
+			},
+		})
+	}
+
+	return events, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
