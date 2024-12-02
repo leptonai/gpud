@@ -22,7 +22,7 @@ import (
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
-	"github.com/leptonai/gpud/components/fd"
+	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/config"
@@ -67,7 +67,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		memoryChart = true
 	}
 	fdChart := false
-	if c, err := components.GetComponent(fd.Name); c != nil && err == nil {
+	if c, err := components.GetComponent(fd_id.Name); c != nil && err == nil {
 		fdChart = true
 	}
 	diskChart := false
@@ -135,7 +135,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		components = append(components, memory.Name)
 	}
 	if fdChart {
-		components = append(components, fd.Name)
+		components = append(components, fd_id.Name)
 	}
 	if diskChart {
 		components = append(components, disk.Name)

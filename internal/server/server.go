@@ -73,6 +73,7 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
+	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/file"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/info"
@@ -436,7 +437,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case fd.Name:
+		case fd_id.Name:
 			cfg := fd.Config{Query: defaultQueryCfg, ThresholdLimit: fd.DefaultThresholdLimit}
 			if configValue != nil {
 				parsed, err := fd.ParseConfig(configValue, db)
