@@ -438,7 +438,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case fd_id.Name:
-			cfg := fd.Config{Query: defaultQueryCfg, ThresholdLimit: fd.DefaultThresholdLimit}
+			cfg := fd.Config{
+				Query:                         defaultQueryCfg,
+				ThresholdAllocatedFileHandles: fd.DefaultThresholdAllocatedFileHandles,
+				ThresholdRunningPIDs:          fd.DefaultThresholdRunningPIDs,
+			}
 			if configValue != nil {
 				parsed, err := fd.ParseConfig(configValue, db)
 				if err != nil {

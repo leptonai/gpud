@@ -90,6 +90,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
+	allocatedFileHandles, err := metrics.ReadAllocatedFileHandles(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read allocated file handles: %w", err)
+	}
 	runningPIDs, err := metrics.ReadRunningPIDs(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read running pids: %w", err)
@@ -98,16 +102,26 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read limits: %w", err)
 	}
+	allocatedPercents, err := metrics.ReadAllocatedFileHandlesPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read allocated percents: %w", err)
+	}
 	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read used percents: %w", err)
 	}
 
-	ms := make([]components.Metric, 0, len(runningPIDs)+len(limits)+len(usedPercents))
+	ms := make([]components.Metric, 0, len(allocatedFileHandles)+len(runningPIDs)+len(limits)+len(allocatedPercents)+len(usedPercents))
+	for _, m := range allocatedFileHandles {
+		ms = append(ms, components.Metric{Metric: m})
+	}
 	for _, m := range runningPIDs {
 		ms = append(ms, components.Metric{Metric: m})
 	}
 	for _, m := range limits {
+		ms = append(ms, components.Metric{Metric: m})
+	}
+	for _, m := range allocatedPercents {
 		ms = append(ms, components.Metric{Metric: m})
 	}
 	for _, m := range usedPercents {

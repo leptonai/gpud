@@ -9,6 +9,15 @@ import (
 	procs "github.com/shirou/gopsutil/v4/process"
 )
 
+// CountRunningPids returns the number of running pids.
+func CountRunningPids() (uint64, error) {
+	pids, err := procs.Pids()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(len(pids)), nil
+}
+
 // CountProcessesByStatus counts all processes by its process status.
 func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, error) {
 	processes, err := procs.ProcessesWithContext(ctx)
