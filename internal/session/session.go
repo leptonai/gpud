@@ -156,17 +156,20 @@ func (s *Session) keepAlive() {
 			readerExit := make(chan any)
 			writerExit := make(chan any)
 			s.closer = &closeOnce{closer: make(chan any)}
-			go s.startReader(readerExit)
-			go s.startWriter(writerExit)
+			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
+			go s.startReader(ctx, readerExit)
+			go s.startWriter(ctx, writerExit)
 			<-readerExit
 			log.Logger.Debug("session reader: reader exited")
+			cancel()
 			<-writerExit
 			log.Logger.Debug("session writer: writer exited")
+			cancel()
 		}
 	}
 }
 
-func (s *Session) startWriter(writerExit chan any) {
+func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
 	pipeFinishCh := make(chan any)
 	goroutineCloseCh := make(chan any)
 	defer func() {
@@ -178,7 +181,7 @@ func (s *Session) startWriter(writerExit chan any) {
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
-	req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, reader)
+	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, reader)
 	if err != nil {
 		log.Logger.Debugf("session writer: error creating request: %v", err)
 		return
@@ -240,7 +243,7 @@ func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan an
 	}
 }
 
-func (s *Session) startReader(readerExit chan any) {
+func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 	goroutineCloseCh := make(chan any)
 	pipeFinishCh := make(chan any)
 	defer func() {
@@ -249,7 +252,7 @@ func (s *Session) startReader(readerExit chan any) {
 		<-pipeFinishCh
 		close(readerExit)
 	}()
-	req, err := http.NewRequestWithContext(s.ctx, "POST", s.endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
 		close(pipeFinishCh)
