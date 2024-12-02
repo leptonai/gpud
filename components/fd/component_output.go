@@ -53,6 +53,14 @@ func (o Output) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(o.UsedPercent, 64)
 }
 
+func (o Output) GetThresholdRunningPIDsPercent() (float64, error) {
+	return strconv.ParseFloat(o.ThresholdRunningPIDsPercent, 64)
+}
+
+func (o Output) GetThresholdAllocatedFileHandlesPercent() (float64, error) {
+	return strconv.ParseFloat(o.ThresholdAllocatedFileHandlesPercent, 64)
+}
+
 func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
@@ -179,9 +187,18 @@ func (o *Output) States() ([]components.State, error) {
 		state.Healthy = false
 		state.Reason += "; allocated_file_handles_percent is greater than 95"
 	}
+	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > 80.0 {
+		state.Healthy = false
+		state.Reason += "; threshold_allocated_file_handles_percent is greater than 80"
+	}
+
 	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > 95.0 {
 		state.Healthy = false
 		state.Reason += "; used_percent is greater than 95"
+	}
+	if thresholdRunningPIDsPercent, err := o.GetThresholdRunningPIDsPercent(); err == nil && thresholdRunningPIDsPercent > 80.0 {
+		state.Healthy = false
+		state.Reason += "; threshold_running_pids_percent is greater than 80"
 	}
 
 	if o.FDLimitSupported && o.ThresholdRunningPIDs > 0 && o.RunningPIDs > o.ThresholdRunningPIDs {
