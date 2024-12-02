@@ -18,12 +18,12 @@ package file
 
 import (
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/prometheus/procfs"
 )
 
+// ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
 const fileMaxLinux = "/proc/sys/fs/file-max"
 
 func CheckFDLimitSupported() bool {
@@ -31,14 +31,24 @@ func CheckFDLimitSupported() bool {
 	return err == nil
 }
 
-// returns the current file descriptor limit for the host, not for the current process.
+// Returns the current file descriptor limit for the host, not for the current process.
 // for the current process, use syscall.Getrlimit.
 func GetLimit() (uint64, error) {
-	data, err := os.ReadFile(fileMaxLinux)
-	if err != nil {
-		return 0, err
-	}
-	return strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	return getLimit(fileMaxLinux)
+}
+
+// ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
+const fileNrLinux = "/proc/sys/fs/file-nr"
+
+// Returns true if the file handles are supported.
+func CheckFileHandlesSupported() bool {
+	_, err := os.Stat(fileNrLinux)
+	return err == nil
+}
+
+// Returns the number of allocated file handles and the number of allocated but unused file handles.
+func GetFileHandles() (uint64, uint64, error) {
+	return getFileHandles(fileNrLinux)
 }
 
 // "process_open_fds" in prometheus collector

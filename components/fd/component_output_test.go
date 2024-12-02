@@ -21,7 +21,7 @@ func TestCalculateUsedPercent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := calculateUsedPercent(tt.usage, tt.limit)
+			result := calcUsagePct(tt.usage, tt.limit)
 			if result != tt.expected {
 				t.Errorf("calculateUsedPercent(%d, %d) = %f; want %f", tt.usage, tt.limit, result, tt.expected)
 			}

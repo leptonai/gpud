@@ -10,11 +10,15 @@ import (
 type Config struct {
 	Query query_config.Config `json:"query"`
 
-	// ThresholdLimit is the number of file descriptor limit at which
+	// ThresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
+	// at which we consider the system to be under high file descriptor usage.
+	ThresholdAllocatedFileHandles uint64 `json:"threshold_allocated_file_handles"`
+
+	// ThresholdRunningPIDs is the number of running pids at which
 	// we consider the system to be under high file descriptor usage.
 	// This is useful for triggering alerts when the system is under high load.
 	// And useful when the actual system fd-max is set to unlimited.
-	ThresholdLimit uint64 `json:"threshold_limit"`
+	ThresholdRunningPIDs uint64 `json:"threshold_running_pids"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {
@@ -33,12 +37,18 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 	return cfg, nil
 }
 
-// DefaultThresholdLimit is some high number, in case fd-max is unlimited
-const DefaultThresholdLimit = 1048576
+// DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
+const DefaultThresholdAllocatedFileHandles = 900000
+
+// DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
+const DefaultThresholdRunningPIDs = 900000
 
 func (cfg *Config) Validate() error {
-	if cfg.ThresholdLimit == 0 {
-		cfg.ThresholdLimit = DefaultThresholdLimit
+	if cfg.ThresholdAllocatedFileHandles == 0 {
+		cfg.ThresholdAllocatedFileHandles = DefaultThresholdAllocatedFileHandles
+	}
+	if cfg.ThresholdRunningPIDs == 0 {
+		cfg.ThresholdRunningPIDs = DefaultThresholdRunningPIDs
 	}
 	return nil
 }

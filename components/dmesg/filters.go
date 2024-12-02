@@ -69,6 +69,7 @@ func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) 
 		return defaultFilters, nil
 	}
 
+	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForFileDescriptor()...)
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForNvidia()...)
 	for i := range defaultFilters {
 		if err := defaultFilters[i].Compile(); err != nil {
