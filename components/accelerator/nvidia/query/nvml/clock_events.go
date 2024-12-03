@@ -253,17 +253,6 @@ func (inst *instance) ClockEventsSupported() bool {
 	return inst.clockEventsSupported
 }
 
-func (inst *instance) RecvClockEventsHWSlowdown() <-chan *ClockEvents {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	if inst.nvmlLib == nil {
-		return nil
-	}
-
-	return inst.clockEventsHWSlowdownCh
-}
-
 func (inst *instance) pollClockEvents() {
 	log.Logger.Debugw("polling clock events")
 

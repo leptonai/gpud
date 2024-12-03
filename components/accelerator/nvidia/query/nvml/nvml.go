@@ -31,7 +31,6 @@ type Instance interface {
 	Start() error
 
 	ClockEventsSupported() bool
-	RecvClockEventsHWSlowdown() <-chan *ClockEvents
 
 	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
