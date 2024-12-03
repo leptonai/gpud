@@ -253,7 +253,7 @@ func (inst *instance) ClockEventsSupported() bool {
 	return inst.clockEventsSupported
 }
 
-func (inst *instance) RecvClockEvents() <-chan *ClockEvents {
+func (inst *instance) RecvClockEventsHWSlowdown() <-chan *ClockEvents {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
 
@@ -261,7 +261,7 @@ func (inst *instance) RecvClockEvents() <-chan *ClockEvents {
 		return nil
 	}
 
-	return inst.clockEventsCh
+	return inst.clockEventsHWSlowdownCh
 }
 
 func (inst *instance) pollClockEvents() {
@@ -284,23 +284,28 @@ func (inst *instance) pollClockEvents() {
 				continue
 			}
 
+			// for now we only track hw slowdown events
+			if len(clockEvents.HWSlowdownReasons) == 0 {
+				continue
+			}
+
 			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-			clock_events_state.InsertEvent(cctx, inst.db, clock_events_state.Event{
-				UnixSeconds:  clockEvents.Time.Unix(),
-				DataSource:   "nvml",
-				EventType:    "clock",
-				EventID:      int64(clockEvents.ReasonsBitmask),
-				EventDetails: "",
+			err = clock_events_state.InsertEvent(cctx, inst.db, clock_events_state.Event{
+				UnixSeconds: clockEvents.Time.Unix(),
+				DataSource:  "nvml",
+				EventType:   "hw_slowdown",
+				GPUUUID:     dev.UUID,
+				Reasons:     clockEvents.HWSlowdownReasons,
 			})
 			ccancel()
 			if err != nil {
-				log.Logger.Errorw("failed to insert clock events into database", "error", err)
+				log.Logger.Errorw("failed to insert clock events into database", "uuid", dev.UUID, "error", err)
 			}
 
 			select {
-			case inst.clockEventsCh <- &clockEvents:
+			case inst.clockEventsHWSlowdownCh <- &clockEvents:
 			default:
-				log.Logger.Warnw("clock events channel is full, dropping clock events", "uuid", dev.UUID)
+				log.Logger.Warnw("hw slowdown clock events channel is full, dropping clock events", "uuid", dev.UUID)
 			}
 		}
 	}

@@ -5,16 +5,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
+	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/clock-events-state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
+	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -28,6 +33,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
+		db:      cfg.Query.State.DB,
 	}
 }
 
@@ -38,6 +44,7 @@ type component struct {
 	cancel   context.CancelFunc
 	poller   query.Poller
 	gatherer prometheus.Gatherer
+	db       *sql.DB
 }
 
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
@@ -98,8 +105,35 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
+const (
+	EventNameHWSlowdown = "hw_slowdown"
+	EventKeyUnixSeconds = "unix_seconds"
+)
+
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return nil, nil
+	events, err := nvidia_clock_events_state.ReadEvents(ctx, c.db, nvidia_clock_events_state.WithSince(since))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(events) == 0 {
+		log.Logger.Debugw("no event found", "component", c.Name(), "since", humanize.Time(since))
+		return nil, nil
+	}
+
+	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
+	convertedEvents := make([]components.Event, 0, len(events))
+	for _, event := range events {
+		convertedEvents = append(convertedEvents, components.Event{
+			Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0)},
+			Name:    EventNameHWSlowdown,
+			Message: strings.Join(event.Reasons, ", "),
+			ExtraInfo: map[string]string{
+				EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
+			},
+		})
+	}
+	return convertedEvents, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

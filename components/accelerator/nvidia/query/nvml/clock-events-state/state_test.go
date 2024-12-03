@@ -29,9 +29,9 @@ ORDER BY %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
-				ColumnEventID,
-				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				ColumnGPUUUID,
+				ColumnReasons,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -47,9 +47,9 @@ ORDER BY %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
-				ColumnEventID,
-				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				ColumnGPUUUID,
+				ColumnReasons,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 			),
@@ -65,9 +65,9 @@ ORDER BY %s ASC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
-				ColumnEventID,
-				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				ColumnGPUUUID,
+				ColumnReasons,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -83,9 +83,9 @@ LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
-				ColumnEventID,
-				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				ColumnGPUUUID,
+				ColumnReasons,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -106,9 +106,9 @@ LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
-				ColumnEventID,
-				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				ColumnGPUUUID,
+				ColumnReasons,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 			),
@@ -146,7 +146,7 @@ func TestOpenMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := CreateTableXidSXidEventHistory(ctx, db); err != nil {
+	if err := CreateTable(ctx, db); err != nil {
 		t.Fatal("failed to create table:", err)
 	}
 }
@@ -161,11 +161,11 @@ func TestInsertAndFindEvent(t *testing.T) {
 	defer cancel()
 
 	event := Event{
-		UnixSeconds:  time.Now().Unix(),
-		DataSource:   "nvml",
-		EventType:    "xid",
-		EventID:      31,
-		EventDetails: "GPU has fallen off the bus",
+		UnixSeconds: time.Now().Unix(),
+		DataSource:  "nvml",
+		EventType:   "hw_slowdown",
+		GPUUUID:     "31",
+		Reasons:     []string{"GPU has fallen off the bus"},
 	}
 
 	// Test insertion
@@ -185,7 +185,7 @@ func TestInsertAndFindEvent(t *testing.T) {
 
 	// Test finding event with different details
 	eventDiffDetails := event
-	eventDiffDetails.EventDetails = "Different details"
+	eventDiffDetails.Reasons = []string{"Different details"}
 	found, err = FindEvent(ctx, db, eventDiffDetails)
 	if err != nil {
 		t.Errorf("FindEvent with different details failed: %v", err)
@@ -228,25 +228,25 @@ func TestReadEvents(t *testing.T) {
 	// Insert test events
 	testEvents := []Event{
 		{
-			UnixSeconds:  baseTime,
-			DataSource:   "nvml",
-			EventType:    "xid",
-			EventID:      31,
-			EventDetails: "First event",
+			UnixSeconds: baseTime,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "31",
+			Reasons:     []string{"First event"},
 		},
 		{
-			UnixSeconds:  baseTime + 1,
-			DataSource:   "dmesg",
-			EventType:    "sxid",
-			EventID:      32,
-			EventDetails: "Second event",
+			UnixSeconds: baseTime + 1,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "32",
+			Reasons:     []string{"Second event"},
 		},
 		{
-			UnixSeconds:  baseTime + 2,
-			DataSource:   "nvml",
-			EventType:    "xid",
-			EventID:      33,
-			EventDetails: "Third event",
+			UnixSeconds: baseTime + 2,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "33",
+			Reasons:     []string{"Third event"},
 		},
 	}
 
@@ -311,7 +311,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 			name: "no options",
 			opts: []OpOption{},
 			wantStatement: fmt.Sprintf("DELETE FROM %s",
-				TableNameXidSXidEventHistory,
+				TableNameClockEvents,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -323,7 +323,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 				WithLimit(10),
 			},
 			wantStatement: fmt.Sprintf("DELETE FROM %s WHERE %s < ?",
-				TableNameXidSXidEventHistory,
+				TableNameClockEvents,
 				ColumnUnixSeconds,
 			),
 			wantArgs: []any{int64(1234)},
@@ -373,9 +373,9 @@ func TestPurge(t *testing.T) {
 		{
 			name: "delete events before timestamp",
 			setup: []Event{
-				{UnixSeconds: 1000, DataSource: "nvml", EventType: "xid", EventID: 1, EventDetails: "detail1"},
-				{UnixSeconds: 2000, DataSource: "nvml", EventType: "xid", EventID: 2, EventDetails: "detail2"},
-				{UnixSeconds: 3000, DataSource: "nvml", EventType: "xid", EventID: 3, EventDetails: "detail3"},
+				{UnixSeconds: 1000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "1", Reasons: []string{"detail1"}},
+				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
+				{UnixSeconds: 3000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "3", Reasons: []string{"detail3"}},
 			},
 			opts:       []OpOption{WithBefore(time.Unix(2500, 0))},
 			wantPurged: 2,
@@ -389,8 +389,8 @@ func TestPurge(t *testing.T) {
 		{
 			name: "delete all events",
 			setup: []Event{
-				{UnixSeconds: 1000, DataSource: "nvml", EventType: "xid", EventID: 1, EventDetails: "detail1"},
-				{UnixSeconds: 2000, DataSource: "nvml", EventType: "xid", EventID: 2, EventDetails: "detail2"},
+				{UnixSeconds: 1000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "1", Reasons: []string{"detail1"}},
+				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
 			},
 			opts:       []OpOption{},
 			wantPurged: 2,
@@ -403,11 +403,11 @@ func TestPurge(t *testing.T) {
 				baseTime := time.Now().Unix()
 				for i := 0; i < 100; i++ {
 					events[i] = Event{
-						UnixSeconds:  baseTime + int64(i*60), // Events 1 minute apart
-						DataSource:   "nvml",
-						EventType:    "xid",
-						EventID:      int64(i + 1),
-						EventDetails: fmt.Sprintf("detail%d", i+1),
+						UnixSeconds: baseTime + int64(i*60), // Events 1 minute apart
+						DataSource:  "nvml",
+						EventType:   "hw_slowdown",
+						GPUUUID:     fmt.Sprintf("%d", i+1),
+						Reasons:     []string{fmt.Sprintf("detail%d", i+1)},
 					}
 				}
 				return events
@@ -493,7 +493,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := CreateTableXidSXidEventHistory(ctx, db); err != nil {
+	if err := CreateTable(ctx, db); err != nil {
 		db.Close()
 		os.Remove(tmpfile.Name())
 		t.Fatalf("failed to create table: %v", err)
