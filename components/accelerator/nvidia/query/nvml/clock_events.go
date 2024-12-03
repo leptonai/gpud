@@ -231,3 +231,26 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 		hwSlowdown:  false,
 	},
 }
+
+func (inst *instance) RecvClockEvents() <-chan *ClockEvents {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+
+	if inst.nvmlLib == nil {
+		return nil
+	}
+
+	return inst.clockEventsCh
+}
+
+func (inst *instance) pollClockEvents() {
+	log.Logger.Debugw("polling clock events")
+
+	for {
+		select {
+		case <-inst.rootCtx.Done():
+			return
+		default:
+		}
+	}
+}

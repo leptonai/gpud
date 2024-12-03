@@ -63,6 +63,8 @@ type instance struct {
 
 	db *sql.DB
 
+	clockEventsCh chan *ClockEvents
+
 	xidErrorSupported   bool
 	xidEventMask        uint64
 	xidEventSet         nvml.EventSet
