@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
@@ -150,7 +151,11 @@ func CreateGet(cfg Config) query.GetFunc {
 			log.Logger.Warnw("docker process not found, assuming docker is not running", "error", err)
 		}
 
-		dockerContainers, err := ListContainers(ctx)
+		// "ctx" here is the root level, create one with shorter timeouts
+		// to not block on this checks
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		dockerContainers, err := ListContainers(cctx)
+		ccancel()
 		if err != nil {
 			if IsErrDockerClientVersionNewerThanDaemon(err) {
 				return &Output{

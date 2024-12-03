@@ -140,7 +140,11 @@ func CreateGet(cfg Config) query.GetFunc {
 			log.Logger.Warnw("kubelet process not found, assuming kubelet is not running", "error", err)
 		}
 
-		pods, err := ListFromKubeletReadOnlyPort(ctx, cfg.Port)
+		// "ctx" here is the root level, create one with shorter timeouts
+		// to not block on this checks
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		pods, err := ListFromKubeletReadOnlyPort(cctx, cfg.Port)
+		ccancel()
 		if err != nil {
 			o := &Output{
 				KubeletPidFound: kubeletRunning,
