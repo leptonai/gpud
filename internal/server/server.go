@@ -32,7 +32,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
-	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
@@ -46,6 +45,8 @@ import (
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -60,10 +61,11 @@ import (
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	components_nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
@@ -194,11 +196,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}()
 
 	// create nvidia-specific table regardless of whether nvidia components are enabled
-	if err := components_nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, db); err != nil {
+	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create nvidia xid/sxid state table: %w", err)
 	}
 	go func() {
-		dur := components_nvidia_xid_sxid_state.DefaultRetentionPeriod
+		dur := nvidia_xid_sxid_state.DefaultRetentionPeriod
 		for {
 			select {
 			case <-ctx.Done():
@@ -207,11 +209,34 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				now := time.Now().UTC()
 				before := now.Add(-dur)
 
-				purged, err := components_nvidia_xid_sxid_state.Purge(ctx, db, components_nvidia_xid_sxid_state.WithBefore(before))
+				purged, err := nvidia_xid_sxid_state.Purge(ctx, db, nvidia_xid_sxid_state.WithBefore(before))
 				if err != nil {
 					log.Logger.Warnw("failed to delete nvidia xid/sxid events", "error", err)
 				} else {
 					log.Logger.Debugw("deleted nvidia xid/sxid events", "before", before, "purged", purged)
+				}
+			}
+		}
+	}()
+
+	if err := nvidia_clock_events_state.CreateTable(ctx, db); err != nil {
+		return nil, fmt.Errorf("failed to create nvidia clock events table: %w", err)
+	}
+	go func() {
+		dur := nvidia_clock_events_state.DefaultRetentionPeriod
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+				now := time.Now().UTC()
+				before := now.Add(-dur)
+
+				purged, err := nvidia_clock_events_state.Purge(ctx, db, nvidia_clock_events_state.WithBefore(before))
+				if err != nil {
+					log.Logger.Warnw("failed to delete nvidia clock events", "error", err)
+				} else {
+					log.Logger.Debugw("deleted nvidia clock events", "before", before, "purged", purged)
 				}
 			}
 		}
@@ -244,7 +269,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					continue
 				}
 
-				eventToInsert := components_nvidia_xid_sxid_state.Event{
+				eventToInsert := nvidia_xid_sxid_state.Event{
 					UnixSeconds:  ts.Unix(),
 					DataSource:   "dmesg",
 					EventType:    "xid",
@@ -252,7 +277,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					EventDetails: ev.LogItem.Line,
 				}
 
-				found, err := components_nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				found, err := nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find xid event in database", "error", err)
 					continue
@@ -261,7 +286,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("xid event already exists in database", "event", eventToInsert)
 					continue
 				}
-				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert xid event into database", "error", werr)
 					continue
 				}
@@ -277,7 +302,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					continue
 				}
 
-				eventToInsert := components_nvidia_xid_sxid_state.Event{
+				eventToInsert := nvidia_xid_sxid_state.Event{
 					UnixSeconds:  ts.Unix(),
 					DataSource:   "dmesg",
 					EventType:    "sxid",
@@ -285,7 +310,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					EventDetails: ev.LogItem.Line,
 				}
 
-				found, err := components_nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				found, err := nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find sxid event in database", "error", err)
 					continue
@@ -294,7 +319,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("sxid event already exists in database", "event", eventToInsert)
 					continue
 				}
-				if werr := components_nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert sxid event into database", "error", werr)
 					continue
 				}
@@ -633,10 +658,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
-		case nvidia_clock.Name:
-			cfg := nvidia_clock.Config{Query: defaultQueryCfg}
+		case nvidia_hw_slowdown_id.Name:
+			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_clock.ParseConfig(configValue, db)
+				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -645,7 +670,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_clock.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
 		case nvidia_clockspeed.Name:
 			cfg := nvidia_clockspeed.Config{Query: defaultQueryCfg}

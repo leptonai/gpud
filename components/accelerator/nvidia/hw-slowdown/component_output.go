@@ -1,15 +1,14 @@
-package clock
+package hwslowdown
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-
-	"sigs.k8s.io/yaml"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -24,7 +23,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	if i.NVML != nil {
 		for _, devInfo := range i.NVML.DeviceInfos {
 			if devInfo.ClockEvents != nil {
-				o.ClockEventsNVML = append(o.ClockEventsNVML, *devInfo.ClockEvents)
+				o.HWSlowdownEventsNVML = append(o.HWSlowdownEventsNVML, *devInfo.ClockEvents)
 			}
 		}
 	}
@@ -39,8 +38,8 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
-	HWSlowdownSMI   HWSlowdownSMI                   `json:"hw_slowdown_smi"`
-	ClockEventsNVML []nvidia_query_nvml.ClockEvents `json:"clock_events_nvml"`
+	HWSlowdownEventsNVML []nvidia_query_nvml.ClockEvents `json:"hw_slowdown_events_nvml"`
+	HWSlowdownSMI        HWSlowdownSMI                   `json:"hw_slowdown_smi"`
 }
 
 type HWSlowdownSMI struct {
@@ -92,31 +91,22 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 
-	clockEventsReasons := make([]string, 0)
-	for _, clockEvents := range o.ClockEventsNVML {
-		if len(clockEvents.Reasons) > 0 {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.Reasons...)
-		}
-		if clockEvents.HWSlowdown {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown (nvml)")
-		}
-		if clockEvents.HWSlowdownThermal {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown thermal (nvml)")
-		}
-		if clockEvents.HWSlowdownPowerBrake {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown power brake (nvml)")
-		}
-	}
+	reasons := make([]string, 0)
+
+	// skip "o.HWSlowdownEventsNVML" since this will be returned in events
+	// use nvidia-smi as a fallback
+	// TODO: remove this once we have confirmed that events via NVML works well
+	// to detect hardware slowdown
 	if len(o.HWSlowdownSMI.Errors) > 0 {
-		clockEventsReasons = append(clockEventsReasons, o.HWSlowdownSMI.Errors...)
+		reasons = append(reasons, o.HWSlowdownSMI.Errors...)
 	}
 
-	if len(clockEventsReasons) == 0 {
+	if len(reasons) == 0 {
 		return []components.State{
 			{
 				Name:    StateNameHWSlowdown,
 				Healthy: true,
-				Reason:  "no critical clock event error found (nvml or nvidia-smi)",
+				Reason:  "no hardware slowdown found in nvidia-smi",
 				ExtraInfo: map[string]string{
 					StateKeyHWSlowdownData:     string(b),
 					StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,
@@ -125,15 +115,11 @@ func (o *Output) States() ([]components.State, error) {
 		}, nil
 	}
 
-	yb, err := yaml.Marshal(clockEventsReasons)
-	if err != nil {
-		return nil, err
-	}
 	return []components.State{
 		{
 			Name:    StateNameHWSlowdown,
 			Healthy: false,
-			Reason:  "clock events found\n\n" + string(yb),
+			Reason:  "hw slowdown found in nvidia-smi: " + strings.Join(reasons, ", "),
 			ExtraInfo: map[string]string{
 				StateKeyHWSlowdownData:     string(b),
 				StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,

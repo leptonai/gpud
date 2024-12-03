@@ -1,4 +1,4 @@
-package clock
+package hwslowdown
 
 import (
 	"database/sql"

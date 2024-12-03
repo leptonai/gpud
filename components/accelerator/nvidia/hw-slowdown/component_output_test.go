@@ -1,4 +1,4 @@
-package clock
+package hwslowdown
 
 import (
 	"encoding/json"
@@ -18,52 +18,46 @@ func TestOutput_States(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name:         "empty output should be healthy",
-			output:       Output{},
+			name: "empty output should be healthy",
+			output: Output{
+				HWSlowdownEventsNVML: []nvidia_query_nvml.ClockEvents{
+					{
+						UUID:    "gpu-123",
+						Reasons: []string{"non-critical reason"},
+					},
+				},
+			},
 			wantHealthy:  true,
-			wantNoErrMsg: "no critical clock event error found (nvml or nvidia-smi)",
+			wantNoErrMsg: "no hardware slowdown found in nvidia-smi",
 		},
 		{
 			name: "output with NVML reasons",
 			output: Output{
-				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
+				HWSlowdownEventsNVML: []nvidia_query_nvml.ClockEvents{
 					{
-						UUID:    "gpu-123",
-						Reasons: []string{"test reason"},
+						UUID:              "gpu-123",
+						HWSlowdownReasons: []string{"test reason"},
 					},
 				},
 			},
-			wantHealthy:   false,
-			wantErrSubstr: []string{"test reason"},
+			wantHealthy:  true,
+			wantNoErrMsg: "no hardware slowdown found in nvidia-smi",
 		},
 		{
 			name: "output with HW slowdown flags",
 			output: Output{
-				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
-					{
-						UUID:                 "gpu-123",
-						HWSlowdown:           true,
-						HWSlowdownThermal:    true,
-						HWSlowdownPowerBrake: true,
+				HWSlowdownSMI: HWSlowdownSMI{
+					Errors: []string{
+						"gpu-123 hw slowdown (smi)",
+						"gpu-123 hw slowdown thermal (smi)",
+						"gpu-123 hw slowdown power brake (smi)",
 					},
 				},
 			},
 			wantHealthy: false,
 			wantErrSubstr: []string{
-				"gpu-123 hw slowdown (nvml)",
-				"gpu-123 hw slowdown thermal (nvml)",
-				"gpu-123 hw slowdown power brake (nvml)",
+				"hw slowdown found in nvidia-smi: gpu-123 hw slowdown (smi), gpu-123 hw slowdown thermal (smi), gpu-123 hw slowdown power brake (smi)",
 			},
-		},
-		{
-			name: "output with SMI errors",
-			output: Output{
-				HWSlowdownSMI: HWSlowdownSMI{
-					Errors: []string{"smi error 1", "smi error 2"},
-				},
-			},
-			wantHealthy:   false,
-			wantErrSubstr: []string{"smi error 1", "smi error 2"},
 		},
 	}
 

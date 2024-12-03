@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
@@ -19,6 +18,7 @@ import (
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -229,7 +229,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			if err == nil {
 				if clockEventsSupported {
 					log.Logger.Infow("auto-detected clock events supported")
-					cfg.Components[nvidia_clock.Name] = nil
+					cfg.Components[nvidia_hw_slowdown_id.Name] = nil
 				} else {
 					log.Logger.Infow("auto-detected clock events not supported -- skipping", "driverVersion", driverVersion)
 				}

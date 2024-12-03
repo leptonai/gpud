@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	components_nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -30,6 +30,8 @@ type Instance interface {
 
 	Start() error
 
+	ClockEventsSupported() bool
+
 	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
 
@@ -45,8 +47,7 @@ var _ Instance = (*instance)(nil)
 type instance struct {
 	mu sync.RWMutex
 
-	driverVersion        string
-	clockEventsSupported bool
+	driverVersion string
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -62,6 +63,9 @@ type instance struct {
 	devices map[string]*DeviceInfo
 
 	db *sql.DB
+
+	clockEventsSupported    bool
+	clockEventsHWSlowdownCh chan *ClockEvents
 
 	xidErrorSupported   bool
 	xidEventMask        uint64
@@ -211,8 +215,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		rootCtx:    rootCtx,
 		rootCancel: rootCancel,
 
-		driverVersion:        driverVersion,
-		clockEventsSupported: clockEventsSupported,
+		driverVersion: driverVersion,
 
 		nvmlLib:   nvmlLib,
 		deviceLib: deviceLib,
@@ -222,6 +225,9 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExistsMsg: nvmlExistsMsg,
 
 		db: op.db,
+
+		clockEventsSupported:    clockEventsSupported,
+		clockEventsHWSlowdownCh: make(chan *ClockEvents, 100),
 
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
@@ -253,7 +259,7 @@ func (inst *instance) Start() error {
 
 	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
 	defer cancel()
-	if err := components_nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.db); err != nil {
+	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.db); err != nil {
 		return err
 	}
 
@@ -336,6 +342,10 @@ func (inst *instance) Start() error {
 
 			device: d,
 		}
+	}
+
+	if inst.clockEventsSupported {
+		go inst.pollClockEvents()
 	}
 
 	if inst.xidErrorSupported {
