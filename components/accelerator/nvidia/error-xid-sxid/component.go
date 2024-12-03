@@ -83,7 +83,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			xidBytes, _ := xidDetail.JSON()
 
 			convertedEvents = append(convertedEvents, components.Event{
-				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0)},
+				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroXid,
 				Message: msg,
 				ExtraInfo: map[string]string{
@@ -104,7 +104,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			sxidBytes, _ := sxidDetail.JSON()
 
 			convertedEvents = append(convertedEvents, components.Event{
-				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0)},
+				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroSXid,
 				Message: msg,
 				ExtraInfo: map[string]string{
