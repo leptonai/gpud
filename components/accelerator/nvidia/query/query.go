@@ -70,7 +70,12 @@ func GetSuccessOnce() <-chan any {
 
 func CreateGet(db *sql.DB) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		return Get(ctx, db)
+		// "ctx" here is the root level, create one with shorter timeouts
+		// to not block on this checks
+		cctx, ccancel := context.WithTimeout(ctx, 3*time.Minute)
+		defer ccancel()
+
+		return Get(cctx, db)
 	}
 }
 

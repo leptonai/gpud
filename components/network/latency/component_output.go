@@ -139,8 +139,8 @@ func createGetFunc(cfg Config) query.GetFunc {
 
 		// "ctx" here is the root level, create one with shorter timeouts
 		// to not block on this checks
-		cctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
+		cctx, ccancel := context.WithTimeout(ctx, timeout)
+		defer ccancel()
 
 		var err error
 		o.EgressLatencies, err = latency_edge.Measure(cctx)
@@ -150,7 +150,7 @@ func createGetFunc(cfg Config) query.GetFunc {
 
 		for _, latency := range o.EgressLatencies {
 			if err := metrics.SetEdgeInMilliseconds(
-				ctx,
+				cctx,
 				fmt.Sprintf("%s (%s)", latency.RegionName, latency.Provider),
 				float64(latency.LatencyMilliseconds),
 				now,

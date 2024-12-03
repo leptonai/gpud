@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
@@ -118,10 +119,15 @@ func CreateGet(cfg Config) query.GetFunc {
 			}
 		}()
 
-		ss, err := ListSandboxStatus(ctx, cfg.Endpoint)
+		// "ctx" here is the root level, create one with shorter timeouts
+		// to not block on this checks
+		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+		ss, err := ListSandboxStatus(cctx, cfg.Endpoint)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
+
 		pods := make([]PodSandbox, 0)
 		for _, s := range ss {
 			pods = append(pods, ConvertToPodSandbox(s))
