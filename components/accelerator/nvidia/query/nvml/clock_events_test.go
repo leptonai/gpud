@@ -3,9 +3,9 @@ package nvml
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/testutil"
 )
 
 func TestGetClockEventReasons(t *testing.T) {
@@ -186,7 +186,7 @@ func TestGetClockEvents(t *testing.T) {
 					return tc.mockReasons, tc.mockReturn
 				},
 			}
-			events, err := GetClockEvents(tc.uuid, createMockDevice(mockDevice))
+			events, err := GetClockEvents(tc.uuid, testutil.CreateDevice(mockDevice))
 
 			if tc.expectedError {
 				if err == nil {
@@ -230,34 +230,4 @@ func TestGetClockEvents(t *testing.T) {
 			}
 		})
 	}
-}
-
-type mockDevice struct {
-	*mock.Device
-}
-
-func (d *mockDevice) GetArchitectureAsString() (string, error) {
-	return "", nil
-}
-func (d *mockDevice) GetBrandAsString() (string, error) {
-	return "", nil
-}
-func (d *mockDevice) GetCudaComputeCapabilityAsString() (string, error) {
-	return "", nil
-}
-func (d *mockDevice) GetMigDevices() ([]device.MigDevice, error) {
-	return nil, nil
-}
-func (d *mockDevice) GetMigProfiles() ([]device.MigProfile, error) {
-	return nil, nil
-}
-func (d *mockDevice) GetPCIBusID() (string, error)                                { return "", nil }
-func (d *mockDevice) IsFabricAttached() (bool, error)                             { return false, nil }
-func (d *mockDevice) IsMigCapable() (bool, error)                                 { return false, nil }
-func (d *mockDevice) IsMigEnabled() (bool, error)                                 { return false, nil }
-func (d *mockDevice) VisitMigDevices(func(j int, m device.MigDevice) error) error { return nil }
-func (d *mockDevice) VisitMigProfiles(func(p device.MigProfile) error) error      { return nil }
-
-func createMockDevice(m *mock.Device) device.Device {
-	return &mockDevice{Device: m}
 }
