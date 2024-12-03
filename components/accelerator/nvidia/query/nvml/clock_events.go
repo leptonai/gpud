@@ -154,7 +154,7 @@ func getClockEventReasons(reasons uint64) ([]string, []string) {
 
 	for flag, rt := range clockEventReasonsToInclude {
 		if reasons&flag != 0 {
-			if rt.hwSlowdown {
+			if rt.isHWSlowdown {
 				hwSlowdownReasons = append(hwSlowdownReasons, rt.description)
 				continue
 			}
@@ -184,8 +184,8 @@ const (
 )
 
 type reasonType struct {
-	description string
-	hwSlowdown  bool
+	description  string
+	isHWSlowdown bool
 }
 
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/gen/nvml/nvml.h
@@ -193,56 +193,56 @@ type reasonType struct {
 var clockEventReasonsToInclude = map[uint64]reasonType{
 	// ref. nvmlClocksEventReasonGpuIdle
 	reasonGPUIdle: {
-		description: "GPU is idle and clocks are dropping to Idle state",
-		hwSlowdown:  false,
+		description:  "GPU is idle and clocks are dropping to Idle state",
+		isHWSlowdown: false,
 	},
 
 	// ref. nvmlClocksEventReasonApplicationsClocksSetting
 	reasonApplicationsClocksSetting: {
-		description: "GPU clocks are limited by current setting of applications clocks",
-		hwSlowdown:  false,
+		description:  "GPU clocks are limited by current setting of applications clocks",
+		isHWSlowdown: false,
 	},
 
 	// ref. nvmlClocksEventReasonSwPowerCap
 	reasonSWPowerCap: {
-		description: "Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
-		hwSlowdown:  false,
+		description:  "Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
+		isHWSlowdown: false,
 	},
 
 	// ref. nvmlClocksThrottleReasonHwSlowdown
 	reasonHWSlowdown: {
-		description: "HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
-		hwSlowdown:  true,
+		description:  "HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
+		isHWSlowdown: true,
 	},
 
 	// ref. nvmlClocksEventReasonSyncBoost
 	reasonSyncBoost: {
-		description: "GPU is part of a Sync boost group to maximize performance per watt",
-		hwSlowdown:  false,
+		description:  "GPU is part of a Sync boost group to maximize performance per watt",
+		isHWSlowdown: false,
 	},
 
 	// ref. nvmlClocksEventReasonSwThermalSlowdown
 	reasonSwThermalSlowdown: {
-		description: "SW Thermal Slowdown is active to keep GPU and memory temperatures within operating limits",
-		hwSlowdown:  false,
+		description:  "SW Thermal Slowdown is active to keep GPU and memory temperatures within operating limits",
+		isHWSlowdown: false,
 	},
 
 	// ref. nvmlClocksThrottleReasonHwThermalSlowdown
 	reasonHWSlowdownThermal: {
-		description: "HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
-		hwSlowdown:  true,
+		description:  "HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
+		isHWSlowdown: true,
 	},
 
 	// ref. nvmlClocksThrottleReasonHwPowerBrakeSlowdown
 	reasonHWSlowdownPowerBrake: {
-		description: "HW Power Brake Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (External Power Brake Assertion being triggered) ('HW Power Brake Slowdown' in nvidia-smi --query)",
-		hwSlowdown:  true,
+		description:  "HW Power Brake Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (External Power Brake Assertion being triggered) ('HW Power Brake Slowdown' in nvidia-smi --query)",
+		isHWSlowdown: true,
 	},
 
 	// ref. nvmlClocksEventReasonDisplayClockSetting
 	reasonDisplayClockSetting: {
-		description: "GPU clocks are limited by current setting of Display clocks",
-		hwSlowdown:  false,
+		description:  "GPU clocks are limited by current setting of Display clocks",
+		isHWSlowdown: false,
 	},
 }
 
