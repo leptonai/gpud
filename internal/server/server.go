@@ -32,7 +32,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
-	nvidia_clock "github.com/leptonai/gpud/components/accelerator/nvidia/clock"
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
@@ -46,6 +45,8 @@ import (
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -633,10 +634,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
-		case nvidia_clock.Name:
-			cfg := nvidia_clock.Config{Query: defaultQueryCfg}
+		case nvidia_hw_slowdown_id.Name:
+			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_clock.ParseConfig(configValue, db)
+				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -645,7 +646,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_clock.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
 		case nvidia_clockspeed.Name:
 			cfg := nvidia_clockspeed.Config{Query: defaultQueryCfg}

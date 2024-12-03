@@ -31,7 +31,7 @@ func TestGetClockEventReasons(t *testing.T) {
 		},
 		{
 			name:           "single other reason",
-			reasons:        0x0000000000000001, // GPU idle
+			reasons:        reasonGPUIdle,
 			wantHWSlowdown: []string{},
 			wantOtherReasons: []string{
 				"GPU is idle and clocks are dropping to Idle state",
@@ -49,7 +49,7 @@ func TestGetClockEventReasons(t *testing.T) {
 		},
 		{
 			name:           "multiple other reasons",
-			reasons:        0x0000000000000001 | 0x0000000000000002 | 0x0000000000000004,
+			reasons:        reasonGPUIdle | reasonApplicationsClocksSetting | reasonSWPowerCap,
 			wantHWSlowdown: []string{},
 			wantOtherReasons: []string{
 				"Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
@@ -59,7 +59,7 @@ func TestGetClockEventReasons(t *testing.T) {
 		},
 		{
 			name:    "mixed hw slowdown and other reasons",
-			reasons: reasonHWSlowdown | 0x0000000000000001 | reasonHWSlowdownThermal | 0x0000000000000002,
+			reasons: reasonHWSlowdown | reasonGPUIdle | reasonHWSlowdownThermal | reasonApplicationsClocksSetting,
 			wantHWSlowdown: []string{
 				"HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
 				"HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",

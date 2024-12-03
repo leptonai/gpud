@@ -164,9 +164,15 @@ func getClockEventReasons(reasons uint64) ([]string, []string) {
 // 0x0000000000000000 is none
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
 const (
-	reasonHWSlowdown           uint64 = 0x0000000000000008
-	reasonHWSlowdownThermal    uint64 = 0x0000000000000040
-	reasonHWSlowdownPowerBrake uint64 = 0x0000000000000080
+	reasonGPUIdle                   uint64 = 0x0000000000000001
+	reasonApplicationsClocksSetting uint64 = 0x0000000000000002
+	reasonSWPowerCap                uint64 = 0x0000000000000004
+	reasonHWSlowdown                uint64 = 0x0000000000000008
+	reasonSyncBoost                 uint64 = 0x0000000000000010
+	reasonSwThermalSlowdown         uint64 = 0x0000000000000020
+	reasonHWSlowdownThermal         uint64 = 0x0000000000000040
+	reasonHWSlowdownPowerBrake      uint64 = 0x0000000000000080
+	reasonDisplayClockSetting       uint64 = 0x0000000000000100
 )
 
 type reasonType struct {
@@ -178,19 +184,19 @@ type reasonType struct {
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
 var clockEventReasonsToInclude = map[uint64]reasonType{
 	// ref. nvmlClocksEventReasonGpuIdle
-	0x0000000000000001: {
+	reasonGPUIdle: {
 		description: "GPU is idle and clocks are dropping to Idle state",
 		hwSlowdown:  false,
 	},
 
 	// ref. nvmlClocksEventReasonApplicationsClocksSetting
-	0x0000000000000002: {
+	reasonApplicationsClocksSetting: {
 		description: "GPU clocks are limited by current setting of applications clocks",
 		hwSlowdown:  false,
 	},
 
 	// ref. nvmlClocksEventReasonSwPowerCap
-	0x0000000000000004: {
+	reasonSWPowerCap: {
 		description: "Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
 		hwSlowdown:  false,
 	},
@@ -202,13 +208,13 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 	},
 
 	// ref. nvmlClocksEventReasonSyncBoost
-	0x0000000000000010: {
+	reasonSyncBoost: {
 		description: "GPU is part of a Sync boost group to maximize performance per watt",
 		hwSlowdown:  false,
 	},
 
 	// ref. nvmlClocksEventReasonSwThermalSlowdown
-	0x0000000000000020: {
+	reasonSwThermalSlowdown: {
 		description: "SW Thermal Slowdown is active to keep GPU and memory temperatures within operating limits",
 		hwSlowdown:  false,
 	},
@@ -226,7 +232,7 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 	},
 
 	// ref. nvmlClocksEventReasonDisplayClockSetting
-	0x0000000000000100: {
+	reasonDisplayClockSetting: {
 		description: "GPU clocks are limited by current setting of Display clocks",
 		hwSlowdown:  false,
 	},

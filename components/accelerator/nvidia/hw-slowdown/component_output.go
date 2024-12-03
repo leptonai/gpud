@@ -1,15 +1,14 @@
-package clock
+package hwslowdown
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-
-	"sigs.k8s.io/yaml"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -93,7 +92,7 @@ func (o *Output) States() ([]components.State, error) {
 			{
 				Name:    StateNameHWSlowdown,
 				Healthy: true,
-				Reason:  "no critical clock event error found (nvml or nvidia-smi)",
+				Reason:  "no hardware slowdown found",
 				ExtraInfo: map[string]string{
 					StateKeyHWSlowdownData:     string(b),
 					StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,
@@ -102,15 +101,11 @@ func (o *Output) States() ([]components.State, error) {
 		}, nil
 	}
 
-	yb, err := yaml.Marshal(reasons)
-	if err != nil {
-		return nil, err
-	}
 	return []components.State{
 		{
 			Name:    StateNameHWSlowdown,
 			Healthy: false,
-			Reason:  "clock events found\n\n" + string(yb),
+			Reason:  "hw slowdown found: " + strings.Join(reasons, ", "),
 			ExtraInfo: map[string]string{
 				StateKeyHWSlowdownData:     string(b),
 				StateKeyHWSlowdownEncoding: StateValueHWSlowdownEncodingJSON,
