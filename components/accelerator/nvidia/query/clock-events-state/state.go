@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"time"
 
 	"github.com/leptonai/gpud/log"
@@ -132,6 +133,9 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ?;
 	if err := json.Unmarshal([]byte(reasonsRaw), &foundEvent.Reasons); err != nil {
 		return false, err
 	}
+
+	sort.Strings(foundEvent.Reasons)
+	sort.Strings(event.Reasons)
 
 	// event at the same time but with different details
 	if len(foundEvent.Reasons) > 0 && !reflect.DeepEqual(foundEvent.Reasons, event.Reasons) {

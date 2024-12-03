@@ -289,14 +289,27 @@ func (inst *instance) pollClockEvents() {
 				continue
 			}
 
-			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-			err = clock_events_state.InsertEvent(cctx, inst.db, clock_events_state.Event{
+			ev := clock_events_state.Event{
 				UnixSeconds: clockEvents.Time.Unix(),
 				DataSource:  "nvml",
 				EventType:   "hw_slowdown",
 				GPUUUID:     dev.UUID,
 				Reasons:     clockEvents.HWSlowdownReasons,
-			})
+			}
+
+			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
+			found, err := clock_events_state.FindEvent(cctx, inst.db, ev)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to find clock events", "uuid", dev.UUID, "error", err)
+				continue
+			}
+			if found {
+				continue
+			}
+
+			cctx, ccancel = context.WithTimeout(inst.rootCtx, 10*time.Second)
+			err = clock_events_state.InsertEvent(cctx, inst.db, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to insert clock events into database", "uuid", dev.UUID, "error", err)
