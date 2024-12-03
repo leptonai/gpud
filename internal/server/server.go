@@ -1328,7 +1328,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err = login.Gossip(endpoint, uid, config.Address); err != nil {
+	ghler.componentNamesMu.RLock()
+	currComponents := ghler.componentNames
+	ghler.componentNamesMu.RUnlock()
+	if err = login.Gossip(endpoint, uid, config.Address, currComponents); err != nil {
 		log.Logger.Debugf("failed to gossip: %v", err)
 	}
 	return s, nil
