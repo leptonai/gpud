@@ -65,7 +65,7 @@ func Login(name string, token string, endpoint string, components string, uid st
 	return nil
 }
 
-func Gossip(endpoint string, uid string, address string) error {
+func Gossip(endpoint string, uid string, address string, components []string) error {
 	if os.Getenv("GPUD_NO_USAGE_STATS") == "true" {
 		log.Logger.Debug("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
 		return nil
@@ -76,6 +76,7 @@ func Gossip(endpoint string, uid string, address string) error {
 		ID            string `json:"id"`
 		Provider      string `json:"provider"`
 		DaemonVersion string `json:"daemon_version"`
+		Components    string `json:"components"`
 	}
 	type RespErr struct {
 		Error  string `json:"error"`
@@ -86,6 +87,7 @@ func Gossip(endpoint string, uid string, address string) error {
 		ID:            uid,
 		Provider:      "personal",
 		DaemonVersion: version.Version,
+		Components:    strings.Join(components, ","),
 	}
 	rawPayload, _ := json.Marshal(&content)
 	response, err := http.Post(fmt.Sprintf("https://%s/api/v1/gossip", endpoint), "application/json", bytes.NewBuffer(rawPayload))
