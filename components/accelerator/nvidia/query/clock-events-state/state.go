@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
-	%s TEX NOT NULL
+	%s TEXT NOT NULL
 );`, TableNameClockEvents,
 		ColumnUnixSeconds,
 		ColumnDataSource,
