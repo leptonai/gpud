@@ -3,6 +3,7 @@ package nvml
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/leptonai/gpud/log"
 
@@ -76,7 +77,11 @@ type ClockEvents struct {
 	// Represents the bitmask of active clocks event reasons.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html#group__nvmlClocksEventReasons
 	ReasonsBitmask uint64 `json:"reasons_bitmask"`
-	// Represents the human-readable reasons for the clock events.
+
+	// Represents the hardware slowdown reasons.
+	HWSlowdownReasons []string `json:"hw_slowdown_reasons,omitempty"`
+
+	// Represents other human-readable reasons for the clock events.
 	Reasons []string `json:"reasons,omitempty"`
 
 	// Set true if the HW Slowdown reason due to the high temperature is active.
@@ -118,52 +123,111 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html#group__nvmlClocksEventReasons
 	clockEvents.ReasonsBitmask = reasons
 
-	for flag, description := range clockEventReasons {
-		if reasons&flag != 0 {
-			clockEvents.Reasons = append(clockEvents.Reasons, fmt.Sprintf("%s: %s (nvml)", uuid, description))
-		}
-	}
-
 	clockEvents.HWSlowdown = reasons&reasonHWSlowdown != 0
 	clockEvents.HWSlowdownThermal = reasons&reasonHWSlowdownThermal != 0
 	clockEvents.HWSlowdownPowerBrake = reasons&reasonHWSlowdownPowerBrake != 0
 
+	hwReasons, otherReasons := getClockEventReasons(reasons)
+	for _, reason := range hwReasons {
+		clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons,
+			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+	}
+	for _, reason := range otherReasons {
+		clockEvents.Reasons = append(clockEvents.Reasons,
+			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+	}
+
 	return clockEvents, nil
 }
 
+func getClockEventReasons(reasons uint64) ([]string, []string) {
+	hwSlowdownReasons := make([]string, 0)
+	otherReasons := make([]string, 0)
+
+	for flag, rt := range clockEventReasonsToInclude {
+		if reasons&flag != 0 {
+			if rt.hwSlowdown {
+				hwSlowdownReasons = append(hwSlowdownReasons, rt.description)
+				continue
+			}
+			otherReasons = append(otherReasons, rt.description)
+		}
+	}
+
+	// sort the reasons to make the output deterministic
+	sort.Strings(hwSlowdownReasons)
+	sort.Strings(otherReasons)
+
+	return hwSlowdownReasons, otherReasons
+}
+
 // 0x0000000000000000 is none
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
 const (
 	reasonHWSlowdown           uint64 = 0x0000000000000008
 	reasonHWSlowdownThermal    uint64 = 0x0000000000000040
 	reasonHWSlowdownPowerBrake uint64 = 0x0000000000000080
 )
 
+type reasonType struct {
+	description string
+	hwSlowdown  bool
+}
+
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/gen/nvml/nvml.h
-var clockEventReasons = map[uint64]string{
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
+var clockEventReasonsToInclude = map[uint64]reasonType{
 	// ref. nvmlClocksEventReasonGpuIdle
-	0x0000000000000001: "GPU is idle and clocks are dropping to Idle state",
+	0x0000000000000001: {
+		description: "GPU is idle and clocks are dropping to Idle state",
+		hwSlowdown:  false,
+	},
 
 	// ref. nvmlClocksEventReasonApplicationsClocksSetting
-	0x0000000000000002: "GPU clocks are limited by current setting of applications clocks",
+	0x0000000000000002: {
+		description: "GPU clocks are limited by current setting of applications clocks",
+		hwSlowdown:  false,
+	},
 
 	// ref. nvmlClocksEventReasonSwPowerCap
-	0x0000000000000004: "Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
+	0x0000000000000004: {
+		description: "Clocks have been optimized to not exceed currently set power limits ('SW Power Cap: Active' in nvidia-smi --query)",
+		hwSlowdown:  false,
+	},
 
 	// ref. nvmlClocksThrottleReasonHwSlowdown
-	0x0000000000000008: "HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
+	reasonHWSlowdown: {
+		description: "HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
+		hwSlowdown:  true,
+	},
 
 	// ref. nvmlClocksEventReasonSyncBoost
-	0x0000000000000010: "GPU is part of a Sync boost group to maximize performance per watt",
+	0x0000000000000010: {
+		description: "GPU is part of a Sync boost group to maximize performance per watt",
+		hwSlowdown:  false,
+	},
 
 	// ref. nvmlClocksEventReasonSwThermalSlowdown
-	0x0000000000000020: "SW Thermal Slowdown is active to keep GPU and memory temperatures within operating limits",
+	0x0000000000000020: {
+		description: "SW Thermal Slowdown is active to keep GPU and memory temperatures within operating limits",
+		hwSlowdown:  false,
+	},
 
 	// ref. nvmlClocksThrottleReasonHwThermalSlowdown
-	0x0000000000000040: "HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
+	reasonHWSlowdownThermal: {
+		description: "HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
+		hwSlowdown:  true,
+	},
 
 	// ref. nvmlClocksThrottleReasonHwPowerBrakeSlowdown
-	0x0000000000000080: "HW Power Brake Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (External Power Brake Assertion being triggered) ('HW Power Brake Slowdown' in nvidia-smi --query)",
+	reasonHWSlowdownPowerBrake: {
+		description: "HW Power Brake Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (External Power Brake Assertion being triggered) ('HW Power Brake Slowdown' in nvidia-smi --query)",
+		hwSlowdown:  true,
+	},
 
 	// ref. nvmlClocksEventReasonDisplayClockSetting
-	0x0000000000000100: "GPU clocks are limited by current setting of Display clocks",
+	0x0000000000000100: {
+		description: "GPU clocks are limited by current setting of Display clocks",
+		hwSlowdown:  false,
+	},
 }
