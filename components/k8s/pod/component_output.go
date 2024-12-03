@@ -142,7 +142,7 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		// "ctx" here is the root level, create one with shorter timeouts
 		// to not block on this checks
-		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		pods, err := ListFromKubeletReadOnlyPort(cctx, cfg.Port)
 		ccancel()
 		if err != nil {
