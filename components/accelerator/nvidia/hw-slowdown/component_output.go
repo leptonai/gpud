@@ -1,14 +1,19 @@
 package hwslowdown
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	components_metrics "github.com/leptonai/gpud/components/metrics"
+	"github.com/leptonai/gpud/components/query"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -112,4 +117,53 @@ func (o *Output) States() ([]components.State, error) {
 			},
 		},
 	}, nil
+}
+
+var (
+	defaultPollerOnce sync.Once
+	defaultPoller     query.Poller
+)
+
+// only set once since it relies on the kube client and specific port
+func setDefaultPoller(cfg Config) {
+	defaultPollerOnce.Do(func() {
+		defaultPoller = query.New(nvidia_component_error_xid_id.Name, cfg.Query, CreateGet())
+	})
+}
+
+func getDefaultPoller() query.Poller {
+	return defaultPoller
+}
+
+// DO NOT for-loop here
+// the query.GetFunc is already called periodically in a loop by the poller
+func CreateGet() query.GetFunc {
+	return func(ctx context.Context) (_ any, e error) {
+		defer func() {
+			if e != nil {
+				components_metrics.SetGetFailed(nvidia_component_error_xid_id.Name)
+			} else {
+				components_metrics.SetGetSuccess(nvidia_component_error_xid_id.Name)
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-nvidia_query_nvml.DefaultInstanceReady():
+		}
+
+		// if there's no registered event, the channel blocks
+		// then just return nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case ev := <-nvidia_query_nvml.DefaultInstance().RecvGPMEvents():
+			return ev, nil
+
+		default:
+			return nil, nil
+		}
+	}
 }

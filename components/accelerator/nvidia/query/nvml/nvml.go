@@ -30,6 +30,9 @@ type Instance interface {
 
 	Start() error
 
+	ClockEventsSupported() bool
+	RecvClockEvents() <-chan *ClockEvents
+
 	XidErrorSupported() bool
 	RecvXidEvents() <-chan *XidEvent
 

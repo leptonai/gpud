@@ -1,14 +1,18 @@
 package nvml
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
+	clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/clock-events-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -71,6 +75,9 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1ga115e41a14b747cb334a0e7b49ae1941
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html#group__nvmlClocksEventReasons
 type ClockEvents struct {
+	// Time is the time the metrics were collected.
+	Time metav1.Time `json:"time"`
+
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
 
@@ -108,6 +115,7 @@ func (evs *ClockEvents) YAML() ([]byte, error) {
 
 func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	clockEvents := ClockEvents{
+		Time: metav1.Time{Time: time.Now().UTC()},
 		UUID: uuid,
 	}
 
@@ -117,7 +125,7 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	reasons, ret := dev.GetCurrentClocksEventReasons()
 	if ret != nvml.SUCCESS {
-		return ClockEvents{}, fmt.Errorf("failed to get device clock event reasons: %v", nvml.ErrorString(ret))
+		return clockEvents, fmt.Errorf("failed to get device clock event reasons: %v", nvml.ErrorString(ret))
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html#group__nvmlClocksEventReasons
@@ -238,6 +246,13 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 	},
 }
 
+func (inst *instance) ClockEventsSupported() bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+
+	return inst.clockEventsSupported
+}
+
 func (inst *instance) RecvClockEvents() <-chan *ClockEvents {
 	inst.mu.RLock()
 	defer inst.mu.RUnlock()
@@ -252,11 +267,41 @@ func (inst *instance) RecvClockEvents() <-chan *ClockEvents {
 func (inst *instance) pollClockEvents() {
 	log.Logger.Debugw("polling clock events")
 
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		default:
+		case <-ticker.C:
+		}
+
+		for _, dev := range inst.devices {
+			clockEvents, err := GetClockEvents(dev.UUID, dev.device)
+			if err != nil {
+				log.Logger.Errorw("failed to get clock events", "uuid", dev.UUID, "error", err)
+				continue
+			}
+
+			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
+			clock_events_state.InsertEvent(cctx, inst.db, clock_events_state.Event{
+				UnixSeconds:  clockEvents.Time.Unix(),
+				DataSource:   "nvml",
+				EventType:    "clock",
+				EventID:      int64(clockEvents.ReasonsBitmask),
+				EventDetails: "",
+			})
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to insert clock events into database", "error", err)
+			}
+
+			select {
+			case inst.clockEventsCh <- &clockEvents:
+			default:
+				log.Logger.Warnw("clock events channel is full, dropping clock events", "uuid", dev.UUID)
+			}
 		}
 	}
 }
