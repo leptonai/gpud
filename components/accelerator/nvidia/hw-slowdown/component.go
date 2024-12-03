@@ -55,7 +55,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_hw_slowdown_id.Name)
 		return []components.State{
 			{
-				Name:    nvidia_hw_slowdown_id.Name,
+				Name:    StateNameHWSlowdown,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -90,7 +90,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.SMIQueryErrors {
 			cs = append(cs, components.State{
-				Name:    nvidia_hw_slowdown_id.Name,
+				Name:    StateNameHWSlowdown,
 				Healthy: false,
 				Error:   e,
 				Reason:  "nvidia-smi query failed with " + e,
