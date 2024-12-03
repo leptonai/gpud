@@ -18,8 +18,15 @@ func TestOutput_States(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name:         "empty output should be healthy",
-			output:       Output{},
+			name: "empty output should be healthy",
+			output: Output{
+				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
+					{
+						UUID:    "gpu-123",
+						Reasons: []string{"non-critical reason"},
+					},
+				},
+			},
 			wantHealthy:  true,
 			wantNoErrMsg: "no critical clock event error found (nvml or nvidia-smi)",
 		},
@@ -28,8 +35,8 @@ func TestOutput_States(t *testing.T) {
 			output: Output{
 				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
 					{
-						UUID:    "gpu-123",
-						Reasons: []string{"test reason"},
+						UUID:              "gpu-123",
+						HWSlowdownReasons: []string{"test reason"},
 					},
 				},
 			},
@@ -45,6 +52,11 @@ func TestOutput_States(t *testing.T) {
 						HWSlowdown:           true,
 						HWSlowdownThermal:    true,
 						HWSlowdownPowerBrake: true,
+						HWSlowdownReasons: []string{
+							"gpu-123 hw slowdown (nvml)",
+							"gpu-123 hw slowdown thermal (nvml)",
+							"gpu-123 hw slowdown power brake (nvml)",
+						},
 					},
 				},
 			},

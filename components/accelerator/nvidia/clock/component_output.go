@@ -92,26 +92,17 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 
-	clockEventsReasons := make([]string, 0)
+	clockEventsHWReasons := make([]string, 0)
 	for _, clockEvents := range o.ClockEventsNVML {
-		if len(clockEvents.Reasons) > 0 {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.Reasons...)
-		}
-		if clockEvents.HWSlowdown {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown (nvml)")
-		}
-		if clockEvents.HWSlowdownThermal {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown thermal (nvml)")
-		}
-		if clockEvents.HWSlowdownPowerBrake {
-			clockEventsReasons = append(clockEventsReasons, clockEvents.UUID+" hw slowdown power brake (nvml)")
+		if len(clockEvents.HWSlowdownReasons) > 0 {
+			clockEventsHWReasons = append(clockEventsHWReasons, clockEvents.HWSlowdownReasons...)
 		}
 	}
 	if len(o.HWSlowdownSMI.Errors) > 0 {
-		clockEventsReasons = append(clockEventsReasons, o.HWSlowdownSMI.Errors...)
+		clockEventsHWReasons = append(clockEventsHWReasons, o.HWSlowdownSMI.Errors...)
 	}
 
-	if len(clockEventsReasons) == 0 {
+	if len(clockEventsHWReasons) == 0 {
 		return []components.State{
 			{
 				Name:    StateNameHWSlowdown,
@@ -125,7 +116,7 @@ func (o *Output) States() ([]components.State, error) {
 		}, nil
 	}
 
-	yb, err := yaml.Marshal(clockEventsReasons)
+	yb, err := yaml.Marshal(clockEventsHWReasons)
 	if err != nil {
 		return nil, err
 	}
