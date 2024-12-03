@@ -20,7 +20,7 @@ func TestOutput_States(t *testing.T) {
 		{
 			name: "empty output should be healthy",
 			output: Output{
-				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
+				HWSlowdownEventsNVML: []nvidia_query_nvml.ClockEvents{
 					{
 						UUID:    "gpu-123",
 						Reasons: []string{"non-critical reason"},
@@ -33,7 +33,7 @@ func TestOutput_States(t *testing.T) {
 		{
 			name: "output with NVML reasons",
 			output: Output{
-				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
+				HWSlowdownEventsNVML: []nvidia_query_nvml.ClockEvents{
 					{
 						UUID:              "gpu-123",
 						HWSlowdownReasons: []string{"test reason"},
@@ -46,7 +46,7 @@ func TestOutput_States(t *testing.T) {
 		{
 			name: "output with HW slowdown flags",
 			output: Output{
-				ClockEventsNVML: []nvidia_query_nvml.ClockEvents{
+				HWSlowdownEventsNVML: []nvidia_query_nvml.ClockEvents{
 					{
 						UUID:                 "gpu-123",
 						HWSlowdown:           true,
@@ -66,16 +66,6 @@ func TestOutput_States(t *testing.T) {
 				"gpu-123 hw slowdown thermal (nvml)",
 				"gpu-123 hw slowdown power brake (nvml)",
 			},
-		},
-		{
-			name: "output with SMI errors",
-			output: Output{
-				HWSlowdownSMI: HWSlowdownSMI{
-					Errors: []string{"smi error 1", "smi error 2"},
-				},
-			},
-			wantHealthy:   false,
-			wantErrSubstr: []string{"smi error 1", "smi error 2"},
 		},
 	}
 

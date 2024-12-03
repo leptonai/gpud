@@ -24,14 +24,8 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	if i.NVML != nil {
 		for _, devInfo := range i.NVML.DeviceInfos {
 			if devInfo.ClockEvents != nil {
-				o.ClockEventsNVML = append(o.ClockEventsNVML, *devInfo.ClockEvents)
+				o.HWSlowdownEventsNVML = append(o.HWSlowdownEventsNVML, *devInfo.ClockEvents)
 			}
-		}
-	}
-
-	if i.SMI != nil {
-		o.HWSlowdownSMI = HWSlowdownSMI{
-			Errors: i.SMI.FindHWSlowdownErrs(),
 		}
 	}
 
@@ -39,12 +33,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
-	HWSlowdownSMI   HWSlowdownSMI                   `json:"hw_slowdown_smi"`
-	ClockEventsNVML []nvidia_query_nvml.ClockEvents `json:"clock_events_nvml"`
-}
-
-type HWSlowdownSMI struct {
-	Errors []string `json:"errors"`
+	HWSlowdownEventsNVML []nvidia_query_nvml.ClockEvents `json:"hw_slowdown_events_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -92,17 +81,14 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 
-	clockEventsHWReasons := make([]string, 0)
-	for _, clockEvents := range o.ClockEventsNVML {
+	reasons := make([]string, 0)
+	for _, clockEvents := range o.HWSlowdownEventsNVML {
 		if len(clockEvents.HWSlowdownReasons) > 0 {
-			clockEventsHWReasons = append(clockEventsHWReasons, clockEvents.HWSlowdownReasons...)
+			reasons = append(reasons, clockEvents.HWSlowdownReasons...)
 		}
 	}
-	if len(o.HWSlowdownSMI.Errors) > 0 {
-		clockEventsHWReasons = append(clockEventsHWReasons, o.HWSlowdownSMI.Errors...)
-	}
 
-	if len(clockEventsHWReasons) == 0 {
+	if len(reasons) == 0 {
 		return []components.State{
 			{
 				Name:    StateNameHWSlowdown,
@@ -116,7 +102,7 @@ func (o *Output) States() ([]components.State, error) {
 		}, nil
 	}
 
-	yb, err := yaml.Marshal(clockEventsHWReasons)
+	yb, err := yaml.Marshal(reasons)
 	if err != nil {
 		return nil, err
 	}
