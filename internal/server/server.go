@@ -61,6 +61,7 @@ import (
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -213,6 +214,29 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Warnw("failed to delete nvidia xid/sxid events", "error", err)
 				} else {
 					log.Logger.Debugw("deleted nvidia xid/sxid events", "before", before, "purged", purged)
+				}
+			}
+		}
+	}()
+
+	if err := nvidia_clock_events_state.CreateTable(ctx, db); err != nil {
+		return nil, fmt.Errorf("failed to create nvidia clock events table: %w", err)
+	}
+	go func() {
+		dur := nvidia_clock_events_state.DefaultRetentionPeriod
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+				now := time.Now().UTC()
+				before := now.Add(-dur)
+
+				purged, err := nvidia_clock_events_state.Purge(ctx, db, nvidia_clock_events_state.WithBefore(before))
+				if err != nil {
+					log.Logger.Warnw("failed to delete nvidia clock events", "error", err)
+				} else {
+					log.Logger.Debugw("deleted nvidia clock events", "before", before, "purged", purged)
 				}
 			}
 		}

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/clock-events-state"
+	clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"

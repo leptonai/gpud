@@ -12,8 +12,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
-	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/clock-events-state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
