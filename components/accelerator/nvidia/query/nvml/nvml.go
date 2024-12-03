@@ -45,8 +45,7 @@ var _ Instance = (*instance)(nil)
 type instance struct {
 	mu sync.RWMutex
 
-	driverVersion        string
-	clockEventsSupported bool
+	driverVersion string
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -63,7 +62,8 @@ type instance struct {
 
 	db *sql.DB
 
-	clockEventsCh chan *ClockEvents
+	clockEventsSupported bool
+	clockEventsCh        chan *ClockEvents
 
 	xidErrorSupported   bool
 	xidEventMask        uint64
@@ -213,8 +213,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		rootCtx:    rootCtx,
 		rootCancel: rootCancel,
 
-		driverVersion:        driverVersion,
-		clockEventsSupported: clockEventsSupported,
+		driverVersion: driverVersion,
 
 		nvmlLib:   nvmlLib,
 		deviceLib: deviceLib,
@@ -224,6 +223,9 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExistsMsg: nvmlExistsMsg,
 
 		db: op.db,
+
+		clockEventsSupported: clockEventsSupported,
+		clockEventsCh:        make(chan *ClockEvents, 100),
 
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
@@ -338,6 +340,10 @@ func (inst *instance) Start() error {
 
 			device: d,
 		}
+	}
+
+	if inst.clockEventsSupported {
+		go inst.pollClockEvents()
 	}
 
 	if inst.xidErrorSupported {
