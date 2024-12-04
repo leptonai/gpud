@@ -70,12 +70,10 @@ func GetSuccessOnce() <-chan any {
 
 func CreateGet(db *sql.DB) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		// "ctx" here is the root level, create one with shorter timeouts
-		// to not block on this checks
-		cctx, ccancel := context.WithTimeout(ctx, 3*time.Minute)
-		defer ccancel()
-
-		return Get(cctx, db)
+		// "ctx" here is the root level and used for instantiating the "shared" NVML instance "once"
+		// and all other sub-calls have its own context timeouts, thus we do not set the timeout here
+		// otherwise, we will cancel all future operations when the instance is created only once!
+		return Get(ctx, db)
 	}
 }
 
