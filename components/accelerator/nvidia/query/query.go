@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
@@ -364,6 +365,32 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 		if o.SMI != nil && o.SMI.SummaryFailure != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, o.SMI.SummaryFailure.Error())
+		}
+
+		if o.SMI != nil {
+			// nvidia-smi polling happens periodically
+			// so we truncate the timestamp to the nearest minute
+			nowUTC := time.Now().UTC().Truncate(time.Minute).Unix()
+
+			events := o.SMI.HWSlowdownEvents(nowUTC)
+			for _, event := range events {
+				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
+				found, err := metrics_clock_events_state.FindEvent(cctx, db, event)
+				ccancel()
+				if err != nil {
+					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to find clock events: %v", err))
+					continue
+				}
+				if found {
+					continue
+				}
+				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
+				err = metrics_clock_events_state.InsertEvent(cctx, db, event)
+				ccancel()
+				if err != nil {
+					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to persist clock events: %v", err))
+				}
+			}
 		}
 	}
 

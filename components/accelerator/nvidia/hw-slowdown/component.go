@@ -4,7 +4,6 @@ package hwslowdown
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strings"
 	"time"
 
@@ -49,59 +48,7 @@ type component struct {
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_hw_slowdown_id.Name)
-		return []components.State{
-			{
-				Name:    StateNameHWSlowdown,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Reason:  "no output",
-			},
-		}, nil
-	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if allOutput.SMIExists && len(allOutput.SMIQueryErrors) > 0 {
-		cs := make([]components.State, 0)
-		for _, e := range allOutput.SMIQueryErrors {
-			cs = append(cs, components.State{
-				Name:    StateNameHWSlowdown,
-				Healthy: false,
-				Error:   e,
-				Reason:  "nvidia-smi query failed with " + e,
-				ExtraInfo: map[string]string{
-					nvidia_query.StateKeySMIExists: fmt.Sprintf("%v", allOutput.SMIExists),
-				},
-			})
-		}
-		return cs, nil
-	}
-	output := ToOutput(allOutput)
-	return output.States()
+	return nil, nil
 }
 
 const (
