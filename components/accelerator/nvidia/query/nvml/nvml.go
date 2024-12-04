@@ -13,6 +13,7 @@ import (
 
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
@@ -420,6 +421,10 @@ func (inst *instance) Get() (*Output, error) {
 		Message: inst.nvmlExistsMsg,
 	}
 
+	// nvidia-smi polling happens periodically
+	// so we truncate the timestamp to the nearest minute
+	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+
 	for _, devInfo := range inst.devices {
 		// prepare/copy the static device info
 		latestInfo := &DeviceInfo{
@@ -457,6 +462,10 @@ func (inst *instance) Get() (*Output, error) {
 			if err != nil {
 				return st, err
 			}
+
+			// overwrite timestamp to the nearest minute
+			clockEvents.Time = metav1.Time{Time: truncNowUTC}
+
 			latestInfo.ClockEvents = &clockEvents
 		}
 

@@ -436,11 +436,13 @@ func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []metrics_clock_events_s
 		if g.ClockEventReasons == nil {
 			continue
 		}
+
 		hwSlowdownErrs := g.FindHWSlowdownErrs()
 		if len(hwSlowdownErrs) == 0 {
 			continue
 		}
 		sort.Strings(hwSlowdownErrs)
+
 		events = append(events, metrics_clock_events_state.Event{
 			UnixSeconds: unixSeconds,
 			DataSource:  "nvidia-smi",

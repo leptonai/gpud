@@ -370,9 +370,9 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		if o.SMI != nil {
 			// nvidia-smi polling happens periodically
 			// so we truncate the timestamp to the nearest minute
-			nowUTC := time.Now().UTC().Truncate(time.Minute).Unix()
+			truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
-			events := o.SMI.HWSlowdownEvents(nowUTC)
+			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
 			for _, event := range events {
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
 				found, err := metrics_clock_events_state.FindEvent(cctx, db, event)
