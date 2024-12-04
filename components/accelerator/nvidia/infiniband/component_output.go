@@ -115,12 +115,31 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 		}
 		if len(o.Ibstat.Parsed) > 0 {
-			if msg, ok := validateIBPorts(o.Ibstat.Parsed, o.GPUCount, o.GPUProductName, cfg.ExpectedPortStates); !ok {
-				return msg, false, nil
+			// Get expected port count
+			atLeastPorts := cfg.ExpectedPortStates.AtLeastPorts
+
+			// some H100 machines only have 1 ib port in ib class dir
+			if atLeastPorts == 0 {
+				atLeastPorts = infiniband.CountInfinibandClass()
+			}
+
+			// H100 machines with 12 ib ports should default to the GPU count 8
+			if atLeastPorts == 0 || atLeastPorts > o.GPUCount {
+				atLeastPorts = o.GPUCount
+			}
+
+			// no rate is set, use the default rate based on the product
+			atLeastRate := cfg.ExpectedPortStates.AtLeastRate
+			if atLeastRate == 0 {
+				atLeastRate = infiniband.SupportsInfinibandPortRate(o.GPUProductName)
+			}
+
+			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
+				return err.Error(), false, nil
 			}
 		}
 	}
-	return "no infiniband class found or no ibstat exists or no ibstat error found", true, nil
+	return "no infiniband class found or no ibstat exists or no ibstat issue/error found", true, nil
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
@@ -159,34 +178,4 @@ func (o *Output) States(cfg Config) ([]components.State, error) {
 		SuggestedActions: suggestedActions,
 	}
 	return []components.State{state}, nil
-}
-
-// validateIBPorts checks if the number of active IB ports matches expectations
-func validateIBPorts(cards infiniband.IBStatCards, gpuCount int, gpuProductName string, expectedStates ExpectedPortStates) (string, bool) {
-	// Get expected port count
-	expectedPortCount := expectedStates.PortCount
-
-	// some H100 machines only have 1 ib port in ib class dir
-	if expectedPortCount == 0 {
-		expectedPortCount = infiniband.CountInfinibandClass()
-	}
-
-	// H100 machines with 12 ib ports should default to the GPU count 8
-	if expectedPortCount == 0 || expectedPortCount > gpuCount {
-		expectedPortCount = gpuCount
-	}
-
-	// no rate is set, use the default rate based on the product
-	expectedRate := expectedStates.Rate
-	if expectedRate == 0 {
-		expectedRate = infiniband.SupportsInfinibandPortRate(gpuProductName)
-	}
-
-	matched := cards.Count("LinkUp", "Active", expectedRate)
-	if matched < expectedPortCount {
-		return fmt.Sprintf("only %d out of %d ibstat cards are link up and active (expected rate: %d Gb/sec)",
-			matched, expectedPortCount, expectedRate), false
-	}
-
-	return "", true
 }

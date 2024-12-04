@@ -1,6 +1,7 @@
 package infiniband
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -224,5 +225,93 @@ CA 'mlx5_10'
 	err := ValidateIbstatOutput(outputWithNoErr)
 	if err != nil {
 		t.Error("healthy ibstat output did not pass the validation")
+	}
+}
+
+func TestValidateIBPorts(t *testing.T) {
+	tests := []struct {
+		name         string
+		cards        IBStatCards
+		atLeastPorts int
+		atLeastRate  int
+		wantErr      error
+	}{
+		{
+			name: "all ports active and matching rate",
+			cards: IBStatCards{
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+			},
+			atLeastPorts: 4,
+			atLeastRate:  200,
+			wantErr:      nil,
+		},
+		{
+			name: "some ports down",
+			cards: IBStatCards{
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Down", PhysicalState: "LinkDown", Rate: 200}},
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Down", PhysicalState: "LinkDown", Rate: 200}},
+			},
+			atLeastPorts: 4,
+			atLeastRate:  200,
+			wantErr:      errors.New("not enough LinkUp ports, some ports must be down; only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate"),
+		},
+		{
+			name: "wrong rate",
+			cards: IBStatCards{
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100}},
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100}},
+			},
+			atLeastPorts: 2,
+			atLeastRate:  200,
+			wantErr:      errors.New("not enough LinkUp ports, less than expected ports with rates, some ports must be missing; only 0 satisfies the expected rate out of 2, expected at least 2 ports and 200 Gb/sec rate"),
+		},
+		{
+			name: "mixed states with empty expected state matches all",
+			cards: IBStatCards{
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200}},
+				{Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200}},
+				{Port1: IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200}},
+			},
+			atLeastPorts: 3,
+			atLeastRate:  200,
+			wantErr:      errors.New("not enough LinkUp ports, some ports must be down; only 2 LinkUp out of 3, expected at least 3 ports and 200 Gb/sec rate"),
+		},
+		{
+			name: "mixed states with wrong rate",
+			cards: IBStatCards{
+				{Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100}},
+				{Port1: IBStatPort{State: "Down", PhysicalState: "LinkUp", Rate: 100}},
+				{Port1: IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100}},
+			},
+			atLeastPorts: 3,
+			atLeastRate:  200,
+			wantErr:      errors.New("not enough LinkUp ports, less than expected ports with rates, some ports must be missing; only 0 satisfies the expected rate out of 3, expected at least 3 ports and 200 Gb/sec rate"),
+		},
+		{
+			name:         "empty cards",
+			cards:        IBStatCards{},
+			atLeastPorts: 2,
+			atLeastRate:  200,
+			wantErr:      errors.New("not enough LinkUp ports, less than expected ports with rates, some ports must be missing; only 0 satisfies the expected rate out of 0, expected at least 2 ports and 200 Gb/sec rate"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotErr := tt.cards.CheckPortsAndRate(tt.atLeastPorts, tt.atLeastRate)
+
+			if tt.wantErr == nil {
+				if gotErr != nil {
+					t.Errorf("validateIBPorts() expected no error, got %v", gotErr)
+				}
+			} else if gotErr == nil || gotErr.Error() != tt.wantErr.Error() {
+				t.Errorf("validateIBPorts() expected error:\n%v\n\nwant\n%v", gotErr, tt.wantErr)
+			}
+		})
 	}
 }

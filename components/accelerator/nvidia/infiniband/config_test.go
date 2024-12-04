@@ -15,14 +15,14 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "valid config",
 			input: map[string]interface{}{
-				"port_count": 4,
-				"rate":       200,
+				"at_least_ports": 4,
+				"at_least_rate":  200,
 			},
 			wantErr: false,
 			want: Config{
 				ExpectedPortStates: ExpectedPortStates{
-					PortCount: 4,
-					Rate:      200,
+					AtLeastPorts: 4,
+					AtLeastRate:  200,
 				},
 			},
 		},
