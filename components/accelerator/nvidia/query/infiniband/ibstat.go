@@ -2,35 +2,92 @@ package infiniband
 
 import (
 	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"sigs.k8s.io/yaml"
 )
 
+func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
+	p, err := exec.LookPath("ibstat")
+	if err != nil {
+		return nil, fmt.Errorf("ibstat not found (%w)", err)
+	}
+	b, err := exec.CommandContext(ctx, p).CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	o := &IbstatOutput{
+		Raw: string(b),
+	}
+
+	// TODO: once stable return error
+	o.Parsed, err = ParseIBStat(o.Raw)
+	if err != nil {
+		// TODO: once stable return error
+		log.Logger.Errorw("failed to parse ibstat output", "error", err)
+
+		// fallback to old ibstat checks
+		if err := ValidateIbstatOutput(o.Raw); err != nil {
+			o.Errors = append(o.Errors, err.Error())
+		}
+	}
+
+	return o, nil
+}
+
+var (
+	ErrIbstatOutputBrokenStateDown        = errors.New("ibstat output unexpected; found State: Down (check the physical switch)")
+	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output unexpected; found Physical state: Disabled (check the physical switch)")
+)
+
+func ValidateIbstatOutput(s string) error {
+	if strings.Contains(s, "State: Down") {
+		return ErrIbstatOutputBrokenStateDown
+	}
+
+	// needs
+	// "ip link set <dev> up"
+	if strings.Contains(s, "Physical state: Disabled") {
+		return ErrIbstatOutputBrokenPhysicalDisabled
+	}
+
+	return nil
+}
+
+type IbstatOutput struct {
+	Parsed IBStatCards `json:"parsed,omitempty"`
+	Raw    string      `json:"raw"`
+	Errors []string    `json:"errors,omitempty"`
+}
+
 type IBStatCards []IBStatCard
 
-// Counts the number of cards whose "Port 1"."Rate" is equal to or greater
-// than the specified rate (e.g., count all the cards whose rate is >= 400).
-// If `expectedState` is not empty, it only counts the cards whose "Port 1"."State" is equal to the expected state.
-// If `expectedPhysicalState` is not empty, it only counts the cards whose "Port 1"."Physical state" is equal to the expected physical state.
-func (cards IBStatCards) CountByRates(rate int, expectedState string, expectedPhysicalState string) int {
+// Counts the number of cards whose physical state, state, and "Port 1"."Rate" match the expected values.
+// The specified rate is the threshold for "Port 1"."Rate", where it evaluates with ">=" operator
+// (e.g., count all the cards whose rate is >= 400).
+func (cards IBStatCards) Count(expectedPhysicalState string, expectedState string, atLeastRate int) int {
 	cnt := 0
 	for _, card := range cards {
-		if card.Port1.Rate < rate {
+		// e.g.,
+		// expected "Physical state: LinkUp"
+		// but got "Physical state: Disabled"
+		if card.Port1.PhysicalState != expectedPhysicalState {
 			continue
 		}
 
 		// e.g.,
-		// State: Active
-		// State: Down
-		if expectedState != "" && card.Port1.State != expectedState {
+		// expected "State: Active"
+		// but got "State: Down"
+		if card.Port1.State != expectedState {
 			continue
 		}
 
-		// e.g.,
-		// Physical state: LinkUp
-		// Physical state: Disabled
-		if expectedPhysicalState != "" && card.Port1.PhysicalState != expectedPhysicalState {
+		if atLeastRate > card.Port1.Rate {
 			continue
 		}
 

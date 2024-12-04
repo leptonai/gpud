@@ -134,9 +134,9 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 				expectedRate = infiniband.SupportsInfinibandPortRate(o.GPUProductName)
 			}
 
-			upCards := o.Ibstat.Parsed.CountByRates(expectedRate, "Active", "LinkUp")
-			if upCards < expectedPortCount {
-				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up (expected rate: %d Gb/sec)", upCards, expectedPortCount, expectedRate), false, nil
+			matched := o.Ibstat.Parsed.Count("LinkUp", "Active", expectedRate)
+			if matched < expectedPortCount {
+				return fmt.Sprintf("only %d out of %d ibstat cards are active and link up (expected rate: %d Gb/sec)", matched, expectedPortCount, expectedRate), false, nil
 			}
 		}
 	}
