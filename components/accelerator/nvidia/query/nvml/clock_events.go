@@ -266,12 +266,18 @@ func (inst *instance) pollClockEvents() {
 		case <-ticker.C:
 		}
 
+		// nvidia-smi polling happens periodically
+		// so we truncate the timestamp to the nearest minute
+		truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+
 		for _, dev := range inst.devices {
 			clockEvents, err := GetClockEvents(dev.UUID, dev.device)
 			if err != nil {
 				log.Logger.Errorw("failed to get clock events", "uuid", dev.UUID, "error", err)
 				continue
 			}
+			// overwrite timestamp to the nearest minute
+			clockEvents.Time = metav1.Time{Time: truncNowUTC}
 
 			// for now we only track hw slowdown events
 			if len(clockEvents.HWSlowdownReasons) == 0 {
@@ -296,7 +302,6 @@ func (inst *instance) pollClockEvents() {
 			if found {
 				continue
 			}
-
 			cctx, ccancel = context.WithTimeout(inst.rootCtx, 10*time.Second)
 			err = clock_events_state.InsertEvent(cctx, inst.db, ev)
 			ccancel()

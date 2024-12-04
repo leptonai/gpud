@@ -160,6 +160,16 @@ func ReadEvents(ctx context.Context, db *sql.DB, opts ...OpOption) ([]Event, err
 	}
 	defer rows.Close()
 
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
+	// data sources can be multiple (e.g., nvml and nvidia-smi)
+	// here, we prioritize nvml over nvidia-smi
+	// for the same unix second, only the one from nvml will be kept
+	unixToEventTypeToUUIDToDataSource := make(map[int64]map[string]map[string]string, 0)
+
 	events := []Event{}
 	for rows.Next() {
 		var event Event
@@ -173,6 +183,39 @@ func ReadEvents(ctx context.Context, db *sql.DB, opts ...OpOption) ([]Event, err
 		); err != nil {
 			return nil, err
 		}
+
+		_, ok := unixToEventTypeToUUIDToDataSource[event.UnixSeconds]
+		if !ok {
+			unixToEventTypeToUUIDToDataSource[event.UnixSeconds] = make(map[string]map[string]string, 0)
+		}
+		_, ok = unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType]
+		if !ok {
+			unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType] = make(map[string]string, 0)
+		}
+
+		prevDataSource, ok := unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType][event.GPUUUID]
+		currDataSource := event.DataSource
+
+		toInclude := true
+		if !ok {
+			// this GPU had NO PREVIOUS event at this unix second and event type ("nvml" or "nvidia-smi")
+			unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType][event.GPUUUID] = currDataSource
+		} else {
+			// this GPU HAD A PREVIOUS event at this unix second and event type BUT with different data source
+
+			// this works because we prioritize "nvml" over "nvidia-smi" in the SQL select statement
+			// "ORDER BY data_source DESC" where "nvml" comes before "nvidia-smi"
+			if op.dedupDataSource && prevDataSource == "nvml" {
+				// already had an event with the prioritized "nvml" data source
+				// thus we DO NOT need to return another event with the other data source ("nvidia-smi")
+				toInclude = false
+			}
+		}
+
+		if !toInclude {
+			continue
+		}
+
 		if err := json.Unmarshal([]byte(reasonsRaw), &event.Reasons); err != nil {
 			return nil, err
 		}
@@ -212,11 +255,16 @@ FROM %s`,
 		args = append(args, op.sinceUnixSeconds)
 	}
 
+	// sort by unix seconds and data source
+	// data source is sorted in reverse order so that "nvml" returns before "nvidia-smi"
+	// for the same unix second and event type
+	selectStatement += "\nORDER BY " + ColumnUnixSeconds
 	if op.sortUnixSecondsAscOrder {
-		selectStatement += "\nORDER BY " + ColumnUnixSeconds + " ASC"
+		selectStatement += " ASC"
 	} else {
-		selectStatement += "\nORDER BY " + ColumnUnixSeconds + " DESC"
+		selectStatement += " DESC"
 	}
+	selectStatement += ", " + ColumnDataSource + " DESC"
 
 	if op.limit > 0 {
 		selectStatement += fmt.Sprintf("\nLIMIT %d", op.limit)

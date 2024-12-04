@@ -12,6 +12,7 @@ type Op struct {
 	beforeUnixSeconds       int64
 	sortUnixSecondsAscOrder bool
 	limit                   int
+	dedupDataSource         bool
 }
 
 type OpOption func(*Op)
@@ -63,5 +64,14 @@ func WithSortUnixSecondsDescendingOrder() OpOption {
 func WithLimit(limit int) OpOption {
 	return func(op *Op) {
 		op.limit = limit
+	}
+}
+
+// Set true to deduplicate events by data sources.
+// Meaning, out of nvml and nvidia-smi, if there are events at the same time,
+// only the one from nvml will be kept.
+func WithDedupDataSource(dedup bool) OpOption {
+	return func(op *Op) {
+		op.dedupDataSource = dedup
 	}
 }
