@@ -105,32 +105,28 @@ func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) er
 
 	// select all "up" devices, and count the ones that match the expected rate with ">="
 	portNamesWithLinkUp := cards.Match("LinkUp", "", atLeastRate)
-	if len(portNamesWithLinkUp) >= atLeastPorts {
+	unstatisfieldCount := atLeastPorts - len(portNamesWithLinkUp)
+	if unstatisfieldCount <= 0 {
 		return nil
 	}
 
+	errMsg := fmt.Sprintf("not enough LinkUp ports, only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate", len(portNamesWithLinkUp), totalPorts, atLeastPorts, atLeastRate)
+
 	portNamesWithDisabled := cards.Match("Disabled", "", atLeastRate)
-	if len(portNamesWithDisabled) >= atLeastPorts {
-		// some ports must be down -- construct error message accordingly
-		return fmt.Errorf(
-			"not enough LinkUp ports of expected rate but enough of Disabled ports -- some ports must be down; only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate (disabled ports: %q)",
-			len(portNamesWithLinkUp),
-			totalPorts,
-			atLeastPorts,
+	if len(portNamesWithDisabled) > 0 {
+		// some ports must be missing -- construct error message accordingly
+		errMsg += fmt.Sprintf("; some ports might be down, %v Disabled devices with Rate > %v found (%v)",
+			len(portNamesWithDisabled),
 			atLeastRate,
-			portNamesWithDisabled,
+			strings.Join(portNamesWithDisabled, ", "),
 		)
 	}
 
-	// some ports must be missing -- construct error message accordingly
-	return fmt.Errorf(
-		"not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only %d satisfies the expected rate out of %d, expected at least %d ports and %d Gb/sec rate (disabled ports: %q)",
-		len(portNamesWithLinkUp),
-		totalPorts,
-		atLeastPorts,
-		atLeastRate,
-		portNamesWithDisabled,
-	)
+	unstatisfieldCount -= len(portNamesWithDisabled)
+	if unstatisfieldCount > 0 {
+		errMsg += "; some ports must be missing"
+	}
+	return errors.New(errMsg)
 }
 
 type IBStatCard struct {

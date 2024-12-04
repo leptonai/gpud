@@ -250,7 +250,6 @@ func TestValidateIBPorts(t *testing.T) {
 		{
 			name: "all ports active and matching rate",
 			cards: IBStatCards{
-
 				{
 					Name:  "mlx5_0",
 					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
@@ -302,7 +301,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports of expected rate but enough of Disabled ports -- some ports must be down; only 0 LinkUp out of 2, expected at least 2 ports and 200 Gb/sec rate (disabled ports: [\"mlx5_0\" \"mlx5_1\"])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 2, expected at least 2 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_0, mlx5_1)"),
 		},
 		{
 			name: "some ports down",
@@ -326,7 +325,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 2 satisfies the expected rate out of 4, expected at least 4 ports and 200 Gb/sec rate (disabled ports: [\"mlx5_1\" \"mlx5_3\"])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "wrong rate",
@@ -342,7 +341,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 0 satisfies the expected rate out of 2, expected at least 2 ports and 200 Gb/sec rate (disabled ports: [])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 2, expected at least 2 ports and 200 Gb/sec rate; some ports must be missing"),
 		},
 		{
 			name: "mixed rates with lower threshold",
@@ -382,7 +381,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 2 satisfies the expected rate out of 3, expected at least 3 ports and 200 Gb/sec rate (disabled ports: [\"mlx5_1\"])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 3, expected at least 3 ports and 200 Gb/sec rate; some ports might be down, 1 Disabled devices with Rate > 200 found (mlx5_1)"),
 		},
 		{
 			name: "mixed states with wrong rate",
@@ -402,14 +401,14 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 0 satisfies the expected rate out of 3, expected at least 3 ports and 200 Gb/sec rate (disabled ports: [])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 3, expected at least 3 ports and 200 Gb/sec rate; some ports must be missing"),
 		},
 		{
 			name:         "empty cards",
 			cards:        IBStatCards{},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 0 satisfies the expected rate out of 0, expected at least 2 ports and 200 Gb/sec rate (disabled ports: [])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 0, expected at least 2 ports and 200 Gb/sec rate; some ports must be missing"),
 		},
 		{
 			name: "some ports disabled but with high enough rate",
@@ -433,7 +432,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only 2 satisfies the expected rate out of 4, expected at least 4 ports and 200 Gb/sec rate (disabled ports: [\"mlx5_1\" \"mlx5_3\"])"),
+			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "zero required ports",
