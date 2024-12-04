@@ -25,7 +25,7 @@ func TestCreateSelectStatement(t *testing.T) {
 			opts: nil,
 			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
-ORDER BY %s DESC`,
+ORDER BY %s DESC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
@@ -33,6 +33,7 @@ ORDER BY %s DESC`,
 				ColumnReasons,
 				TableNameClockEvents,
 				ColumnUnixSeconds,
+				ColumnDataSource,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -43,7 +44,7 @@ ORDER BY %s DESC`,
 			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
-ORDER BY %s DESC`,
+ORDER BY %s DESC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
@@ -52,6 +53,7 @@ ORDER BY %s DESC`,
 				TableNameClockEvents,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
+				ColumnDataSource,
 			),
 			wantArgs: []any{int64(1234)},
 			wantErr:  false,
@@ -61,7 +63,7 @@ ORDER BY %s DESC`,
 			opts: []OpOption{WithSortUnixSecondsAscendingOrder()},
 			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
-ORDER BY %s ASC`,
+ORDER BY %s ASC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
@@ -69,6 +71,7 @@ ORDER BY %s ASC`,
 				ColumnReasons,
 				TableNameClockEvents,
 				ColumnUnixSeconds,
+				ColumnDataSource,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -78,7 +81,7 @@ ORDER BY %s ASC`,
 			opts: []OpOption{WithLimit(10)},
 			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
-ORDER BY %s DESC
+ORDER BY %s DESC, %s DESC
 LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
@@ -87,6 +90,7 @@ LIMIT 10`,
 				ColumnReasons,
 				TableNameClockEvents,
 				ColumnUnixSeconds,
+				ColumnDataSource,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -101,7 +105,7 @@ LIMIT 10`,
 			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
-ORDER BY %s ASC
+ORDER BY %s ASC, %s DESC
 LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
@@ -111,6 +115,7 @@ LIMIT 10`,
 				TableNameClockEvents,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
+				ColumnDataSource,
 			),
 			wantArgs: []any{int64(1234)},
 			wantErr:  false,
@@ -504,4 +509,279 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 		os.Remove(tmpfile.Name())
 	}
 	return db, cleanup
+}
+
+func TestDedupEvents(t *testing.T) {
+	t.Parallel()
+
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test case 1: Basic deduplication with nvml and nvidia-smi
+	// place nvidia-smi first but read will return nvml first
+	events := []Event{
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+	}
+
+	// Insert events
+	for _, event := range events {
+		if err := InsertEvent(ctx, db, event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	// Read events with dedup enabled
+	readEvents, err := ReadEvents(ctx, db, WithDedupDataSource(true))
+	if err != nil {
+		t.Fatalf("failed to read events: %v", err)
+	}
+
+	// Should only get one event (the nvml one)
+	if len(readEvents) != 1 {
+		t.Errorf("expected 1 event after dedup, got %d", len(readEvents))
+	}
+
+	if len(readEvents) > 0 {
+		got := readEvents[0]
+		want := events[1] // The nvml event
+		if got.DataSource != want.DataSource {
+			t.Errorf("expected data source %s, got %s", want.DataSource, got.DataSource)
+		}
+		if !reflect.DeepEqual(got.Reasons, want.Reasons) {
+			t.Errorf("expected reasons %v, got %v", want.Reasons, got.Reasons)
+		}
+	}
+
+	// Test case 2: Multiple events with different timestamps
+	events = []Event{
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1001,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail2"},
+		},
+	}
+
+	// Clear the table
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+		t.Fatalf("failed to clear table: %v", err)
+	}
+
+	// Insert events
+	for _, event := range events {
+		if err := InsertEvent(ctx, db, event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	// Read events with dedup enabled
+	readEvents, err = ReadEvents(ctx, db, WithDedupDataSource(true))
+	if err != nil {
+		t.Fatalf("failed to read events: %v", err)
+	}
+
+	// Should get both events since they have different timestamps
+	if len(readEvents) != 2 {
+		t.Errorf("expected 2 events for different timestamps, got %d", len(readEvents))
+	}
+
+	// Test case 3: Multiple GPUs at same timestamp
+	events = []Event{
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "2",
+			Reasons:     []string{"detail2"},
+		},
+	}
+
+	// Clear the table
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+		t.Fatalf("failed to clear table: %v", err)
+	}
+
+	// Insert events
+	for _, event := range events {
+		if err := InsertEvent(ctx, db, event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	// Read events with dedup enabled
+	readEvents, err = ReadEvents(ctx, db, WithDedupDataSource(true))
+	if err != nil {
+		t.Fatalf("failed to read events: %v", err)
+	}
+
+	// Should get both events since they are for different GPUs
+	if len(readEvents) != 2 {
+		t.Errorf("expected 2 events for different GPUs, got %d", len(readEvents))
+	}
+}
+
+func TestDataSourceOrdering(t *testing.T) {
+	t.Parallel()
+
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Test case 1: Same timestamp, same GPU - verify nvml comes before nvidia-smi
+	events := []Event{
+		// Intentionally insert nvidia-smi first to verify ordering is by data source
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+	}
+
+	// Insert events
+	for _, event := range events {
+		if err := InsertEvent(ctx, db, event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	// Read events with dedup disabled to verify ordering
+	readEvents, err := ReadEvents(ctx, db, WithDedupDataSource(false))
+	if err != nil {
+		t.Fatalf("failed to read events: %v", err)
+	}
+
+	// Should get both events with nvml first
+	if len(readEvents) != 2 {
+		t.Errorf("expected 2 events without dedup, got %d", len(readEvents))
+	}
+
+	if len(readEvents) == 2 {
+		// First event should be nvml
+		if readEvents[0].DataSource != "nvml" {
+			t.Errorf("expected first event to be from nvml, got %s", readEvents[0].DataSource)
+		}
+		// Second event should be nvidia-smi
+		if readEvents[1].DataSource != "nvidia-smi" {
+			t.Errorf("expected second event to be from nvidia-smi, got %s", readEvents[1].DataSource)
+		}
+	}
+
+	// Test case 2: Multiple events with mixed timestamps - verify ordering within same timestamp
+	events = []Event{
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1001,
+			DataSource:  "nvidia-smi",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail2"},
+		},
+		{
+			UnixSeconds: 1000,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail1"},
+		},
+		{
+			UnixSeconds: 1001,
+			DataSource:  "nvml",
+			EventType:   "hw_slowdown",
+			GPUUUID:     "1",
+			Reasons:     []string{"detail2"},
+		},
+	}
+
+	// Clear the table
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+		t.Fatalf("failed to clear table: %v", err)
+	}
+
+	// Insert events
+	for _, event := range events {
+		if err := InsertEvent(ctx, db, event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	// Read events with dedup disabled
+	readEvents, err = ReadEvents(ctx, db, WithDedupDataSource(false))
+	if err != nil {
+		t.Fatalf("failed to read events: %v", err)
+	}
+
+	// Should get all 4 events
+	if len(readEvents) != 4 {
+		t.Errorf("expected 4 events without dedup, got %d", len(readEvents))
+	}
+
+	if len(readEvents) == 4 {
+		// For each unique timestamp, nvml should come before nvidia-smi
+		// Events should be ordered by timestamp DESC, then data source DESC
+		expectedOrder := []struct {
+			unixSeconds int64
+			dataSource  string
+		}{
+			{1001, "nvml"},
+			{1001, "nvidia-smi"},
+			{1000, "nvml"},
+			{1000, "nvidia-smi"},
+		}
+
+		for i, expected := range expectedOrder {
+			got := readEvents[i]
+			if got.UnixSeconds != expected.unixSeconds || got.DataSource != expected.dataSource {
+				t.Errorf("event[%d]: expected {unix: %d, source: %s}, got {unix: %d, source: %s}",
+					i, expected.unixSeconds, expected.dataSource, got.UnixSeconds, got.DataSource)
+			}
+		}
+	}
 }
