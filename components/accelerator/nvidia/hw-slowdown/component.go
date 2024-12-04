@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -107,7 +106,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 const (
 	EventNameHWSlowdown = "hw_slowdown"
-	EventKeyUnixSeconds = "unix_seconds"
+	EventKeyGPUUUID     = "gpu_uuid"
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -129,7 +128,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			Name:    EventNameHWSlowdown,
 			Message: strings.Join(event.Reasons, ", "),
 			ExtraInfo: map[string]string{
-				EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
+				EventKeyGPUUUID: event.GPUUUID,
 			},
 		})
 	}
