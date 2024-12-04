@@ -57,7 +57,14 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := nvidia_clock_events_state.ReadEvents(ctx, c.db, nvidia_clock_events_state.WithSince(since))
+	events, err := nvidia_clock_events_state.ReadEvents(
+		ctx,
+		c.db,
+		nvidia_clock_events_state.WithSince(since),
+
+		// in order to dedup nvidia-smi events and prioritize nvml events
+		nvidia_clock_events_state.WithDedupDataSource(true),
+	)
 	if err != nil {
 		return nil, err
 	}
