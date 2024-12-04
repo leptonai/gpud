@@ -67,14 +67,14 @@ type IbstatOutput struct {
 
 type IBStatCards []IBStatCard
 
-// Counts the number of cards whose physical state, state, and "Port 1"."Rate" match the expected values.
+// Match returns the IB port names whose physical state, state, and "Port 1"."Rate" match the expected values.
 // The specified rate is the threshold for "Port 1"."Rate", where it evaluates with ">=" operator
 // (e.g., count all the cards whose rate is >= 400).
 //
 // If the `expectedPhysicalState` is empty, it matches all states.
 // If the `expectedState` is empty, it matches all states.
-func (cards IBStatCards) Count(expectedPhysicalState string, expectedState string, atLeastRate int) int {
-	cnt := 0
+func (cards IBStatCards) Match(expectedPhysicalState string, expectedState string, atLeastRate int) []string {
+	names := make([]string, 0)
 	for _, card := range cards {
 		// e.g.,
 		// expected "Physical state: LinkUp"
@@ -94,9 +94,9 @@ func (cards IBStatCards) Count(expectedPhysicalState string, expectedState strin
 			continue
 		}
 
-		cnt++
+		names = append(names, card.Name)
 	}
-	return cnt
+	return names
 }
 
 // CheckPortsAndRate checks if the number of active IB ports matches expectations
@@ -104,32 +104,32 @@ func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) er
 	totalPorts := len(cards)
 
 	// select all "up" devices, and count the ones that match the expected rate with ">="
-	portsWithLinkUp := cards.Count("LinkUp", "", atLeastRate)
-	if portsWithLinkUp >= atLeastPorts {
+	portNamesWithLinkUp := cards.Match("LinkUp", "", atLeastRate)
+	if len(portNamesWithLinkUp) >= atLeastPorts {
 		return nil
 	}
 
-	// some devices are missing -- less than expected ports found
-	// count all ports regardless of the physical states, states
-	portsWithHighEnoughRates := cards.Count("", "", atLeastRate)
-	if portsWithHighEnoughRates >= atLeastPorts {
+	portNamesWithDisabled := cards.Match("Disabled", "", atLeastRate)
+	if len(portNamesWithDisabled) >= atLeastPorts {
 		// some ports must be down -- construct error message accordingly
 		return fmt.Errorf(
-			"not enough LinkUp ports, some ports must be down; only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate",
-			portsWithLinkUp,
+			"not enough LinkUp ports of expected rate but enough of Disabled ports -- some ports must be down; only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate (disabled ports: %q)",
+			len(portNamesWithLinkUp),
 			totalPorts,
 			atLeastPorts,
 			atLeastRate,
+			portNamesWithDisabled,
 		)
 	}
 
 	// some ports must be missing -- construct error message accordingly
 	return fmt.Errorf(
-		"not enough LinkUp ports, less than expected ports with rates, some ports must be missing; only %d satisfies the expected rate out of %d, expected at least %d ports and %d Gb/sec rate",
-		portsWithHighEnoughRates,
+		"not enough LinkUp or Disabled ports of expected rate -- some ports must be missing; only %d satisfies the expected rate out of %d, expected at least %d ports and %d Gb/sec rate (disabled ports: %q)",
+		len(portNamesWithLinkUp),
 		totalPorts,
 		atLeastPorts,
 		atLeastRate,
+		portNamesWithDisabled,
 	)
 }
 
