@@ -144,6 +144,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		evs = append(evs, components.Event{
 			Time: ev.Time,
 			Name: Name,
+			Type: "ErrCritical",
 			ExtraInfo: map[string]string{
 				EventKeyFabricManagerNVSwitchLogUnixSeconds: fmt.Sprintf("%d", ev.Time.Unix()),
 				EventKeyFabricManagerNVSwitchLogLine:        ev.Line,

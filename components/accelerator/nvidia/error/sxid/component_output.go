@@ -145,6 +145,7 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 		des = append(des, components.Event{
 			Time:    sxidErr.Time,
 			Name:    EventNameErroSXid,
+			Type:    "ErrCritical",
 			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroSXidUnixSeconds: strconv.FormatInt(sxidErr.Time.Unix(), 10),
