@@ -19,7 +19,17 @@ import (
 )
 
 type Op struct {
-	fstypes map[string]struct{}
+	fstypeMatchFunc MatchFstypeFunc
+}
+
+type MatchFstypeFunc func(fs string) bool
+
+func DefaultMatchFstypeFunc(fs string) bool {
+	return fs == "ext4" ||
+		strings.HasPrefix(fs, "xfs") ||
+		strings.HasPrefix(fs, "btrfs") ||
+		strings.HasPrefix(fs, "zfs") ||
+		strings.HasPrefix(fs, "fuse.") // e.g., "fuse.juicefs"
 }
 
 type OpOption func(*Op)
@@ -29,15 +39,16 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
+	if op.fstypeMatchFunc == nil {
+		op.fstypeMatchFunc = DefaultMatchFstypeFunc
+	}
+
 	return nil
 }
 
-func WithFstype(fs string) OpOption {
+func WithMatchFstypeFunc(matchFunc MatchFstypeFunc) OpOption {
 	return func(op *Op) {
-		if op.fstypes == nil {
-			op.fstypes = make(map[string]struct{})
-		}
-		op.fstypes[fs] = struct{}{}
+		op.fstypeMatchFunc = matchFunc
 	}
 }
 
@@ -55,15 +66,10 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	ps := make([]Partition, 0, len(partitions))
 	deviceToPartitions := make(map[string]Partitions)
 	for _, p := range partitions {
-		if len(op.fstypes) > 0 {
-			if _, ok := op.fstypes[p.Fstype]; !ok {
-				log.Logger.Warnw("skipping partition", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
-				continue
-			}
+		if !op.fstypeMatchFunc(p.Fstype) {
+			log.Logger.Debugw("skipping partition", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
+			continue
 		}
-
-		dd, _ := disk.SerialNumberWithContext(ctx, p.Device)
-		fmt.Println("dd", dd, p.Device)
 
 		part := Partition{
 			Device:      p.Device,
@@ -213,7 +219,6 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 	table.SetHeader([]string{"Device", "FS Types", "Mount Points", "Mounted", "Total", "Used", "Free"})
 
 	for _, part := range parts {
-		fmt.Printf("part.MountPoints: %+q\n", part.MountPoints)
 		table.Append([]string{
 			part.Device,
 			strings.Join(part.Fstypes, "\n"),
