@@ -248,7 +248,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.StringFlag{
 					Name:        "expected-port-states-nvidia-infiniband",
-					Usage:       "set the expected port states for NVIDIA InfiniBand (e.g., --expected-port-states-nvidia-infiniband='{\"port_count\": 4, \"rate\": 400}')",
+					Usage:       "set the expected port states for NVIDIA InfiniBand (e.g., --expected-port-states-nvidia-infiniband='{\"at_least_ports\": 4, \"at_least_rate\": 400}')",
 					Destination: &expectedPortStates,
 				},
 				&cli.BoolFlag{
