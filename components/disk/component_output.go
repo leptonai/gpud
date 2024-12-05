@@ -16,30 +16,46 @@ import (
 )
 
 type Output struct {
-	ExtPartitions disk.Partitions `json:"ext_partitions"`
+	DiskExtPartitions disk.Partitions   `json:"disk_ext_partitions"`
+	DiskBlockDevices  disk.BlockDevices `json:"disk_block_devices"`
 }
 
 const (
-	StateNameDiskExtPartitions             = "disk_ext_partitions"
-	StateKeyDiskExtPartitionsData          = "data"
-	StateKeyDiskExtPartitionsEncoding      = "encoding"
-	StateValueDiskExtPartitionEncodingJSON = "json"
+	StateNameDiskExtPartitions = "disk_ext_partitions"
+	StateNameDiskBlockDevices  = "disk_block_devices"
 
-	StateNameMountedPartitionsEXT              = "mounted_partitions_ext"
-	StateKeyMountedPartitionsEXTTotalBytes     = "mounted_total_bytes"
-	StateKeyMountedPartitionsEXTTotalGB        = "mounted_total_gb"
-	StateKeyMountedPartitionsEXTTotalHumanized = "mounted_total_humanized"
+	StateKeyData           = "data"
+	StateKeyEncoding       = "encoding"
+	StateValueEncodingJSON = "json"
+
+	StateNameDiskExtPartitionsTotal         = "disk_ext_partitions_total"
+	StateKeyDiskExtPartitionsTotalBytes     = "disk_ext_partitions_total_bytes"
+	StateKeyDiskExtPartitionsTotalGB        = "disk_ext_partitions_total_gb"
+	StateKeyDiskExtPartitionsTotalHumanized = "disk_ext_partitions_total_humanized"
+
+	StateNameDiskBlockDevicesTotal         = "disk_block_devices_total"
+	StateKeyDiskBlockDevicesTotalBytes     = "disk_block_devices_total_bytes"
+	StateKeyDiskBlockDevicesTotalGB        = "disk_block_devices_total_gb"
+	StateKeyDiskBlockDevicesTotalHumanized = "disk_block_devices_total_humanized"
 )
 
 func (o *Output) States() ([]components.State, error) {
-	b, err := o.ExtPartitions.JSON()
+	diskExtPartitionsData, err := o.DiskExtPartitions.JSON()
+	if err != nil {
+		return nil, err
+	}
+	diskBlockDevicesData, err := o.DiskBlockDevices.JSON()
 	if err != nil {
 		return nil, err
 	}
 
-	totalMountedBytes := o.ExtPartitions.TotalBytes()
+	totalMountedBytes := o.DiskExtPartitions.GetMountedTotalBytes()
 	totalMountedGB := float64(totalMountedBytes) / 1e9
 	totalMountedBytesHumanized := humanize.Bytes(totalMountedBytes)
+
+	blkDevTotalBytes := o.DiskBlockDevices.GetTotalBytes()
+	blkDevTotalGB := float64(blkDevTotalBytes) / 1e9
+	blkDevTotalBytesHumanized := humanize.Bytes(blkDevTotalBytes)
 
 	return []components.State{
 		{
@@ -47,18 +63,37 @@ func (o *Output) States() ([]components.State, error) {
 			Healthy: true,
 			Reason:  "",
 			ExtraInfo: map[string]string{
-				StateKeyDiskExtPartitionsData:     string(b),
-				StateKeyDiskExtPartitionsEncoding: StateValueDiskExtPartitionEncodingJSON,
+				StateKeyData:     string(diskExtPartitionsData),
+				StateKeyEncoding: StateValueEncodingJSON,
 			},
 		},
 		{
-			Name:    StateNameMountedPartitionsEXT,
+			Name:    StateNameDiskBlockDevices,
 			Healthy: true,
 			Reason:  "",
 			ExtraInfo: map[string]string{
-				StateKeyMountedPartitionsEXTTotalBytes:     fmt.Sprintf("%d", totalMountedBytes),
-				StateKeyMountedPartitionsEXTTotalGB:        fmt.Sprintf("%.2f", totalMountedGB),
-				StateKeyMountedPartitionsEXTTotalHumanized: totalMountedBytesHumanized,
+				StateKeyData:     string(diskBlockDevicesData),
+				StateKeyEncoding: StateValueEncodingJSON,
+			},
+		},
+		{
+			Name:    StateNameDiskExtPartitionsTotal,
+			Healthy: true,
+			Reason:  "",
+			ExtraInfo: map[string]string{
+				StateKeyDiskExtPartitionsTotalBytes:     fmt.Sprintf("%d", totalMountedBytes),
+				StateKeyDiskExtPartitionsTotalGB:        fmt.Sprintf("%.2f", totalMountedGB),
+				StateKeyDiskExtPartitionsTotalHumanized: totalMountedBytesHumanized,
+			},
+		},
+		{
+			Name:    StateNameDiskBlockDevicesTotal,
+			Healthy: true,
+			Reason:  "",
+			ExtraInfo: map[string]string{
+				StateKeyDiskBlockDevicesTotalBytes:     fmt.Sprintf("%d", blkDevTotalBytes),
+				StateKeyDiskBlockDevicesTotalGB:        fmt.Sprintf("%.2f", blkDevTotalGB),
+				StateKeyDiskBlockDevicesTotalHumanized: blkDevTotalBytesHumanized,
 			},
 		},
 	}, nil
@@ -100,7 +135,7 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 		for _, p := range parts {
 			if p.Fstype == "ext4" {
-				o.ExtPartitions = append(o.ExtPartitions, p)
+				o.DiskExtPartitions = append(o.DiskExtPartitions, p)
 			}
 		}
 
@@ -109,7 +144,7 @@ func CreateGet(cfg Config) query.GetFunc {
 		metrics.SetLastUpdateUnixSeconds(nowUTC)
 
 		// for _, path := range cfg.MountPointsToTrackUsage {
-		for _, p := range o.ExtPartitions {
+		for _, p := range o.DiskExtPartitions {
 			usage := p.Usage
 			if usage == nil {
 				log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)

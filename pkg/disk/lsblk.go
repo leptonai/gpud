@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
@@ -37,38 +38,26 @@ const (
 		"--output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
 	// outputKey is the key to find block devices in lsblk json output
 	outputKey = "blockdevices"
-	// romDeviceType is the constant that represents rom devices to exclude them from lsblk output
-	romDeviceType = "rom"
 )
 
 // GetBlockDevices run os lsblk command for device and construct BlockDevice struct based on output
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, err
-	}
-
-	cmd := fmt.Sprintf(CmdTmpl, op.device)
+	cmd := fmt.Sprintf(CmdTmpl, "") // list all devices
 	out, err := exec.CommandContext(ctx, cmd).Output()
 	if err != nil {
 		return nil, err
 	}
 
-	return Parse(out)
+	return Parse(out, opts...)
 }
 
-func Parse(b []byte) (BlockDevices, error) {
-	println()
-	println()
-	println()
-	println()
-	fmt.Println("string(b)", string(b))
-	println()
-	println()
-	println()
-	println()
+func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
 
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -81,14 +70,37 @@ func Parse(b []byte) (BlockDevices, error) {
 	}
 
 	devs := make(BlockDevices, 0)
-	for _, d := range rawDevs {
-		if d.Type == romDeviceType {
+	for _, parentDev := range rawDevs {
+		if !op.matchFuncFstype(parentDev.FSType) {
+			continue
+		}
+		if !op.matchFuncDeviceType(parentDev.Type) {
 			continue
 		}
 
-		d.SizeHumanized = humanize.Bytes(uint64(d.Size.Int64))
-		devs = append(devs, d)
+		parentDev.SizeHumanized = humanize.Bytes(uint64(parentDev.Size.Int64))
+
+		children := make([]BlockDevice, 0)
+		for _, child := range parentDev.Children {
+			if !op.matchFuncFstype(child.FSType) {
+				continue
+			}
+			if !op.matchFuncDeviceType(child.Type) {
+				continue
+			}
+
+			child.ParentDeviceName = parentDev.Name
+			child.SizeHumanized = humanize.Bytes(uint64(child.Size.Int64))
+			children = append(children, child)
+		}
+		parentDev.Children = children
+
+		devs = append(devs, parentDev)
 	}
+
+	sort.Slice(devs, func(i, j int) bool {
+		return devs[i].Name < devs[j].Name
+	})
 	return devs, nil
 }
 
@@ -104,36 +116,59 @@ func (blks BlockDevices) YAML() ([]byte, error) {
 
 func (blks BlockDevices) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Name", "Type", "Size", "Mount Point"})
+	table.SetHeader([]string{"Name", "Parent", "Type", "FSType", "Size", "Mount Point"})
 
 	for _, blk := range blks {
 		table.Append([]string{
 			blk.Name,
+			"",
 			blk.Type,
+			blk.FSType,
 			blk.SizeHumanized,
 			blk.MountPoint,
 		})
+
+		for _, child := range blk.Children {
+			table.Append([]string{
+				child.Name,
+				child.ParentDeviceName,
+				child.Type,
+				child.FSType,
+				child.SizeHumanized,
+				child.MountPoint,
+			})
+		}
 	}
 
 	table.Render()
 }
 
+// Returns the total bytes of all block devices.
+func (blks BlockDevices) GetTotalBytes() uint64 {
+	var total uint64
+	for _, blk := range blks {
+		total += uint64(blk.Size.Int64)
+	}
+	return total
+}
+
 // BlockDevice is the struct that represents output of lsblk command for a device
 type BlockDevice struct {
-	Name          string        `json:"name,omitempty"`
-	Type          string        `json:"type,omitempty"`
-	Size          CustomInt64   `json:"size,omitempty"`
-	SizeHumanized string        `json:"size_humanized,omitempty"`
-	Rota          CustomBool    `json:"rota,omitempty"`
-	Serial        string        `json:"serial,omitempty"`
-	WWN           string        `json:"wwn,omitempty"`
-	Vendor        string        `json:"vendor,omitempty"`
-	Model         string        `json:"model,omitempty"`
-	Rev           string        `json:"rev,omitempty"`
-	MountPoint    string        `json:"mountpoint,omitempty"`
-	FSType        string        `json:"fstype,omitempty"`
-	PartUUID      string        `json:"partuuid,omitempty"`
-	Children      []BlockDevice `json:"children,omitempty"`
+	Name             string        `json:"name,omitempty"`
+	ParentDeviceName string        `json:"parent_device_name,omitempty"`
+	Type             string        `json:"type,omitempty"`
+	Size             CustomInt64   `json:"size,omitempty"`
+	SizeHumanized    string        `json:"size_humanized,omitempty"`
+	Rota             CustomBool    `json:"rota,omitempty"`
+	Serial           string        `json:"serial,omitempty"`
+	WWN              string        `json:"wwn,omitempty"`
+	Vendor           string        `json:"vendor,omitempty"`
+	Model            string        `json:"model,omitempty"`
+	Rev              string        `json:"rev,omitempty"`
+	MountPoint       string        `json:"mountpoint,omitempty"`
+	FSType           string        `json:"fstype,omitempty"`
+	PartUUID         string        `json:"partuuid,omitempty"`
+	Children         []BlockDevice `json:"children,omitempty"`
 }
 
 // CustomInt64 to handle Size lsblk output - 8001563222016 or "8001563222016"

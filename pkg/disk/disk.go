@@ -32,7 +32,7 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	ps := make([]Partition, 0, len(partitions))
 	deviceToPartitions := make(map[string]Partitions)
 	for _, p := range partitions {
-		if !op.fstypeMatchFunc(p.Fstype) {
+		if !op.matchFuncFstype(p.Fstype) {
 			log.Logger.Debugw("skipping partition", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
 			continue
 		}
@@ -111,23 +111,6 @@ func (parts Partitions) YAML() ([]byte, error) {
 	return yaml.Marshal(parts)
 }
 
-func (parts Partitions) TotalBytes() uint64 {
-	var total uint64
-	for _, p := range parts {
-		if p.Usage == nil {
-			continue
-		}
-
-		// skip unmounted partitions
-		if !p.Mounted {
-			continue
-		}
-
-		total += p.Usage.TotalBytes
-	}
-	return total
-}
-
 func (parts Partitions) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetHeader([]string{"Device", "Fstype", "Mount Point", "Mounted", "Total", "Used", "Free"})
@@ -145,6 +128,24 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 	}
 
 	table.Render()
+}
+
+// Returns the total bytes of all mounted partitions.
+func (parts Partitions) GetMountedTotalBytes() uint64 {
+	var total uint64
+	for _, p := range parts {
+		if p.Usage == nil {
+			continue
+		}
+
+		// skip unmounted partitions
+		if !p.Mounted {
+			continue
+		}
+
+		total += p.Usage.TotalBytes
+	}
+	return total
 }
 
 type Partition struct {

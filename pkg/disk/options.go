@@ -3,20 +3,11 @@ package disk
 import "strings"
 
 type Op struct {
-	fstypeMatchFunc MatchFstypeFunc
-	device          string
+	matchFuncFstype     MatchFunc
+	matchFuncDeviceType MatchFunc
 }
 
-type MatchFstypeFunc func(fs string) bool
-
-func DefaultMatchFstypeFunc(fs string) bool {
-	return strings.HasPrefix(fs, "ext4") ||
-		strings.HasPrefix(fs, "apfs") ||
-		strings.HasPrefix(fs, "xfs") ||
-		strings.HasPrefix(fs, "btrfs") ||
-		strings.HasPrefix(fs, "zfs") ||
-		(strings.HasPrefix(fs, "fuse.") && !strings.HasPrefix(fs, "fuse.lxcfs")) // e.g., "fuse.juicefs"
-}
+type MatchFunc func(fs string) bool
 
 type OpOption func(*Op)
 
@@ -25,21 +16,42 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
-	if op.fstypeMatchFunc == nil {
-		op.fstypeMatchFunc = DefaultMatchFstypeFunc
+	if op.matchFuncFstype == nil {
+		op.matchFuncFstype = func(_ string) bool {
+			return true
+		}
+	}
+
+	if op.matchFuncDeviceType == nil {
+		op.matchFuncDeviceType = func(_ string) bool {
+			return true
+		}
 	}
 
 	return nil
 }
 
-func WithMatchFstypeFunc(matchFunc MatchFstypeFunc) OpOption {
+func WithFstype(matchFunc MatchFunc) OpOption {
 	return func(op *Op) {
-		op.fstypeMatchFunc = matchFunc
+		op.matchFuncFstype = matchFunc
 	}
 }
 
-func WithDevice(device string) OpOption {
+func WithDeviceType(matchFunc MatchFunc) OpOption {
 	return func(op *Op) {
-		op.device = device
+		op.matchFuncDeviceType = matchFunc
 	}
+}
+
+func DefaultMatchFuncFstype(fs string) bool {
+	return strings.HasPrefix(fs, "ext4") ||
+		strings.HasPrefix(fs, "apfs") ||
+		strings.HasPrefix(fs, "xfs") ||
+		strings.HasPrefix(fs, "btrfs") ||
+		strings.HasPrefix(fs, "zfs") ||
+		(strings.HasPrefix(fs, "fuse.") && !strings.HasPrefix(fs, "fuse.lxcfs")) // e.g., "fuse.juicefs"
+}
+
+func DefaultMatchFuncDeviceType(deviceType string) bool {
+	return deviceType == "disk" // not "part" partitions
 }
