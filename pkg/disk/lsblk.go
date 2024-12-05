@@ -176,7 +176,7 @@ type CustomInt64 struct {
 	Int64 int64
 }
 
-// UnmarshalJSON customizes string size unmarshalling
+// UnmarshalJSON customizes string size unmarshaling
 func (ci *CustomInt64) UnmarshalJSON(data []byte) error {
 	QuotesByte := byte(34)
 	if data[0] == QuotesByte {
@@ -193,7 +193,7 @@ func (ci *CustomInt64) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON customizes size marshalling
+// MarshalJSON customizes size marshaling
 func (ci *CustomInt64) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ci.Int64)
 }
@@ -203,7 +203,7 @@ type CustomBool struct {
 	Bool bool
 }
 
-// UnmarshalJSON customizes string rota unmarshalling
+// UnmarshalJSON customizes string rota unmarshaling
 func (cb *CustomBool) UnmarshalJSON(data []byte) error {
 	switch string(data) {
 	case `"true"`, `true`, `"1"`, `1`:
@@ -217,7 +217,7 @@ func (cb *CustomBool) UnmarshalJSON(data []byte) error {
 	}
 }
 
-// MarshalJSON customizes rota marshalling
+// MarshalJSON customizes rota marshaling
 func (cb CustomBool) MarshalJSON() ([]byte, error) {
 	return json.Marshal(cb.Bool)
 }
