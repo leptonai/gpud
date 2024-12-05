@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/dustin/go-humanize"
@@ -43,6 +44,12 @@ func GetPartitions() (Partitions, error) {
 
 		ps = append(ps, part)
 	}
+
+	// sort in descending order of total bytes
+	sort.Slice(ps, func(i, j int) bool {
+		return ps[i].Usage.TotalBytes > ps[j].Usage.TotalBytes
+	})
+
 	return ps, nil
 }
 
