@@ -75,7 +75,6 @@ func GetPartitions(opts ...OpOption) (Partitions, error) {
 		}
 
 		if part.Mounted {
-			fmt.Println("getting usage for", p.Mountpoint, p.Fstype, p.Device)
 			part.Usage, err = GetUsage(p.Mountpoint)
 			if err != nil {
 				return nil, err
@@ -207,17 +206,18 @@ func (parts Partitions) AggregateUsage() *Usage {
 
 func (parts Partitions) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Device", "FS Types", "Mount Points", "Mounted", "Total", "Free", "Used"})
+	table.SetHeader([]string{"Device", "FS Types", "Mount Points", "Mounted", "Total", "Used", "Free"})
 
 	for _, part := range parts {
+		fmt.Printf("part.MountPoints: %+q\n", part.MountPoints)
 		table.Append([]string{
 			part.Device,
 			strings.Join(part.Fstypes, "\n"),
 			strings.Join(part.MountPoints, "\n"),
 			strconv.FormatBool(part.Mounted),
 			part.Usage.TotalHumanized,
-			part.Usage.FreeHumanized,
 			part.Usage.UsedHumanized,
+			part.Usage.FreeHumanized,
 		})
 	}
 
