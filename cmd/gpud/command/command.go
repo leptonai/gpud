@@ -41,6 +41,7 @@ var (
 	pollXidEvents bool
 	pollGPMEvents bool
 	netcheck      bool
+	diskcheck     bool
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -529,6 +530,11 @@ cat summary.txt
 					Name:        "netcheck",
 					Usage:       "enable network connectivity checks to global edge/derp servers (default: true)",
 					Destination: &netcheck,
+				},
+				&cli.BoolTFlag{
+					Name:        "diskcheck",
+					Usage:       "enable disk checks (default: true)",
+					Destination: &diskcheck,
 				},
 			},
 		},

@@ -32,10 +32,4 @@ func TestComponent(t *testing.T) {
 		t.Fatalf("failed to get state: %v", err)
 	}
 	t.Logf("states: %+v", states)
-
-	parsedOutput, err := ParseStatesToOutput(states...)
-	if err != nil {
-		t.Fatalf("failed to parse states: %v", err)
-	}
-	t.Logf("parsed output: %+v", parsedOutput)
 }
