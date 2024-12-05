@@ -71,14 +71,7 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 
 	scanner := bufio.NewScanner(p.StdoutReader())
 	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-
-		// e.g.,
-		// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
-		// 01:00.1 Audio device: NVIDIA Corporation Device 22ba (rev a1)
-		if strings.Contains(line, "NVIDIA") {
-			lines = append(lines, line)
-		}
+		lines = append(lines, scanner.Text())
 
 		select {
 		case err := <-p.Wait():
