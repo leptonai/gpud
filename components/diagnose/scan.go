@@ -248,7 +248,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			partitions.RenderTable(os.Stdout)
 			if len(partitions) > 0 {
-				fmt.Printf("\n\npartitions have total mounted size %s\n\n", checkMark, humanize.Bytes(partitions.GetMountedTotalBytes()))
+				fmt.Printf("\npartitions have total mounted size %s\n\n\n", humanize.Bytes(partitions.GetMountedTotalBytes()))
 			}
 		}
 
@@ -258,7 +258,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			blockDevices.RenderTable(os.Stdout)
 			if len(blockDevices) > 0 {
-				fmt.Printf("\n\nblock devices have total size %s\n\n", checkMark, humanize.Bytes(blockDevices.GetTotalBytes()))
+				fmt.Printf("\nblock devices have total size %s\n\n\n", humanize.Bytes(blockDevices.GetTotalBytes()))
 			}
 		}
 	}
