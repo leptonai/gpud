@@ -247,6 +247,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			partitions.RenderTable(os.Stdout)
 		}
+
+		blockDevices, err := disk.GetBlockDevices(ctx)
+		if err != nil {
+			log.Logger.Warnw("error getting block devices", "error", err)
+		} else {
+			blockDevices.RenderTable(os.Stdout)
+		}
 	}
 
 	fmt.Printf("\n\n%s scan complete\n\n", checkMark)

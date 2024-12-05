@@ -1,3 +1,4 @@
+// Package disk provides utilities for disk operations.
 package disk
 
 import (
@@ -8,7 +9,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/leptonai/gpud/log"
 
@@ -17,40 +17,6 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 	"sigs.k8s.io/yaml"
 )
-
-type Op struct {
-	fstypeMatchFunc MatchFstypeFunc
-}
-
-type MatchFstypeFunc func(fs string) bool
-
-func DefaultMatchFstypeFunc(fs string) bool {
-	return fs == "ext4" ||
-		strings.HasPrefix(fs, "xfs") ||
-		strings.HasPrefix(fs, "btrfs") ||
-		strings.HasPrefix(fs, "zfs") ||
-		(strings.HasPrefix(fs, "fuse.") && !strings.HasPrefix(fs, "fuse.lxcfs")) // e.g., "fuse.juicefs"
-}
-
-type OpOption func(*Op)
-
-func (op *Op) applyOpts(opts []OpOption) error {
-	for _, opt := range opts {
-		opt(op)
-	}
-
-	if op.fstypeMatchFunc == nil {
-		op.fstypeMatchFunc = DefaultMatchFstypeFunc
-	}
-
-	return nil
-}
-
-func WithMatchFstypeFunc(matchFunc MatchFstypeFunc) OpOption {
-	return func(op *Op) {
-		op.fstypeMatchFunc = matchFunc
-	}
-}
 
 func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	op := &Op{}
@@ -72,9 +38,9 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 		}
 
 		part := Partition{
-			Device:      p.Device,
-			Fstypes:     []string{p.Fstype},
-			MountPoints: []string{p.Mountpoint},
+			Device:     p.Device,
+			Fstype:     p.Fstype,
+			MountPoint: p.Mountpoint,
 		}
 
 		_, err := os.Stat(p.Mountpoint)
@@ -97,45 +63,6 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 			deviceToPartitions[part.Device] = make([]Partition, 0)
 		}
 		deviceToPartitions[part.Device] = append(deviceToPartitions[part.Device], part)
-	}
-
-	for dev, parts := range deviceToPartitions {
-		if len(parts) < 2 { // no need to aggregate
-			continue
-		}
-
-		fsTypesSet := make(map[string]struct{})
-		mountPoints := make([]string, 0, len(parts))
-		mounted := true
-		for _, p := range parts {
-			for _, fsType := range p.Fstypes {
-				fsTypesSet[fsType] = struct{}{}
-			}
-
-			mountPoints = append(mountPoints, p.MountPoints...)
-			if !p.Mounted {
-				mounted = false
-			}
-		}
-		sort.Strings(mountPoints)
-
-		fsTypes := make([]string, 0, len(fsTypesSet))
-		for fsType := range fsTypesSet {
-			fsTypes = append(fsTypes, fsType)
-		}
-		sort.Strings(fsTypes)
-
-		// multiple mount points for the same device
-		aggPart := Partition{
-			Device:  dev,
-			Fstypes: fsTypes,
-
-			MountPoints: mountPoints,
-			Mounted:     mounted,
-
-			Usage: parts.AggregateUsage(),
-		}
-		ps = append(ps, aggPart)
 	}
 
 	// sort in descending order of total bytes
@@ -196,33 +123,20 @@ func (parts Partitions) TotalBytes() uint64 {
 			continue
 		}
 
-		// skip aggregated partitions
-		if len(p.MountPoints) > 1 {
-			continue
-		}
-
 		total += p.Usage.TotalBytes
 	}
 	return total
 }
 
-func (parts Partitions) AggregateUsage() *Usage {
-	var agg Usage
-	for _, p := range parts {
-		agg = agg.Add(*p.Usage)
-	}
-	return &agg
-}
-
 func (parts Partitions) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Device", "FS Types", "Mount Points", "Mounted", "Total", "Used", "Free"})
+	table.SetHeader([]string{"Device", "Fstype", "Mount Point", "Mounted", "Total", "Used", "Free"})
 
 	for _, part := range parts {
 		table.Append([]string{
 			part.Device,
-			strings.Join(part.Fstypes, "\n"),
-			strings.Join(part.MountPoints, "\n"),
+			part.Fstype,
+			part.MountPoint,
 			strconv.FormatBool(part.Mounted),
 			part.Usage.TotalHumanized,
 			part.Usage.UsedHumanized,
@@ -236,16 +150,9 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 type Partition struct {
 	Device string `json:"device"`
 
-	// Fstypes is a list of filesystem types for the device.
-	// Only multiple mount points for aggregated partitions.
-	// For example, ["xfs", "ext4"] for the device "/dev/mapper/vgroot-lvroot".
-	Fstypes []string `json:"fstypes"`
-
-	// MountPoints is a list of mount points for the device.
-	// Only multiple mount points for aggregated partitions.
-	// For example, "/var/lib/kubelet/pods/*" will be aggregated for the device "/dev/mapper/vgroot-lvroot".
-	MountPoints []string `json:"mount_points"`
-	Mounted     bool     `json:"mounted"`
+	Fstype     string `json:"fstype"`
+	MountPoint string `json:"mount_point"`
+	Mounted    bool   `json:"mounted"`
 
 	Usage *Usage `json:"usage"`
 }
@@ -273,43 +180,4 @@ type Usage struct {
 
 func (u Usage) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(u.UsedPercent, 64)
-}
-
-func (a Usage) Add(b Usage) Usage {
-	totalBytes := a.TotalBytes + b.TotalBytes
-	freeBytes := a.FreeBytes + b.FreeBytes
-	usedBytes := a.UsedBytes + b.UsedBytes
-
-	// Calculate used percentage
-	usedPercent := 0.0
-	if totalBytes > 0 {
-		usedPercent = float64(usedBytes) / float64(totalBytes) * 100
-	}
-
-	// Calculate inodes
-	inodesTotal := a.InodesTotal + b.InodesTotal
-	inodesUsed := a.InodesUsed + b.InodesUsed
-	inodesFree := a.InodesFree + b.InodesFree
-
-	// Calculate inodes percentage
-	inodesUsedPercent := 0.0
-	if inodesTotal > 0 {
-		inodesUsedPercent = float64(inodesUsed) / float64(inodesTotal) * 100
-	}
-
-	return Usage{
-		TotalBytes:             totalBytes,
-		TotalHumanized:         humanize.Bytes(totalBytes),
-		FreeBytes:              freeBytes,
-		FreeHumanized:          humanize.Bytes(freeBytes),
-		UsedBytes:              usedBytes,
-		UsedHumanized:          humanize.Bytes(usedBytes),
-		UsedPercent:            fmt.Sprintf("%.2f", usedPercent),
-		UsedPercentFloat:       usedPercent,
-		InodesTotal:            inodesTotal,
-		InodesUsed:             inodesUsed,
-		InodesFree:             inodesFree,
-		InodesUsedPercent:      fmt.Sprintf("%.2f", inodesUsedPercent),
-		InodesUsedPercentFloat: inodesUsedPercent,
-	}
 }
