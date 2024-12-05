@@ -29,7 +29,7 @@ func DefaultMatchFstypeFunc(fs string) bool {
 		strings.HasPrefix(fs, "xfs") ||
 		strings.HasPrefix(fs, "btrfs") ||
 		strings.HasPrefix(fs, "zfs") ||
-		strings.HasPrefix(fs, "fuse.") // e.g., "fuse.juicefs"
+		(strings.HasPrefix(fs, "fuse.") && !strings.HasPrefix(fs, "fuse.lxcfs")) // e.g., "fuse.juicefs"
 }
 
 type OpOption func(*Op)
