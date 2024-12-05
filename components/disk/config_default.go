@@ -6,8 +6,8 @@ import (
 
 func DefaultConfig() Config {
 	cfg := Config{
-		Query:       query_config.DefaultConfig(),
-		MountPoints: []string{"/"},
+		Query:                   query_config.DefaultConfig(),
+		MountPointsToTrackUsage: []string{"/"},
 	}
 	return cfg
 }
