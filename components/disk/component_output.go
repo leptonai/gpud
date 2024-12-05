@@ -127,17 +127,24 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		o := &Output{}
 
-		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 		defer ccancel()
-		parts, err := disk.GetPartitions(cctx)
+
+		parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
+			return fs == "ext4"
+		}))
 		if err != nil {
 			return nil, err
 		}
-		for _, p := range parts {
-			if p.Fstype == "ext4" {
-				o.DiskExtPartitions = append(o.DiskExtPartitions, p)
-			}
+		o.DiskExtPartitions = parts
+
+		blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
+			return dt == "disk"
+		}))
+		if err != nil {
+			return nil, err
 		}
+		o.DiskBlockDevices = blks
 
 		now := time.Now().UTC()
 		nowUTC := float64(now.Unix())
