@@ -26,11 +26,11 @@ func GetPartitions() (Partitions, error) {
 	for _, p := range partitions {
 		part := Partition{
 			Device:      p.Device,
-			FSTypes:     []string{p.Fstype},
+			Fstypes:     []string{p.Fstype},
 			MountPoints: []string{p.Mountpoint},
 		}
 
-		_, err := os.Stat(part.MountPoints[0])
+		_, err := os.Stat(p.Mountpoint)
 		part.Mounted = err == nil
 
 		if err != nil && os.IsNotExist(err) {
@@ -38,7 +38,8 @@ func GetPartitions() (Partitions, error) {
 		}
 
 		if part.Mounted {
-			part.Usage, err = GetUsage(part.MountPoints[0])
+			fmt.Println("getting usage for", p.Mountpoint, p.Fstype, p.Device)
+			part.Usage, err = GetUsage(p.Mountpoint)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +62,7 @@ func GetPartitions() (Partitions, error) {
 		mountPoints := make([]string, 0, len(parts))
 		mounted := true
 		for _, p := range parts {
-			for _, fsType := range p.FSTypes {
+			for _, fsType := range p.Fstypes {
 				fsTypesSet[fsType] = struct{}{}
 			}
 
@@ -81,7 +82,7 @@ func GetPartitions() (Partitions, error) {
 		// multiple mount points for the same device
 		aggPart := Partition{
 			Device:  dev,
-			FSTypes: fsTypes,
+			Fstypes: fsTypes,
 
 			MountPoints: mountPoints,
 			Mounted:     mounted,
@@ -174,7 +175,7 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 	for _, part := range parts {
 		table.Append([]string{
 			part.Device,
-			strings.Join(part.FSTypes, "\n"),
+			strings.Join(part.Fstypes, "\n"),
 			strings.Join(part.MountPoints, "\n"),
 			strconv.FormatBool(part.Mounted),
 			part.Usage.TotalHumanized,
@@ -189,10 +190,10 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 type Partition struct {
 	Device string `json:"device"`
 
-	// FSTypes is a list of filesystem types for the device.
+	// Fstypes is a list of filesystem types for the device.
 	// Only multiple mount points for aggregated partitions.
 	// For example, ["xfs", "ext4"] for the device "/dev/mapper/vgroot-lvroot".
-	FSTypes []string `json:"fs_types"`
+	Fstypes []string `json:"fstypes"`
 
 	// MountPoints is a list of mount points for the device.
 	// Only multiple mount points for aggregated partitions.

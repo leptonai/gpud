@@ -98,10 +98,10 @@ func CreateGet(cfg Config) query.GetFunc {
 			return nil, err
 		}
 		for _, p := range partitions {
-			if len(p.FSTypes) != 1 {
+			if len(p.Fstypes) != 1 {
 				continue
 			}
-			if strings.Contains(p.FSTypes[0], "ext") {
+			if strings.Contains(p.Fstypes[0], "ext") {
 				o.ExtPartitions = append(o.ExtPartitions, p)
 			}
 		}
