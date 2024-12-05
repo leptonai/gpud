@@ -2,41 +2,131 @@ package infiniband
 
 import (
 	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"sigs.k8s.io/yaml"
 )
 
+func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
+	p, err := exec.LookPath("ibstat")
+	if err != nil {
+		return nil, fmt.Errorf("ibstat not found (%w)", err)
+	}
+	b, err := exec.CommandContext(ctx, p).CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	o := &IbstatOutput{
+		Raw: string(b),
+	}
+
+	// TODO: once stable return error
+	o.Parsed, err = ParseIBStat(o.Raw)
+	if err != nil {
+		// TODO: once stable return error
+		log.Logger.Errorw("failed to parse ibstat output", "error", err)
+
+		// fallback to old ibstat checks
+		if err := ValidateIbstatOutput(o.Raw); err != nil {
+			o.Errors = append(o.Errors, err.Error())
+		}
+	}
+
+	return o, nil
+}
+
+var (
+	ErrIbstatOutputBrokenStateDown        = errors.New("ibstat output unexpected; found State: Down (check the physical switch)")
+	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output unexpected; found Physical state: Disabled (check the physical switch)")
+)
+
+func ValidateIbstatOutput(s string) error {
+	if strings.Contains(s, "State: Down") {
+		return ErrIbstatOutputBrokenStateDown
+	}
+
+	// needs
+	// "ip link set <dev> up"
+	if strings.Contains(s, "Physical state: Disabled") {
+		return ErrIbstatOutputBrokenPhysicalDisabled
+	}
+
+	return nil
+}
+
+type IbstatOutput struct {
+	Parsed IBStatCards `json:"parsed,omitempty"`
+	Raw    string      `json:"raw"`
+	Errors []string    `json:"errors,omitempty"`
+}
+
 type IBStatCards []IBStatCard
 
-// Counts the number of cards whose "Port 1"."Rate" is equal to or greater
-// than the specified rate (e.g., count all the cards whose rate is >= 400).
-// If `expectedState` is not empty, it only counts the cards whose "Port 1"."State" is equal to the expected state.
-// If `expectedPhysicalState` is not empty, it only counts the cards whose "Port 1"."Physical state" is equal to the expected physical state.
-func (cards IBStatCards) CountByRates(rate int, expectedState string, expectedPhysicalState string) int {
-	cnt := 0
+// Match returns the IB port names whose physical state, state, and "Port 1"."Rate" match the expected values.
+// The specified rate is the threshold for "Port 1"."Rate", where it evaluates with ">=" operator
+// (e.g., count all the cards whose rate is >= 400).
+//
+// If the `expectedPhysicalState` is empty, it matches all states.
+// If the `expectedState` is empty, it matches all states.
+func (cards IBStatCards) Match(expectedPhysicalState string, expectedState string, atLeastRate int) []string {
+	names := make([]string, 0)
 	for _, card := range cards {
-		if card.Port1.Rate < rate {
-			continue
-		}
-
 		// e.g.,
-		// State: Active
-		// State: Down
-		if expectedState != "" && card.Port1.State != expectedState {
-			continue
-		}
-
-		// e.g.,
-		// Physical state: LinkUp
-		// Physical state: Disabled
+		// expected "Physical state: LinkUp"
+		// but got "Physical state: Disabled"
 		if expectedPhysicalState != "" && card.Port1.PhysicalState != expectedPhysicalState {
 			continue
 		}
 
-		cnt++
+		// e.g.,
+		// expected "State: Active"
+		// but got "State: Down"
+		if expectedState != "" && card.Port1.State != expectedState {
+			continue
+		}
+
+		if atLeastRate > card.Port1.Rate {
+			continue
+		}
+
+		names = append(names, card.Name)
 	}
-	return cnt
+	return names
+}
+
+// CheckPortsAndRate checks if the number of active IB ports matches expectations
+func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) error {
+	totalPorts := len(cards)
+
+	// select all "up" devices, and count the ones that match the expected rate with ">="
+	portNamesWithLinkUp := cards.Match("LinkUp", "", atLeastRate)
+	unstatisfieldCount := atLeastPorts - len(portNamesWithLinkUp)
+	if unstatisfieldCount <= 0 {
+		return nil
+	}
+
+	errMsg := fmt.Sprintf("not enough LinkUp ports, only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate", len(portNamesWithLinkUp), totalPorts, atLeastPorts, atLeastRate)
+
+	portNamesWithDisabled := cards.Match("Disabled", "", atLeastRate)
+	if len(portNamesWithDisabled) > 0 {
+		// some ports must be missing -- construct error message accordingly
+		errMsg += fmt.Sprintf("; some ports might be down, %v Disabled devices with Rate > %v found (%v)",
+			len(portNamesWithDisabled),
+			atLeastRate,
+			strings.Join(portNamesWithDisabled, ", "),
+		)
+	}
+
+	unstatisfieldCount -= len(portNamesWithDisabled)
+	if unstatisfieldCount > 0 {
+		errMsg += "; some ports must be missing"
+	}
+	return errors.New(errMsg)
 }
 
 type IBStatCard struct {

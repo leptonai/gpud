@@ -15,13 +15,13 @@ type Config struct {
 
 // Configures the expected state of the ports.
 type ExpectedPortStates struct {
-	// The number of ports expected to be "Active" and "LinkUp".
+	// The minimum number of ports.
 	// If not set, it defaults to the number of GPUs.
-	PortCount int `json:"port_count"`
+	AtLeastPorts int `json:"at_least_ports"`
 
 	// The expected rate in Gb/sec.
 	// If not set, it defaults to 200.
-	Rate int `json:"rate"`
+	AtLeastRate int `json:"at_least_rate"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {
