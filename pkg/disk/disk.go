@@ -3,10 +3,12 @@ package disk
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
 	"sigs.k8s.io/yaml"
 )
@@ -87,6 +89,25 @@ func (parts Partitions) TotalBytes() uint64 {
 		total += p.Usage.TotalBytes
 	}
 	return total
+}
+
+func (parts Partitions) RenderTable(wr io.Writer) {
+	table := tablewriter.NewWriter(wr)
+	table.SetHeader([]string{"Device", "Mount", "Mounted", "Fstype", "Total", "Free", "Used"})
+
+	for _, part := range parts {
+		table.Append([]string{
+			part.Device,
+			part.MountPoint,
+			strconv.FormatBool(part.Mounted),
+			part.Fstype,
+			part.Usage.TotalHumanized,
+			part.Usage.FreeHumanized,
+			part.Usage.UsedHumanized,
+		})
+	}
+
+	table.Render()
 }
 
 type Partition struct {

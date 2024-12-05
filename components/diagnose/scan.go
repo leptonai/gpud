@@ -15,6 +15,7 @@ import (
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/file"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
@@ -235,6 +236,16 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			latencies.RenderTable(os.Stdout)
 			fmt.Printf("\n\n%s latency check complete\n\n", checkMark)
+		}
+	}
+
+	if op.diskcheck {
+		fmt.Printf("\n%s checking disk\n", inProgress)
+		partitions, err := disk.GetPartitions()
+		if err != nil {
+			log.Logger.Warnw("error getting partitions", "error", err)
+		} else {
+			partitions.RenderTable(os.Stdout)
 		}
 	}
 

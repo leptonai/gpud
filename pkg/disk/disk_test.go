@@ -1,6 +1,9 @@
 package disk
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestGetPartitions(t *testing.T) {
 	t.Parallel()
@@ -14,4 +17,6 @@ func TestGetPartitions(t *testing.T) {
 		t.Fatalf("failed to marshal partitions to yaml: %v", err)
 	}
 	t.Logf("partitions:\n%s\n", string(yb))
+
+	partitions.RenderTable(os.Stdout)
 }
