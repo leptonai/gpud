@@ -60,6 +60,16 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 }
 
 func Parse(b []byte) (BlockDevices, error) {
+	println()
+	println()
+	println()
+	println()
+	fmt.Println("string(b)", string(b))
+	println()
+	println()
+	println()
+	println()
+
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, err
