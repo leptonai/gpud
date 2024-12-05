@@ -98,7 +98,10 @@ func CreateGet(cfg Config) query.GetFunc {
 			return nil, err
 		}
 		for _, p := range partitions {
-			if strings.Contains(p.Fstype, "ext") {
+			if len(p.FSTypes) != 1 {
+				continue
+			}
+			if strings.Contains(p.FSTypes[0], "ext") {
 				o.ExtPartitions = append(o.ExtPartitions, p)
 			}
 		}
@@ -109,32 +112,40 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		mountPointsToTrack := make(map[string]struct{})
 		for _, p := range o.ExtPartitions {
-			mountPointsToTrack[p.MountPoint] = struct{}{}
+			// do not track aggregated partitions
+			if len(p.MountPoints) != 1 {
+				continue
+			}
+			mountPointsToTrack[p.MountPoints[0]] = struct{}{}
 		}
 
 		// for _, path := range cfg.MountPointsToTrackUsage {
 		for _, p := range o.ExtPartitions {
-			if _, ok := mountPointsToTrack[p.MountPoint]; !ok {
+			// do not track aggregated partitions
+			if len(p.MountPoints) != 1 {
+				continue
+			}
+			if _, ok := mountPointsToTrack[p.MountPoints[0]]; !ok {
 				continue
 			}
 
 			usage := p.Usage
 			if usage == nil {
-				log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
+				log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoints)
 				continue
 			}
 
-			if err := metrics.SetTotalBytes(ctx, usage.MountPoint, float64(usage.TotalBytes), now); err != nil {
+			if err := metrics.SetTotalBytes(ctx, p.MountPoints[0], float64(usage.TotalBytes), now); err != nil {
 				return nil, err
 			}
-			metrics.SetFreeBytes(usage.MountPoint, float64(usage.FreeBytes))
-			if err := metrics.SetUsedBytes(ctx, usage.MountPoint, float64(usage.UsedBytes), now); err != nil {
+			metrics.SetFreeBytes(p.MountPoints[0], float64(usage.FreeBytes))
+			if err := metrics.SetUsedBytes(ctx, p.MountPoints[0], float64(usage.UsedBytes), now); err != nil {
 				return nil, err
 			}
-			if err := metrics.SetUsedBytesPercent(ctx, usage.MountPoint, usage.UsedPercentFloat, now); err != nil {
+			if err := metrics.SetUsedBytesPercent(ctx, p.MountPoints[0], usage.UsedPercentFloat, now); err != nil {
 				return nil, err
 			}
-			metrics.SetUsedInodesPercent(usage.MountPoint, usage.InodesUsedPercentFloat)
+			metrics.SetUsedInodesPercent(p.MountPoints[0], usage.InodesUsedPercentFloat)
 		}
 
 		return o, nil
