@@ -19,23 +19,26 @@ limitations under the License.
 package disk
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"sort"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 const (
-	// CmdTmpl adds device name, if add empty string - command will print info about all devices
-	CmdTmpl = "lsblk %s --paths --json --bytes --fs " +
-		"--output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
+	// lsblkFlags adds device name, if add empty string - command will print info about all devices
+	lsblkFlags = "--paths --json --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
 	// outputKey is the key to find block devices in lsblk json output
 	outputKey = "blockdevices"
 )
@@ -44,13 +47,65 @@ const (
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	cmd := fmt.Sprintf(CmdTmpl, "") // list all devices
-	out, err := exec.CommandContext(ctx, cmd).Output()
+	lsblkPath, err := file.LocateExecutable("lsblk")
+	if err != nil {
+		return nil, nil
+	}
+	if lsblkPath == "" {
+		return nil, nil
+	}
+
+	p, err := process.New(
+		process.WithCommand(lsblkPath+" "+lsblkFlags),
+		process.WithRunAsBashScript(),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	return Parse(out, opts...)
+	if err := p.Start(ctx); err != nil {
+		return nil, err
+	}
+
+	lines := make([]string, 0)
+
+	scanner := bufio.NewScanner(p.StdoutReader())
+	for scanner.Scan() { // returns false at the end of the output
+		line := scanner.Text()
+
+		// e.g.,
+		// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
+		// 01:00.1 Audio device: NVIDIA Corporation Device 22ba (rev a1)
+		if strings.Contains(line, "NVIDIA") {
+			lines = append(lines, line)
+		}
+
+		select {
+		case err := <-p.Wait():
+			if err != nil {
+				return nil, err
+			}
+		default:
+		}
+	}
+	if serr := scanner.Err(); serr != nil {
+		// process already dead, thus ignore
+		// e.g., "read |0: file already closed"
+		if !strings.Contains(serr.Error(), "file already closed") {
+			return nil, serr
+		}
+	}
+
+	select {
+	case err := <-p.Wait():
+		if err != nil {
+			return nil, err
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	return Parse([]byte(strings.Join(lines, "\n")), opts...)
 }
 
 func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
