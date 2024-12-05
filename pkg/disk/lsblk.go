@@ -105,6 +105,8 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 		return nil, ctx.Err()
 	}
 
+	fmt.Println("[DEBUG] lsblk output:", strings.Join(lines, "\n"))
+
 	return Parse([]byte(strings.Join(lines, "\n")), opts...)
 }
 

@@ -241,14 +241,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if op.diskcheck {
 		fmt.Printf("\n%s checking disk\n", inProgress)
-		partitions, err := disk.GetPartitions(ctx)
+		partitions, err := disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultMatchFuncFstype))
 		if err != nil {
 			log.Logger.Warnw("error getting partitions", "error", err)
 		} else {
 			partitions.RenderTable(os.Stdout)
 		}
 
-		blockDevices, err := disk.GetBlockDevices(ctx)
+		blockDevices, err := disk.GetBlockDevices(ctx, disk.WithDeviceType(disk.DefaultMatchFuncDeviceType))
 		if err != nil {
 			log.Logger.Warnw("error getting block devices", "error", err)
 		} else {

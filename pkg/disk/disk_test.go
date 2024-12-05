@@ -11,7 +11,7 @@ func TestGetPartitions(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	partitions, err := GetPartitions(ctx)
+	partitions, err := GetPartitions(ctx, WithFstype(DefaultMatchFuncFstype))
 	if err != nil {
 		t.Fatalf("failed to get partitions: %v", err)
 	}
