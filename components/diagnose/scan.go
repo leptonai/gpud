@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -242,12 +241,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if op.diskcheck {
 		fmt.Printf("\n%s checking disk\n", inProgress)
-		partitions, err := disk.GetPartitions(ctx, disk.WithMatchFstypeFunc(func(fs string) bool {
-			return fs == "ext4" ||
-				strings.HasPrefix(fs, "xfs") ||
-				strings.HasPrefix(fs, "btrfs") ||
-				strings.HasPrefix(fs, "zfs")
-		}))
+		partitions, err := disk.GetPartitions(ctx)
 		if err != nil {
 			log.Logger.Warnw("error getting partitions", "error", err)
 		} else {
