@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"math"
 	"os"
 	"strconv"
@@ -10,7 +11,9 @@ import (
 func TestGetPartitions(t *testing.T) {
 	t.Parallel()
 
-	partitions, err := GetPartitions()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	partitions, err := GetPartitions(ctx)
 	if err != nil {
 		t.Fatalf("failed to get partitions: %v", err)
 	}

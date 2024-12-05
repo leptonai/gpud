@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,13 +41,13 @@ func WithFstype(fs string) OpOption {
 	}
 }
 
-func GetPartitions(opts ...OpOption) (Partitions, error) {
+func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	partitions, err := disk.Partitions(true)
+	partitions, err := disk.PartitionsWithContext(ctx, true)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +61,9 @@ func GetPartitions(opts ...OpOption) (Partitions, error) {
 				continue
 			}
 		}
+
+		dd, _ := disk.SerialNumberWithContext(ctx, p.Device)
+		fmt.Println("dd", dd, p.Device)
 
 		part := Partition{
 			Device:      p.Device,
@@ -75,7 +79,7 @@ func GetPartitions(opts ...OpOption) (Partitions, error) {
 		}
 
 		if part.Mounted {
-			part.Usage, err = GetUsage(p.Mountpoint)
+			part.Usage, err = GetUsage(ctx, p.Mountpoint)
 			if err != nil {
 				return nil, err
 			}
@@ -142,8 +146,8 @@ func GetPartitions(opts ...OpOption) (Partitions, error) {
 	return ps, nil
 }
 
-func GetUsage(mountPoint string) (*Usage, error) {
-	usage, err := disk.Usage(mountPoint)
+func GetUsage(ctx context.Context, mountPoint string) (*Usage, error) {
+	usage, err := disk.UsageWithContext(ctx, mountPoint)
 	if err != nil {
 		return nil, err
 	}

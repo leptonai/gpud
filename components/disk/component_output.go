@@ -92,7 +92,10 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		o := &Output{}
 
+		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+		defer ccancel()
 		extPartitions, err := disk.GetPartitions(
+			cctx,
 			disk.WithFstype("ext4"),
 		)
 		if err != nil {
