@@ -241,7 +241,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if op.diskcheck {
 		fmt.Printf("\n%s checking disk\n", inProgress)
-		partitions, err := disk.GetPartitions()
+		partitions, err := disk.GetPartitions(disk.WithFstype("ext4"))
 		if err != nil {
 			log.Logger.Warnw("error getting partitions", "error", err)
 		} else {

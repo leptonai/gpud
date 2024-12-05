@@ -9,13 +9,43 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
+
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
 	"sigs.k8s.io/yaml"
 )
 
-func GetPartitions() (Partitions, error) {
+type Op struct {
+	fstypes map[string]struct{}
+}
+
+type OpOption func(*Op)
+
+func (op *Op) applyOpts(opts []OpOption) error {
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	return nil
+}
+
+func WithFstype(fs string) OpOption {
+	return func(op *Op) {
+		if op.fstypes == nil {
+			op.fstypes = make(map[string]struct{})
+		}
+		op.fstypes[fs] = struct{}{}
+	}
+}
+
+func GetPartitions(opts ...OpOption) (Partitions, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	partitions, err := disk.Partitions(true)
 	if err != nil {
 		return nil, err
@@ -24,6 +54,13 @@ func GetPartitions() (Partitions, error) {
 	ps := make([]Partition, 0, len(partitions))
 	deviceToPartitions := make(map[string]Partitions)
 	for _, p := range partitions {
+		if len(op.fstypes) > 0 {
+			if _, ok := op.fstypes[p.Fstype]; !ok {
+				log.Logger.Warnw("skipping partition", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
+				continue
+			}
+		}
+
 		part := Partition{
 			Device:      p.Device,
 			Fstypes:     []string{p.Fstype},

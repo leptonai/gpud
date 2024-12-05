@@ -3,7 +3,6 @@ package disk
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -93,17 +92,14 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		o := &Output{}
 
-		partitions, err := disk.GetPartitions()
+		extPartitions, err := disk.GetPartitions(
+			disk.WithFstype("ext4"),
+		)
 		if err != nil {
 			return nil, err
 		}
-		for _, p := range partitions {
-			if len(p.Fstypes) != 1 {
-				continue
-			}
-			if strings.Contains(p.Fstypes[0], "ext") {
-				o.ExtPartitions = append(o.ExtPartitions, p)
-			}
+		for _, p := range extPartitions {
+			o.ExtPartitions = append(o.ExtPartitions, p)
 		}
 
 		now := time.Now().UTC()
