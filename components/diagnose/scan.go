@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
@@ -246,6 +247,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Warnw("error getting partitions", "error", err)
 		} else {
 			partitions.RenderTable(os.Stdout)
+			if len(partitions) > 0 {
+				fmt.Printf("\n\npartitions have total mounted size %s\n\n", checkMark, humanize.Bytes(partitions.GetMountedTotalBytes()))
+			}
 		}
 
 		blockDevices, err := disk.GetBlockDevices(ctx, disk.WithDeviceType(disk.DefaultMatchFuncDeviceType))
@@ -253,6 +257,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Warnw("error getting block devices", "error", err)
 		} else {
 			blockDevices.RenderTable(os.Stdout)
+			if len(blockDevices) > 0 {
+				fmt.Printf("\n\nblock devices have total size %s\n\n", checkMark, humanize.Bytes(blockDevices.GetTotalBytes()))
+			}
 		}
 	}
 
