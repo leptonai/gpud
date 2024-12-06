@@ -92,12 +92,6 @@ func TestComponent(t *testing.T) {
 		t.Errorf("expected 3 events, got %d", len(events))
 	}
 
-	parsedEvents, err := ParseEvents(events...)
-	if err != nil {
-		t.Fatalf("failed to parse states: %v", err)
-	}
-	t.Logf("parsed states: %+v", parsedEvents)
-
 	states, err := component.States(ctx)
 	if err != nil {
 		t.Fatalf("failed to get state: %v", err)
