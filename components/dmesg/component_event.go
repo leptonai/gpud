@@ -2,16 +2,11 @@ package dmesg
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strconv"
-	"time"
+	"strings"
 
 	"github.com/leptonai/gpud/components"
 	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Event struct {
@@ -33,77 +28,32 @@ func ParseEventJSON(data []byte) (*Event, error) {
 const (
 	EventNameDmesgMatched = "dmesg_matched"
 
-	EventKeyDmesgMatchedUnixSeconds = "unix_seconds"
-	EventKeyDmesgMatchedLine        = "line"
-	EventKeyDmesgMatchedFilter      = "filter"
-	EventKeyDmesgMatchedError       = "error"
+	EventKeyDmesgMatchedError = "error"
 )
-
-func ParseEventDmesgMatched(m map[string]string) (query_log.Item, error) {
-	ev := query_log.Item{}
-
-	unixSeconds, err := strconv.ParseInt(m[EventKeyDmesgMatchedUnixSeconds], 10, 64)
-	if err != nil {
-		return query_log.Item{}, err
-	}
-	ev.Time = metav1.Time{Time: time.Unix(unixSeconds, 0)}
-	ev.Line = m[EventKeyDmesgMatchedLine]
-
-	var f *query_log_common.Filter
-	if m[EventKeyDmesgMatchedFilter] != "" {
-		f, err = query_log_common.ParseFilterJSON([]byte(m[EventKeyDmesgMatchedFilter]))
-		if err != nil {
-			return query_log.Item{}, err
-		}
-	} else {
-		f = nil
-	}
-	ev.Matched = f
-
-	if m[EventKeyDmesgMatchedError] != "" {
-		ev.Error = errors.New(m[EventKeyDmesgMatchedError])
-	}
-
-	return ev, nil
-}
-
-func ParseEvents(events ...components.Event) (*Event, error) {
-	ev := &Event{}
-	for _, e := range events {
-		switch e.Name {
-		case EventNameDmesgMatched:
-			item, err := ParseEventDmesgMatched(e.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			ev.Matched = append(ev.Matched, item)
-
-		default:
-			return nil, fmt.Errorf("unknown event name: %s", e.Name)
-		}
-	}
-	return ev, nil
-}
 
 func (ev *Event) Events() []components.Event {
 	if len(ev.Matched) == 0 {
 		return nil
 	}
+
 	evs := make([]components.Event, 0)
-	for _, ev := range ev.Matched {
-		b, _ := ev.Matched.JSON()
-		es := ""
-		if ev.Error != nil {
-			es = ev.Error.Error()
+	for _, logItem := range ev.Matched {
+		msg := logItem.Line
+		if logItem.Matched != nil && len(logItem.Matched.OwnerReferences) > 0 {
+			msg = fmt.Sprintf("%s (%s)", logItem.Line, strings.Join(logItem.Matched.OwnerReferences, ","))
 		}
+
+		es := ""
+		if logItem.Error != nil {
+			es = logItem.Error.Error()
+		}
+
 		evs = append(evs, components.Event{
-			Time: ev.Time,
-			Name: EventNameDmesgMatched,
+			Time:    logItem.Time,
+			Name:    EventNameDmesgMatched,
+			Message: msg,
 			ExtraInfo: map[string]string{
-				EventKeyDmesgMatchedUnixSeconds: fmt.Sprintf("%d", ev.Time.Unix()),
-				EventKeyDmesgMatchedLine:        ev.Line,
-				EventKeyDmesgMatchedFilter:      string(b),
-				EventKeyDmesgMatchedError:       es,
+				EventKeyDmesgMatchedError: es,
 			},
 		})
 	}
