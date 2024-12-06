@@ -70,6 +70,7 @@ const (
 	StateKeyVirtualizationEnvironmentType      = "type"
 	StateKeyVirtualizationEnvironmentVM        = "vm"
 	StateKeyVirtualizationEnvironmentContainer = "container"
+	StateKeyVirtualizationEnvironmentIsKVM     = "is_kvm"
 
 	StateNameSystemManufacturer = "system_manufacturer"
 	StateKeySystemManufacturer  = "system_manufacturer"
@@ -101,7 +102,10 @@ func ParseStateVirtualizationEnvironment(m map[string]string) (pkg_host.Virtuali
 	virtEnv.Type = m[StateKeyVirtualizationEnvironmentType]
 	virtEnv.VM = m[StateKeyVirtualizationEnvironmentVM]
 	virtEnv.Container = m[StateKeyVirtualizationEnvironmentContainer]
-	return virtEnv, nil
+
+	var err error
+	virtEnv.IsKVM, err = strconv.ParseBool(m[StateKeyVirtualizationEnvironmentIsKVM])
+	return virtEnv, err
 }
 
 func ParseStateSystemManufacturer(m map[string]string) (string, error) {
@@ -240,6 +244,7 @@ func (o *Output) States() ([]components.State, error) {
 				StateKeyVirtualizationEnvironmentType:      o.VirtualizationEnvironment.Type,
 				StateKeyVirtualizationEnvironmentVM:        o.VirtualizationEnvironment.VM,
 				StateKeyVirtualizationEnvironmentContainer: o.VirtualizationEnvironment.Container,
+				StateKeyVirtualizationEnvironmentIsKVM:     fmt.Sprintf("%v", o.VirtualizationEnvironment.IsKVM),
 			},
 		},
 		{

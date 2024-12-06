@@ -64,6 +64,10 @@ type VirtualizationEnvironment struct {
 	// Set to "none" if the host is not running in a container.
 	// e.g., "lxc"
 	Container string `json:"container"`
+
+	// Whether the host is running in a KVM.
+	// Set to "false" if the host is not running in a KVM.
+	IsKVM bool `json:"is_kvm"`
 }
 
 // SystemdDetectVirt detects the virtualization type of the host, using "systemd-detect-virt".
@@ -123,6 +127,7 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	if len(lines) > 0 {
 		virt.VM = strings.TrimSpace(lines[0])
 	}
+	virt.IsKVM = virt.VM == "kvm"
 	if len(lines) > 1 {
 		virt.Container = strings.TrimSpace(lines[1])
 	}
