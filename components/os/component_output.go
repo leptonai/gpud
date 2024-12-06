@@ -13,6 +13,7 @@ import (
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/file"
+	pkg_host "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/shirou/gopsutil/v4/host"
@@ -20,11 +21,13 @@ import (
 )
 
 type Output struct {
-	Host                        Host     `json:"host"`
-	Kernel                      Kernel   `json:"kernel"`
-	Platform                    Platform `json:"platform"`
-	Uptimes                     Uptimes  `json:"uptimes"`
-	ProcessCountZombieProcesses int      `json:"process_count_zombie_processes"`
+	VirtualizationEnvironment   pkg_host.VirtualizationEnvironment `json:"virtualization_environment"`
+	SystemManufacturer          string                             `json:"system_manufacturer"`
+	Host                        Host                               `json:"host"`
+	Kernel                      Kernel                             `json:"kernel"`
+	Platform                    Platform                           `json:"platform"`
+	Uptimes                     Uptimes                            `json:"uptimes"`
+	ProcessCountZombieProcesses int                                `json:"process_count_zombie_processes"`
 }
 
 type Host struct {
@@ -63,6 +66,15 @@ func ParseOutputJSON(data []byte) (*Output, error) {
 }
 
 const (
+	StateNameVirtualizationEnvironment         = "virtualization_environment"
+	StateKeyVirtualizationEnvironmentType      = "type"
+	StateKeyVirtualizationEnvironmentVM        = "vm"
+	StateKeyVirtualizationEnvironmentContainer = "container"
+	StateKeyVirtualizationEnvironmentIsKVM     = "is_kvm"
+
+	StateNameSystemManufacturer = "system_manufacturer"
+	StateKeySystemManufacturer  = "system_manufacturer"
+
 	StateNameHost  = "host"
 	StateKeyHostID = "id"
 
@@ -84,6 +96,21 @@ const (
 	StateNameProcessCountsByStatus      = "process_counts_by_status"
 	StateKeyProcessCountZombieProcesses = "process_count_zombie_processes"
 )
+
+func ParseStateVirtualizationEnvironment(m map[string]string) (pkg_host.VirtualizationEnvironment, error) {
+	virtEnv := pkg_host.VirtualizationEnvironment{}
+	virtEnv.Type = m[StateKeyVirtualizationEnvironmentType]
+	virtEnv.VM = m[StateKeyVirtualizationEnvironmentVM]
+	virtEnv.Container = m[StateKeyVirtualizationEnvironmentContainer]
+
+	var err error
+	virtEnv.IsKVM, err = strconv.ParseBool(m[StateKeyVirtualizationEnvironmentIsKVM])
+	return virtEnv, err
+}
+
+func ParseStateSystemManufacturer(m map[string]string) (string, error) {
+	return m[StateKeySystemManufacturer], nil
+}
 
 func ParseStateHost(m map[string]string) (Host, error) {
 	h := Host{}
@@ -141,6 +168,20 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
 		switch state.Name {
+		case StateNameVirtualizationEnvironment:
+			virtEnv, err := ParseStateVirtualizationEnvironment(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+			o.VirtualizationEnvironment = virtEnv
+
+		case StateNameSystemManufacturer:
+			manufacturer, err := ParseStateSystemManufacturer(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+			o.SystemManufacturer = manufacturer
+
 		case StateNameHost:
 			host, err := ParseStateHost(state.ExtraInfo)
 			if err != nil {
@@ -184,7 +225,36 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 func (o *Output) States() ([]components.State, error) {
+	virtReason := fmt.Sprintf("type: %s, vm: %s, container: %s", o.VirtualizationEnvironment.Type, o.VirtualizationEnvironment.VM, o.VirtualizationEnvironment.Container)
+	if o.VirtualizationEnvironment.Type == "" {
+		virtReason = "not detected"
+	}
+
+	manufacturerReason := fmt.Sprintf("manufacturer: %s", o.SystemManufacturer)
+	if o.SystemManufacturer == "" {
+		manufacturerReason = "not detected"
+	}
+
 	states := []components.State{
+		{
+			Name:    StateNameVirtualizationEnvironment,
+			Healthy: true,
+			Reason:  virtReason,
+			ExtraInfo: map[string]string{
+				StateKeyVirtualizationEnvironmentType:      o.VirtualizationEnvironment.Type,
+				StateKeyVirtualizationEnvironmentVM:        o.VirtualizationEnvironment.VM,
+				StateKeyVirtualizationEnvironmentContainer: o.VirtualizationEnvironment.Container,
+				StateKeyVirtualizationEnvironmentIsKVM:     fmt.Sprintf("%v", o.VirtualizationEnvironment.IsKVM),
+			},
+		},
+		{
+			Name:    StateNameSystemManufacturer,
+			Healthy: true,
+			Reason:  manufacturerReason,
+			ExtraInfo: map[string]string{
+				StateKeySystemManufacturer: o.SystemManufacturer,
+			},
+		},
 		{
 			Name:    StateNameHost,
 			Healthy: true,
@@ -283,6 +353,21 @@ func Get(ctx context.Context) (_ any, e error) {
 
 	o := &Output{}
 
+	cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+	virtEnv, err := pkg_host.SystemdDetectVirt(cctx)
+	ccancel()
+	if err != nil {
+		return nil, err
+	}
+	o.VirtualizationEnvironment = virtEnv
+
+	cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+	manufacturer, err := pkg_host.SystemManufacturer(cctx)
+	ccancel()
+	if err != nil {
+		return nil, err
+	}
+	o.SystemManufacturer = manufacturer
 	hostID, err := host.HostID()
 	if err != nil {
 		return nil, err

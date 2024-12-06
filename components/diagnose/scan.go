@@ -17,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/host"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -47,6 +48,19 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
+
+	virtEnv, err := host.SystemdDetectVirt(ctx)
+	if err != nil {
+		log.Logger.Warnw("error detecting virtualization environment", "error", err)
+	} else {
+		fmt.Printf("%s detected virtualization environment %q\n", checkMark, virtEnv.Type)
+	}
+	manufacturer, err := host.SystemManufacturer(ctx)
+	if err != nil {
+		log.Logger.Warnw("error detecting system manufacturer", "error", err)
+	} else {
+		fmt.Printf("%s detected system manufacturer %q\n", checkMark, manufacturer)
+	}
 
 	fmt.Printf("%s scanning the process counts\n", inProgress)
 	processCountsByStatus, err := process.CountProcessesByStatus(ctx)
