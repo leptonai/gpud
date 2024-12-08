@@ -198,6 +198,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
 		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
+			fmt.Println("line", string(line))
 			matchedB, _ := matched.YAML()
 			fmt.Println(string(matchedB))
 
