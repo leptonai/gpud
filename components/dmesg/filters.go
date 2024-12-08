@@ -13,6 +13,10 @@ import (
 const (
 	// e.g.,
 	// Out of memory: Killed process 123, UID 48, (httpd).
+	//
+	// NOTE: this is often followed by a line like:
+	// [Sun Dec  8 09:23:39 2024] oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0
+	// (to reap the memory used by the OOM victim)
 	EventOOMKill      = "oom_kill"
 	EventOOMKillRegex = `Out of memory:`
 
