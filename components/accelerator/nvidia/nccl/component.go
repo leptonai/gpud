@@ -99,7 +99,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time: logItem.Time,
 			Name: EventNameNCCLSegfaultInLibncclFromDmesg,
-			Type: "ErrCritical",
+			Type: "Critical",
 			ExtraInfo: map[string]string{
 				EventKeyNCCLSegfaultInLibncclFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
 				EventKeyNCCLSegfaultInLibncclFromDmesgLogLine:     logItem.Line,

@@ -101,7 +101,7 @@ func (ev *Event) Events() []components.Event {
 			Name: EventNameDmesgMatched,
 
 			// criticality should be decided in individual components
-			Type: "ErrWarning",
+			Type: "Warning",
 
 			ExtraInfo: map[string]string{
 				EventKeyDmesgMatchedUnixSeconds: fmt.Sprintf("%d", ev.Time.Unix()),

@@ -148,7 +148,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time: logItem.Time,
 			Name: EventNamePeermemInvalidContextFromDmesg,
-			Type: "ErrCritical",
+			Type: "Critical",
 			ExtraInfo: map[string]string{
 				EventKeyPeermemInvalidContextFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
 				EventKeyPeermemInvalidContextFromDmesgLogLine:     logItem.Line,

@@ -85,7 +85,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			convertedEvents = append(convertedEvents, components.Event{
 				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroXid,
-				Type:    "ErrCritical",
+				Type:    "Critical",
 				Message: msg,
 				ExtraInfo: map[string]string{
 					EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
@@ -107,7 +107,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			convertedEvents = append(convertedEvents, components.Event{
 				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroSXid,
-				Type:    "ErrCritical",
+				Type:    "Critical",
 				Message: msg,
 				ExtraInfo: map[string]string{
 					EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
