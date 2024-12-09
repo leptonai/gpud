@@ -23,11 +23,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
-		GPUProductName:        i.GPUProductName(),
-		GPUCount:              i.GPUCount(),
-		InfinibandClassExists: i.InfinibandClassExists,
-		IbstatExists:          i.IbstatExists,
-		MellanoxPCIDevices:    i.MellanoxPCIDevices,
+		GPUProductName:           i.GPUProductName(),
+		GPUCount:                 i.GPUCount(),
+		InfinibandClassExists:    i.InfinibandClassExists,
+		IbstatExists:             i.IbstatExists,
+		MellanoxPCIDevices:       i.MellanoxPCIDevices,
+		MellanoxPCIDevicesErrors: i.MellanoxPCIDevicesErrors,
 	}
 	if i.Ibstat != nil {
 		o.Ibstat = *i.Ibstat
@@ -49,7 +50,8 @@ type Output struct {
 	IbstatExists          bool                    `json:"ibstat_exists"`
 	Ibstat                infiniband.IbstatOutput `json:"ibstat"`
 
-	MellanoxPCIDevices pci.Devices `json:"mellanox_pci_devices"`
+	MellanoxPCIDevices       pci.Devices `json:"mellanox_pci_devices"`
+	MellanoxPCIDevicesErrors []string    `json:"mellanox_pci_devices_errors,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -145,18 +147,8 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			}
 		}
 
-		// if it is baremetal, check if the Mellanox PCI devices have ACS enabled
-		// if ACS is enabled, disable it
-		if len(o.MellanoxPCIDevices) > 0 {
-			for _, dev := range o.MellanoxPCIDevices {
-				// "If PCI switches have ACS enabled, it needs to be disabled." in baremetal systems
-				// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
-				if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
-					// TODO: check if the machine is baremetal or not
-					// for now, we do not mark it as unhealthy, but log a warning
-					msgs = append(msgs, fmt.Sprintf("Mellanox PCI device %q has ACS enabled, which is not supported on baremetal", dev.ID))
-				}
-			}
+		if len(o.MellanoxPCIDevicesErrors) > 0 {
+			return strings.Join(o.MellanoxPCIDevicesErrors, ", "), false, nil
 		}
 	}
 	return strings.Join(msgs, "; "), true, nil
