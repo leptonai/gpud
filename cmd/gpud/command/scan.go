@@ -29,6 +29,7 @@ func cmdScan(cliContext *cli.Context) error {
 		diagnose.WithPollXidEvents(pollXidEvents),
 		diagnose.WithPollGPMEvents(pollGPMEvents),
 		diagnose.WithNetcheck(netcheck),
+		diagnose.WithDiskcheck(diskcheck),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		diagnoseOpts = append(diagnoseOpts, diagnose.WithDebug(true))
