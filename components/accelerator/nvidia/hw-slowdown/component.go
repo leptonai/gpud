@@ -80,6 +80,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		convertedEvents = append(convertedEvents, components.Event{
 			Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 			Name:    EventNameHWSlowdown,
+			Type:    "Critical",
 			Message: strings.Join(event.Reasons, ", "),
 			ExtraInfo: map[string]string{
 				EventKeyGPUUUID: event.GPUUUID,

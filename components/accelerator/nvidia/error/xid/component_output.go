@@ -202,6 +202,7 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 		des = append(des, components.Event{
 			Time:    xidErr.Time,
 			Name:    EventNameErroXid,
+			Type:    "Critical",
 			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroXidUnixSeconds: strconv.FormatInt(xidErr.Time.Unix(), 10),
