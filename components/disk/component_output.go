@@ -2,7 +2,9 @@ package disk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -15,14 +17,21 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 )
 
+type MountTargetUsage struct {
+	Device string     `json:"device"`
+	Usage  disk.Usage `json:"usage"`
+}
+
 type Output struct {
-	DiskExtPartitions disk.Partitions   `json:"disk_ext_partitions"`
-	DiskBlockDevices  disk.BlockDevices `json:"disk_block_devices"`
+	DiskExtPartitions disk.Partitions             `json:"disk_ext_partitions"`
+	DiskBlockDevices  disk.BlockDevices           `json:"disk_block_devices"`
+	MountTargetUsages map[string]MountTargetUsage `json:"mount_target_usages"`
 }
 
 const (
 	StateNameDiskExtPartitions = "disk_ext_partitions"
 	StateNameDiskBlockDevices  = "disk_block_devices"
+	StateNameMountTargetUsages = "mount_target_usages"
 
 	StateKeyData           = "data"
 	StateKeyEncoding       = "encoding"
@@ -56,6 +65,11 @@ func (o *Output) States() ([]components.State, error) {
 	blkDevTotalBytes := o.DiskBlockDevices.GetTotalBytes()
 	blkDevTotalGB := float64(blkDevTotalBytes) / 1e9
 	blkDevTotalBytesHumanized := humanize.Bytes(blkDevTotalBytes)
+
+	mb, err := json.Marshal(o.MountTargetUsages)
+	if err != nil {
+		return nil, err
+	}
 
 	return []components.State{
 		{
@@ -96,6 +110,15 @@ func (o *Output) States() ([]components.State, error) {
 				StateKeyDiskBlockDevicesTotalHumanized: blkDevTotalBytesHumanized,
 			},
 		},
+		{
+			Name:    StateNameMountTargetUsages,
+			Healthy: true,
+			Reason:  "",
+			ExtraInfo: map[string]string{
+				StateKeyData:     string(mb),
+				StateKeyEncoding: StateValueEncodingJSON,
+			},
+		},
 	}, nil
 }
 
@@ -116,6 +139,14 @@ func getDefaultPoller() query.Poller {
 }
 
 func CreateGet(cfg Config) query.GetFunc {
+	mountPointsToTrackUsage := make(map[string]struct{})
+	for _, mp := range cfg.MountPointsToTrackUsage {
+		mountPointsToTrackUsage[mp] = struct{}{}
+	}
+	for _, mt := range cfg.MountTargetsToTrackUsage {
+		mountPointsToTrackUsage[mt] = struct{}{}
+	}
+
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -150,11 +181,17 @@ func CreateGet(cfg Config) query.GetFunc {
 		nowUTC := float64(now.Unix())
 		metrics.SetLastUpdateUnixSeconds(nowUTC)
 
-		// for _, path := range cfg.MountPointsToTrackUsage {
+		devToUsage := make(map[string]disk.Usage)
 		for _, p := range o.DiskExtPartitions {
 			usage := p.Usage
 			if usage == nil {
 				log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
+				continue
+			}
+
+			devToUsage[p.Device] = *usage
+
+			if _, ok := mountPointsToTrackUsage[p.MountPoint]; !ok {
 				continue
 			}
 
@@ -169,6 +206,28 @@ func CreateGet(cfg Config) query.GetFunc {
 				return nil, err
 			}
 			metrics.SetUsedInodesPercent(p.MountPoint, usage.InodesUsedPercentFloat)
+		}
+
+		for _, target := range cfg.MountTargetsToTrackUsage {
+			if _, err := os.Stat(target); err != nil {
+				log.Logger.Warnw("mount target does not exist", "mount_target", target)
+				continue
+			}
+			device, err := disk.FindMntTargetDevice(target)
+			if err != nil {
+				log.Logger.Warnw("error finding mount target device", "mount_target", target, "error", err)
+				continue
+			}
+
+			usage, ok := devToUsage[device]
+			if !ok {
+				log.Logger.Warnw("no usage found for mount target", "mount_target", target)
+				continue
+			}
+			if o.MountTargetUsages == nil {
+				o.MountTargetUsages = make(map[string]MountTargetUsage)
+			}
+			o.MountTargetUsages[target] = MountTargetUsage{Device: device, Usage: usage}
 		}
 
 		return o, nil

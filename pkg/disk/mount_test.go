@@ -15,7 +15,7 @@ func TestParseMountInfoLine(t *testing.T) {
 
 	buf := bufio.NewScanner(f)
 
-	mountPoint, err := findMntTarget(buf, "/var/lib/kubelet")
+	mountPoint, err := findMntTargetDevice(buf, "/var/lib/kubelet")
 	if err != nil {
 		t.Fatalf("failed to find mount point: %v", err)
 	}

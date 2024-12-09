@@ -16,7 +16,7 @@ type Config struct {
 	MountPointsToTrackUsage []string `json:"mount_points_to_track_usage"`
 
 	// Mount targets to track the disk usage for (e.g., /var/lib/kubelet).
-	// MountTargetsToTrackUsage []string `json:"mount_targets_to_track_usage"`
+	MountTargetsToTrackUsage []string `json:"mount_targets_to_track_usage"`
 }
 
 func ParseConfig(b any, db *sql.DB) (*Config, error) {

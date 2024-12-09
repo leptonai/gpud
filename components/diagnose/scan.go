@@ -261,20 +261,20 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		if err != nil {
 			log.Logger.Warnw("error getting partitions", "error", err)
 		} else {
-			partitions.RenderTable(os.Stdout)
 			if len(partitions) > 0 {
-				fmt.Printf("\npartitions have total mounted size %s\n\n\n", humanize.Bytes(partitions.GetMountedTotalBytes()))
+				fmt.Printf("\npartitions have total mounted size %s\n", humanize.Bytes(partitions.GetMountedTotalBytes()))
 			}
+			partitions.RenderTable(os.Stdout)
 		}
 
 		blockDevices, err := disk.GetBlockDevices(ctx, disk.WithDeviceType(disk.DefaultMatchFuncDeviceType))
 		if err != nil {
 			log.Logger.Warnw("error getting block devices", "error", err)
 		} else {
-			blockDevices.RenderTable(os.Stdout)
 			if len(blockDevices) > 0 {
-				fmt.Printf("\nblock devices have total size %s\n\n\n", humanize.Bytes(blockDevices.GetTotalBytes()))
+				fmt.Printf("\nblock devices have total size %s\n", humanize.Bytes(blockDevices.GetTotalBytes()))
 			}
+			blockDevices.RenderTable(os.Stdout)
 		}
 	}
 
