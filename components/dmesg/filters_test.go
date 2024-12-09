@@ -20,6 +20,8 @@ func TestOOMRegexes(t *testing.T) {
 			matches: []string{
 				"Out of memory: Killed process 123, UID 48, (httpd).",
 				"Out of memory: Kill process 456 (python) score 50 or sacrifice child",
+				"[Sun Dec  8 09:23:36 2024] Out of memory: Killed process 123, UID 48, (httpd).",
+				"[Sun Dec  8 09:23:36 2024]  Out of memory: Killed process 123, UID 48, (httpd).",
 			},
 			notMatch: []string{
 				"System running low on memory",
@@ -32,6 +34,8 @@ func TestOOMRegexes(t *testing.T) {
 			matches: []string{
 				"oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,mems_allowed=0-1,oom_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice,task_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice/cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,task=node,pid=863987,uid=0",
 				"oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,mems_allowed=0-1,oom_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice,task_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice/cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,task=pt_main_thread,pid=1483257,uid=0",
+				"[Sun Dec  8 09:23:36 2024] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,mems_allowed=0-1,oom_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice,task_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice/cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,task=pt_main_thread,pid=1483257,uid=0",
+				"[Sun Dec  8 09:23:36 2024] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,mems_allowed=0-1,oom_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice,task_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice/cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,task=pt_main_thread,pid=1483257,uid=0",
 			},
 			notMatch: []string{
 				"oom-kill:abc=OTHER_CONSTRAINT",

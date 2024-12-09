@@ -51,6 +51,10 @@ func (ev *Event) Events() []components.Event {
 		evs = append(evs, components.Event{
 			Time:    logItem.Time,
 			Name:    EventNameDmesgMatched,
+
+			// criticality should be decided in individual components
+			Type: "Warning",
+
 			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyDmesgMatchedError: es,
