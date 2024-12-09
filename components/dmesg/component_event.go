@@ -49,8 +49,8 @@ func (ev *Event) Events() []components.Event {
 		}
 
 		evs = append(evs, components.Event{
-			Time:    logItem.Time,
-			Name:    EventNameDmesgMatched,
+			Time: logItem.Time,
+			Name: EventNameDmesgMatched,
 
 			// criticality should be decided in individual components
 			Type: "Warning",
