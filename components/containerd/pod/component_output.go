@@ -32,26 +32,26 @@ func ParseOutputJSON(data []byte) (*Output, error) {
 }
 
 const (
-	StateNamePodSandbox = "pod_sandbox"
+	StateNameContainerdPod = "containerd_pod"
 
-	StateKeyPodSandboxID        = "id"
-	StateKeyPodSandboxName      = "name"
-	StateKeyPodSandboxNamespace = "namespace"
-	StateKeyPodSandboxState     = "state"
+	StateKeyContainerdPodID        = "id"
+	StateKeyContainerdPodName      = "name"
+	StateKeyContainerdPodNamespace = "namespace"
+	StateKeyContainerdPodState     = "state"
 
-	StateKeyPodSandboxData           = "data"
-	StateKeyPodSandboxEncoding       = "encoding"
-	StateValuePodSandboxEncodingJSON = "json"
+	StateKeyContainerdPodData           = "data"
+	StateKeyContainerdPodEncoding       = "encoding"
+	StateValueContainerdPodEncodingJSON = "json"
 )
 
 func ParseStatePodSandbox(m map[string]string) (PodSandbox, error) {
 	pod := PodSandbox{}
-	pod.ID = m[StateKeyPodSandboxID]
-	pod.Name = m[StateKeyPodSandboxName]
-	pod.Namespace = m[StateKeyPodSandboxNamespace]
-	pod.State = m[StateKeyPodSandboxState]
+	pod.ID = m[StateKeyContainerdPodID]
+	pod.Name = m[StateKeyContainerdPodName]
+	pod.Namespace = m[StateKeyContainerdPodNamespace]
+	pod.State = m[StateKeyContainerdPodState]
 
-	data := m[StateKeyPodSandboxData]
+	data := m[StateKeyContainerdPodData]
 	if err := json.Unmarshal([]byte(data), &pod); err != nil {
 		return PodSandbox{}, err
 	}
@@ -65,12 +65,12 @@ func (o *Output) describeReason() string {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 	return []components.State{{
-		Name:    StateNamePodSandbox,
+		Name:    StateNameContainerdPod,
 		Healthy: true,
 		Reason:  o.describeReason(),
 		ExtraInfo: map[string]string{
-			StateKeyPodSandboxData:     string(b),
-			StateKeyPodSandboxEncoding: StateValuePodSandboxEncodingJSON,
+			StateKeyContainerdPodData:     string(b),
+			StateKeyContainerdPodEncoding: StateValueContainerdPodEncodingJSON,
 		},
 	}}, nil
 }
@@ -79,7 +79,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
 		switch state.Name {
-		case StateNamePodSandbox:
+		case StateNameContainerdPod:
 			pod, err := ParseStatePodSandbox(state.ExtraInfo)
 			if err != nil {
 				return nil, err
