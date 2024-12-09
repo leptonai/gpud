@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	metrics_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/temperature"
 	metrics_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/utilization"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/pci"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	"github.com/leptonai/gpud/components/query"
 	query_config "github.com/leptonai/gpud/components/query/config"
@@ -107,6 +109,15 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		IbstatExists:          infiniband.IbstatExists(),
 	}
 
+	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+	o.MellanoxPCIDevices, err = pci.List(cctx, pci.WithNameMatch(func(name string) bool {
+		return strings.Contains(strings.ToLower(name), "mellanox")
+	}))
+	ccancel()
+	if err != nil {
+		log.Logger.Warnw("failed to list Mellanox PCI devices", "error", err)
+	}
+
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
 	if err != nil {
 		log.Logger.Warnw("failed to count gpu devices", "error", err)
@@ -182,7 +193,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+	cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
@@ -423,6 +434,7 @@ type Output struct {
 	InfinibandClassExists bool                     `json:"infiniband_class_exists"`
 	IbstatExists          bool                     `json:"ibstat_exists"`
 	Ibstat                *infiniband.IbstatOutput `json:"ibstat,omitempty"`
+	MellanoxPCIDevices    pci.Devices              `json:"mellanox_pci_devices,omitempty"`
 
 	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
 	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
@@ -547,6 +559,17 @@ func (o *Output) PrintInfo(debug bool) {
 		}
 	} else {
 		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
+	}
+
+	if len(o.MellanoxPCIDevices) > 0 {
+		fmt.Printf("%s successfully checked %d Mellanox PCI devices using 'lspci -vvv'\n", checkMark, len(o.MellanoxPCIDevices))
+		for _, dev := range o.MellanoxPCIDevices {
+			if dev.AccessControlService != nil {
+				fmt.Printf("%q ACSCtl %+v\n", dev.ID, dev.AccessControlService.ACSCtl)
+			}
+		}
+	} else {
+		fmt.Printf("%s skipped Mellanox PCI devices check (no Mellanox devices found)\n", checkMark)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {

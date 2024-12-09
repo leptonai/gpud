@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/pci"
 	"github.com/leptonai/gpud/components/common"
 )
 
@@ -26,6 +27,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		GPUCount:              i.GPUCount(),
 		InfinibandClassExists: i.InfinibandClassExists,
 		IbstatExists:          i.IbstatExists,
+		MellanoxPCIDevices:    i.MellanoxPCIDevices,
 	}
 	if i.Ibstat != nil {
 		o.Ibstat = *i.Ibstat
@@ -46,6 +48,8 @@ type Output struct {
 	InfinibandClassExists bool                    `json:"infiniband_class_exists"`
 	IbstatExists          bool                    `json:"ibstat_exists"`
 	Ibstat                infiniband.IbstatOutput `json:"ibstat"`
+
+	MellanoxPCIDevices pci.Devices `json:"mellanox_pci_devices"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -110,6 +114,8 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 		return "no infiniband pci buses found", true, nil
 	}
 
+	msgs := []string{"no infiniband class found or no ibstat exists or no ibstat issue/error found"}
+
 	if o.InfinibandClassExists && o.IbstatExists {
 		if len(o.Ibstat.Errors) > 0 {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
@@ -138,8 +144,22 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 				return err.Error(), false, nil
 			}
 		}
+
+		// if it is baremetal, check if the Mellanox PCI devices have ACS enabled
+		// if ACS is enabled, disable it
+		if len(o.MellanoxPCIDevices) > 0 {
+			for _, dev := range o.MellanoxPCIDevices {
+				// "If PCI switches have ACS enabled, it needs to be disabled." in baremetal systems
+				// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
+				if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
+					// TODO: check if the machine is baremetal or not
+					// for now, we do not mark it as unhealthy, but log a warning
+					msgs = append(msgs, fmt.Sprintf("Mellanox PCI device %q has ACS enabled, which is not supported on baremetal", dev.ID))
+				}
+			}
+		}
 	}
-	return "no infiniband class found or no ibstat exists or no ibstat issue/error found", true, nil
+	return strings.Join(msgs, "; "), true, nil
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
