@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/pci"
 	"github.com/leptonai/gpud/components/common"
 )
 
@@ -22,10 +23,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	}
 
 	o := &Output{
-		GPUProductName:        i.GPUProductName(),
-		GPUCount:              i.GPUCount(),
-		InfinibandClassExists: i.InfinibandClassExists,
-		IbstatExists:          i.IbstatExists,
+		GPUProductName:           i.GPUProductName(),
+		GPUCount:                 i.GPUCount(),
+		InfinibandClassExists:    i.InfinibandClassExists,
+		IbstatExists:             i.IbstatExists,
+		MellanoxPCIDevices:       i.MellanoxPCIDevices,
+		MellanoxPCIDevicesErrors: i.MellanoxPCIDevicesErrors,
 	}
 	if i.Ibstat != nil {
 		o.Ibstat = *i.Ibstat
@@ -46,6 +49,9 @@ type Output struct {
 	InfinibandClassExists bool                    `json:"infiniband_class_exists"`
 	IbstatExists          bool                    `json:"ibstat_exists"`
 	Ibstat                infiniband.IbstatOutput `json:"ibstat"`
+
+	MellanoxPCIDevices       pci.Devices `json:"mellanox_pci_devices"`
+	MellanoxPCIDevicesErrors []string    `json:"mellanox_pci_devices_errors,omitempty"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -137,6 +143,10 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
 				return err.Error(), false, nil
 			}
+		}
+
+		if len(o.MellanoxPCIDevicesErrors) > 0 {
+			return strings.Join(o.MellanoxPCIDevicesErrors, ", "), false, nil
 		}
 	}
 	return "no infiniband class found or no ibstat exists or no ibstat issue/error found", true, nil
