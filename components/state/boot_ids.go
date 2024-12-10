@@ -89,5 +89,8 @@ func GetRebootEvents(ctx context.Context, db *sql.DB, since time.Time) ([]Reboot
 		}
 		events = append(events, event)
 	}
+	if len(events) == 0 {
+		return nil, nil
+	}
 	return events, nil
 }

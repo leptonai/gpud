@@ -59,6 +59,15 @@ func TestBootIDs(t *testing.T) {
 		t.Fatalf("expected unique constraint violation, got: %v", err)
 	}
 
+	// only one record, thus marked as non-reboot
+	events, err := GetRebootEvents(ctx, db, time.Now().Add(-30*time.Second))
+	if err != nil {
+		t.Fatalf("failed to get reboot events: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected 0 reboot events, got: %d", len(events))
+	}
+
 	uuid2 := uuid.New().String()
 	if err := InsertBootID(ctx, db, uuid2, first.Add(1*time.Second)); err != nil {
 		t.Fatalf("failed to insert boot id: %v", err)
@@ -69,7 +78,7 @@ func TestBootIDs(t *testing.T) {
 		t.Fatalf("failed to insert boot id: %v", err)
 	}
 
-	events, err := GetRebootEvents(ctx, db, time.Now().Add(-30*time.Second))
+	events, err = GetRebootEvents(ctx, db, time.Now().Add(-30*time.Second))
 	if err != nil {
 		t.Fatalf("failed to get reboot events: %v", err)
 	}
