@@ -116,8 +116,6 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 		return "no infiniband pci buses found", true, nil
 	}
 
-	msgs := []string{"no infiniband class found or no ibstat exists or no ibstat issue/error found"}
-
 	if o.InfinibandClassExists && o.IbstatExists {
 		if len(o.Ibstat.Errors) > 0 {
 			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
@@ -151,7 +149,7 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 			return strings.Join(o.MellanoxPCIDevicesErrors, ", "), false, nil
 		}
 	}
-	return strings.Join(msgs, "; "), true, nil
+	return "no infiniband class found or no ibstat exists or no ibstat issue/error found", true, nil
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
