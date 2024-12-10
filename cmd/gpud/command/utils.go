@@ -19,7 +19,7 @@ func GetUID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer db.Close()
-	uid, _, err := state.CreateMachineIDIfNotExist(ctx, db, "")
+	uid, err := state.CreateMachineIDIfNotExist(ctx, db, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to get machine uid: %w", err)
 	}

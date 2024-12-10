@@ -37,7 +37,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	}
 	defer db.Close()
 
-	uid, _, err := state.CreateMachineIDIfNotExist(rootCtx, db, "")
+	uid, err := state.CreateMachineIDIfNotExist(rootCtx, db, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machine uid: %w", err)
 	}

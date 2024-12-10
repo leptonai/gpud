@@ -396,7 +396,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 
 func (o *output) checkUUID(ctx context.Context) error {
 	if commandExists("dmidecode") {
-		uuid, err := host.UUID(ctx)
+		machineID, err := host.DmidecodeUUID(ctx)
 		if err != nil {
 			return err
 		}
@@ -411,7 +411,7 @@ func (o *output) checkUUID(ctx context.Context) error {
 			return err
 		}
 		defer uuidFile.Close()
-		if _, err := uuidFile.WriteString(uuid); err != nil {
+		if _, err := uuidFile.WriteString(machineID); err != nil {
 			return err
 		}
 	} else {
