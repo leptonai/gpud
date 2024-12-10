@@ -11,8 +11,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/pci"
 	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/pkg/pci"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
