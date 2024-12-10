@@ -24,30 +24,30 @@ func TestBootIDs(t *testing.T) {
 	defer cancel()
 
 	if err := CreateTableBootIDs(ctx, db); err != nil {
-		t.Fatal("failed to create table:", err)
+		t.Fatalf("failed to create table: %v", err)
 	}
 
 	id, err := GetLastBootID(ctx, db)
 	if err != nil {
-		t.Fatal("failed to get last boot id:", err)
+		t.Fatalf("failed to get last boot id: %v", err)
 	}
 	if id != "" {
-		t.Fatal("expected empty boot id, got:", id)
+		t.Fatalf("expected empty boot id, got: %q", id)
 	}
 
 	first := time.Now().UTC()
 
 	uuid1 := uuid.New().String()
 	if err := InsertBootID(ctx, db, uuid1, first); err != nil {
-		t.Fatal("failed to insert boot id:", err)
+		t.Fatalf("failed to insert boot id: %v", err)
 	}
 
 	id, err = GetLastBootID(ctx, db)
 	if err != nil {
-		t.Fatal("failed to get last boot id:", err)
+		t.Fatalf("failed to get last boot id: %v", err)
 	}
 	if id != uuid1 {
-		t.Fatal("expected boot id:", uuid1, "got:", id)
+		t.Fatalf("expected boot id: %q, got: %q", uuid1, id)
 	}
 
 	// insert the same boot id again, and should fail due to unique constraint
@@ -56,30 +56,30 @@ func TestBootIDs(t *testing.T) {
 		t.Fatal("expected unique constraint violation, got nil")
 	}
 	if !strings.Contains(err.Error(), "UNIQUE constraint failed") {
-		t.Fatal("expected unique constraint violation, got:", err)
+		t.Fatalf("expected unique constraint violation, got: %v", err)
 	}
 
 	uuid2 := uuid.New().String()
 	if err := InsertBootID(ctx, db, uuid2, first.Add(1*time.Second)); err != nil {
-		t.Fatal("failed to insert boot id:", err)
+		t.Fatalf("failed to insert boot id: %v", err)
 	}
 
 	uuid3 := uuid.New().String()
 	if err := InsertBootID(ctx, db, uuid3, first.Add(2*time.Second)); err != nil {
-		t.Fatal("failed to insert boot id:", err)
+		t.Fatalf("failed to insert boot id: %v", err)
 	}
 
 	events, err := GetRebootEvents(ctx, db, time.Now().Add(-30*time.Second))
 	if err != nil {
-		t.Fatal("failed to get reboot events:", err)
+		t.Fatalf("failed to get reboot events: %v", err)
 	}
 	if len(events) != 2 {
-		t.Fatal("expected 1 reboot event, got:", len(events))
+		t.Fatalf("expected 2 reboot events, got: %d", len(events))
 	}
 	if events[0].BootID != uuid2 {
-		t.Fatal("expected boot id:", uuid2, "got:", events[0].BootID)
+		t.Fatalf("expected boot id: %q, got: %q", uuid2, events[0].BootID)
 	}
 	if events[1].BootID != uuid3 {
-		t.Fatal("expected boot id:", uuid3, "got:", events[1].BootID)
+		t.Fatalf("expected boot id: %q, got: %q", uuid3, events[1].BootID)
 	}
 }
