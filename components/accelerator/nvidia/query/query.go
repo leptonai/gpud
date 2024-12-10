@@ -28,7 +28,6 @@ import (
 	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/pkg/host"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,13 +107,6 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		IbstatExists:          infiniband.IbstatExists(),
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-	o.VirtEnv, err = host.SystemdDetectVirt(cctx)
-	ccancel()
-	if err != nil {
-		log.Logger.Warnw("failed to detect virt env", "error", err)
-	}
-
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
 	if err != nil {
 		log.Logger.Warnw("failed to count gpu devices", "error", err)
@@ -190,7 +182,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 	}
 
-	cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
+	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
@@ -413,8 +405,6 @@ const (
 )
 
 type Output struct {
-	VirtEnv host.VirtualizationEnvironment `json:"virt_env"`
-
 	// GPU device count from the /dev directory.
 	GPUDeviceCount int `json:"gpu_device_count"`
 
