@@ -137,7 +137,7 @@ func Get(ctx context.Context) (_ any, e error) {
 	if err != nil {
 		return nil, err
 	}
-	if devices != nil && len(devices) > 0 {
+	if len(devices) > 0 {
 		for _, dev := range devices {
 			if dev.AccessControlService != nil {
 				o.DevicesWithACS = append(o.DevicesWithACS, dev)
