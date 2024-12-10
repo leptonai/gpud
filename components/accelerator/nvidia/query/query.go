@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/pci"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,31 +113,6 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	ccancel()
 	if err != nil {
 		log.Logger.Warnw("failed to detect virt env", "error", err)
-	}
-
-	cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
-	o.MellanoxPCIDevices, err = pci.List(cctx, pci.WithNameMatch(func(name string) bool {
-		return strings.Contains(strings.ToLower(name), "mellanox")
-	}))
-	ccancel()
-	if err != nil {
-		log.Logger.Warnw("failed to list Mellanox PCI devices", "error", err)
-	}
-	// if it is baremetal, check if the Mellanox PCI devices have ACS enabled
-	// if ACS is enabled, disable it
-	if len(o.MellanoxPCIDevices) > 0 {
-		for _, dev := range o.MellanoxPCIDevices {
-			// "If PCI switches have ACS enabled, it needs to be disabled." in baremetal systems
-			// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
-			if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
-				// check if the machine is baremetal or not
-				maybeBaremetal := !o.VirtEnv.IsKVM && o.VirtEnv.Type != "none"
-				if maybeBaremetal {
-					o.MellanoxPCIDevicesErrors = append(o.MellanoxPCIDevicesErrors,
-						fmt.Sprintf("Mellanox PCI device %q has ACS enabled, which is not supported on baremetal (this machine virt env type is %q)", dev.ID, o.VirtEnv.Type))
-				}
-			}
-		}
 	}
 
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
@@ -460,9 +433,6 @@ type Output struct {
 	InfinibandClassExists bool                     `json:"infiniband_class_exists"`
 	IbstatExists          bool                     `json:"ibstat_exists"`
 	Ibstat                *infiniband.IbstatOutput `json:"ibstat,omitempty"`
-	MellanoxPCIDevices    pci.Devices              `json:"mellanox_pci_devices,omitempty"`
-	// MellanoxPCIDevicesErrors is the errors for the Mellanox PCI devices.
-	MellanoxPCIDevicesErrors []string `json:"mellanox_pci_devices_errors,omitempty"`
 
 	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
 	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
@@ -587,20 +557,6 @@ func (o *Output) PrintInfo(debug bool) {
 		}
 	} else {
 		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
-	}
-
-	if len(o.MellanoxPCIDevices) > 0 {
-		fmt.Printf("%s successfully checked %d Mellanox PCI devices using 'lspci -vvv' for virt env type %q\n", checkMark, len(o.MellanoxPCIDevices), o.VirtEnv.Type)
-		for _, dev := range o.MellanoxPCIDevices {
-			if dev.AccessControlService != nil {
-				fmt.Printf("%q ACSCtl %+v\n", dev.ID, dev.AccessControlService.ACSCtl)
-			}
-		}
-		for _, err := range o.MellanoxPCIDevicesErrors {
-			fmt.Printf("%s %s\n", warningSign, err)
-		}
-	} else {
-		fmt.Printf("%s skipped Mellanox PCI devices check (no Mellanox devices found, virt env type %q)\n", checkMark, o.VirtEnv.Type)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {

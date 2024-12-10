@@ -33,6 +33,7 @@
 - [**`memory`**](https://pkg.go.dev/github.com/leptonai/gpud/components/memory): Tracks the memory usage of the host.
 - [**`network-latency`**](https://pkg.go.dev/github.com/leptonai/gpud/components/network/latency): Tracks global network connectivity statistics.
 - [**`power-supply`**](https://pkg.go.dev/github.com/leptonai/gpud/components/power-supply): Tracks the power supply/usage on the host.
+- [**`pci`**](https://pkg.go.dev/github.com/leptonai/gpud/components/pci): Tracks the PCI devices and their Access Control Services (ACS) status.
 
 ## System components
 

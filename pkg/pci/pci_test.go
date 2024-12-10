@@ -59,6 +59,29 @@ func TestParseAccessControlServices(t *testing.T) {
 	t.Logf("yaml: %s", string(yb))
 }
 
+func TestParseAccessControlServicesNoFilter(t *testing.T) {
+	b, err := os.ReadFile("testdata/lspci-vvv")
+	if err != nil {
+		t.Fatalf("failed to read testdata: %v", err)
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	devs, err := parseLspciVVV(ctx, scanner, nil)
+	if err != nil {
+		t.Fatalf("failed to parse access control services: %v", err)
+	}
+
+	for _, dev := range devs {
+		if dev.AccessControlService == nil {
+			continue
+		}
+		t.Logf("device %q has access control service: %+v", dev.ID, dev.AccessControlService)
+	}
+}
+
 func TestPCIDeviceHeaderRegex(t *testing.T) {
 	tests := []struct {
 		name  string
