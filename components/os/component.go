@@ -104,7 +104,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			Time:    metav1.Time{Time: rebootedAt},
 			Name:    "reboot",
 			Type:    "Warning",
-			Message: fmt.Sprintf("reboot detected (%s)", rebootedAtHumanized),
+			Message: fmt.Sprintf("system reboot detected (%s)", rebootedAtHumanized),
 		})
 	}
 	return evs, nil
