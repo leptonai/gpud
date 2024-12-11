@@ -1,0 +1,342 @@
+{
+    "blockdevices": [
+        {
+            "name": "/dev/loop0",
+            "type": "loop",
+            "size": 67080192,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/loop1",
+            "type": "loop",
+            "size": 66789376,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/loop2",
+            "type": "loop",
+            "size": 91267072,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/loop3",
+            "type": "loop",
+            "size": 93745152,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/loop4",
+            "type": "loop",
+            "size": 40714240,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/loop5",
+            "type": "loop",
+            "size": 46448640,
+            "rota": false,
+            "serial": null,
+            "wwn": null,
+            "vendor": null,
+            "model": null,
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null
+        },
+        {
+            "name": "/dev/nvme0n1",
+            "type": "disk",
+            "size": 960197124096,
+            "rota": false,
+            "serial": "24014620E9AA",
+            "wwn": "eui.000000000000000100a075244620e9aa",
+            "vendor": null,
+            "model": "Dell DC NVMe ISE 7450 RI U.2 960GB",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme0n1p1",
+                    "type": "part",
+                    "size": 536870912,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.000000000000000100a075244620e9aa",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": null,
+                    "fstype": null,
+                    "partuuid": null
+                },
+                {
+                    "name": "/dev/nvme0n1p2",
+                    "type": "part",
+                    "size": 959652560896,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.000000000000000100a075244620e9aa",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": null,
+                    "fstype": null,
+                    "partuuid": null
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme1n1",
+            "type": "disk",
+            "size": 960197124096,
+            "rota": false,
+            "serial": "24014620E91F",
+            "wwn": "eui.000000000000000100a075244620e91f",
+            "vendor": null,
+            "model": "Dell DC NVMe ISE 7450 RI U.2 960GB",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme1n1p1",
+                    "type": "part",
+                    "size": 960195723264,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.000000000000000100a075244620e91f",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": null,
+                    "fstype": null,
+                    "partuuid": null
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme3n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX341401Y87P6DGN",
+            "wwn": "eui.01000000000000005cd2e4ea60d35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme3n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e4ea60d35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/test-cache/vol-0",
+                    "fstype": "ext4",
+                    "partuuid": "70d69fd9-d1a2-4221-a4e1-626fa61bcdc2"
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme2n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX341402PV7P6DGN",
+            "wwn": "eui.01000000000000005cd2e43764d35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme2n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e43764d35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/local-volume/vol-0",
+                    "fstype": "ext4",
+                    "partuuid": "d4885477-b86c-498e-ba7b-cc74364e4179"
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme7n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX341404087P6DGN",
+            "wwn": "eui.01000000000000005cd2e4f369d35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme7n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e4f369d35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/test-cache/vol-4",
+                    "fstype": "ext4",
+                    "partuuid": "70c364df-88b1-4ce3-bbaf-1a86e795ef89"
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme6n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX341403YS7P6DGN",
+            "wwn": "eui.01000000000000005cd2e4c169d35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme6n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e4c169d35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/test-cache/vol-3",
+                    "fstype": "ext4",
+                    "partuuid": "d4b84aae-d2dc-4d5b-a9ca-a2d853d94f99"
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme5n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX341404657P6DGN",
+            "wwn": "eui.01000000000000005cd2e4ba6ad35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme5n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e4ba6ad35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/test-cache/vol-2",
+                    "fstype": "ext4",
+                    "partuuid": "62a19d73-4e34-48b2-b7ba-1ef7948f1db4"
+                }
+            ]
+        },
+        {
+            "name": "/dev/nvme4n1",
+            "type": "disk",
+            "size": 7681501126656,
+            "rota": false,
+            "serial": "BTAX3413027X7P6DGN",
+            "wwn": "eui.01000000000000005cd2e46d40d35651",
+            "vendor": null,
+            "model": "INTEL SSDPF2KX076T1O",
+            "rev": null,
+            "mountpoint": null,
+            "fstype": null,
+            "partuuid": null,
+            "children": [
+                {
+                    "name": "/dev/nvme4n1p1",
+                    "type": "part",
+                    "size": 7681499725824,
+                    "rota": false,
+                    "serial": null,
+                    "wwn": "eui.01000000000000005cd2e46d40d35651",
+                    "vendor": null,
+                    "model": null,
+                    "rev": null,
+                    "mountpoint": "/mnt/test-cache/vol-1",
+                    "fstype": "ext4",
+                    "partuuid": "b21e2b0b-8a2a-4557-b5c9-8fe2af89373b"
+                }
+            ]
+        }
+    ]
+}
