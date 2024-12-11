@@ -8,7 +8,8 @@ type Op struct {
 	pollXidEvents bool
 	pollGPMEvents bool
 
-	netcheck bool
+	netcheck  bool
+	diskcheck bool
 }
 
 type OpOption func(*Op)
@@ -57,5 +58,11 @@ func WithPollGPMEvents(b bool) OpOption {
 func WithNetcheck(b bool) OpOption {
 	return func(op *Op) {
 		op.netcheck = b
+	}
+}
+
+func WithDiskcheck(b bool) OpOption {
+	return func(op *Op) {
+		op.diskcheck = b
 	}
 }

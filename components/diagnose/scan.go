@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
@@ -15,6 +16,7 @@ import (
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/host"
@@ -250,6 +252,29 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			latencies.RenderTable(os.Stdout)
 			fmt.Printf("\n\n%s latency check complete\n\n", checkMark)
+		}
+	}
+
+	if op.diskcheck {
+		fmt.Printf("\n%s checking disk\n", inProgress)
+		partitions, err := disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultMatchFuncFstype))
+		if err != nil {
+			log.Logger.Warnw("error getting partitions", "error", err)
+		} else {
+			if len(partitions) > 0 {
+				fmt.Printf("\npartitions have total mounted size %s\n", humanize.Bytes(partitions.GetMountedTotalBytes()))
+			}
+			partitions.RenderTable(os.Stdout)
+		}
+
+		blockDevices, err := disk.GetBlockDevices(ctx, disk.WithDeviceType(disk.DefaultMatchFuncDeviceType))
+		if err != nil {
+			log.Logger.Warnw("error getting block devices", "error", err)
+		} else {
+			if len(blockDevices) > 0 {
+				fmt.Printf("\nblock devices have total size %s\n", humanize.Bytes(blockDevices.GetTotalBytes()))
+			}
+			blockDevices.RenderTable(os.Stdout)
 		}
 	}
 
