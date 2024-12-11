@@ -12,6 +12,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/components/state"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
@@ -23,6 +25,8 @@ import (
 type Output struct {
 	VirtualizationEnvironment   pkg_host.VirtualizationEnvironment `json:"virtualization_environment"`
 	SystemManufacturer          string                             `json:"system_manufacturer"`
+	MachineMetadata             MachineMetadata                    `json:"machine_metadata"`
+	MachineRebooted             bool                               `json:"machine_rebooted"`
 	Host                        Host                               `json:"host"`
 	Kernel                      Kernel                             `json:"kernel"`
 	Platform                    Platform                           `json:"platform"`
@@ -75,6 +79,11 @@ const (
 	StateNameSystemManufacturer = "system_manufacturer"
 	StateKeySystemManufacturer  = "system_manufacturer"
 
+	StateNameMachineMetadata             = "machine_metadata"
+	StateKeyMachineMetadataBootID        = "boot_id"
+	StateKeyMachineMetadataDmidecodeUUID = "dmidecode_uuid"
+	StateKeyMachineMetadataOSMachineID   = "os_machine_id"
+
 	StateNameHost  = "host"
 	StateKeyHostID = "id"
 
@@ -110,6 +119,14 @@ func ParseStateVirtualizationEnvironment(m map[string]string) (pkg_host.Virtuali
 
 func ParseStateSystemManufacturer(m map[string]string) (string, error) {
 	return m[StateKeySystemManufacturer], nil
+}
+
+func ParseStateMachineMetadata(m map[string]string) (MachineMetadata, error) {
+	mm := MachineMetadata{}
+	mm.BootID = m[StateKeyMachineMetadataBootID]
+	mm.DmidecodeUUID = m[StateKeyMachineMetadataDmidecodeUUID]
+	mm.OSMachineID = m[StateKeyMachineMetadataOSMachineID]
+	return mm, nil
 }
 
 func ParseStateHost(m map[string]string) (Host, error) {
@@ -168,6 +185,9 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
 		switch state.Name {
+		case Name:
+			// noop
+
 		case StateNameVirtualizationEnvironment:
 			virtEnv, err := ParseStateVirtualizationEnvironment(state.ExtraInfo)
 			if err != nil {
@@ -181,6 +201,13 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 				return nil, err
 			}
 			o.SystemManufacturer = manufacturer
+
+		case StateNameMachineMetadata:
+			mm, err := ParseStateMachineMetadata(state.ExtraInfo)
+			if err != nil {
+				return nil, err
+			}
+			o.MachineMetadata = mm
 
 		case StateNameHost:
 			host, err := ParseStateHost(state.ExtraInfo)
@@ -256,6 +283,16 @@ func (o *Output) States() ([]components.State, error) {
 			},
 		},
 		{
+			Name:    StateNameMachineMetadata,
+			Healthy: true,
+			Reason:  fmt.Sprintf("boot id: %s, dmidecode uuid: %s, os machine id: %s", currentMachineMetadata.BootID, currentMachineMetadata.DmidecodeUUID, currentMachineMetadata.OSMachineID),
+			ExtraInfo: map[string]string{
+				StateKeyMachineMetadataBootID:        currentMachineMetadata.BootID,
+				StateKeyMachineMetadataDmidecodeUUID: currentMachineMetadata.DmidecodeUUID,
+				StateKeyMachineMetadataOSMachineID:   currentMachineMetadata.OSMachineID,
+			},
+		},
+		{
 			Name:    StateNameHost,
 			Healthy: true,
 			Reason:  fmt.Sprintf("host id: %s", o.Host.ID),
@@ -315,6 +352,14 @@ func (o *Output) States() ([]components.State, error) {
 
 var DefaultZombieProcessCountThreshold = 1000
 
+type MachineMetadata struct {
+	BootID        string `json:"boot_id"`
+	DmidecodeUUID string `json:"dmidecode_uuid"`
+	OSMachineID   string `json:"os_machine_id"`
+}
+
+var currentMachineMetadata MachineMetadata
+
 func init() {
 	// e.g., "/proc/sys/fs/file-max" exists on linux
 	if file.CheckFDLimitSupported() {
@@ -323,6 +368,24 @@ func init() {
 			// set to 20% of system limit
 			DefaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
 		}
+	}
+
+	var err error
+	currentMachineMetadata.BootID, err = pkg_host.GetBootID()
+	if err != nil {
+		log.Logger.Warnw("failed to get boot id", "error", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	currentMachineMetadata.DmidecodeUUID, err = pkg_host.DmidecodeUUID(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Warnw("failed to get dmidecode uuid", "error", err)
+	}
+
+	currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
+	if err != nil {
+		log.Logger.Warnw("failed to get os machine id", "error", err)
 	}
 }
 
@@ -334,7 +397,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, Get)
+		defaultPoller = query.New(Name, cfg.Query, CreateGet(cfg))
 	})
 }
 
@@ -342,82 +405,106 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func Get(ctx context.Context) (_ any, e error) {
-	defer func() {
-		if e != nil {
-			components_metrics.SetGetFailed(Name)
-		} else {
-			components_metrics.SetGetSuccess(Name)
+func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
+	return func(ctx context.Context) (_ any, e error) {
+		defer func() {
+			if e != nil {
+				components_metrics.SetGetFailed(Name)
+			} else {
+				components_metrics.SetGetSuccess(Name)
+			}
+		}()
+
+		o := &Output{}
+
+		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+		virtEnv, err := pkg_host.SystemdDetectVirt(cctx)
+		ccancel()
+		if err != nil {
+			return nil, err
 		}
-	}()
+		o.VirtualizationEnvironment = virtEnv
 
-	o := &Output{}
-
-	cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
-	virtEnv, err := pkg_host.SystemdDetectVirt(cctx)
-	ccancel()
-	if err != nil {
-		return nil, err
-	}
-	o.VirtualizationEnvironment = virtEnv
-
-	cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-	manufacturer, err := pkg_host.SystemManufacturer(cctx)
-	ccancel()
-	if err != nil {
-		return nil, err
-	}
-	o.SystemManufacturer = manufacturer
-	hostID, err := host.HostID()
-	if err != nil {
-		return nil, err
-	}
-	o.Host = Host{ID: hostID}
-
-	arch, err := host.KernelArch()
-	if err != nil {
-		return nil, err
-	}
-	kernelVer, err := host.KernelVersion()
-	if err != nil {
-		return nil, err
-	}
-	o.Kernel = Kernel{Arch: arch, Version: kernelVer}
-
-	platform, family, version, err := host.PlatformInformation()
-	if err != nil {
-		return nil, err
-	}
-	o.Platform = Platform{Name: platform, Family: family, Version: version}
-
-	uptime, err := host.UptimeWithContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	boottime, err := host.BootTimeWithContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-	o.Uptimes = Uptimes{
-		Seconds:             uptime,
-		SecondsHumanized:    humanize.RelTime(now.Add(time.Duration(-int64(uptime))*time.Second), now, "ago", "from now"),
-		BootTimeUnixSeconds: boottime,
-		BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
-	}
-
-	allProcs, err := process.CountProcessesByStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for status, procsWithStatus := range allProcs {
-		if status == procs.Zombie {
-			o.ProcessCountZombieProcesses = len(procsWithStatus)
-			break
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		manufacturer, err := pkg_host.SystemManufacturer(cctx)
+		ccancel()
+		if err != nil {
+			return nil, err
 		}
-	}
+		o.SystemManufacturer = manufacturer
 
-	return o, nil
+		o.MachineMetadata = currentMachineMetadata
+
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		lastBootID, err := state.GetLastBootID(cctx, cfg.Query.State.DB)
+		ccancel()
+		if err != nil {
+			return nil, err
+		}
+
+		// boot id must be non-empty to correctly evaluate if the machine rebooted
+		o.MachineRebooted = lastBootID != "" && currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID
+
+		// 1. empty (new GPUd version without reboot, boot id never persisted)
+		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
+		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
+			if err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC()); err != nil {
+				return nil, err
+			}
+			// next os poll will set the rebooted to false
+		}
+
+		hostID, err := host.HostID()
+		if err != nil {
+			return nil, err
+		}
+		o.Host = Host{ID: hostID}
+
+		arch, err := host.KernelArch()
+		if err != nil {
+			return nil, err
+		}
+		kernelVer, err := host.KernelVersion()
+		if err != nil {
+			return nil, err
+		}
+		o.Kernel = Kernel{Arch: arch, Version: kernelVer}
+
+		platform, family, version, err := host.PlatformInformation()
+		if err != nil {
+			return nil, err
+		}
+		o.Platform = Platform{Name: platform, Family: family, Version: version}
+
+		uptime, err := host.UptimeWithContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		boottime, err := host.BootTimeWithContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		now := time.Now().UTC()
+		o.Uptimes = Uptimes{
+			Seconds:             uptime,
+			SecondsHumanized:    humanize.RelTime(now.Add(time.Duration(-int64(uptime))*time.Second), now, "ago", "from now"),
+			BootTimeUnixSeconds: boottime,
+			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
+		}
+
+		allProcs, err := process.CountProcessesByStatus(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for status, procsWithStatus := range allProcs {
+			if status == procs.Zombie {
+				o.ProcessCountZombieProcesses = len(procsWithStatus)
+				break
+			}
+		}
+
+		return o, nil
+	}
 }

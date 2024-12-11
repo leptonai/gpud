@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-func CreateMachineIDIfNotExist(ctx context.Context, db *sql.DB, providedUID string) (string, time.Time, error) {
+func CreateMachineIDIfNotExist(ctx context.Context, db *sql.DB, providedUID string) (string, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s FROM %s
 LIMIT 1;
@@ -50,25 +50,30 @@ LIMIT 1;
 		machineID   string
 		unixSeconds int64
 	)
-	if err := db.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds); err == nil {
-		return machineID, time.Unix(unixSeconds, 0), nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return "", time.Time{}, err
+	err := db.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds)
+	if err == nil { // reuse existing machine ID
+		return machineID, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", err
 	}
 
-	insertTime := time.Now()
-	var uid string
-	if providedUID != "" {
-		uid = providedUID
-	} else if dmiUUID, err := host.UUID(ctx); err == nil {
-		uid = dmiUUID
-	} else {
-		generateUUID, err := uuid.NewUUID()
+	uid := providedUID
+	if uid == "" {
+		uid, err = host.GetMachineID(ctx)
 		if err != nil {
-			return "", time.Time{}, err
+			log.Logger.Warnw("failed to get machine ID", "error", err)
 		}
-		uid = generateUUID.String()
 	}
+	if uid == "" { // fallback to random UUID
+		u, err := uuid.NewUUID()
+		if err != nil {
+			return "", err
+		}
+		uid = u.String()
+	}
+
+	// was never inserted, thus insert the one now
 	query = fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 `,
@@ -76,10 +81,10 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 		ColumnMachineID,
 		ColumnUnixSeconds,
 	)
-	if _, err := db.ExecContext(ctx, query, uid, insertTime.UTC().Unix()); err != nil {
-		return "", time.Time{}, err
+	if _, err := db.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
+		return "", err
 	}
-	return uid, insertTime, nil
+	return uid, nil
 }
 
 func GetLoginInfo(ctx context.Context, db *sql.DB, machineID string) (string, error) {

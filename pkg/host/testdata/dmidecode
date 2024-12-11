@@ -1,0 +1,23 @@
+# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.3.0 present.
+
+Handle 0x0100, DMI type 1, 27 bytes
+System Information
+        Manufacturer: Dell Inc.
+        Product Name: PowerEdge XE9680
+        Version: Not Specified
+        Serial Number: HSR8X04
+        UUID: 4c4c4544-0053-5210-8038-c8c04f583034
+        Wake-up Type: Power Switch
+        SKU Number: SKU=94F9;ModelName=PowerEdge XE9680
+        Family: PowerEdge
+
+Handle 0x0C00, DMI type 12, 5 bytes
+System Configuration Options
+        Option 1: NVRAM_CLR: Clear user settable NVRAM areas and set defaults
+        Option 2: PWRD_EN: Close to enable password
+
+Handle 0x2000, DMI type 32, 11 bytes
+System Boot Information
+        Status: No errors detected
