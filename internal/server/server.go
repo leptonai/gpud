@@ -32,7 +32,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
-	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
@@ -705,10 +706,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
-		case nvidia_clockspeed.Name:
-			cfg := nvidia_clockspeed.Config{Query: defaultQueryCfg}
+		case nvidia_clock_speed_id.Name:
+			cfg := nvidia_clock_speed.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_clockspeed.ParseConfig(configValue, db)
+				parsed, err := nvidia_clock_speed.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -717,7 +718,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_clockspeed.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, cfg))
 
 		case nvidia_ecc_id.Name:
 			cfg := nvidia_ecc.Config{Query: defaultQueryCfg}
