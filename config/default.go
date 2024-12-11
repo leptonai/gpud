@@ -48,6 +48,7 @@ import (
 	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
+	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
@@ -169,6 +170,10 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	cfg.Components[network_latency.Name] = nil
+
+	if runtime.GOOS == "linux" {
+		cfg.Components[component_pci_id.Name] = nil
+	}
 
 	if runtime.GOOS == "linux" {
 		if pkd_systemd.SystemdExists() && pkd_systemd.SystemctlExists() {

@@ -88,6 +88,8 @@ import (
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
+	"github.com/leptonai/gpud/components/pci"
+	pci_id "github.com/leptonai/gpud/components/pci/id"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
@@ -376,6 +378,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, disk.New(ctx, cfg))
+
+		case pci_id.Name:
+			cfg := pci.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := pci.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			allComponents = append(allComponents, pci.New(ctx, cfg))
 
 		case dmesg.Name:
 			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
