@@ -1,7 +1,6 @@
 package host
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -50,37 +49,25 @@ func DmidecodeUUID(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	uuid := scanUUIDFromDmidecode(scanner)
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return "", serr
+	uuid := ""
+	if err := process.ReadAllStdout(ctx, p, process.WithProcessLine(func(line string) {
+		u := extractUUID(line)
+		if u != "" {
+			uuid = u
 		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			return "", err
-		}
-	case <-ctx.Done():
-		return "", ctx.Err()
+	})); err != nil {
+		return "", err
 	}
 
 	return uuid, nil
 }
 
-func scanUUIDFromDmidecode(scanner *bufio.Scanner) string {
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "UUID: ") {
-			uuid := strings.TrimSpace(strings.TrimPrefix(line, "UUID: "))
-			return uuid
-		}
+func extractUUID(line string) string {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "UUID: ") {
+		return ""
 	}
-	return ""
+	return strings.TrimSpace(strings.TrimPrefix(line, "UUID: "))
 }
 
 // ref. https://github.com/google/cadvisor/blob/854445c010e0b634fcd855a20681ae986da235df/machine/info.go#L39

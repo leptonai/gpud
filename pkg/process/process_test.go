@@ -27,33 +27,10 @@ func TestProcess(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
+	if err := ReadAllStdout(ctx, p, WithProcessLine(func(line string) {
 		t.Logf("stdout: %q", line)
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				t.Fatal(err)
-			}
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			t.Fatal(serr)
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout")
+	})); err != nil {
+		t.Fatal(err)
 	}
 
 	if err := p.Abort(ctx); err != nil {

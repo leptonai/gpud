@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -33,35 +31,15 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-		fmt.Println("stdout:", line)
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				panic(err)
-			}
-		case sig := <-sigChan:
-			fmt.Printf("Received signal %s, exiting...\n", sig)
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			panic(serr)
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			fmt.Println("wait error:", err)
-		}
-	case <-time.After(2 * time.Second):
-		panic("timeout")
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			fmt.Println("stdout:", line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		panic(err)
 	}
 
 	if err := p.Abort(ctx); err != nil {

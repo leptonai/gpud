@@ -1,7 +1,6 @@
 package query
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"strings"
@@ -109,42 +108,20 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	}
 
 	lines := make([]string, 0)
-
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-
-		// e.g.,
-		// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
-		// 01:00.1 Audio device: NVIDIA Corporation Device 22ba (rev a1)
-		if strings.Contains(line, "NVIDIA") {
-			lines = append(lines, line)
-		}
-
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				return nil, err
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			// e.g.,
+			// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
+			// 01:00.1 Audio device: NVIDIA Corporation Device 22ba (rev a1)
+			if strings.Contains(line, "NVIDIA") {
+				lines = append(lines, line)
 			}
-		default:
-		}
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return nil, err
 	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return nil, serr
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			return nil, err
-		}
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-
 	return lines, nil
 }
