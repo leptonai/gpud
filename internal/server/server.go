@@ -159,6 +159,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err := state.CreateTableMachineMetadata(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
+	if err := state.CreateTableBootIDs(ctx, db); err != nil {
+		return nil, fmt.Errorf("failed to create boot ids table: %w", err)
+	}
 	if err := state.CreateTableAPIVersion(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
@@ -329,8 +332,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	defaultStateCfg := query_config.State{DB: db}
-	defaultQueryCfg := query_config.Config{State: &defaultStateCfg}
+	defaultQueryCfg := query_config.Config{
+		State: &query_config.State{
+			DB: db,
+		},
+	}
 	defaultLogCfg := query_log_config.Config{
 		Query: defaultQueryCfg,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
@@ -1113,7 +1119,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	uid, _, err := state.CreateMachineIDIfNotExist(ctx, db, cliUID)
+	uid, err := state.CreateMachineIDIfNotExist(ctx, db, cliUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create machine uid: %w", err)
 	}

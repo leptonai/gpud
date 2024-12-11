@@ -50,6 +50,19 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
+	machineID, err := host.GetMachineID(ctx)
+	if err != nil {
+		log.Logger.Warnw("error reading machine ID", "error", err)
+	} else {
+		fmt.Printf("%s detected machine ID %q\n", checkMark, machineID)
+	}
+
+	bootID, err := host.GetBootID()
+	if err != nil {
+		log.Logger.Warnw("error reading boot ID", "error", err)
+	} else {
+		fmt.Printf("%s detected boot ID %q\n", checkMark, bootID)
+	}
 
 	virtEnv, err := host.SystemdDetectVirt(ctx)
 	if err != nil {
