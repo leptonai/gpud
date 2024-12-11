@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
@@ -15,14 +16,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const Name = "os"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, Name)
+	getDefaultPoller().Start(cctx, cfg.Query, os_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -41,15 +40,15 @@ type component struct {
 	cfg     Config
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return os_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", os_id.Name)
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    os_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -61,7 +60,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Error != nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    os_id.Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
 				Reason:  "last query failed",
@@ -71,7 +70,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Output == nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    os_id.Name,
 				Healthy: true,
 				Reason:  "no output",
 			},
@@ -120,7 +119,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(Name)
+	c.poller.Stop(os_id.Name)
 
 	return nil
 }
@@ -133,7 +132,7 @@ func (c *component) Output() (any, error) {
 		return nil, err
 	}
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", os_id.Name)
 		return nil, query.ErrNoData
 	}
 	if last.Error != nil {

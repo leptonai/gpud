@@ -10,7 +10,7 @@ import (
 	"time"
 
 	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
-	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
+	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_component_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
@@ -35,24 +35,32 @@ import (
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
-	"github.com/leptonai/gpud/components/cpu"
+	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
+	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
+	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
+	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	file_id "github.com/leptonai/gpud/components/file/id"
-	"github.com/leptonai/gpud/components/info"
+	info_id "github.com/leptonai/gpud/components/info/id"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
+	library_id "github.com/leptonai/gpud/components/library/id"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
-	network_latency "github.com/leptonai/gpud/components/network/latency"
-	"github.com/leptonai/gpud/components/os"
+	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
+	os_id "github.com/leptonai/gpud/components/os/id"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
+	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
+	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
+	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 	"github.com/leptonai/gpud/log"
 	pkg_file "github.com/leptonai/gpud/pkg/file"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
@@ -117,12 +125,12 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// default components that work both in mac/linux
 		Components: map[string]any{
-			cpu.Name:              nil,
-			disk.Name:             disk.DefaultConfig(),
+			cpu_id.Name:           nil,
+			disk_id.Name:          disk.DefaultConfig(),
 			fd_id.Name:            nil,
-			info.Name:             nil,
+			info_id.Name:          nil,
 			memory_id.Name:        nil,
-			os.Name:               nil,
+			os_id.Name:            nil,
 			kernel_module_id.Name: nil,
 		},
 
@@ -148,17 +156,17 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	if cc, exists := DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
-		cfg.Components[docker_container.Name] = cc
+		cfg.Components[docker_container_id.Name] = cc
 	}
 	if cc, exists := DefaultContainerdComponent(ctx); exists {
-		cfg.Components[containerd_pod.Name] = cc
+		cfg.Components[containerd_pod_id.Name] = cc
 	}
 	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
-		cfg.Components[k8s_pod.Name] = cc
+		cfg.Components[k8s_pod_id.Name] = cc
 	}
 
 	if _, err := stdos.Stat(power_supply.DefaultBatteryCapacityFile); err == nil {
-		cfg.Components[power_supply.Name] = nil
+		cfg.Components[power_supply_id.Name] = nil
 	}
 
 	cc, exists, err := DefaultDmesgComponent(ctx)
@@ -169,7 +177,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[dmesg.Name] = cc
 	}
 
-	cfg.Components[network_latency.Name] = nil
+	cfg.Components[network_latency_id.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[component_pci_id.Name] = nil
@@ -197,7 +205,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 				systemdCfg.Units = append(systemdCfg.Units, "tailscaled")
 			}
 
-			cfg.Components[component_systemd.Name] = systemdCfg
+			cfg.Components[component_systemd_id.Name] = systemdCfg
 		}
 	} else {
 		log.Logger.Debugw("auto-detect systemd not supported -- skipping", "os", runtime.GOOS)
@@ -206,7 +214,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	if runtime.GOOS == "linux" {
 		if tailscale.TailscaleExists() {
 			log.Logger.Debugw("auto-detected tailscale -- configuring tailscale component")
-			cfg.Components[tailscale.Name] = nil
+			cfg.Components[tailscale_id.Name] = nil
 		}
 	} else {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
@@ -245,7 +253,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 		}
 
-		cfg.Components[nvidia_ecc.Name] = nil
+		cfg.Components[nvidia_ecc_id.Name] = nil
 		cfg.Components[nvidia_error.Name] = nil
 		if _, ok := cfg.Components[dmesg.Name]; ok {
 			cfg.Components[nvidia_component_error_xid_id.Name] = nil
@@ -275,7 +283,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_utilization.Name] = nil
 		cfg.Components[nvidia_processes.Name] = nil
 		cfg.Components[nvidia_remapped_rows.Name] = nil
-		cfg.Components[library.Name] = library.Config{
+		cfg.Components[library_id.Name] = library.Config{
 			Libraries:  DefaultNVIDIALibraries,
 			SearchDirs: DefaultNVIDIALibrariesSearchDirs,
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 
 	"sigs.k8s.io/yaml"
 )
@@ -99,7 +100,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, Get)
+		defaultPoller = query.New(tailscale_id.Name, cfg.Query, Get)
 	})
 }
 
@@ -110,9 +111,9 @@ func getDefaultPoller() query.Poller {
 func Get(ctx context.Context) (_ any, e error) {
 	defer func() {
 		if e != nil {
-			components_metrics.SetGetFailed(Name)
+			components_metrics.SetGetFailed(tailscale_id.Name)
 		} else {
-			components_metrics.SetGetSuccess(Name)
+			components_metrics.SetGetSuccess(tailscale_id.Name)
 		}
 	}()
 

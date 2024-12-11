@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/ecc"
 	"github.com/leptonai/gpud/components/query"
@@ -16,14 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const Name = "accelerator-nvidia-ecc"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
 	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_ecc_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -41,15 +40,15 @@ type component struct {
 	gatherer prometheus.Gatherer
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return nvidia_ecc_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_ecc_id.Name)
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    nvidia_ecc_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -84,7 +83,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.SMIQueryErrors {
 			cs = append(cs, components.State{
-				Name:    Name,
+				Name:    nvidia_ecc_id.Name,
 				Healthy: false,
 				Error:   e,
 				Reason:  "nvidia-smi query failed with " + e,
@@ -164,7 +163,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
+	_ = c.poller.Stop(nvidia_ecc_id.Name)
 
 	return nil
 }

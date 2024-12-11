@@ -7,18 +7,17 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
-
-const Name = "power-supply"
 
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, Name)
+	getDefaultPoller().Start(cctx, cfg.Query, power_supply_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -35,15 +34,15 @@ type component struct {
 	poller  query.Poller
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return power_supply_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", power_supply_id.Name)
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    power_supply_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -55,7 +54,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Error != nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    power_supply_id.Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
 				Reason:  "last query failed",
@@ -65,7 +64,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Output == nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    power_supply_id.Name,
 				Healthy: true,
 				Reason:  "no output",
 			},
@@ -92,7 +91,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(Name)
+	c.poller.Stop(power_supply_id.Name)
 
 	return nil
 }

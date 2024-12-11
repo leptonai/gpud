@@ -8,13 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dustin/go-humanize"
-
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/systemd"
+
+	"github.com/dustin/go-humanize"
 )
 
 type Output struct {
@@ -134,7 +135,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, CreateGet(cfg))
+		defaultPoller = query.New(systemd_id.Name, cfg.Query, CreateGet(cfg))
 	})
 }
 
@@ -146,9 +147,9 @@ func CreateGet(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
-				components_metrics.SetGetFailed(Name)
+				components_metrics.SetGetFailed(systemd_id.Name)
 			} else {
-				components_metrics.SetGetSuccess(Name)
+				components_metrics.SetGetSuccess(systemd_id.Name)
 			}
 		}()
 
