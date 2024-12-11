@@ -11,6 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
+	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/latency"
@@ -108,7 +109,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, createGetFunc(cfg))
+		defaultPoller = query.New(network_latency_id.Name, cfg.Query, createGetFunc(cfg))
 	})
 }
 
@@ -125,9 +126,9 @@ func createGetFunc(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
-				components_metrics.SetGetFailed(Name)
+				components_metrics.SetGetFailed(network_latency_id.Name)
 			} else {
-				components_metrics.SetGetSuccess(Name)
+				components_metrics.SetGetSuccess(network_latency_id.Name)
 			}
 		}()
 

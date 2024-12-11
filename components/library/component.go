@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 )
-
-const Name = "library"
 
 type Config struct {
 	Libraries  []string
@@ -49,7 +48,7 @@ type component struct {
 	searchOpts []file.OpOption
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return library_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	reasons := []string{}
@@ -66,7 +65,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if len(reasons) == 0 {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    library_id.Name,
 				Healthy: true,
 				Reason:  "all libraries exist",
 			},
@@ -75,7 +74,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	return []components.State{
 		{
-			Name:    Name,
+			Name:    library_id.Name,
 			Healthy: false,
 			Reason:  strings.Join(reasons, "; "),
 		},

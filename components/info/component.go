@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	info_id "github.com/leptonai/gpud/components/info/id"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/version"
 )
-
-const Name = "info"
 
 func New(annotations map[string]string) components.Component {
 	return &component{
@@ -28,7 +27,7 @@ type component struct {
 	annotations map[string]string
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return info_id.Name }
 
 const (
 	StateNameDaemon = "daemon"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
+	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	"github.com/leptonai/gpud/components/query"
 )
 
@@ -88,7 +89,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, Get)
+		defaultPoller = query.New(power_supply_id.Name, cfg.Query, Get)
 	})
 }
 
@@ -99,9 +100,9 @@ func getDefaultPoller() query.Poller {
 func Get(ctx context.Context) (_ any, e error) {
 	defer func() {
 		if e != nil {
-			components_metrics.SetGetFailed(Name)
+			components_metrics.SetGetFailed(power_supply_id.Name)
 		} else {
-			components_metrics.SetGetSuccess(Name)
+			components_metrics.SetGetSuccess(power_supply_id.Name)
 		}
 	}()
 

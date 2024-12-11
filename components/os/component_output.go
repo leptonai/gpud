@@ -11,6 +11,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
+	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
@@ -185,7 +186,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
 		switch state.Name {
-		case Name:
+		case os_id.Name:
 			// noop
 
 		case StateNameVirtualizationEnvironment:
@@ -397,7 +398,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, CreateGet(cfg))
+		defaultPoller = query.New(os_id.Name, cfg.Query, CreateGet(cfg))
 	})
 }
 
@@ -409,9 +410,9 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
-				components_metrics.SetGetFailed(Name)
+				components_metrics.SetGetFailed(os_id.Name)
 			} else {
-				components_metrics.SetGetSuccess(Name)
+				components_metrics.SetGetSuccess(os_id.Name)
 			}
 		}()
 

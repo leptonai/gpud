@@ -32,8 +32,10 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
-	nvidia_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
+	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_component_error_xid_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid"
 	nvidia_component_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
@@ -70,34 +72,47 @@ import (
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
+	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	"github.com/leptonai/gpud/components/cpu"
+	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
+	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
+	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	"github.com/leptonai/gpud/components/fd"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/file"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/info"
+	info_id "github.com/leptonai/gpud/components/info/id"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
+	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
+	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/components/memory"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/metrics"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
+	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
+	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
+	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	query_log_state "github.com/leptonai/gpud/components/query/log/state"
 	"github.com/leptonai/gpud/components/state"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
+	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
+	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 	gpud_config "github.com/leptonai/gpud/config"
 	lepconfig "github.com/leptonai/gpud/config"
 	_ "github.com/leptonai/gpud/docs/apis"
@@ -351,13 +366,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	allComponents := make([]components.Component, 0)
-	if _, ok := config.Components[os.Name]; !ok {
+	if _, ok := config.Components[os_id.Name]; !ok {
 		allComponents = append(allComponents, os.New(ctx, os.Config{Query: defaultQueryCfg}))
 	}
 
 	for k, configValue := range config.Components {
 		switch k {
-		case cpu.Name:
+		case cpu_id.Name:
 			cfg := cpu.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := cpu.ParseConfig(configValue, db)
@@ -371,7 +386,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, cpu.New(ctx, cfg))
 
-		case disk.Name:
+		case disk_id.Name:
 			cfg := disk.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := disk.ParseConfig(configValue, db)
@@ -519,7 +534,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
 
-		case library.Name:
+		case library_id.Name:
 			if configValue != nil {
 				libCfg, ok := configValue.(library.Config)
 				if !ok {
@@ -528,10 +543,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				allComponents = append(allComponents, library.New(libCfg))
 			}
 
-		case info.Name:
+		case info_id.Name:
 			allComponents = append(allComponents, info.New(config.Annotations))
 
-		case memory.Name:
+		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := memory.ParseConfig(configValue, db)
@@ -545,7 +560,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, memory.New(ctx, cfg))
 
-		case os.Name:
+		case os_id.Name:
 			cfg := os.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := os.ParseConfig(configValue, db)
@@ -559,7 +574,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, os.New(ctx, cfg))
 
-		case power_supply.Name:
+		case power_supply_id.Name:
 			cfg := power_supply.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := power_supply.ParseConfig(configValue, db)
@@ -570,7 +585,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, power_supply.New(ctx, cfg))
 
-		case component_systemd.Name:
+		case systemd_id.Name:
 			cfg := component_systemd.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := component_systemd.ParseConfig(configValue, db)
@@ -588,7 +603,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case tailscale.Name:
+		case tailscale_id.Name:
 			cfg := tailscale.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := tailscale.ParseConfig(configValue, db)
@@ -691,10 +706,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
-		case nvidia_clockspeed.Name:
-			cfg := nvidia_clockspeed.Config{Query: defaultQueryCfg}
+		case nvidia_clock_speed_id.Name:
+			cfg := nvidia_clock_speed.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_clockspeed.ParseConfig(configValue, db)
+				parsed, err := nvidia_clock_speed.ParseConfig(configValue, db)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -703,9 +718,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_clockspeed.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, cfg))
 
-		case nvidia_ecc.Name:
+		case nvidia_ecc_id.Name:
 			cfg := nvidia_ecc.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := nvidia_ecc.ParseConfig(configValue, db)
@@ -921,7 +936,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_nccl.New(ctx, cfg))
 
-		case containerd_pod.Name:
+		case containerd_pod_id.Name:
 			cfg := containerd_pod.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := containerd_pod.ParseConfig(configValue, db)
@@ -935,7 +950,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, containerd_pod.New(ctx, cfg))
 
-		case docker_container.Name:
+		case docker_container_id.Name:
 			cfg := docker_container.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := docker_container.ParseConfig(configValue, db)
@@ -949,7 +964,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, docker_container.New(ctx, cfg))
 
-		case k8s_pod.Name:
+		case k8s_pod_id.Name:
 			cfg := k8s_pod.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := k8s_pod.ParseConfig(configValue, db)
@@ -963,7 +978,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, k8s_pod.New(ctx, cfg))
 
-		case network_latency.Name:
+		case network_latency_id.Name:
 			cfg := network_latency.Config{
 				Query:                      defaultQueryCfg,
 				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
@@ -1221,9 +1236,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 				// NOTE: systemd unit update still requires gpud restarts
 				for _, name := range []string{
-					containerd_pod.Name,
-					docker_container.Name,
-					k8s_pod.Name,
+					containerd_pod_id.Name,
+					docker_container_id.Name,
+					k8s_pod_id.Name,
 				} {
 					if _, ok := componentSet[name]; ok {
 						continue

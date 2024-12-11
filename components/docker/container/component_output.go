@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -125,7 +126,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, CreateGet(cfg))
+		defaultPoller = query.New(docker_container_id.Name, cfg.Query, CreateGet(cfg))
 	})
 }
 
@@ -137,9 +138,9 @@ func CreateGet(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
-				components_metrics.SetGetFailed(Name)
+				components_metrics.SetGetFailed(docker_container_id.Name)
 			} else {
-				components_metrics.SetGetSuccess(Name)
+				components_metrics.SetGetSuccess(docker_container_id.Name)
 			}
 		}()
 

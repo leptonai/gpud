@@ -4,59 +4,39 @@ import (
 	"context"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/memory"
+	memory_dmesg "github.com/leptonai/gpud/components/memory/dmesg"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 
 	"k8s.io/utils/ptr"
 )
 
-const (
-	// e.g.,
-	// Out of memory: Killed process 123, UID 48, (httpd).
-	//
-	// NOTE: this is often followed by a line like:
-	// [Sun Dec  8 09:23:39 2024] oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0
-	// (to reap the memory used by the OOM victim)
-	EventOOMKill      = "oom_kill"
-	EventOOMKillRegex = `Out of memory:`
-
-	// e.g.,
-	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
-	EventOOMKillConstraint      = "oom_kill_constraint"
-	EventOOMKillConstraintRegex = `oom-kill:constraint=`
-
-	// e.g.,
-	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
-	EventOOMKiller      = "oom_killer"
-	EventOOMKillerRegex = `(?i)\b(invoked|triggered) oom-killer\b`
-
-	// e.g.,
-	// Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
-	EventOOMCgroup      = "oom_cgroup"
-	EventOOMCgroupRegex = `Memory cgroup out of memory`
-)
-
 func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
 	defaultFilters := []*query_log_common.Filter{
 		{
-			Name:            EventOOMKill,
-			Regex:           ptr.To(EventOOMKillRegex),
-			OwnerReferences: []string{memory.Name},
+			Name:            EventMemoryOOM,
+			Regex:           ptr.To(memory_dmesg.RegexOOM),
+			OwnerReferences: []string{memory_id.Name},
 		},
 		{
-			Name:            EventOOMKillConstraint,
-			Regex:           ptr.To(EventOOMKillConstraintRegex),
-			OwnerReferences: []string{memory.Name},
+			Name:            EventMemoryOOMKillConstraint,
+			Regex:           ptr.To(memory_dmesg.RegexOOMKillConstraint),
+			OwnerReferences: []string{memory_id.Name},
 		},
 		{
-			Name:            EventOOMKiller,
-			Regex:           ptr.To(EventOOMKillerRegex),
-			OwnerReferences: []string{memory.Name},
+			Name:            EventMemoryOOMKiller,
+			Regex:           ptr.To(memory_dmesg.RegexOOMKiller),
+			OwnerReferences: []string{memory_id.Name},
 		},
 		{
-			Name:            EventOOMCgroup,
-			Regex:           ptr.To(EventOOMCgroupRegex),
-			OwnerReferences: []string{memory.Name},
+			Name:            EventMemoryOOMCgroup,
+			Regex:           ptr.To(memory_dmesg.RegexOOMCgroup),
+			OwnerReferences: []string{memory_id.Name},
+		},
+		{
+			Name:            EventMemoryEDACCorrectableErrors,
+			Regex:           ptr.To(memory_dmesg.RegexEDACCorrectableErrors),
+			OwnerReferences: []string{memory_id.Name},
 		},
 	}
 

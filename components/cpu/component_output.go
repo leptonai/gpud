@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
@@ -216,7 +217,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, Get)
+		defaultPoller = query.New(cpu_id.Name, cfg.Query, Get)
 	})
 }
 
@@ -246,9 +247,9 @@ func getPrevTimeStat() *cpu.TimesStat {
 func Get(ctx context.Context) (_ any, e error) {
 	defer func() {
 		if e != nil {
-			components_metrics.SetGetFailed(Name)
+			components_metrics.SetGetFailed(cpu_id.Name)
 		} else {
-			components_metrics.SetGetSuccess(Name)
+			components_metrics.SetGetSuccess(cpu_id.Name)
 		}
 	}()
 
