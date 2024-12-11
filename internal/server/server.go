@@ -84,6 +84,7 @@ import (
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/metrics"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
@@ -531,7 +532,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case info.Name:
 			allComponents = append(allComponents, info.New(config.Annotations))
 
-		case memory.Name:
+		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := memory.ParseConfig(configValue, db)

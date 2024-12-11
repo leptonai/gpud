@@ -45,7 +45,7 @@ import (
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/components/library"
-	"github.com/leptonai/gpud/components/memory"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
@@ -121,7 +121,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			disk.Name:             disk.DefaultConfig(),
 			fd_id.Name:            nil,
 			info.Name:             nil,
-			memory.Name:           nil,
+			memory_id.Name:        nil,
 			os.Name:               nil,
 			kernel_module_id.Name: nil,
 		},

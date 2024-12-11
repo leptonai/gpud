@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -15,14 +16,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const Name = "memory"
-
 func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, Name)
+	getDefaultPoller().Start(cctx, cfg.Query, memory_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -40,15 +39,15 @@ type component struct {
 	gatherer prometheus.Gatherer
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return memory_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", memory_id.Name)
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    memory_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -60,7 +59,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Error != nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    memory_id.Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
 				Reason:  "last query failed",
@@ -70,7 +69,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Output == nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    memory_id.Name,
 				Healthy: true,
 				Reason:  "no output",
 			},
@@ -122,7 +121,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(Name)
+	c.poller.Stop(memory_id.Name)
 
 	return nil
 }

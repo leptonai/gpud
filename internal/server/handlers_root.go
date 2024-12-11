@@ -23,7 +23,7 @@ import (
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
-	"github.com/leptonai/gpud/components/memory"
+	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/log"
@@ -63,7 +63,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		cpuChart = true
 	}
 	memoryChart := false
-	if c, err := components.GetComponent(memory.Name); c != nil && err == nil {
+	if c, err := components.GetComponent(memory_id.Name); c != nil && err == nil {
 		memoryChart = true
 	}
 	fdChart := false
@@ -132,7 +132,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		components = append(components, cpu.Name)
 	}
 	if memoryChart {
-		components = append(components, memory.Name)
+		components = append(components, memory_id.Name)
 	}
 	if fdChart {
 		components = append(components, fd_id.Name)
