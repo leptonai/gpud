@@ -2,7 +2,6 @@
 package infiniband
 
 import (
-	"bufio"
 	"context"
 	"os"
 	"os/exec"
@@ -69,47 +68,27 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 
 	count := 0
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			switch {
+			// e.g.,
+			// 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+			// 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+			case strings.Contains(strings.ToLower(line), "infiniband"),
 
-		switch {
-		// e.g.,
-		// 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
-		// 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
-		case strings.Contains(strings.ToLower(line), "infiniband"),
+				// 1a:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]
+				// 1b:00.0 Ethernet controller: Mellanox Technologies MT2892 Family [ConnectX-6 Dx]
+				strings.Contains(strings.ToLower(line), "mellanox"),
 
-			// 1a:00.0 Ethernet controller: Mellanox Technologies MT2910 Family [ConnectX-7]
-			// 1b:00.0 Ethernet controller: Mellanox Technologies MT2892 Family [ConnectX-6 Dx]
-			strings.Contains(strings.ToLower(line), "mellanox"),
-
-			strings.Contains(strings.ToLower(line), "qlogic"):
-			count++
-		}
-
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				return 0, err
+				strings.Contains(strings.ToLower(line), "qlogic"):
+				count++
 			}
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return count, serr
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			return count, err
-		}
-	case <-ctx.Done():
-		return count, ctx.Err()
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return count, err
 	}
 
 	return count, nil

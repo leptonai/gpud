@@ -1,7 +1,6 @@
 package host
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"strings"
@@ -46,9 +45,9 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 
 	p, err := process.New(
 		process.WithBashScriptContentsToRun(fmt.Sprintf(`
-%s --vm
-%s --container
-%s
+%s --vm || true
+%s --container || true
+%s || true
 `,
 			detectExecPath,
 			detectExecPath,
@@ -65,26 +64,15 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	}
 
 	lines := make([]string, 0)
-
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-		lines = append(lines, line)
-
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				return VirtualizationEnvironment{}, err
-			}
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return VirtualizationEnvironment{}, serr
-		}
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return VirtualizationEnvironment{}, err
 	}
 
 	virt := VirtualizationEnvironment{}
@@ -135,27 +123,16 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 
 	lines := make([]string, 0)
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-		lines = append(lines, line)
-
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				return "", err
-			}
-		default:
-		}
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return "", err
 	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return "", serr
-		}
-	}
-
 	out := strings.TrimSpace(strings.Join(lines, "\n"))
 
 	select {

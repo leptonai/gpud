@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/process"
@@ -26,33 +24,15 @@ func main() {
 	}
 	fmt.Printf("pid: %d\n", p.PID())
 
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		line := scanner.Text()
-		fmt.Println("stdout:", line)
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				panic(err)
-			}
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			panic(serr)
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			panic(err)
-		}
-	case <-time.After(2 * time.Second):
-		panic("timeout")
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			fmt.Println("stdout:", line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		panic(err)
 	}
 
 	if err := p.Abort(ctx); err != nil {

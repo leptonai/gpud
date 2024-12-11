@@ -2,12 +2,10 @@
 package reboot
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	stdos "os"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/log"
@@ -77,24 +75,14 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 			return err
 		}
 
-		scanner := bufio.NewScanner(proc.StdoutReader())
-		for scanner.Scan() { // returns false at the end of the output
-			line := scanner.Text()
-			fmt.Println("stdout:", line)
-			select {
-			case err := <-proc.Wait():
-				if err != nil {
-					return err
-				}
-			default:
-			}
-		}
-		if serr := scanner.Err(); serr != nil {
-			// process already dead, thus ignore
-			// e.g., "read |0: file already closed"
-			if !strings.Contains(serr.Error(), "file already closed") {
-				return err
-			}
+		if err := process.ReadAllStdout(
+			ctx,
+			proc,
+			process.WithProcessLine(func(line string) {
+				fmt.Println("stdout:", line)
+			}),
+		); err != nil {
+			return err
 		}
 
 		// actually, this should not print if reboot worked

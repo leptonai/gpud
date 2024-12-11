@@ -19,7 +19,6 @@ limitations under the License.
 package disk
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -68,34 +67,15 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	}
 
 	lines := make([]string, 0)
-
-	scanner := bufio.NewScanner(p.StdoutReader())
-	for scanner.Scan() { // returns false at the end of the output
-		lines = append(lines, scanner.Text())
-
-		select {
-		case err := <-p.Wait():
-			if err != nil {
-				return nil, err
-			}
-		default:
-		}
-	}
-	if serr := scanner.Err(); serr != nil {
-		// process already dead, thus ignore
-		// e.g., "read |0: file already closed"
-		if !strings.Contains(serr.Error(), "file already closed") {
-			return nil, serr
-		}
-	}
-
-	select {
-	case err := <-p.Wait():
-		if err != nil {
-			return nil, err
-		}
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	if err := process.ReadAllStdout(
+		ctx,
+		p,
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return nil, err
 	}
 
 	return Parse([]byte(strings.Join(lines, "\n")), opts...)
