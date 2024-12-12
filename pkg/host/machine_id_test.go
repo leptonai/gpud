@@ -14,7 +14,13 @@ func TestScanUUIDFromDmidecode(t *testing.T) {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	uuid := scanUUIDFromDmidecode(scanner)
+	uuid := ""
+	for scanner.Scan() {
+		uuid = extractUUID(scanner.Text())
+		if uuid != "" {
+			break
+		}
+	}
 	if uuid != "4c4c4544-0053-5210-8038-c8c04f583034" {
 		t.Errorf("expected UUID to be 4c4c4544-0053-5210-8038-c8c04f583034, got %s", uuid)
 	}
