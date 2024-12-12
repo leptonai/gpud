@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

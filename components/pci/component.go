@@ -50,6 +50,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, err
 	}
 	if last.Error != nil {
+		log.Logger.Errorw("failed to get last state", "error", last.Error, "component", id.Name)
 		return nil, nil
 	}
 	if last.Output == nil {
