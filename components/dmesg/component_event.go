@@ -53,7 +53,7 @@ func (ev *Event) Events() []components.Event {
 			Name: EventNameDmesgMatched,
 
 			// criticality should be decided in individual components
-			Type: "Warning",
+			Type: components.EventTypeWarning,
 
 			Message: msg,
 			ExtraInfo: map[string]string{
