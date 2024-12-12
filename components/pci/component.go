@@ -63,7 +63,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	for _, ev := range evs {
 		events = append(events, components.Event{
 			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
-			Type:    "Warning",
+			Type:    components.EventTypeWarning,
 			Message: strings.Join(ev.Reasons, ", "),
 		})
 	}
