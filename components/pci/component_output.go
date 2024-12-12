@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Output struct {
@@ -53,7 +54,7 @@ func init() {
 	}
 }
 
-func (o *Output) States() ([]components.State, error) {
+func (o *Output) Events() ([]components.Event, error) {
 	b, err := o.JSON()
 	if err != nil {
 		return nil, err
@@ -86,18 +87,21 @@ func (o *Output) States() ([]components.State, error) {
 			}
 		}
 	}
-	healthy := true
-	reason := "no PCI device with Access Control Services (ACS) enabled or running in VM thus ACS is not an option"
-	if len(acsReasons) > 0 {
-		healthy = false
-		reason = strings.Join(acsReasons, ", ")
+
+	// no PCI device with Access Control Services (ACS) enabled or running in VM thus ACS is not an option
+	if len(acsReasons) == 0 {
+		return nil, nil
 	}
 
-	return []components.State{
+	// polling happens periodically
+	// so we truncate the timestamp to the nearest minute
+	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+
+	return []components.Event{
 		{
+			Time:    metav1.Time{Time: truncNowUTC},
 			Name:    StateNameDevicesWithACS,
-			Healthy: healthy,
-			Reason:  reason,
+			Message: strings.Join(acsReasons, ", "),
 			ExtraInfo: map[string]string{
 				StateKeyData:     string(b),
 				StateKeyEncoding: StateValueEncodingJSON,
