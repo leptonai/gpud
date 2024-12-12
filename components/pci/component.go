@@ -3,13 +3,17 @@ package pci
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/pci/id"
+	"github.com/leptonai/gpud/components/pci/state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -23,6 +27,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  getDefaultPoller(),
+		db:      cfg.Query.State.DB,
 	}
 }
 
@@ -32,6 +37,7 @@ type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
+	db      *sql.DB
 }
 
 func (c *component) Name() string { return id.Name }
@@ -41,27 +47,27 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", id.Name)
-		return nil, nil
-	}
+	evs, err := state.ReadEvents(
+		ctx,
+		c.db,
+		state.WithSince(since),
+	)
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		log.Logger.Errorw("failed to get last state", "error", last.Error, "component", id.Name)
-		return nil, nil
-	}
-	if last.Output == nil {
+	if len(evs) == 0 {
 		return nil, nil
 	}
 
-	output, ok := last.Output.(*Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
+	events := make([]components.Event, 0, len(evs))
+	for _, ev := range evs {
+		events = append(events, components.Event{
+			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
+			Type:    "Warning",
+			Message: strings.Join(ev.Reasons, ", "),
+		})
 	}
-	return output.Events()
+	return events, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
