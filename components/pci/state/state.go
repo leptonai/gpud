@@ -32,7 +32,7 @@ const (
 	ColumnReasons = "reasons"
 )
 
-const DefaultRetentionPeriod = 3 * time.Hour
+const DefaultRetentionPeriod = 128 * time.Hour
 
 type Event struct {
 	UnixSeconds int64
