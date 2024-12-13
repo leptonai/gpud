@@ -74,6 +74,11 @@ func (o *Output) States() ([]components.State, error) {
 
 	return []components.State{
 		{
+			Name:    disk_id.Name,
+			Healthy: true,
+			Reason:  "query succeeded",
+		},
+		{
 			Name:    StateNameDiskExtPartitions,
 			Healthy: true,
 			Reason:  "",
