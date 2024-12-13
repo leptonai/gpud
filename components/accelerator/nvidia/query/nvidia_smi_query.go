@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 
 	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"sigs.k8s.io/yaml"
 )
@@ -25,12 +25,22 @@ func SMIExists() bool {
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
-	p, err := file.LocateExecutable("nvidia-smi")
+	nvidiaSMIPath, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
 	}
 
-	cmd := exec.CommandContext(ctx, p, args...)
+	p, err := process.New(
+		process.WithCommand(append([]string{nvidiaSMIPath}, args...)...),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.Start(ctx); err != nil {
+		return nil, err
+	}
 
 	// in case of driver issue, the nvidia-smi is stuck in "state:D" -- uninterruptible sleep state
 	// which may not handle the os kill signal from the context timeout/cancellation
@@ -55,9 +65,20 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	errc := make(chan error, 1)
 	var output []byte
 	go func() {
-		var err error
-		output, err = cmd.Output()
+		lines := make([]string, 0)
+
+		err := process.Read(
+			ctx,
+			p,
+			process.WithReadStdout(),
+			process.WithProcessLine(func(line string) {
+				lines = append(lines, line)
+			}),
+			process.WithWaitForCmd(),
+		)
+
 		errc <- err
+		output = []byte(strings.Join(lines, "\n"))
 	}()
 
 	select {
