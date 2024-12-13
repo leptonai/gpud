@@ -322,7 +322,6 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 				process.WithProcessLine(func(line string) {
 					lines = append(lines, line)
 				}),
-				process.WithWaitForCmd(),
 			)
 			output := strings.Join(lines, "\n")
 			if err == nil {
@@ -334,6 +333,14 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	}
 	if err = p.Start(ctx); err != nil {
 		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-p.Wait():
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
