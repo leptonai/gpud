@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -313,17 +313,22 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	}
 	if result != nil {
 		go func() {
-			stdoutReader := p.StdoutReader()
-			if stdoutReader == nil {
-				log.Logger.Errorf("failed to read stdout: %v", err)
-				return
+			lines := make([]string, 0)
+			err := process.Read(
+				ctx,
+				p,
+				process.WithReadStdout(),
+				process.WithReadStderr(),
+				process.WithProcessLine(func(line string) {
+					lines = append(lines, line)
+				}),
+			)
+			output := strings.Join(lines, "\n")
+			if err == nil {
+				*result = output
+			} else {
+				*result = fmt.Sprintf("failed to run '%s %s' with error %v\n\noutput:\n%s", script, arg, err, output)
 			}
-			rawResult, err := io.ReadAll(p.StdoutReader())
-			if err != nil {
-				log.Logger.Errorf("failed to read stout: %v", err)
-				return
-			}
-			*result = strings.TrimSpace(string(rawResult))
 		}()
 	}
 	if err = p.Start(ctx); err != nil {
@@ -336,9 +341,6 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 		if err != nil {
 			return err
 		}
-	}
-	if err := p.Abort(ctx); err != nil {
-		return err
 	}
 	return nil
 }

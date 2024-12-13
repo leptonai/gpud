@@ -27,9 +27,14 @@ func TestProcess(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
-	if err := ReadAllStdout(ctx, p, WithProcessLine(func(line string) {
-		t.Logf("stdout: %q", line)
-	})); err != nil {
+	if err := Read(
+		ctx,
+		p,
+		WithReadStdout(),
+		WithProcessLine(func(line string) {
+			t.Logf("stdout: %q", line)
+		}),
+	); err != nil {
 		t.Fatal(err)
 	}
 

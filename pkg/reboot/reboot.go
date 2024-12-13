@@ -75,9 +75,11 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 			return err
 		}
 
-		if err := process.ReadAllStdout(
+		if err := process.Read(
 			ctx,
 			proc,
+			process.WithReadStdout(),
+			process.WithReadStderr(),
 			process.WithProcessLine(func(line string) {
 				fmt.Println("stdout:", line)
 			}),

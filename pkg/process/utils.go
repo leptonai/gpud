@@ -3,12 +3,17 @@ package process
 import (
 	"bufio"
 	"context"
+	"errors"
+	"io"
 	"strings"
 )
 
 type ReadOpOption func(*ReadOp)
 
 type ReadOp struct {
+	readStdout bool
+	readStderr bool
+
 	processLine func(line string)
 	waitForCmd  bool
 }
@@ -24,7 +29,23 @@ func (op *ReadOp) applyOpts(opts []ReadOpOption) error {
 		}
 	}
 
+	if !op.readStdout && !op.readStderr {
+		return errors.New("at least one of readStdout or readStderr must be true")
+	}
+
 	return nil
+}
+
+func WithReadStdout() ReadOpOption {
+	return func(op *ReadOp) {
+		op.readStdout = true
+	}
+}
+
+func WithReadStderr() ReadOpOption {
+	return func(op *ReadOp) {
+		op.readStderr = true
+	}
 }
 
 func WithProcessLine(fn func(line string)) ReadOpOption {
@@ -39,13 +60,23 @@ func WithWaitForCmd() ReadOpOption {
 	}
 }
 
-func ReadAllStdout(ctx context.Context, p Process, opts ...ReadOpOption) error {
+func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	op := &ReadOp{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
 	}
 
-	scanner := bufio.NewScanner(p.StdoutReader())
+	// combine stdout and stderr into a single reader
+	readers := []io.Reader{}
+	if op.readStdout {
+		readers = append(readers, p.StdoutReader())
+	}
+	if op.readStderr {
+		readers = append(readers, p.StderrReader())
+	}
+
+	combinedReader := io.MultiReader(readers...)
+	scanner := bufio.NewScanner(combinedReader)
 
 	for scanner.Scan() {
 		op.processLine(scanner.Text())

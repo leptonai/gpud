@@ -26,9 +26,11 @@ func main() {
 	}
 	fmt.Printf("pid: %d\n", p.PID())
 
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			fmt.Println("stdout:", line)
 		}),

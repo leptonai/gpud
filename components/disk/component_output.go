@@ -74,6 +74,11 @@ func (o *Output) States() ([]components.State, error) {
 
 	return []components.State{
 		{
+			Name:    disk_id.Name,
+			Healthy: true,
+			Reason:  "query succeeded",
+		},
+		{
 			Name:    StateNameDiskExtPartitions,
 			Healthy: true,
 			Reason:  "",
@@ -166,7 +171,7 @@ func CreateGet(cfg Config) query.GetFunc {
 			return fs == "ext4"
 		}))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get partitions: %w", err)
 		}
 		o.DiskExtPartitions = parts
 
@@ -174,7 +179,7 @@ func CreateGet(cfg Config) query.GetFunc {
 			return dt == "disk"
 		}))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get block devices: %w", err)
 		}
 		o.DiskBlockDevices = blks
 

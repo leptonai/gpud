@@ -91,9 +91,6 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, nil
 	}
-	if lspciPath == "" {
-		return nil, nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(lspciPath),
@@ -108,9 +105,11 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			// e.g.,
 			// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
@@ -121,7 +120,7 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read lspci output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 	return lines, nil
 }

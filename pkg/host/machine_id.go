@@ -33,7 +33,7 @@ func GetMachineID(ctx context.Context) (string, error) {
 // UUID=$(dmidecode -t 1 | grep -i UUID | awk '{print $2}')
 func DmidecodeUUID(ctx context.Context) (string, error) {
 	dmidecodePath, err := file.LocateExecutable("dmidecode")
-	if err != nil || dmidecodePath == "" {
+	if err != nil {
 		return "", errors.New("dmidecode not found")
 	}
 
@@ -49,14 +49,22 @@ func DmidecodeUUID(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	lines := make([]string, 0)
 	uuid := ""
-	if err := process.ReadAllStdout(ctx, p, process.WithProcessLine(func(line string) {
-		u := extractUUID(line)
-		if u != "" {
-			uuid = u
-		}
-	})); err != nil {
-		return "", err
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+			u := extractUUID(line)
+			if u != "" {
+				uuid = u
+			}
+		}),
+	); err != nil {
+		return "", fmt.Errorf("failed to read dmidecode output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	return uuid, nil

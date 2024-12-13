@@ -31,9 +31,11 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			fmt.Println("stdout:", line)
 		}),

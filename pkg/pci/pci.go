@@ -25,9 +25,6 @@ func List(ctx context.Context, opts ...OpOption) (Devices, error) {
 	if err != nil {
 		return nil, nil
 	}
-	if lspciPath == "" {
-		return nil, nil
-	}
 
 	p, err := process.New(
 		process.WithBashScriptContentsToRun(fmt.Sprintf("sudo %s -vvv", lspciPath)),

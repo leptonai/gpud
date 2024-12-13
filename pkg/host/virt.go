@@ -39,9 +39,6 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	if err != nil {
 		return VirtualizationEnvironment{}, nil
 	}
-	if detectExecPath == "" {
-		return VirtualizationEnvironment{}, nil
-	}
 
 	p, err := process.New(
 		process.WithBashScriptContentsToRun(fmt.Sprintf(`
@@ -64,15 +61,17 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return VirtualizationEnvironment{}, err
+		return VirtualizationEnvironment{}, fmt.Errorf("failed to read systemd-detect-virt output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	virt := VirtualizationEnvironment{}
@@ -105,9 +104,6 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	if dmidecodePath == "" {
-		return "", nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(fmt.Sprintf("sudo %s -s system-manufacturer", dmidecodePath)),
@@ -122,16 +118,17 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 	}
 
 	lines := make([]string, 0)
-
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read dmidecode output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 	out := strings.TrimSpace(strings.Join(lines, "\n"))
 

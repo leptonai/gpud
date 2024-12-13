@@ -50,9 +50,6 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	if err != nil {
 		return nil, nil
 	}
-	if lsblkPath == "" {
-		return nil, nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(lsblkPath+" "+lsblkFlags),
@@ -67,15 +64,17 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read lsblk output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	return Parse([]byte(strings.Join(lines, "\n")), opts...)
@@ -89,7 +88,7 @@ func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal lsblk output: %w\n\noutput:\n%s", err, string(b))
 	}
 
 	rawDevs, ok := raw[outputKey]

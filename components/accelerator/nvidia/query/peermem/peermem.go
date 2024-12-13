@@ -3,6 +3,7 @@ package peermem
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -38,9 +39,11 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	// e.g.,
 	// sudo lsmod | grep nvidia_peermem
 	lines := make([]string, 0, 10)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		proc,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			s := strings.TrimSpace(line)
 			if s == "" {
@@ -53,7 +56,7 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read lsmod output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	if perr := proc.Abort(ctx); perr != nil {
