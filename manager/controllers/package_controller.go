@@ -327,7 +327,7 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 			if err == nil {
 				*result = output
 			} else {
-				err = fmt.Errorf("failed to read %s output: %w\n\noutput:\n%s", arg, err, output)
+				*result = fmt.Sprintf("failed to read %s output: %w\n\noutput:\n%s", arg, err, output)
 			}
 		}()
 	}
