@@ -35,6 +35,7 @@ func main() {
 		ctx,
 		p,
 		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			fmt.Println("stdout:", line)
 		}),

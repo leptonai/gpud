@@ -43,6 +43,7 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 		ctx,
 		proc,
 		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			s := strings.TrimSpace(line)
 			if s == "" {
@@ -52,7 +53,7 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read journalctl output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 	if perr := proc.Abort(ctx); perr != nil {
 		return "", err

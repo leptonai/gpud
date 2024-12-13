@@ -3,6 +3,7 @@ package infiniband
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -65,10 +66,12 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 
 	count := 0
 
+	lines := make([]string, 0)
 	if err := process.Read(
 		ctx,
 		p,
 		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			switch {
 			// e.g.,
@@ -83,10 +86,12 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 				strings.Contains(strings.ToLower(line), "qlogic"):
 				count++
 			}
+
+			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return count, err
+		return count, fmt.Errorf("failed to read lspci output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	return count, nil

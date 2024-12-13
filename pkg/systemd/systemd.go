@@ -65,12 +65,13 @@ func CheckVersion() (string, []string, error) {
 		ctx,
 		p,
 		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("failed to read systemd --version output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	ver, extra := parseVersion(strings.Join(lines, "\n"))

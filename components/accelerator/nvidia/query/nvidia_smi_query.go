@@ -66,11 +66,11 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	var output []byte
 	go func() {
 		lines := make([]string, 0)
-
 		err := process.Read(
 			ctx,
 			p,
 			process.WithReadStdout(),
+			process.WithReadStderr(),
 			process.WithProcessLine(func(line string) {
 				lines = append(lines, line)
 			}),
@@ -87,7 +87,7 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 
 	case err := <-errc:
 		if err != nil {
-			return nil, fmt.Errorf("nvidia-smi command failed: %w", err)
+			return nil, fmt.Errorf("nvidia-smi command failed: %w\n\noutput:\n%s", err, string(output))
 		}
 		return output, nil
 	}

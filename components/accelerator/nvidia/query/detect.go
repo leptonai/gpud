@@ -109,6 +109,7 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 		ctx,
 		p,
 		process.WithReadStdout(),
+		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
 			// e.g.,
 			// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
@@ -119,7 +120,7 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read lspci output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 	return lines, nil
 }
