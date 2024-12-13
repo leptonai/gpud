@@ -449,7 +449,10 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// 1. empty (new GPUd version without reboot, boot id never persisted)
 		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
 		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
-			if err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC()); err != nil {
+			cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+			err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC())
+			ccancel()
+			if err != nil {
 				return nil, err
 			}
 			// next os poll will set the rebooted to false
