@@ -477,11 +477,16 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		}
 		o.Platform = Platform{Name: platform, Family: family, Version: version}
 
-		uptime, err := host.UptimeWithContext(ctx)
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		uptime, err := host.UptimeWithContext(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
-		boottime, err := host.BootTimeWithContext(ctx)
+
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		boottime, err := host.BootTimeWithContext(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
@@ -494,7 +499,9 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
 		}
 
-		allProcs, err := process.CountProcessesByStatus(ctx)
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		allProcs, err := process.CountProcessesByStatus(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
