@@ -61,7 +61,7 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 					continue
 				}
 
-				return nil, err
+				return nil, fmt.Errorf("failed to get usage for mounted partition %q: %w", p.Mountpoint, err)
 			}
 		}
 
