@@ -5,8 +5,10 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // testProcess implements Process interface for testing
@@ -14,6 +16,7 @@ type testProcess struct {
 	cmd    *exec.Cmd
 	waitCh chan error
 	stdout io.ReadCloser
+	stderr io.ReadCloser
 	mu     sync.Mutex
 }
 
@@ -32,7 +35,12 @@ func (p *testProcess) StdoutReader() io.Reader {
 }
 
 func (p *testProcess) StderrReader() io.Reader {
-	return nil
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stderr == nil {
+		return strings.NewReader("")
+	}
+	return bufio.NewReader(p.stderr)
 }
 
 func (p *testProcess) Wait() <-chan error {
@@ -49,8 +57,9 @@ func (p *testProcess) Abort(ctx context.Context) error {
 func newTestProcess(command string, args ...string) *testProcess {
 	cmd := exec.Command(command, args...)
 	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
 	waitCh := make(chan error, 1)
-	p := &testProcess{cmd: cmd, waitCh: waitCh, stdout: stdout}
+	p := &testProcess{cmd: cmd, waitCh: waitCh, stdout: stdout, stderr: stderr}
 
 	go func() {
 		waitCh <- cmd.Run()
@@ -60,14 +69,62 @@ func newTestProcess(command string, args ...string) *testProcess {
 	return p
 }
 
-func TestReadAllStdout(t *testing.T) {
+func TestReadAll(t *testing.T) {
+	// Test reading both stdout and stderr
+	t.Run("read stdout and stderr", func(t *testing.T) {
+		// This command outputs to both stdout and stderr
+		p := newTestProcess("sh", "-c", `echo "stdout line" && echo "stderr line" >&2`)
+		lines := make([]string, 0)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := Read(
+			ctx,
+			p,
+			WithReadStdout(),
+			WithReadStderr(),
+			WithProcessLine(func(line string) {
+				lines = append(lines, line)
+			}),
+		)
+		cancel()
+
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		if len(lines) != 2 {
+			t.Errorf("expected 2 lines, got %d", len(lines))
+		}
+
+		hasStdout := false
+		hasStderr := false
+		for _, line := range lines {
+			if line == "stdout line" {
+				hasStdout = true
+			}
+			if line == "stderr line" {
+				hasStderr = true
+			}
+		}
+
+		if !hasStdout {
+			t.Error("missing stdout line")
+		}
+		if !hasStderr {
+			t.Error("missing stderr line")
+		}
+	})
+
 	// Test 1: Basic echo command
 	t.Run("basic echo command", func(t *testing.T) {
 		p := newTestProcess("echo", "hello world")
 		output := ""
-		err := ReadAllStdout(context.Background(), p, WithProcessLine(func(line string) {
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := Read(ctx, p, WithReadStdout(), WithProcessLine(func(line string) {
 			output = line
 		}))
+		cancel()
 
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
@@ -81,9 +138,17 @@ func TestReadAllStdout(t *testing.T) {
 	t.Run("multiple lines", func(t *testing.T) {
 		p := newTestProcess("sh", "-c", "echo 'line1\nline2\nline3'")
 		lines := []string{}
-		err := ReadAllStdout(context.Background(), p, WithProcessLine(func(line string) {
-			lines = append(lines, line)
-		}))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := Read(
+			ctx,
+			p,
+			WithReadStdout(),
+			WithProcessLine(func(line string) {
+				lines = append(lines, line)
+			}),
+		)
+		cancel()
 
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
@@ -98,10 +163,15 @@ func TestReadAllStdout(t *testing.T) {
 		p := newTestProcess("echo", "test")
 		completed := false
 
-		err := ReadAllStdout(context.Background(), p,
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := Read(
+			ctx,
+			p,
+			WithReadStdout(),
 			WithProcessLine(func(line string) {}),
 			WithWaitForCmd(),
 		)
+		cancel()
 
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)

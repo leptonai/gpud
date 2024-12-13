@@ -39,9 +39,10 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 	}
 
 	lines := make([]string, 0, 10)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		proc,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			s := strings.TrimSpace(line)
 			if s == "" {

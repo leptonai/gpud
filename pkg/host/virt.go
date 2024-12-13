@@ -64,9 +64,10 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
@@ -123,9 +124,10 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 
 	lines := make([]string, 0)
 
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),

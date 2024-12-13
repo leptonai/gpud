@@ -67,9 +67,10 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),

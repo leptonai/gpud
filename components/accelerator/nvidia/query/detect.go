@@ -108,9 +108,10 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	}
 
 	lines := make([]string, 0)
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			// e.g.,
 			// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)

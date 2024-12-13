@@ -68,9 +68,10 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 
 	count := 0
 
-	if err := process.ReadAllStdout(
+	if err := process.Read(
 		ctx,
 		p,
+		process.WithReadStdout(),
 		process.WithProcessLine(func(line string) {
 			switch {
 			// e.g.,

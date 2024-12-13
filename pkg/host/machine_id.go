@@ -50,12 +50,17 @@ func DmidecodeUUID(ctx context.Context) (string, error) {
 	}
 
 	uuid := ""
-	if err := process.ReadAllStdout(ctx, p, process.WithProcessLine(func(line string) {
-		u := extractUUID(line)
-		if u != "" {
-			uuid = u
-		}
-	})); err != nil {
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithProcessLine(func(line string) {
+			u := extractUUID(line)
+			if u != "" {
+				uuid = u
+			}
+		}),
+	); err != nil {
 		return "", err
 	}
 
