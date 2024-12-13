@@ -11,20 +11,26 @@ import (
 
 const (
 	DefaultPollInterval   = time.Minute
+	DefaultGetTimeout     = 3 * time.Minute
 	DefaultQueueSize      = 60
 	DefaultStateRetention = 30 * time.Minute
 )
 
 type Config struct {
-	Interval  metav1.Duration `json:"interval"`
-	QueueSize int             `json:"queue_size"`
-	State     *State          `json:"state,omitempty"`
+	Interval metav1.Duration `json:"interval"`
+
+	// Timeout for each get operation.
+	GetTimeout metav1.Duration `json:"get_timeout"`
+
+	QueueSize int    `json:"queue_size"`
+	State     *State `json:"state,omitempty"`
 }
 
 func DefaultConfig() Config {
 	return Config{
-		Interval:  metav1.Duration{Duration: DefaultPollInterval},
-		QueueSize: DefaultQueueSize,
+		Interval:   metav1.Duration{Duration: DefaultPollInterval},
+		GetTimeout: metav1.Duration{Duration: DefaultGetTimeout},
+		QueueSize:  DefaultQueueSize,
 		State: &State{
 			Retention: metav1.Duration{Duration: DefaultStateRetention},
 		},
@@ -34,6 +40,9 @@ func DefaultConfig() Config {
 func (cfg *Config) SetDefaultsIfNotSet() {
 	if cfg.Interval.Duration == 0 {
 		cfg.Interval.Duration = DefaultPollInterval
+	}
+	if cfg.GetTimeout.Duration == 0 {
+		cfg.GetTimeout.Duration = DefaultGetTimeout
 	}
 	if cfg.QueueSize == 0 {
 		cfg.QueueSize = DefaultQueueSize
