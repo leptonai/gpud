@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/leptonai/gpud/log"
 
@@ -53,6 +54,13 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 		if part.Mounted {
 			part.Usage, err = GetUsage(ctx, p.Mountpoint)
 			if err != nil {
+				// mount point is gone
+				// e.g., "no such file or directory"
+				if strings.Contains(err.Error(), "no such file or directory") {
+					log.Logger.Debugw("skipping partition because mount point does not exist", "error", err, "device", part.Device, "mountPoint", part.MountPoint)
+					continue
+				}
+
 				return nil, err
 			}
 		}
