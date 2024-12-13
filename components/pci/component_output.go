@@ -98,7 +98,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 					continue
 				}
 				if dev.AccessControlService.ACSCtl.SrcValid {
-					acsReasons = append(acsReasons, fmt.Sprintf("ACS is enabled on the PCI device %q (when host virt env type is %q)", dev.Name, currentVirtEnv.Type))
+					acsReasons = append(acsReasons, fmt.Sprintf("ACS is enabled on the PCI device %q (host virt type is %q)", dev.ID, currentVirtEnv.Type))
 				}
 			}
 		}
