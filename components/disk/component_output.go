@@ -18,15 +18,10 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 )
 
-type MountTargetUsage struct {
-	Device string     `json:"device"`
-	Usage  disk.Usage `json:"usage"`
-}
-
 type Output struct {
-	DiskExtPartitions disk.Partitions             `json:"disk_ext_partitions"`
-	DiskBlockDevices  disk.BlockDevices           `json:"disk_block_devices"`
-	MountTargetUsages map[string]MountTargetUsage `json:"mount_target_usages"`
+	DiskExtPartitions disk.Partitions               `json:"disk_ext_partitions"`
+	DiskBlockDevices  disk.BlockDevices             `json:"disk_block_devices"`
+	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 }
 
 const (
@@ -219,21 +214,17 @@ func CreateGet(cfg Config) query.GetFunc {
 				log.Logger.Warnw("mount target does not exist", "mount_target", target)
 				continue
 			}
-			device, err := disk.FindMntTargetDevice(target)
+
+			mntOut, err := disk.FindMnt(cctx, target)
 			if err != nil {
 				log.Logger.Warnw("error finding mount target device", "mount_target", target, "error", err)
 				continue
 			}
 
-			usage, ok := devToUsage[device]
-			if !ok {
-				log.Logger.Warnw("no usage found for mount target", "mount_target", target)
-				continue
-			}
 			if o.MountTargetUsages == nil {
-				o.MountTargetUsages = make(map[string]MountTargetUsage)
+				o.MountTargetUsages = make(map[string]disk.FindMntOutput)
 			}
-			o.MountTargetUsages[target] = MountTargetUsage{Device: device, Usage: usage}
+			o.MountTargetUsages[target] = *mntOut
 		}
 
 		return o, nil

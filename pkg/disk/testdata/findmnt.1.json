@@ -1,0 +1,13 @@
+{
+   "filesystems": [
+      {
+         "source": "/dev/mapper/vg-data[/kubelet]",
+         "fstype": "ext4",
+         "size": "11.6T",
+         "used": "921.7G",
+         "avail": "10.1T",
+         "use%": "8%",
+         "target": "/var/lib/kubelet"
+      }
+   ]
+}

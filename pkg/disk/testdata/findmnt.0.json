@@ -1,0 +1,13 @@
+{
+    "filesystems": [
+        {
+            "source": "/dev/mapper/vgroot-lvroot[/var/lib/lxc/ny2g2r14hh2-lxc/rootfs]",
+            "fstype": "ext4",
+            "size": "1.7T",
+            "used": "427.1G",
+            "avail": "1.2T",
+            "use%": "24%",
+            "target": "/"
+        }
+    ]
+}
