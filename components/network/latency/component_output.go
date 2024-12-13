@@ -117,10 +117,12 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
+const minLatencyTimeout = 30 * time.Second
+
 func createGetFunc(cfg Config) query.GetFunc {
 	timeout := time.Duration(2*cfg.GlobalMillisecondThreshold) * time.Millisecond
-	if timeout < 15*time.Second {
-		timeout = 15 * time.Second
+	if timeout < minLatencyTimeout {
+		timeout = minLatencyTimeout
 	}
 
 	return func(ctx context.Context) (_ any, e error) {

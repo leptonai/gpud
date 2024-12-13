@@ -143,7 +143,7 @@ func TestPollerStartStop(t *testing.T) {
 	startFuncCalled := 0
 	cancelCalled := 0
 	q := &poller{
-		startPollFunc: func(ctx context.Context, id string, interval time.Duration, _ GetFunc) <-chan Item {
+		startPollFunc: func(ctx context.Context, id string, interval time.Duration, _ time.Duration, _ GetFunc) <-chan Item {
 			t.Log("startFunc called")
 			startFuncCalled++
 			return make(<-chan Item)

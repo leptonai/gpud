@@ -91,15 +91,15 @@ type poller struct {
 	inflightComponents map[string]any
 }
 
-type startPollFunc func(ctx context.Context, id string, interval time.Duration, get GetFunc) <-chan Item
+type startPollFunc func(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, get GetFunc) <-chan Item
 
-func startPoll(ctx context.Context, id string, interval time.Duration, get GetFunc) <-chan Item {
+func startPoll(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, get GetFunc) <-chan Item {
 	ch := make(chan Item, 1)
-	go pollLoops(ctx, id, ch, interval, get)
+	go pollLoops(ctx, id, ch, interval, getTimeout, get)
 	return ch
 }
 
-func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Duration, get GetFunc) {
+func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Duration, getTimeout time.Duration, get GetFunc) {
 	// to get output very first time and start wait
 	ticker := time.NewTicker(1)
 	defer ticker.Stop()
@@ -122,7 +122,18 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 
 		log.Logger.Debugw("polling", "id", id)
 
-		output, err := get(ctx)
+		// to prevent component from being blocked by the get operation
+		var cctx context.Context
+		var ccancel context.CancelFunc
+		if getTimeout > 0 {
+			cctx, ccancel = context.WithTimeout(ctx, getTimeout)
+		} else {
+			cctx = ctx
+			ccancel = func() {}
+		}
+		output, err := get(cctx)
+		ccancel()
+
 		if err != nil {
 			log.Logger.Debugw("polling error", "id", id, "error", err)
 			select {
@@ -182,7 +193,7 @@ func (pl *poller) Start(ctx context.Context, cfg query_config.Config, componentN
 	}
 
 	pl.ctx, pl.cancel = context.WithCancel(ctx)
-	ch := pl.startPollFunc(pl.ctx, pl.id, cfg.Interval.Duration, pl.getFunc)
+	ch := pl.startPollFunc(pl.ctx, pl.id, cfg.Interval.Duration, cfg.GetTimeout.Duration, pl.getFunc)
 	go func() {
 		for item := range ch {
 			pl.processItem(item)
