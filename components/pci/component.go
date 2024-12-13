@@ -46,6 +46,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return nil, nil
 }
 
+const EventNameACSEnabled = "acs_enabled"
+
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	evs, err := state.ReadEvents(
 		ctx,
@@ -62,6 +64,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	events := make([]components.Event, 0, len(evs))
 	for _, ev := range evs {
 		events = append(events, components.Event{
+			Name:    EventNameACSEnabled,
 			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
 			Type:    components.EventTypeWarning,
 			Message: strings.Join(ev.Reasons, ", "),
