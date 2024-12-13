@@ -88,7 +88,7 @@ func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal lsblk output: %w\n\noutput:\n%s", err, string(b))
 	}
 
 	rawDevs, ok := raw[outputKey]
