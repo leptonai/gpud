@@ -335,8 +335,5 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	if err = p.Start(ctx); err != nil {
 		return err
 	}
-	if err := p.Abort(ctx); err != nil {
-		return err
-	}
 	return nil
 }
