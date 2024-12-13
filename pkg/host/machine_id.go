@@ -33,7 +33,7 @@ func GetMachineID(ctx context.Context) (string, error) {
 // UUID=$(dmidecode -t 1 | grep -i UUID | awk '{print $2}')
 func DmidecodeUUID(ctx context.Context) (string, error) {
 	dmidecodePath, err := file.LocateExecutable("dmidecode")
-	if err != nil || dmidecodePath == "" {
+	if err != nil {
 		return "", errors.New("dmidecode not found")
 	}
 

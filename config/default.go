@@ -371,7 +371,7 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 	}
 
 	p, err := pkg_file.LocateExecutable("containerd")
-	if p != "" && err == nil {
+	if err == nil {
 		log.Logger.Debugw("containerd found in PATH", "path", p)
 		return containerd_pod.Config{
 			Query:    query_config.DefaultConfig(),
@@ -413,7 +413,7 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 
 func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
 	p, err := pkg_file.LocateExecutable("docker")
-	if p != "" && err == nil {
+	if err == nil {
 		log.Logger.Debugw("docker found in PATH", "path", p)
 		return docker_container.Config{
 			Query: query_config.DefaultConfig(),
@@ -438,7 +438,7 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 	}
 
 	p, err := pkg_file.LocateExecutable("kubelet")
-	if p != "" && err == nil {
+	if err == nil {
 		log.Logger.Debugw("kubelet found in PATH", "path", p)
 		return k8s_pod.Config{
 			Query:                  query_config.DefaultConfig(),

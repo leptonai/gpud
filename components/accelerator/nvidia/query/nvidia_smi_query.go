@@ -20,11 +20,8 @@ import (
 // Returns true if the local machine runs on Nvidia GPU
 // by running "nvidia-smi".
 func SMIExists() bool {
-	p, err := file.LocateExecutable("nvidia-smi")
-	if err != nil {
-		return false
-	}
-	return p != ""
+	_, err := file.LocateExecutable("nvidia-smi")
+	return err == nil
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {

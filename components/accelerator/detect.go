@@ -16,7 +16,7 @@ const (
 
 // Returns the GPU type (e.g., "NVIDIA") and product name (e.g., "A100")
 func DetectTypeAndProductName(ctx context.Context) (Type, string, error) {
-	if p, err := file.LocateExecutable("nvidia-smi"); p != "" && err == nil {
+	if _, err := file.LocateExecutable("nvidia-smi"); err == nil {
 		productName, err := nvidia_query.LoadGPUDeviceName(ctx)
 		if err != nil {
 			return TypeNVIDIA, "unknown", err

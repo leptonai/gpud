@@ -91,9 +91,6 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, nil
 	}
-	if lspciPath == "" {
-		return nil, nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(lspciPath),

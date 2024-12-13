@@ -50,9 +50,6 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, nil
 	}
-	if lspciPath == "" {
-		return 0, nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(lspciPath),

@@ -50,9 +50,6 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	if err != nil {
 		return nil, nil
 	}
-	if lsblkPath == "" {
-		return nil, nil
-	}
 
 	p, err := process.New(
 		process.WithCommand(lsblkPath+" "+lsblkFlags),

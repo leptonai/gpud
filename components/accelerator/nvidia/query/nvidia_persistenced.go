@@ -9,11 +9,8 @@ import (
 // Returns true if the local machine has "nvidia-persistenced".
 // ref. https://docs.nvidia.com/deploy/driver-persistence/index.html#usage
 func PersistencedExists() bool {
-	p, err := file.LocateExecutable("nvidia-persistenced")
-	if err != nil {
-		return false
-	}
-	return p != ""
+	_, err := file.LocateExecutable("nvidia-persistenced")
+	return err == nil
 }
 
 // "pidof nvidia-persistenced"

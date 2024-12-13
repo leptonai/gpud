@@ -8,6 +8,9 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 func SystemdExists() bool {
@@ -37,19 +40,40 @@ func DaemonReload(ctx context.Context) ([]byte, error) {
 
 // CheckVersion returns the systemd version by running `systemd --version`.
 func CheckVersion() (string, []string, error) {
-	p, err := exec.LookPath("systemd")
-	if err != nil {
-		return "", nil, fmt.Errorf("systemd version check requires systemd (%w)", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	b, err := exec.CommandContext(ctx, p, "--version").CombinedOutput()
-	cancel()
+	systemdPath, err := file.LocateExecutable("systemd")
 	if err != nil {
 		return "", nil, err
 	}
 
-	ver, extra := parseVersion(string(b))
+	p, err := process.New(
+		process.WithCommand(systemdPath+" --version"),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return "", nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := p.Start(ctx); err != nil {
+		return "", nil, err
+	}
+
+	lines := make([]string, 0)
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return "", nil, err
+	}
+
+	ver, extra := parseVersion(strings.Join(lines, "\n"))
 	return ver, extra, nil
 }
 

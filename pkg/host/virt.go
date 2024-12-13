@@ -39,9 +39,6 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	if err != nil {
 		return VirtualizationEnvironment{}, nil
 	}
-	if detectExecPath == "" {
-		return VirtualizationEnvironment{}, nil
-	}
 
 	p, err := process.New(
 		process.WithBashScriptContentsToRun(fmt.Sprintf(`
@@ -104,9 +101,6 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 func SystemManufacturer(ctx context.Context) (string, error) {
 	dmidecodePath, err := file.LocateExecutable("dmidecode")
 	if err != nil {
-		return "", nil
-	}
-	if dmidecodePath == "" {
 		return "", nil
 	}
 
