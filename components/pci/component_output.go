@@ -90,7 +90,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// Virtual machines require ACS to function, hence disabling ACS is not an option.
 		//
 		// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
-		acsReasons := make([]string, 0)
+		uuids := make([]string, 0)
 		if currentVirtEnv.Type != "" && !currentVirtEnv.IsKVM {
 			for _, dev := range devices {
 				// check whether ACS is enabled on PCI bridges
@@ -98,11 +98,16 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 					continue
 				}
 				if dev.AccessControlService.ACSCtl.SrcValid {
-					acsReasons = append(acsReasons, fmt.Sprintf("ACS is enabled on the PCI device %q (when host virt env type is %q)", dev.Name, currentVirtEnv.Type))
+					uuids = append(uuids, dev.ID)
 				}
 			}
 		}
 
+		if len(uuids) == 0 {
+			return nil, nil
+		}
+
+		acsReasons := append([]string{fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices", currentVirtEnv.Type)}, uuids...)
 		cctx, cancel = context.WithTimeout(ctx, 10*time.Second)
 		err = state.InsertEvent(cctx, cfg.Query.State.DB, state.Event{
 			UnixSeconds: nowUTC.Unix(),

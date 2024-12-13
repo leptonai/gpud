@@ -130,7 +130,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time:    logItem.Time,
 			Name:    EventNameErrorVFSFileMaxLimitReached,
-			Type:    "Critical",
+			Type:    components.EventTypeCritical,
 			Message: "VFS file-max limit reached",
 			ExtraInfo: map[string]string{
 				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),

@@ -77,21 +77,13 @@ type State struct {
 }
 
 type Event struct {
-	Time      metav1.Time       `json:"time"`
-	Name      string            `json:"name,omitempty"`
-	Type      string            `json:"type,omitempty"`       // optional: ErrCritical, ErrWarning, Info, Resolution, ...
-	Message   string            `json:"message,omitempty"`    // detailed message of the event
-	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
-
+	Time             metav1.Time              `json:"time"`
+	Name             string                   `json:"name,omitempty"`
+	Type             EventType                `json:"type,omitempty"`
+	Message          string                   `json:"message,omitempty"`    // detailed message of the event
+	ExtraInfo        map[string]string        `json:"extra_info,omitempty"` // any extra information the component may want to expose
 	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
-
-const (
-	EventTypeMetric = "metric"
-	EventTypeInfo   = "info"
-	EventTypeWarn   = "warn"
-	EventTypeError  = "error"
-)
 
 type Metric struct {
 	components_metrics_state.Metric

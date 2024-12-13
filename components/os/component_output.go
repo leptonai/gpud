@@ -449,7 +449,10 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// 1. empty (new GPUd version without reboot, boot id never persisted)
 		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
 		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
-			if err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC()); err != nil {
+			cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+			err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC())
+			ccancel()
+			if err != nil {
 				return nil, err
 			}
 			// next os poll will set the rebooted to false
@@ -477,11 +480,16 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		}
 		o.Platform = Platform{Name: platform, Family: family, Version: version}
 
-		uptime, err := host.UptimeWithContext(ctx)
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		uptime, err := host.UptimeWithContext(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
-		boottime, err := host.BootTimeWithContext(ctx)
+
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		boottime, err := host.BootTimeWithContext(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
@@ -494,7 +502,9 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
 		}
 
-		allProcs, err := process.CountProcessesByStatus(ctx)
+		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		allProcs, err := process.CountProcessesByStatus(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
