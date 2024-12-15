@@ -81,6 +81,10 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 }
 
 func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
+	if len(b) == 0 {
+		return nil, errors.New("empty input provided to Parse")
+	}
+
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -88,7 +92,7 @@ func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal lsblk output: %w\n\noutput:\n%s", err, string(b))
+		return nil, fmt.Errorf("failed to unmarshal lsblk output (len=%d): %w, raw input: %q", len(b), err, string(b))
 	}
 
 	rawDevs, ok := raw[outputKey]

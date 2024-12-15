@@ -28,24 +28,26 @@ import (
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	dat, err := os.ReadFile("testdata/lsblk.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, f := range []string{"lsblk.1.json", "lsblk.2.json"} {
+		dat, err := os.ReadFile("testdata/" + f)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	blks, err := Parse(dat)
-	if err != nil {
-		t.Fatal(err)
-	}
-	blks.RenderTable(os.Stdout)
+		blks, err := Parse(dat)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blks.RenderTable(os.Stdout)
 
-	blks, err = Parse(dat, WithDeviceType(func(deviceType string) bool {
-		return deviceType == "disk"
-	}))
-	if err != nil {
-		t.Fatal(err)
+		blks, err = Parse(dat, WithDeviceType(func(deviceType string) bool {
+			return deviceType == "disk"
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		blks.RenderTable(os.Stdout)
+		totalBytes := blks.GetTotalBytes()
+		t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
 	}
-	blks.RenderTable(os.Stdout)
-	totalBytes := blks.GetTotalBytes()
-	t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
 }
