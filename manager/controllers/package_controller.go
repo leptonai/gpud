@@ -317,8 +317,8 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 			err := process.Read(
 				ctx,
 				p,
+				// only read stdout to check the version output
 				process.WithReadStdout(),
-				process.WithReadStderr(),
 				process.WithProcessLine(func(line string) {
 					lines = append(lines, line)
 				}),
