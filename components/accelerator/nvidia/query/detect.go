@@ -39,6 +39,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if err != nil {
 		if IsErrDeviceHandleUnknownError(err) {
 			log.Logger.Warnw("nvidia device handler failed for unknown error -- likely GPU has fallen off the bus or other Xid error", "error", err)
+			return true, nil
 		}
 		return false, err
 	}
