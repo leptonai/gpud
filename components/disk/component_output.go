@@ -25,7 +25,7 @@ type Output struct {
 }
 
 const (
-	StateNameDiskExtPartitions = "disk_ext_partitions"
+	StateNameDiskExtPartition  = "disk_ext_partition"
 	StateNameDiskBlockDevices  = "disk_block_devices"
 	StateNameMountTargetUsages = "mount_target_usages"
 
@@ -74,7 +74,7 @@ func (o *Output) States() ([]components.State, error) {
 			Reason:  "query succeeded",
 		},
 		{
-			Name:    StateNameDiskExtPartitions,
+			Name:    StateNameDiskExtPartition,
 			Healthy: true,
 			Reason:  "",
 			ExtraInfo: map[string]string{
