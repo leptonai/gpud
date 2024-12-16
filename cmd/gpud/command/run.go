@@ -3,8 +3,10 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
@@ -22,6 +24,11 @@ import (
 )
 
 func cmdRun(cliContext *cli.Context) error {
+	if runtime.GOOS != "linux" {
+		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)
+		os.Exit(1)
+	}
+
 	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
 	if logLevel != "" && logLevel != "info" {
 		lCfg := log.DefaultLoggerConfig()

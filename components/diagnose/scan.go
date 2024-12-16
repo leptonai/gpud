@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -49,7 +50,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		return err
 	}
 
-	fmt.Printf("\n\n%s scanning the host\n\n", inProgress)
+	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
 	machineID, err := host.GetMachineID(ctx)
 	if err != nil {
 		log.Logger.Warnw("error reading machine ID", "error", err)
