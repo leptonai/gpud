@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -362,7 +363,12 @@ type MachineMetadata struct {
 var currentMachineMetadata MachineMetadata
 
 func init() {
-	// e.g., "/proc/sys/fs/file-max" exists on linux
+	// Linux-specific operations
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	// File descriptor limit check is Linux-specific
 	if file.CheckFDLimitSupported() {
 		limit, err := file.GetLimit()
 		if limit > 0 && err == nil {
@@ -371,6 +377,7 @@ func init() {
 		}
 	}
 
+	// Get boot ID (Linux-specific)
 	var err error
 	currentMachineMetadata.BootID, err = pkg_host.GetBootID()
 	if err != nil {
