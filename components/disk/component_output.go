@@ -131,7 +131,21 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(disk_id.Name, cfg.Query, CreateGet(cfg))
+		diskGetErrHandler := func(err error) error {
+			if err == nil {
+				return nil
+			}
+			// TODO: match error
+			log.Logger.Errorw("error getting disk data -- ignoring for now", "error", err)
+			return nil
+		}
+
+		defaultPoller = query.New(
+			disk_id.Name,
+			cfg.Query,
+			CreateGet(cfg),
+			diskGetErrHandler,
+		)
 	})
 }
 
