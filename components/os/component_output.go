@@ -364,34 +364,36 @@ var currentMachineMetadata MachineMetadata
 
 func init() {
 	// Linux-specific operations
-	if runtime.GOOS == "linux" {
-		// File descriptor limit check is Linux-specific
-		if file.CheckFDLimitSupported() {
-			limit, err := file.GetLimit()
-			if limit > 0 && err == nil {
-				// set to 20% of system limit
-				DefaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
-			}
-		}
+	if runtime.GOOS != "linux" {
+		return
+	}
 
-		// Get boot ID (Linux-specific)
-		var err error
-		currentMachineMetadata.BootID, err = pkg_host.GetBootID()
-		if err != nil {
-			log.Logger.Warnw("failed to get boot id", "error", err)
+	// File descriptor limit check is Linux-specific
+	if file.CheckFDLimitSupported() {
+		limit, err := file.GetLimit()
+		if limit > 0 && err == nil {
+			// set to 20% of system limit
+			DefaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
 		}
+	}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		currentMachineMetadata.DmidecodeUUID, err = pkg_host.DmidecodeUUID(ctx)
-		cancel()
-		if err != nil {
-			log.Logger.Warnw("failed to get dmidecode uuid", "error", err)
-		}
+	// Get boot ID (Linux-specific)
+	var err error
+	currentMachineMetadata.BootID, err = pkg_host.GetBootID()
+	if err != nil {
+		log.Logger.Warnw("failed to get boot id", "error", err)
+	}
 
-		currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
-		if err != nil {
-			log.Logger.Warnw("failed to get os machine id", "error", err)
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	currentMachineMetadata.DmidecodeUUID, err = pkg_host.DmidecodeUUID(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Warnw("failed to get dmidecode uuid", "error", err)
+	}
+
+	currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
+	if err != nil {
+		log.Logger.Warnw("failed to get os machine id", "error", err)
 	}
 }
 
