@@ -3,6 +3,7 @@ package disk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -33,49 +34,92 @@ const (
 	StateKeyEncoding       = "encoding"
 	StateValueEncodingJSON = "json"
 
-	StateNameDiskExtPartitionsTotal         = "disk_ext_partitions_total"
-	StateKeyDiskExtPartitionsTotalBytes     = "disk_ext_partitions_total_bytes"
-	StateKeyDiskExtPartitionsTotalGB        = "disk_ext_partitions_total_gb"
-	StateKeyDiskExtPartitionsTotalHumanized = "disk_ext_partitions_total_humanized"
-
 	StateNameDiskBlockDevicesTotal         = "disk_block_devices_total"
 	StateKeyDiskBlockDevicesTotalBytes     = "disk_block_devices_total_bytes"
 	StateKeyDiskBlockDevicesTotalGB        = "disk_block_devices_total_gb"
 	StateKeyDiskBlockDevicesTotalHumanized = "disk_block_devices_total_humanized"
+
+	StateNameDiskExtPartitionsTotal         = "disk_ext_partitions_total"
+	StateKeyDiskExtPartitionsTotalBytes     = "disk_ext_partitions_total_bytes"
+	StateKeyDiskExtPartitionsTotalGB        = "disk_ext_partitions_total_gb"
+	StateKeyDiskExtPartitionsTotalHumanized = "disk_ext_partitions_total_humanized"
 )
 
 func (o *Output) States() ([]components.State, error) {
-	diskExtPartitionsData, err := o.DiskExtPartitions.JSON()
-	if err != nil {
-		return nil, err
-	}
-	diskBlockDevicesData, err := o.DiskBlockDevices.JSON()
-	if err != nil {
-		return nil, err
+	querySucceededState := components.State{
+		Name:    disk_id.Name,
+		Healthy: true,
+		Reason:  "query succeeded",
 	}
 
-	totalMountedBytes := o.DiskExtPartitions.GetMountedTotalBytes()
-	totalMountedGB := float64(totalMountedBytes) / 1e9
-	totalMountedBytesHumanized := humanize.Bytes(totalMountedBytes)
+	var (
+		diskBlockDevicesData      []byte
+		blkDevTotalBytes          uint64
+		blkDevTotalGB             float64
+		blkDevTotalBytesHumanized string
+	)
+	if len(o.DiskBlockDevices) > 0 {
+		var err error
+		diskBlockDevicesData, err = o.DiskBlockDevices.JSON()
+		if err != nil {
+			return nil, err
+		}
+		blkDevTotalBytes = o.DiskBlockDevices.GetTotalBytes()
+		blkDevTotalGB = float64(blkDevTotalBytes) / 1e9
+		blkDevTotalBytesHumanized = humanize.Bytes(blkDevTotalBytes)
+	}
 
-	blkDevTotalBytes := o.DiskBlockDevices.GetTotalBytes()
-	blkDevTotalGB := float64(blkDevTotalBytes) / 1e9
-	blkDevTotalBytesHumanized := humanize.Bytes(blkDevTotalBytes)
+	var (
+		diskExtPartitionsData      []byte
+		totalMountedBytes          uint64
+		totalMountedGB             float64
+		totalMountedBytesHumanized string
+	)
+	if len(o.DiskExtPartitions) > 0 {
+		var err error
+		diskExtPartitionsData, err = o.DiskExtPartitions.JSON()
+		if err != nil {
+			return nil, err
+		}
 
-	mb, err := json.Marshal(o.MountTargetUsages)
-	if err != nil {
-		return nil, err
+		totalMountedBytes = o.DiskExtPartitions.GetMountedTotalBytes()
+		totalMountedGB = float64(totalMountedBytes) / 1e9
+		totalMountedBytesHumanized = humanize.Bytes(totalMountedBytes)
+	}
+
+	var mountTargetUsagesBytes []byte
+	if len(o.MountTargetUsages) > 0 {
+		var err error
+		mountTargetUsagesBytes, err = json.Marshal(o.MountTargetUsages)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return []components.State{
+		querySucceededState,
 		{
-			Name:    disk_id.Name,
-			Healthy: true,
-			Reason:  "query succeeded",
+			Name:    StateNameDiskBlockDevices,
+			Healthy: len(o.DiskBlockDevices) > 0,
+			Reason:  fmt.Sprintf("found %d block devices", len(o.DiskBlockDevices)),
+			ExtraInfo: map[string]string{
+				StateKeyData:     string(diskBlockDevicesData),
+				StateKeyEncoding: StateValueEncodingJSON,
+			},
+		},
+		{
+			Name:    StateNameDiskBlockDevicesTotal,
+			Healthy: len(o.DiskBlockDevices) > 0,
+			Reason:  fmt.Sprintf("found %d block devices", len(o.DiskBlockDevices)),
+			ExtraInfo: map[string]string{
+				StateKeyDiskBlockDevicesTotalBytes:     fmt.Sprintf("%d", blkDevTotalBytes),
+				StateKeyDiskBlockDevicesTotalGB:        fmt.Sprintf("%.2f", blkDevTotalGB),
+				StateKeyDiskBlockDevicesTotalHumanized: blkDevTotalBytesHumanized,
+			},
 		},
 		{
 			Name:    StateNameDiskExtPartition,
-			Healthy: true,
+			Healthy: len(o.DiskExtPartitions) > 0,
 			Reason:  "",
 			ExtraInfo: map[string]string{
 				StateKeyData:     string(diskExtPartitionsData),
@@ -83,17 +127,8 @@ func (o *Output) States() ([]components.State, error) {
 			},
 		},
 		{
-			Name:    StateNameDiskBlockDevices,
-			Healthy: true,
-			Reason:  "",
-			ExtraInfo: map[string]string{
-				StateKeyData:     string(diskBlockDevicesData),
-				StateKeyEncoding: StateValueEncodingJSON,
-			},
-		},
-		{
 			Name:    StateNameDiskExtPartitionsTotal,
-			Healthy: true,
+			Healthy: len(o.DiskExtPartitions) > 0,
 			Reason:  "",
 			ExtraInfo: map[string]string{
 				StateKeyDiskExtPartitionsTotalBytes:     fmt.Sprintf("%d", totalMountedBytes),
@@ -102,21 +137,11 @@ func (o *Output) States() ([]components.State, error) {
 			},
 		},
 		{
-			Name:    StateNameDiskBlockDevicesTotal,
-			Healthy: true,
-			Reason:  "",
-			ExtraInfo: map[string]string{
-				StateKeyDiskBlockDevicesTotalBytes:     fmt.Sprintf("%d", blkDevTotalBytes),
-				StateKeyDiskBlockDevicesTotalGB:        fmt.Sprintf("%.2f", blkDevTotalGB),
-				StateKeyDiskBlockDevicesTotalHumanized: blkDevTotalBytesHumanized,
-			},
-		},
-		{
 			Name:    StateNameMountTargetUsages,
-			Healthy: true,
+			Healthy: len(o.MountTargetUsages) > 0,
 			Reason:  "",
 			ExtraInfo: map[string]string{
-				StateKeyData:     string(mb),
+				StateKeyData:     string(mountTargetUsagesBytes),
 				StateKeyEncoding: StateValueEncodingJSON,
 			},
 		},
@@ -159,24 +184,49 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		o := &Output{}
 
-		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-		defer ccancel()
+		for i := 0; i < 5; i++ {
+			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+			blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
+				return dt == "disk"
+			}))
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to get block devices", "error", err)
 
-		parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
-			return fs == "ext4"
-		}))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get partitions: %w", err)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(5 * time.Second):
+				}
+				continue
+			}
+			o.DiskBlockDevices = blks
 		}
-		o.DiskExtPartitions = parts
+		if len(o.DiskBlockDevices) == 0 {
+			return nil, errors.New("no block device found")
+		}
 
-		blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
-			return dt == "disk"
-		}))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get block devices: %w", err)
+		for i := 0; i < 5; i++ {
+			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+			parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
+				return fs == "ext4"
+			}))
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to get partitions", "error", err)
+
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(5 * time.Second):
+				}
+				continue
+			}
+			o.DiskExtPartitions = parts
 		}
-		o.DiskBlockDevices = blks
+		if len(o.DiskExtPartitions) == 0 {
+			return nil, errors.New("no ext4 partition found")
+		}
 
 		now := time.Now().UTC()
 		nowUTC := float64(now.Unix())
@@ -215,7 +265,9 @@ func CreateGet(cfg Config) query.GetFunc {
 				continue
 			}
 
+			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 			mntOut, err := disk.FindMnt(cctx, target)
+			ccancel()
 			if err != nil {
 				log.Logger.Warnw("error finding mount target device", "mount_target", target, "error", err)
 				continue
