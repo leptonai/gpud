@@ -225,7 +225,12 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(nvidia_component_error_xid_id.Name, cfg.Query, CreateGet())
+		defaultPoller = query.New(
+			nvidia_component_error_xid_id.Name,
+			cfg.Query,
+			CreateGet(),
+			nil,
+		)
 	})
 }
 

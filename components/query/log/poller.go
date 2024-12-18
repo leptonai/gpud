@@ -146,6 +146,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 		name,
 		cfg.Query,
 		flushFunc,
+		nil,
 	)
 
 	return pl, nil

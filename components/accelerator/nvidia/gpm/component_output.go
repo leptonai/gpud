@@ -98,7 +98,12 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(Name, cfg.Query, CreateGet())
+		defaultPoller = query.New(
+			Name,
+			cfg.Query,
+			CreateGet(),
+			nil,
+		)
 	})
 }
 

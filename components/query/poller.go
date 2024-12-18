@@ -60,11 +60,20 @@ type Item struct {
 // Each get output is persisted to the storage if enabled.
 type GetFunc func(context.Context) (any, error)
 
-func New(id string, cfg query_config.Config, getFunc GetFunc) Poller {
+// GetErrHandler is a function that handles the error from the get operation.
+type GetErrHandler func(error) error
+
+func New(id string, cfg query_config.Config, getFunc GetFunc, getErrHandler GetErrHandler) Poller {
+	if getErrHandler == nil {
+		getErrHandler = func(err error) error {
+			return err
+		}
+	}
 	return &poller{
 		id:                 id,
 		startPollFunc:      startPoll,
 		getFunc:            getFunc,
+		getErrHandler:      getErrHandler,
 		cfg:                cfg,
 		inflightComponents: make(map[string]any),
 	}
@@ -77,6 +86,7 @@ type poller struct {
 
 	startPollFunc startPollFunc
 	getFunc       GetFunc
+	getErrHandler GetErrHandler
 
 	ctxMu  sync.RWMutex
 	ctx    context.Context
@@ -91,15 +101,15 @@ type poller struct {
 	inflightComponents map[string]any
 }
 
-type startPollFunc func(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, get GetFunc) <-chan Item
+type startPollFunc func(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, getFunc GetFunc, getErrHandler GetErrHandler) <-chan Item
 
-func startPoll(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, get GetFunc) <-chan Item {
+func startPoll(ctx context.Context, id string, interval time.Duration, getTimeout time.Duration, getFunc GetFunc, getErrHandler GetErrHandler) <-chan Item {
 	ch := make(chan Item, 1)
-	go pollLoops(ctx, id, ch, interval, getTimeout, get)
+	go pollLoops(ctx, id, ch, interval, getTimeout, getFunc, getErrHandler)
 	return ch
 }
 
-func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Duration, getTimeout time.Duration, get GetFunc) {
+func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Duration, getTimeout time.Duration, getFunc GetFunc, getErrHandler GetErrHandler) {
 	// to get output very first time and start wait
 	ticker := time.NewTicker(1)
 	defer ticker.Stop()
@@ -131,9 +141,10 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 			cctx = ctx
 			ccancel = func() {}
 		}
-		output, err := get(cctx)
+		output, err := getFunc(cctx)
 		ccancel()
 
+		err = getErrHandler(err)
 		if err != nil {
 			log.Logger.Debugw("polling error", "id", id, "error", err)
 			select {
@@ -193,7 +204,7 @@ func (pl *poller) Start(ctx context.Context, cfg query_config.Config, componentN
 	}
 
 	pl.ctx, pl.cancel = context.WithCancel(ctx)
-	ch := pl.startPollFunc(pl.ctx, pl.id, cfg.Interval.Duration, cfg.GetTimeout.Duration, pl.getFunc)
+	ch := pl.startPollFunc(pl.ctx, pl.id, cfg.Interval.Duration, cfg.GetTimeout.Duration, pl.getFunc, pl.getErrHandler)
 	go func() {
 		for item := range ch {
 			pl.processItem(item)
