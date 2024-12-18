@@ -33,8 +33,6 @@ func ParseOutputJSON(data []byte) (*Output, error) {
 }
 
 const (
-	StateNameContainerdPod = "containerd-pod"
-
 	StateKeyContainerdPodID        = "id"
 	StateKeyContainerdPodName      = "name"
 	StateKeyContainerdPodNamespace = "namespace"
@@ -47,7 +45,7 @@ const (
 
 func ParseStatePodSandbox(m map[string]string) (PodSandbox, error) {
 	pod := PodSandbox{}
-	pod.ID = m[StateKeyContainerdPodID]
+	pod.ID = m[containerd_pod_id.Name]
 	pod.Name = m[StateKeyContainerdPodName]
 	pod.Namespace = m[StateKeyContainerdPodNamespace]
 	pod.State = m[StateKeyContainerdPodState]
@@ -66,7 +64,7 @@ func (o *Output) describeReason() string {
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
 	return []components.State{{
-		Name:    StateNameContainerdPod,
+		Name:    containerd_pod_id.Name,
 		Healthy: true,
 		Reason:  o.describeReason(),
 		ExtraInfo: map[string]string{
@@ -80,7 +78,7 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	o := &Output{}
 	for _, state := range states {
 		switch state.Name {
-		case StateNameContainerdPod:
+		case containerd_pod_id.Name:
 			pod, err := ParseStatePodSandbox(state.ExtraInfo)
 			if err != nil {
 				return nil, err
