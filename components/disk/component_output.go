@@ -100,7 +100,7 @@ func (o *Output) States() ([]components.State, error) {
 		querySucceededState,
 		{
 			Name:    StateNameDiskBlockDevices,
-			Healthy: len(o.DiskBlockDevices) > 0,
+			Healthy: true,
 			Reason:  fmt.Sprintf("found %d block devices", len(o.DiskBlockDevices)),
 			ExtraInfo: map[string]string{
 				StateKeyData:     string(diskBlockDevicesData),
@@ -109,7 +109,7 @@ func (o *Output) States() ([]components.State, error) {
 		},
 		{
 			Name:    StateNameDiskBlockDevicesTotal,
-			Healthy: len(o.DiskBlockDevices) > 0,
+			Healthy: true,
 			Reason:  fmt.Sprintf("found %d block devices", len(o.DiskBlockDevices)),
 			ExtraInfo: map[string]string{
 				StateKeyDiskBlockDevicesTotalBytes:     fmt.Sprintf("%d", blkDevTotalBytes),
