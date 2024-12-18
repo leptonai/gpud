@@ -138,7 +138,7 @@ func (o *Output) States() ([]components.State, error) {
 		},
 		{
 			Name:    StateNameMountTargetUsages,
-			Healthy: len(o.MountTargetUsages) > 0,
+			Healthy: true,
 			Reason:  "",
 			ExtraInfo: map[string]string{
 				StateKeyData:     string(mountTargetUsagesBytes),
