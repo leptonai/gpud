@@ -33,7 +33,7 @@ func ParseOutputJSON(data []byte) (*Output, error) {
 }
 
 const (
-	StateNameContainerdPod = "containerd_pod"
+	StateNameContainerdPod = "containerd-pod"
 
 	StateKeyContainerdPodID        = "id"
 	StateKeyContainerdPodName      = "name"
