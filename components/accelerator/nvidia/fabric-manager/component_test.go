@@ -81,13 +81,13 @@ func TestComponentLog(t *testing.T) {
 	}
 	time.Sleep(pollInterval + 3*time.Second)
 
-	events, err := component.Events(ctx, time.Now().Add(-time.Hour))
+	events, err := component.Events(ctx, time.Now().Add(-876600*time.Hour))
 	if err != nil {
 		t.Fatalf("failed to get events: %v", err)
 	}
 	t.Logf("events: %+v", events)
 
-	if len(events) != 2 {
-		t.Errorf("expected 2 events, got %d", len(events))
+	if len(events) != 3 {
+		t.Errorf("expected 3 events, got %d", len(events))
 	}
 }
