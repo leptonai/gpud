@@ -59,7 +59,6 @@ func TestExtractTimeFromLogLine(t *testing.T) {
 				t.Errorf("ExtractTimeFromLogLine() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			fmt.Println("unix", got.Unix(), "for time", got, "and line", string(tt.args.line))
 
 			if tt.wantErr == false {
 				if !reflect.DeepEqual(got, tt.want) {
