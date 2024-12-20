@@ -19,7 +19,9 @@ type Op struct {
 	selectFilters []*query_log_common.Filter
 	rejectFilters []*query_log_common.Filter
 
-	extractTime    query_log_common.ExtractTimeFunc
+	extractTime   query_log_common.ExtractTimeFunc
+	skipEmptyLine bool
+
 	ProcessMatched query_log_common.ProcessMatchedFunc
 }
 
@@ -190,6 +192,12 @@ func WithExtractTime(f query_log_common.ExtractTimeFunc) OpOption {
 		if f != nil {
 			op.extractTime = f
 		}
+	}
+}
+
+func WithSkipEmptyLine(skipEmptyLine bool) OpOption {
+	return func(op *Op) {
+		op.skipEmptyLine = skipEmptyLine
 	}
 }
 
