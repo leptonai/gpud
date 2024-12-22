@@ -165,10 +165,10 @@ func TestLoginInfo(t *testing.T) {
 		if loginInfo == nil {
 			t.Error("expected login info, got nil")
 		}
-		if loginInfo.Token != testToken {
+		if loginInfo != nil && loginInfo.Token != testToken {
 			t.Errorf("expected token '%s', got '%s'", testToken, loginInfo.Token)
 		}
-		if loginInfo.LoginTime.Before(beforeUpdate) {
+		if loginInfo != nil && loginInfo.LoginTime.Before(beforeUpdate) {
 			t.Errorf("expected timestamp after %v, got %v", beforeUpdate, loginInfo.LoginTime)
 		}
 	})
@@ -200,7 +200,7 @@ func TestLoginInfo(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to get first login info: %v", err)
 		}
-		if loginInfo.Token != firstToken {
+		if loginInfo != nil && loginInfo.Token != firstToken {
 			t.Errorf("expected first token '%s', got '%s'", firstToken, loginInfo.Token)
 		}
 
@@ -215,7 +215,7 @@ func TestLoginInfo(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to get second login info: %v", err)
 		}
-		if loginInfo.Token != secondToken {
+		if loginInfo != nil && loginInfo.Token != secondToken {
 			t.Errorf("expected second token '%s', got '%s'", secondToken, loginInfo.Token)
 		}
 	})
@@ -234,7 +234,7 @@ func TestLoginInfo(t *testing.T) {
 		if loginInfo == nil {
 			t.Error("expected non-nil login info after empty update")
 		}
-		if loginInfo.Token != "" {
+		if loginInfo != nil && loginInfo.Token != "" {
 			t.Errorf("expected empty token, got '%s'", loginInfo.Token)
 		}
 	})
