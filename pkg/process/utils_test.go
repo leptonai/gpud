@@ -13,11 +13,16 @@ import (
 
 // testProcess implements Process interface for testing
 type testProcess struct {
+	labels map[string]string
 	cmd    *exec.Cmd
 	waitCh chan error
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 	mu     sync.Mutex
+}
+
+func (p *testProcess) Labels() map[string]string {
+	return p.labels
 }
 
 func (p *testProcess) PID() int32 {

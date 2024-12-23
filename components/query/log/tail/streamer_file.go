@@ -129,7 +129,7 @@ func (sr *fileStreamer) pollLoops() {
 		case sr.lineC <- lineToSend:
 
 		default:
-			log.Logger.Warnw("channel is full -- dropped output")
+			log.Logger.Warnw("channel is full -- dropped output", "file", sr.file.Filename)
 		}
 	}
 }

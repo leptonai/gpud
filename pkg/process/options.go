@@ -12,6 +12,8 @@ import (
 type OpOption func(*Op)
 
 type Op struct {
+	labels map[string]string
+
 	envs       []string
 	outputFile *os.File
 
@@ -25,6 +27,10 @@ type Op struct {
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
+	}
+
+	if op.labels == nil {
+		op.labels = make(map[string]string)
 	}
 
 	if len(op.commandsToRun) == 0 && op.bashScriptContentsToRun == "" {
@@ -61,6 +67,15 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 
 	return nil
+}
+
+func WithLabel(key, value string) OpOption {
+	return func(op *Op) {
+		if op.labels == nil {
+			op.labels = make(map[string]string)
+		}
+		op.labels[key] = value
+	}
 }
 
 // Add a new environment variable to the process
