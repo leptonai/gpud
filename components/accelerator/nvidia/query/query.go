@@ -96,7 +96,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 			go_nvml.GPM_METRIC_FP16_UTIL,
 		),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
 	o := &Output{
@@ -192,7 +192,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
 	case <-nvml.DefaultInstanceReady():
 		log.Logger.Debugw("default nvml instance ready")
 	}
