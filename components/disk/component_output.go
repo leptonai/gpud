@@ -198,6 +198,7 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		o := &Output{}
 
+		prevFailed := false
 		for i := 0; i < 5; i++ {
 			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 			blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
@@ -212,14 +213,22 @@ func CreateGet(cfg Config) query.GetFunc {
 					return nil, ctx.Err()
 				case <-time.After(5 * time.Second):
 				}
+
+				prevFailed = true
 				continue
 			}
+
 			o.DiskBlockDevices = blks
+			if prevFailed {
+				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(blks))
+			}
+			break
 		}
 		if len(o.DiskBlockDevices) == 0 {
 			return nil, errors.New("no block device found")
 		}
 
+		prevFailed = false
 		for i := 0; i < 5; i++ {
 			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
 			parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
@@ -234,9 +243,16 @@ func CreateGet(cfg Config) query.GetFunc {
 					return nil, ctx.Err()
 				case <-time.After(5 * time.Second):
 				}
+
+				prevFailed = true
 				continue
 			}
+
 			o.DiskExtPartitions = parts
+			if prevFailed {
+				log.Logger.Infow("successfully got partitions after retries", "num_partitions", len(parts))
+			}
+			break
 		}
 		if len(o.DiskExtPartitions) == 0 {
 			return nil, errors.New("no ext4 partition found")
