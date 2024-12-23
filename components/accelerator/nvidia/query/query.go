@@ -28,6 +28,7 @@ import (
 	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,8 +100,8 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-	pdRunning := PersistencedRunning(cctx)
+	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+	pdRunning := process.CheckRunningByPid(cctx, "nvidia-persistenced")
 	ccancel()
 
 	o := &Output{

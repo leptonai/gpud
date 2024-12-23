@@ -2,12 +2,22 @@ package process
 
 import (
 	"context"
+	"os/exec"
 	"strings"
 
 	"github.com/leptonai/gpud/log"
 
 	procs "github.com/shirou/gopsutil/v4/process"
 )
+
+func CheckRunningByPid(ctx context.Context, processName string) bool {
+	log.Logger.Debugw("checking if process is running", "processName", processName)
+	err := exec.CommandContext(ctx, "pidof", processName).Run()
+	if err != nil {
+		log.Logger.Debugw("failed to check -- assuming process is not running", "error", err)
+	}
+	return err == nil
+}
 
 // CountRunningPids returns the number of running pids.
 func CountRunningPids() (uint64, error) {

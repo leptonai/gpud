@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +12,7 @@ import (
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 
 	docker_types "github.com/docker/docker/api/types"
 	docker_container "github.com/docker/docker/api/types/container"
@@ -149,17 +148,13 @@ func CreateGet(cfg Config) query.GetFunc {
 			}
 		}()
 
-		// check if a process named "docker" is running
-		dockerRunning := false
-		if err := exec.Command("pidof", "docker").Run(); err == nil {
-			dockerRunning = true
-		} else {
-			log.Logger.Warnw("docker process not found, assuming docker is not running", "error", err)
-		}
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		dockerRunning := process.CheckRunningByPid(cctx, "docker")
+		ccancel()
 
 		// "ctx" here is the root level, create one with shorter timeouts
 		// to not block on this checks
-		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+		cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
 		dockerContainers, err := ListContainers(cctx)
 		ccancel()
 		if err != nil {
