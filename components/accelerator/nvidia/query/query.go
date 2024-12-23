@@ -81,7 +81,6 @@ func CreateGet(db *sql.DB) query.GetFunc {
 
 // Get all nvidia component queries.
 func Get(ctx context.Context, db *sql.DB) (output any, err error) {
-	log.Logger.Debugw("starting nvml instance")
 	if err := nvml.StartDefaultInstance(
 		ctx,
 		nvml.WithDB(db),
