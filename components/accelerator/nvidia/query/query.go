@@ -192,7 +192,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	log.Logger.Debugw("checking lsmod peermem")
-	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+	cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
