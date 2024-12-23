@@ -81,6 +81,7 @@ func CreateGet(db *sql.DB) query.GetFunc {
 
 // Get all nvidia component queries.
 func Get(ctx context.Context, db *sql.DB) (output any, err error) {
+	log.Logger.Debugw("starting nvml instance")
 	if err := nvml.StartDefaultInstance(
 		ctx,
 		nvml.WithDB(db),
@@ -108,6 +109,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		IbstatExists:          infiniband.IbstatExists(),
 	}
 
+	log.Logger.Debugw("counting gpu devices")
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
 	if err != nil {
 		log.Logger.Warnw("failed to count gpu devices", "error", err)
@@ -129,6 +131,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	if o.FabricManagerExists {
+		log.Logger.Debugw("checking fabric manager version")
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		ver, err := CheckFabricManagerVersion(cctx)
 		ccancel()
@@ -136,6 +139,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager version: %v", err))
 		}
 
+		log.Logger.Debugw("connecting to dbus")
 		if err := systemd.ConnectDbus(); err != nil {
 			log.Logger.Warnw("failed to connect to dbus", "error", err)
 
@@ -172,6 +176,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	if o.InfinibandClassExists && o.IbstatExists {
+		log.Logger.Debugw("running ibstat")
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		o.Ibstat, err = infiniband.RunIbstat(cctx)
 		ccancel()
@@ -183,6 +188,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 	}
 
+	log.Logger.Debugw("checking lsmod peermem")
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
@@ -190,6 +196,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
 	}
 
+	log.Logger.Debugw("waiting for default nvml instance")
 	select {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())

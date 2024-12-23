@@ -26,12 +26,12 @@ func SMIExists() bool {
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
+	log.Logger.Debugw("finding nvidia-smi")
 	nvidiaSMIPath, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
 	}
 
-	log.Logger.Debugw("running nvidia-smi", "args", args)
 	p, err := process.New(
 		process.WithCommand(append([]string{nvidiaSMIPath}, args...)...),
 		process.WithRunAsBashScript(),
@@ -40,6 +40,7 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, err
 	}
 
+	log.Logger.Debugw("starting nvidia-smi", "args", args)
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
