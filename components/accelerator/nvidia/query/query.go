@@ -358,9 +358,25 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	// as the NVML API provides all the data we need
 	if o.SMIExists {
 		// call this with a timeout, as a broken GPU may block the command.
-		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-		o.SMI, err = GetSMIOutput(cctx)
-		ccancel()
+		prevFailed := false
+		for i := 0; i < 2; i++ {
+			cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
+			o.SMI, err = GetSMIOutput(cctx)
+			ccancel()
+			if err == nil {
+				if prevFailed {
+					log.Logger.Infow("successfully got smi output after retries", "num_gpus", len(o.SMI.GPUs))
+				}
+				break
+			}
+
+			prevFailed = true
+			log.Logger.Warnw("failed to get smi output", "error", err)
+			select {
+			case <-ctx.Done():
+			case <-time.After(2 * time.Second):
+			}
+		}
 		if err != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
 		}
