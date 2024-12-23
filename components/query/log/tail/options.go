@@ -8,6 +8,8 @@ import (
 )
 
 type Op struct {
+	labels map[string]string
+
 	file     string
 	commands [][]string
 
@@ -28,6 +30,10 @@ type OpOption func(*Op)
 func (op *Op) ApplyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
+	}
+
+	if op.labels == nil {
+		op.labels = make(map[string]string)
 	}
 
 	if op.file == "" && len(op.commands) == 0 {
@@ -62,6 +68,15 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 	}
 
 	return nil
+}
+
+func WithLabel(key, value string) OpOption {
+	return func(op *Op) {
+		if op.labels == nil {
+			op.labels = make(map[string]string)
+		}
+		op.labels[key] = value
+	}
 }
 
 func WithFile(file string) OpOption {
