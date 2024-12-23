@@ -99,10 +99,14 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
+	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+	pdRunning := PersistencedRunning(cctx)
+	ccancel()
+
 	o := &Output{
 		SMIExists:             SMIExists(),
 		PersistencedExists:    PersistencedExists(),
-		PersistencedRunning:   PersistencedRunning(),
+		PersistencedRunning:   pdRunning,
 		FabricManagerExists:   FabricManagerExists(),
 		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
 		IbstatExists:          infiniband.IbstatExists(),
