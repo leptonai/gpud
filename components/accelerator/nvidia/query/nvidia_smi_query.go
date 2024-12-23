@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 
@@ -30,6 +31,7 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
 	}
 
+	log.Logger.Debugw("running nvidia-smi", "args", args)
 	p, err := process.New(
 		process.WithCommand(append([]string{nvidiaSMIPath}, args...)...),
 		process.WithRunAsBashScript(),
