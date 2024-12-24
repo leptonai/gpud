@@ -28,8 +28,6 @@ import (
 	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/pkg/process"
-	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,20 +99,8 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-	pdRunning, err := pkg_systemd.IsActive("nvidia-persistenced")
-	ccancel()
-	if err != nil {
-		log.Logger.Debugw("failed to check nvidia-persistenced systemd service -- falling back to pid check", "error", err)
-		cctx, ccancel = context.WithTimeout(ctx, 15*time.Second)
-		pdRunning = process.CheckRunningByPid(cctx, "nvidia-persistenced")
-		ccancel()
-	}
-
 	o := &Output{
 		SMIExists:             SMIExists(),
-		PersistencedExists:    PersistencedExists(),
-		PersistencedRunning:   pdRunning,
 		FabricManagerExists:   FabricManagerExists(),
 		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
 		IbstatExists:          infiniband.IbstatExists(),
@@ -200,7 +186,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	log.Logger.Debugw("checking lsmod peermem")
-	cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
+	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
@@ -315,9 +301,6 @@ type Output struct {
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
 
-	PersistencedExists  bool `json:"persistenced_exists"`
-	PersistencedRunning bool `json:"persistenced_running"`
-
 	FabricManagerExists bool                 `json:"fabric_manager_exists"`
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
 	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
@@ -420,7 +403,6 @@ func (o *Output) PrintInfo(debug bool) {
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
 	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
 	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
-	fmt.Printf("%s nvidia-persistenced exists '%v' and is running '%v'\n", checkMark, o.PersistencedExists, o.PersistencedRunning)
 
 	if len(o.BadEnvVarsForCUDA) > 0 {
 		for k, v := range o.BadEnvVarsForCUDA {
@@ -486,9 +468,9 @@ func (o *Output) PrintInfo(debug bool) {
 
 			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
 			if dev.PersistenceMode.Enabled {
-				fmt.Printf("%s NVML persistence mode is enabled (nvidia-persistenced running %v)\n", checkMark, o.PersistencedRunning)
+				fmt.Printf("%s NVML persistence mode is enabled\n", checkMark)
 			} else {
-				fmt.Printf("%s NVML persistence mode is disabled (nvidia-persistenced running %v)\n", warningSign, o.PersistencedRunning)
+				fmt.Printf("%s NVML persistence mode is disabled\n", warningSign)
 			}
 
 			if dev.ClockEvents != nil {
