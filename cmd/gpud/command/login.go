@@ -50,8 +50,11 @@ func cmdLogin(cliContext *cli.Context) error {
 	cliToken := cliContext.String("token")
 	endpoint := cliContext.String("endpoint")
 
-	dbToken, _ := state.GetLoginInfo(rootCtx, db, uid)
-	token := dbToken
+	loginInfo, _ := state.GetLoginInfo(rootCtx, db, uid)
+	token := ""
+	if loginInfo != nil {
+		token = loginInfo.Token
+	}
 	if cliToken != "" {
 		token = cliToken
 	} else {
@@ -87,7 +90,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 
-	if token != dbToken {
+	if loginInfo != nil && token != loginInfo.Token {
 		if err = state.UpdateLoginInfo(rootCtx, db, uid, token); err != nil {
 			fmt.Println("machine logged in but failed to update token:", err)
 		}

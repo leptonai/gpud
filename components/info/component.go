@@ -3,21 +3,26 @@ package info
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
+	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/version"
 )
 
-func New(annotations map[string]string) components.Component {
+func New(annotations map[string]string, db *sql.DB) components.Component {
 	return &component{
 		annotations: annotations,
+		db:          db,
 	}
 }
 
@@ -25,6 +30,7 @@ var _ components.Component = (*component)(nil)
 
 type component struct {
 	annotations map[string]string
+	db          *sql.DB
 }
 
 func (c *component) Name() string { return info_id.Name }
@@ -35,6 +41,12 @@ const (
 	StateKeyDaemonVersion = "daemon_version"
 	StateKeyMacAddress    = "mac_address"
 	StateKeyPackages      = "packages"
+
+	StateNameGPUD                    = "gpud"
+	StateKeyGPUdMachineID            = "gpud_machine_id"
+	StateKeyGPUdLoggedIn             = "gpud_logged_in"
+	StateKeyGPUdLoginTimeUnixSeconds = "gpud_login_time_unix_seconds"
+	StateKeyGPUdLoginTimeHumanized   = "gpud_login_time_humanized"
 
 	StateNameAnnotations = "annotations"
 )
@@ -63,7 +75,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		rawPayload, _ := json.Marshal(&packageStatus)
 		managedPackages = string(rawPayload)
 	}
-	return []components.State{
+
+	states := []components.State{
 		{
 			Name:    StateNameDaemon,
 			Healthy: true,
@@ -80,7 +93,44 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			Reason:    fmt.Sprintf("annotations: %v", c.annotations),
 			ExtraInfo: c.annotations,
 		},
-	}, nil
+	}
+
+	if c.db != nil {
+		machineID, err := state.ReadMachineID(ctx, c.db)
+		if err != nil {
+			return nil, err
+		}
+
+		loginInfo, err := state.GetLoginInfo(ctx, c.db, machineID)
+		if err != nil {
+			return nil, err
+		}
+
+		loggedIn := loginInfo != nil
+		var (
+			loginTimeUnixSeconds string
+			loginTimeHumanized   string
+		)
+		if loggedIn {
+			loginTime := loginInfo.LoginTime
+			loginTimeUnixSeconds = fmt.Sprintf("%d", loginTime.Unix())
+			loginTimeHumanized = humanize.RelTime(loginTime, time.Now().UTC(), "ago", "from now")
+		}
+
+		states = append(states, components.State{
+			Name:    StateNameGPUD,
+			Healthy: true,
+			Reason:  fmt.Sprintf("machine ID: %s", machineID),
+			ExtraInfo: map[string]string{
+				StateKeyGPUdMachineID:            machineID,
+				StateKeyGPUdLoggedIn:             strconv.FormatBool(loggedIn),
+				StateKeyGPUdLoginTimeUnixSeconds: loginTimeUnixSeconds,
+				StateKeyGPUdLoginTimeHumanized:   loginTimeHumanized,
+			},
+		})
+	}
+
+	return states, nil
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {

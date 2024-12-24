@@ -8,7 +8,7 @@ import (
 func TestComponent(t *testing.T) {
 	t.Parallel()
 
-	component := New(map[string]string{"a": "b"})
+	component := New(map[string]string{"a": "b"}, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -568,7 +568,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 
 		case info_id.Name:
-			allComponents = append(allComponents, info.New(config.Annotations))
+			allComponents = append(allComponents, info.New(config.Annotations, db))
 
 		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}
@@ -1475,8 +1475,8 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string) {
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := state.GetLoginInfo(ctx, db, uid); err == nil {
-		userToken = dbToken
+	if loginInfo, _ := state.GetLoginInfo(ctx, db, uid); loginInfo != nil {
+		userToken = loginInfo.Token
 	}
 
 	if userToken != "" {

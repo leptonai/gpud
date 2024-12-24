@@ -87,32 +87,67 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 	return uid, nil
 }
 
-func GetLoginInfo(ctx context.Context, db *sql.DB, machineID string) (string, error) {
+// Reads the current machine ID from the database
+func ReadMachineID(ctx context.Context, db *sql.DB) (string, error) {
 	query := fmt.Sprintf(`
-SELECT %s FROM %s WHERE %s = '%s'
+SELECT %s FROM %s
+LIMIT 1;
+`,
+		ColumnMachineID,
+		TableNameMachineMetadata,
+	)
+	var machineID string
+	err := db.QueryRowContext(ctx, query).Scan(&machineID)
+	return machineID, err
+}
+
+type LoginInfo struct {
+	Token     string
+	LoginTime time.Time
+}
+
+// Returns nil and no error if no login info is found (has not been logged in yet).
+func GetLoginInfo(ctx context.Context, db *sql.DB, machineID string) (*LoginInfo, error) {
+	query := fmt.Sprintf(`
+SELECT %s, %s FROM %s WHERE %s = '%s'
 LIMIT 1;
 `,
 		ColumnToken,
+		ColumnUnixSeconds,
 		TableNameMachineMetadata,
 		ColumnMachineID,
 		machineID,
 	)
-	var token string
-	err := db.QueryRowContext(ctx, query).Scan(&token)
-	return token, err
+	var (
+		token       sql.NullString
+		unixSeconds int64
+	)
+	err := db.QueryRowContext(ctx, query).Scan(&token, &unixSeconds)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, nil
+	}
+	return &LoginInfo{
+		Token:     token.String,
+		LoginTime: time.Unix(unixSeconds, 0).UTC(),
+	}, nil
 }
 
 func UpdateLoginInfo(ctx context.Context, db *sql.DB, machineID string, token string) error {
 	query := fmt.Sprintf(`
-UPDATE %s SET %s = '%s' WHERE %s = '%s';
+UPDATE %s SET %s = ?, %s = ? WHERE %s = ?;
 `,
 		TableNameMachineMetadata,
 		ColumnToken,
-		token,
+		ColumnUnixSeconds,
 		ColumnMachineID,
-		machineID,
 	)
-	if _, err := db.ExecContext(ctx, query); err != nil {
+	if _, err := db.ExecContext(ctx, query, token, time.Now().UTC().Unix(), machineID); err != nil {
 		return err
 	}
 	return nil
