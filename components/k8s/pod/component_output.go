@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -138,17 +138,13 @@ func CreateGet(cfg Config) query.GetFunc {
 			}
 		}()
 
-		// check if a process named "kubelet" is running
-		kubeletRunning := false
-		if err := exec.Command("pidof", "kubelet").Run(); err == nil {
-			kubeletRunning = true
-		} else {
-			log.Logger.Warnw("kubelet process not found, assuming kubelet is not running", "error", err)
-		}
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		kubeletRunning := process.CheckRunningByPid(cctx, "kubelet")
+		ccancel()
 
 		// "ctx" here is the root level, create one with shorter timeouts
 		// to not block on this checks
-		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
+		cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
 		pods, err := ListFromKubeletReadOnlyPort(cctx, cfg.Port)
 		ccancel()
 		if err != nil {

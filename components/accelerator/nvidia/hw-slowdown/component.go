@@ -57,6 +57,8 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+	// the default nvidia poller persists the events to the storage
+	// so we can just read from the storage
 	events, err := nvidia_clock_events_state.ReadEvents(
 		ctx,
 		c.db,

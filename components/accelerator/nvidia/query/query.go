@@ -96,18 +96,17 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 			go_nvml.GPM_METRIC_FP16_UTIL,
 		),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
 	o := &Output{
 		SMIExists:             SMIExists(),
-		PersistencedExists:    PersistencedExists(),
-		PersistencedRunning:   PersistencedRunning(),
 		FabricManagerExists:   FabricManagerExists(),
 		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
 		IbstatExists:          infiniband.IbstatExists(),
 	}
 
+	log.Logger.Debugw("counting gpu devices")
 	o.GPUDeviceCount, err = CountAllDevicesFromDevDir()
 	if err != nil {
 		log.Logger.Warnw("failed to count gpu devices", "error", err)
@@ -129,6 +128,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	if o.FabricManagerExists {
+		log.Logger.Debugw("checking fabric manager version")
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		ver, err := CheckFabricManagerVersion(cctx)
 		ccancel()
@@ -136,6 +136,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager version: %v", err))
 		}
 
+		log.Logger.Debugw("connecting to dbus")
 		if err := systemd.ConnectDbus(); err != nil {
 			log.Logger.Warnw("failed to connect to dbus", "error", err)
 
@@ -172,6 +173,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	if o.InfinibandClassExists && o.IbstatExists {
+		log.Logger.Debugw("running ibstat")
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		o.Ibstat, err = infiniband.RunIbstat(cctx)
 		ccancel()
@@ -183,6 +185,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		}
 	}
 
+	log.Logger.Debugw("checking lsmod peermem")
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
@@ -190,9 +193,10 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
 	}
 
+	log.Logger.Debugw("waiting for default nvml instance")
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
 	case <-nvml.DefaultInstanceReady():
 		log.Logger.Debugw("default nvml instance ready")
 	}
@@ -221,125 +225,8 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 		metrics_remapped_rows.SetLastUpdateUnixSeconds(nowUnix)
 
 		for _, dev := range o.NVML.DeviceInfos {
-			log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.BusID, "device", dev.DeviceID, "minorNumber", dev.MinorNumberID)
-
-			if dev.ClockEvents != nil {
-				if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
-					return nil, err
-				}
-				if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
-					return nil, err
-				}
-				if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-					return nil, err
-				}
-			}
-
-			if err := metrics_clockspeed.SetGraphicsMHz(ctx, dev.UUID, dev.ClockSpeed.GraphicsMHz, now); err != nil {
-				return nil, err
-			}
-			if err := metrics_clockspeed.SetMemoryMHz(ctx, dev.UUID, dev.ClockSpeed.MemoryMHz, now); err != nil {
-				return nil, err
-			}
-
-			if err := metrics_ecc.SetAggregateTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Corrected), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_ecc.SetAggregateTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Uncorrected), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_ecc.SetVolatileTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Corrected), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_ecc.SetVolatileTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Uncorrected), now); err != nil {
-				return nil, err
-			}
-
-			if err := metrics_memory.SetTotalBytes(ctx, dev.UUID, float64(dev.Memory.TotalBytes), now); err != nil {
-				return nil, err
-			}
-			metrics_memory.SetReservedBytes(dev.UUID, float64(dev.Memory.ReservedBytes))
-			if err := metrics_memory.SetUsedBytes(ctx, dev.UUID, float64(dev.Memory.UsedBytes), now); err != nil {
-				return nil, err
-			}
-			metrics_memory.SetFreeBytes(dev.UUID, float64(dev.Memory.FreeBytes))
-			usedPercent, err := dev.Memory.GetUsedPercent()
-			if err != nil {
-				o.NVMLErrors = append(o.NVMLErrors, err.Error())
-			} else {
-				if err := metrics_memory.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-					return nil, err
-				}
-			}
-
-			if err := metrics_nvlink.SetFeatureEnabled(ctx, dev.UUID, dev.NVLink.States.AllFeatureEnabled(), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_nvlink.SetReplayErrors(ctx, dev.UUID, dev.NVLink.States.TotalRelayErrors(), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_nvlink.SetRecoveryErrors(ctx, dev.UUID, dev.NVLink.States.TotalRecoveryErrors(), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_nvlink.SetCRCErrors(ctx, dev.UUID, dev.NVLink.States.TotalCRCErrors(), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_nvlink.SetRxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawRxBytes()), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_nvlink.SetTxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawTxBytes()), now); err != nil {
-				return nil, err
-			}
-
-			if err := metrics_power.SetUsageMilliWatts(ctx, dev.UUID, float64(dev.Power.UsageMilliWatts), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_power.SetEnforcedLimitMilliWatts(ctx, dev.UUID, float64(dev.Power.EnforcedLimitMilliWatts), now); err != nil {
-				return nil, err
-			}
-			usedPercent, err = dev.Power.GetUsedPercent()
-			if err != nil {
-				o.NVMLErrors = append(o.NVMLErrors, err.Error())
-			} else {
-				if err := metrics_power.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-					return nil, err
-				}
-			}
-
-			if err := metrics_temperature.SetCurrentCelsius(ctx, dev.UUID, float64(dev.Temperature.CurrentCelsiusGPUCore), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_temperature.SetThresholdSlowdownCelsius(ctx, dev.UUID, float64(dev.Temperature.ThresholdCelsiusSlowdown), now); err != nil {
-				return nil, err
-			}
-			usedPercent, err = dev.Temperature.GetUsedPercentSlowdown()
-			if err != nil {
-				o.NVMLErrors = append(o.NVMLErrors, err.Error())
-			} else {
-				if err := metrics_temperature.SetSlowdownUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-					return nil, err
-				}
-			}
-
-			if err := metrics_utilization.SetGPUUtilPercent(ctx, dev.UUID, dev.Utilization.GPUUsedPercent, now); err != nil {
-				return nil, err
-			}
-			if err := metrics_utilization.SetMemoryUtilPercent(ctx, dev.UUID, dev.Utilization.MemoryUsedPercent, now); err != nil {
-				return nil, err
-			}
-
-			if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
-				return nil, err
-			}
-
-			if err := metrics_remapped_rows.SetRemappedDueToUncorrectableErrors(ctx, dev.UUID, uint32(dev.RemappedRows.RemappedDueToCorrectableErrors), now); err != nil {
-				return nil, err
-			}
-			if err := metrics_remapped_rows.SetRemappingPending(ctx, dev.UUID, dev.RemappedRows.RemappingPending, now); err != nil {
-				return nil, err
-			}
-			if err := metrics_remapped_rows.SetRemappingFailed(ctx, dev.UUID, dev.RemappedRows.RemappingFailed, now); err != nil {
-				return nil, err
+			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
+				return nil, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
 			}
 		}
 	}
@@ -358,7 +245,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	// as the NVML API provides all the data we need
 	if o.SMIExists {
 		// call this with a timeout, as a broken GPU may block the command.
-		cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+		cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 		o.SMI, err = GetSMIOutput(cctx)
 		ccancel()
 		if err != nil {
@@ -413,9 +300,6 @@ type Output struct {
 	// that is set globally for the host.
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
-
-	PersistencedExists  bool `json:"persistenced_exists"`
-	PersistencedRunning bool `json:"persistenced_running"`
 
 	FabricManagerExists bool                 `json:"fabric_manager_exists"`
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
@@ -584,9 +468,9 @@ func (o *Output) PrintInfo(debug bool) {
 
 			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
 			if dev.PersistenceMode.Enabled {
-				fmt.Printf("%s NVML persistence mode is enabled (nvidia-persistenced running %v)\n", checkMark, o.PersistencedRunning)
+				fmt.Printf("%s NVML persistence mode is enabled\n", checkMark)
 			} else {
-				fmt.Printf("%s NVML persistence mode is disabled (nvidia-persistenced running %v)\n", warningSign, o.PersistencedRunning)
+				fmt.Printf("%s NVML persistence mode is disabled\n", warningSign)
 			}
 
 			if dev.ClockEvents != nil {
@@ -667,4 +551,200 @@ func (o *Output) PrintInfo(debug bool) {
 			fmt.Println(string(yb))
 		}
 	}
+}
+
+// setMetricsForDevice sets all metrics for a single device
+func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
+	log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.BusID, "device", dev.DeviceID, "minorNumber", dev.MinorNumberID)
+
+	if dev.ClockEvents != nil {
+		if err := setClockMetrics(ctx, dev, now); err != nil {
+			return err
+		}
+	}
+
+	if err := setClockSpeedMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	if err := setECCMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	if err := setMemoryMetrics(ctx, dev, now, o); err != nil {
+		return err
+	}
+
+	if err := setNVLinkMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	if err := setPowerMetrics(ctx, dev, now, o); err != nil {
+		return err
+	}
+
+	if err := setTemperatureMetrics(ctx, dev, now, o); err != nil {
+		return err
+	}
+
+	if err := setUtilizationMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	if err := setProcessMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	if err := setRemappedRowsMetrics(ctx, dev, now); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setClockMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
+		return err
+	}
+	if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
+		return err
+	}
+	if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setClockSpeedMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_clockspeed.SetGraphicsMHz(ctx, dev.UUID, dev.ClockSpeed.GraphicsMHz, now); err != nil {
+		return err
+	}
+	if err := metrics_clockspeed.SetMemoryMHz(ctx, dev.UUID, dev.ClockSpeed.MemoryMHz, now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setECCMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_ecc.SetAggregateTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Corrected), now); err != nil {
+		return err
+	}
+	if err := metrics_ecc.SetAggregateTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Uncorrected), now); err != nil {
+		return err
+	}
+	if err := metrics_ecc.SetVolatileTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Corrected), now); err != nil {
+		return err
+	}
+	if err := metrics_ecc.SetVolatileTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Uncorrected), now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setMemoryMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
+	if err := metrics_memory.SetTotalBytes(ctx, dev.UUID, float64(dev.Memory.TotalBytes), now); err != nil {
+		return err
+	}
+	metrics_memory.SetReservedBytes(dev.UUID, float64(dev.Memory.ReservedBytes))
+	if err := metrics_memory.SetUsedBytes(ctx, dev.UUID, float64(dev.Memory.UsedBytes), now); err != nil {
+		return err
+	}
+	metrics_memory.SetFreeBytes(dev.UUID, float64(dev.Memory.FreeBytes))
+	usedPercent, err := dev.Memory.GetUsedPercent()
+	if err != nil {
+		o.NVMLErrors = append(o.NVMLErrors, err.Error())
+	} else {
+		if err := metrics_memory.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setNVLinkMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_nvlink.SetFeatureEnabled(ctx, dev.UUID, dev.NVLink.States.AllFeatureEnabled(), now); err != nil {
+		return err
+	}
+	if err := metrics_nvlink.SetReplayErrors(ctx, dev.UUID, dev.NVLink.States.TotalRelayErrors(), now); err != nil {
+		return err
+	}
+	if err := metrics_nvlink.SetRecoveryErrors(ctx, dev.UUID, dev.NVLink.States.TotalRecoveryErrors(), now); err != nil {
+		return err
+	}
+	if err := metrics_nvlink.SetCRCErrors(ctx, dev.UUID, dev.NVLink.States.TotalCRCErrors(), now); err != nil {
+		return err
+	}
+	if err := metrics_nvlink.SetRxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawRxBytes()), now); err != nil {
+		return err
+	}
+	if err := metrics_nvlink.SetTxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawTxBytes()), now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setPowerMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
+	if err := metrics_power.SetUsageMilliWatts(ctx, dev.UUID, float64(dev.Power.UsageMilliWatts), now); err != nil {
+		return err
+	}
+	if err := metrics_power.SetEnforcedLimitMilliWatts(ctx, dev.UUID, float64(dev.Power.EnforcedLimitMilliWatts), now); err != nil {
+		return err
+	}
+	usedPercent, err := dev.Power.GetUsedPercent()
+	if err != nil {
+		o.NVMLErrors = append(o.NVMLErrors, err.Error())
+	} else {
+		if err := metrics_power.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setTemperatureMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
+	if err := metrics_temperature.SetCurrentCelsius(ctx, dev.UUID, float64(dev.Temperature.CurrentCelsiusGPUCore), now); err != nil {
+		return err
+	}
+	if err := metrics_temperature.SetThresholdSlowdownCelsius(ctx, dev.UUID, float64(dev.Temperature.ThresholdCelsiusSlowdown), now); err != nil {
+		return err
+	}
+	usedPercent, err := dev.Temperature.GetUsedPercentSlowdown()
+	if err != nil {
+		o.NVMLErrors = append(o.NVMLErrors, err.Error())
+	} else {
+		if err := metrics_temperature.SetSlowdownUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setUtilizationMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_utilization.SetGPUUtilPercent(ctx, dev.UUID, dev.Utilization.GPUUsedPercent, now); err != nil {
+		return err
+	}
+	if err := metrics_utilization.SetMemoryUtilPercent(ctx, dev.UUID, dev.Utilization.MemoryUsedPercent, now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setProcessMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func setRemappedRowsMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
+	if err := metrics_remapped_rows.SetRemappedDueToUncorrectableErrors(ctx, dev.UUID, uint32(dev.RemappedRows.RemappedDueToCorrectableErrors), now); err != nil {
+		return err
+	}
+	if err := metrics_remapped_rows.SetRemappingPending(ctx, dev.UUID, dev.RemappedRows.RemappingPending, now); err != nil {
+		return err
+	}
+	if err := metrics_remapped_rows.SetRemappingFailed(ctx, dev.UUID, dev.RemappedRows.RemappingFailed, now); err != nil {
+		return err
+	}
+	return nil
 }

@@ -48,6 +48,8 @@ func WithReadStderr() ReadOpOption {
 	}
 }
 
+// Sets a function to process each line of the command output.
+// Helps with debugging if command times out in the middle of reading.
 func WithProcessLine(fn func(line string)) ReadOpOption {
 	return func(op *ReadOp) {
 		op.processLine = fn
@@ -79,6 +81,7 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	scanner := bufio.NewScanner(combinedReader)
 
 	for scanner.Scan() {
+		// helps with debugging if command times out in the middle of reading
 		op.processLine(scanner.Text())
 
 		select {

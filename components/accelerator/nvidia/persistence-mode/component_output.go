@@ -18,10 +18,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		return &Output{}
 	}
 
-	o := &Output{
-		PersistencedExists:  i.PersistencedExists,
-		PersistencedRunning: i.PersistencedRunning,
-	}
+	o := &Output{}
 
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
@@ -39,9 +36,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 }
 
 type Output struct {
-	PersistencedExists  bool `json:"persistenced_exists"`
-	PersistencedRunning bool `json:"persistenced_running"`
-
 	PersistenceModesSMI  []nvidia_query.SMIGPUPersistenceMode `json:"persistence_modes_smi"`
 	PersistenceModesNVML []nvidia_query_nvml.PersistenceMode  `json:"persistence_modes_nvml"`
 }
@@ -94,10 +88,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 
 	enabled := true
 	for _, p := range o.PersistenceModesSMI {
-		if o.PersistencedRunning {
-			continue
-		}
-
 		// legacy mode (https://docs.nvidia.com/deploy/driver-persistence/index.html#installation)
 		// "The reason why we cannot immediately deprecate the legacy persistence mode and switch transparently to the NVIDIA Persistence Daemon is because at this time,
 		// we cannot guarantee that the NVIDIA Persistence Daemon will be running. This would be a feature regression as persistence mode might not be available out-of- the-box."
@@ -108,10 +98,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 	}
 
 	for _, p := range o.PersistenceModesNVML {
-		if o.PersistencedRunning {
-			continue
-		}
-
 		// legacy mode (https://docs.nvidia.com/deploy/driver-persistence/index.html#installation)
 		// "The reason why we cannot immediately deprecate the legacy persistence mode and switch transparently to the NVIDIA Persistence Daemon is because at this time,
 		// we cannot guarantee that the NVIDIA Persistence Daemon will be running. This would be a feature regression as persistence mode might not be available out-of- the-box."
@@ -119,15 +105,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 			reasons = append(reasons, fmt.Sprintf("persistence mode is not enabled on %s (NVML)", p.UUID))
 			enabled = false
 		}
-	}
-
-	// does not make the component unhealthy, since persistence mode can still be enabled
-	// recommend installing nvidia-persistenced since it's the recommended way to enable persistence mode
-	if !o.PersistencedExists {
-		reasons = append(reasons, "nvidia-persistenced does not exist (install 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
-	}
-	if !o.PersistencedRunning {
-		reasons = append(reasons, "nvidia-persistenced exists but not running (start 'nvidia-persistenced' or run 'nvidia-smi -pm 1')")
 	}
 
 	return strings.Join(reasons, "; "), enabled, nil
