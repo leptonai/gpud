@@ -420,6 +420,7 @@ func (o *Output) PrintInfo(debug bool) {
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
 	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
 	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
+	fmt.Printf("%s nvidia-persistenced exists '%v' and is running '%v'\n", checkMark, o.PersistencedExists, o.PersistencedRunning)
 
 	if len(o.BadEnvVarsForCUDA) > 0 {
 		for k, v := range o.BadEnvVarsForCUDA {
