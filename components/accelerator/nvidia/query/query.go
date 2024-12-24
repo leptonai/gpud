@@ -29,6 +29,7 @@ import (
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
+	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,8 +102,14 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-	pdRunning := process.CheckRunningByPid(cctx, "nvidia-persistenced")
+	pdRunning, err := pkg_systemd.IsActive("nvidia-persistenced")
 	ccancel()
+	if err != nil {
+		log.Logger.Debugw("failed to check nvidia-persistenced systemd service -- falling back to pid check", "error", err)
+		cctx, ccancel = context.WithTimeout(ctx, 15*time.Second)
+		pdRunning = process.CheckRunningByPid(cctx, "nvidia-persistenced")
+		ccancel()
+	}
 
 	o := &Output{
 		SMIExists:             SMIExists(),
