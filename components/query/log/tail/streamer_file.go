@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"github.com/leptonai/gpud/log"
+
 	"github.com/nxadm/tail"
 )
 
@@ -37,11 +39,13 @@ func NewFromFile(ctx context.Context, file string, seek *tail.SeekInfo, opts ...
 	}
 
 	sr := &fileStreamer{
-		ctx:          ctx,
-		op:           op,
-		file:         f,
-		lineC:        make(chan Line, 100),
-		dedupEnabled: op.dedup,
+		ctx:           ctx,
+		op:            op,
+		file:          f,
+		lineC:         make(chan Line, 1000),
+		dedupEnabled:  op.dedup,
+		extractTime:   op.extractTime,
+		skipEmptyLine: op.skipEmptyLine,
 	}
 	if op.dedup {
 		sr.dedup = seenPool.Get().(*streamDeduper)
@@ -55,12 +59,14 @@ func NewFromFile(ctx context.Context, file string, seek *tail.SeekInfo, opts ...
 var _ Streamer = (*fileStreamer)(nil)
 
 type fileStreamer struct {
-	ctx          context.Context
-	op           *Op
-	file         *tail.Tail
-	lineC        chan Line
-	dedupEnabled bool
-	dedup        *streamDeduper
+	ctx           context.Context
+	op            *Op
+	file          *tail.Tail
+	lineC         chan Line
+	dedupEnabled  bool
+	dedup         *streamDeduper
+	extractTime   query_log_common.ExtractTimeFunc
+	skipEmptyLine bool
 }
 
 func (sr *fileStreamer) File() string {
@@ -76,6 +82,7 @@ func (sr *fileStreamer) Line() <-chan Line {
 }
 
 func (sr *fileStreamer) pollLoops() {
+	prevTime := time.Time{}
 	for line := range sr.file.Lines {
 		shouldInclude, matchedFilter, err := sr.op.applyFilter(line.Text)
 		if err != nil {
@@ -86,21 +93,38 @@ func (sr *fileStreamer) pollLoops() {
 			continue
 		}
 
-		s := line.Text
+		txt := line.Text
+
+		if len(txt) == 0 && sr.skipEmptyLine {
+			continue
+		}
 
 		if sr.dedupEnabled {
 			sr.dedup.mu.Lock()
-			_, exists := sr.dedup.seen[s]
+			_, exists := sr.dedup.seen[txt]
 			if exists {
 				sr.dedup.mu.Unlock()
 				continue
 			}
-			sr.dedup.seen[s] = struct{}{}
+			sr.dedup.seen[txt] = struct{}{}
 			sr.dedup.mu.Unlock()
 		}
 
-		if line.Time.IsZero() {
-			line.Time = time.Now().UTC()
+		if sr.extractTime != nil {
+			parsedTime, _, err := sr.extractTime([]byte(txt))
+			if err == nil {
+				line.Time = parsedTime
+			} else {
+				log.Logger.Warnw("error extracting time", "error", err)
+			}
+
+			if line.Time.IsZero() && !prevTime.IsZero() {
+				line.Time = prevTime
+			}
+
+			if err == nil {
+				prevTime = parsedTime
+			}
 		}
 
 		if sr.op.ProcessMatched != nil {

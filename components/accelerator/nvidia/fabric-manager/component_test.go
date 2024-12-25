@@ -75,13 +75,19 @@ func TestComponentLog(t *testing.T) {
 	}
 	time.Sleep(pollInterval + 3*time.Second)
 
-	events, err := component.Events(ctx, time.Now().Add(-time.Hour))
+	t.Log("writing fatal error log")
+	if _, err := f.WriteString("[Apr 17 2024 01:51:39] [ERROR] [tid 2999877] failed to find the GPU handle 10187860174420860981 in the multicast team request setup 5653964288847403984.\n"); err != nil {
+		t.Fatalf("failed to write fatal error log: %v", err)
+	}
+	time.Sleep(pollInterval + 3*time.Second)
+
+	events, err := component.Events(ctx, time.Now().Add(-876600*time.Hour))
 	if err != nil {
 		t.Fatalf("failed to get events: %v", err)
 	}
 	t.Logf("events: %+v", events)
 
-	if len(events) != 2 {
-		t.Errorf("expected 2 events, got %d", len(events))
+	if len(events) != 3 {
+		t.Errorf("expected 3 events, got %d", len(events))
 	}
 }

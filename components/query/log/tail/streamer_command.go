@@ -45,11 +45,12 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 	stderrScanner := bufio.NewScanner(p.StderrReader())
 
 	streamer := &commandStreamer{
-		op:           op,
-		ctx:          ctx,
-		proc:         p,
-		lineC:        make(chan Line, 200),
-		dedupEnabled: op.dedup,
+		op:            op,
+		ctx:           ctx,
+		proc:          p,
+		lineC:         make(chan Line, 200),
+		dedupEnabled:  op.dedup,
+		skipEmptyLine: op.skipEmptyLine,
 	}
 
 	if op.dedup {
@@ -71,8 +72,9 @@ type commandStreamer struct {
 	proc  process.Process
 	lineC chan Line
 
-	dedupEnabled bool
-	dedup        *streamDeduper
+	dedupEnabled  bool
+	dedup         *streamDeduper
+	skipEmptyLine bool
 }
 
 func (sr *commandStreamer) File() string {
@@ -101,20 +103,24 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		default:
 		}
 
-		scannedLine := scanner.Text()
+		txt := scanner.Text()
+
+		if len(txt) == 0 && sr.skipEmptyLine {
+			continue
+		}
 
 		if sr.dedupEnabled {
 			sr.dedup.mu.Lock()
-			_, exists := sr.dedup.seen[scannedLine]
+			_, exists := sr.dedup.seen[txt]
 			if exists {
 				sr.dedup.mu.Unlock()
 				continue
 			}
-			sr.dedup.seen[scannedLine] = struct{}{}
+			sr.dedup.seen[txt] = struct{}{}
 			sr.dedup.mu.Unlock()
 		}
 
-		shouldInclude, matchedFilter, err = sr.op.applyFilter(scannedLine)
+		shouldInclude, matchedFilter, err = sr.op.applyFilter(txt)
 		if err != nil {
 			log.Logger.Warnw("error applying filter", "error", err)
 			continue

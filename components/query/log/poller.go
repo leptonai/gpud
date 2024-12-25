@@ -103,6 +103,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
 		query_log_tail.WithExtractTime(extractTime),
 		query_log_tail.WithProcessMatched(processMatched),
+		query_log_tail.WithSkipEmptyLine(true),
 	}
 
 	if cfg.File != "" {
