@@ -175,9 +175,13 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	}
 
 	nvmlLib := nvml.New()
+
+	log.Logger.Debugw("initializing nvml library")
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
+
+	log.Logger.Debugw("getting driver version from nvml library")
 	driverVersion, err := GetDriverVersion()
 	if err != nil {
 		return nil, err
@@ -186,6 +190,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Logger.Debugw("checking if clock events are supported")
 	clockEventsSupported := ClockEventsSupportedVersion(major)
 	if !clockEventsSupported {
 		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
@@ -193,12 +199,16 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 	log.Logger.Debugw("successfully initialized NVML", "driverVersion", driverVersion)
 
+	log.Logger.Debugw("creating device library")
 	deviceLib := device.New(nvmlLib)
+
+	log.Logger.Debugw("creating info library")
 	infoLib := nvinfo.New(
 		nvinfo.WithNvmlLib(nvmlLib),
 		nvinfo.WithDeviceLib(deviceLib),
 	)
 
+	log.Logger.Debugw("checking if nvml exists from info library")
 	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
 	if !nvmlExists {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
@@ -258,6 +268,7 @@ func (inst *instance) Start() error {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
+	log.Logger.Debugw("creating xid sxid event history table")
 	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
 	defer cancel()
 	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.db); err != nil {
@@ -266,6 +277,7 @@ func (inst *instance) Start() error {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
+	log.Logger.Debugw("getting devices from device library")
 	devices, err := inst.deviceLib.GetDevices()
 	if err != nil {
 		return err
@@ -285,30 +297,38 @@ func (inst *instance) Start() error {
 		}
 
 		// TODO: this returns 0 for all GPUs...
+		log.Logger.Debugw("getting device minor number")
 		minorNumber, ret := d.GetMinorNumber()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device minor number: %v", nvml.ErrorString(ret))
 		}
 
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8789a616b502a78a1013c45cbb86e1bd
+		log.Logger.Debugw("getting device pci info")
 		pciInfo, ret := d.GetPciInfo()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device PCI info: %v", nvml.ErrorString(ret))
 		}
 
+		log.Logger.Debugw("getting device name")
 		name, ret := d.GetName()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 		}
+
+		log.Logger.Debugw("getting device cores")
 		cores, ret := d.GetNumGpuCores()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device cores: %v", nvml.ErrorString(ret))
 		}
+
+		log.Logger.Debugw("getting supported event types")
 		supportedEvents, ret := d.GetSupportedEventTypes()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
+		log.Logger.Debugw("registering events")
 		ret = d.RegisterEvents(inst.xidEventMask&supportedEvents, inst.xidEventSet)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
@@ -318,6 +338,7 @@ func (inst *instance) Start() error {
 			inst.xidErrorSupported = false
 		}
 
+		log.Logger.Debugw("checking if gpm metrics are supported")
 		gpmMetricsSpported, err := GPMSupportedByDevice(d)
 		if err != nil {
 			return err
@@ -570,6 +591,8 @@ func StartDefaultInstance(rootCtx context.Context, opts ...OpOption) error {
 	if defaultInstance != nil {
 		return nil
 	}
+
+	log.Logger.Debugw("creating a new default nvml instance")
 
 	var err error
 	defaultInstance, err = NewInstance(rootCtx, opts...)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 
@@ -25,6 +26,7 @@ func SMIExists() bool {
 }
 
 func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
+	log.Logger.Debugw("finding nvidia-smi")
 	nvidiaSMIPath, err := file.LocateExecutable("nvidia-smi")
 	if err != nil {
 		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
@@ -38,6 +40,7 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, err
 	}
 
+	log.Logger.Debugw("starting nvidia-smi", "args", args)
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -63,9 +66,8 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	// [Sat Oct 12 18:38:44 2024]  _nv042330rm+0x10/0x40 [nvidia]
 	// [Sat Oct 12 18:38:44 2024]  ? _nv043429rm+0x23c/0x290
 	errc := make(chan error, 1)
-	var output []byte
+	lines := make([]string, 0)
 	go func() {
-		lines := make([]string, 0)
 		err := process.Read(
 			ctx,
 			p,
@@ -76,20 +78,18 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 			}),
 			process.WithWaitForCmd(),
 		)
-
 		errc <- err
-		output = []byte(strings.Join(lines, "\n"))
 	}()
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("nvidia-smi command timed out: %w\n\n(partial) output:\n%s", ctx.Err(), strings.Join(lines, "\n"))
 
 	case err := <-errc:
 		if err != nil {
-			return nil, fmt.Errorf("nvidia-smi command failed: %w\n\noutput:\n%s", err, string(output))
+			return nil, fmt.Errorf("nvidia-smi command failed: %w\n\n(partial) output:\n%s", err, strings.Join(lines, "\n"))
 		}
-		return output, nil
+		return []byte(strings.Join(lines, "\n")), nil
 	}
 }
 
@@ -101,6 +101,7 @@ func GetSMIOutput(ctx context.Context) (*SMIOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	o, err := ParseSMIQueryOutput(qb)
 	if err != nil {
 		return nil, err
