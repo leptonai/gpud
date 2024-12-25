@@ -294,6 +294,7 @@ func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 	for i := len(pl.lastItems) - 1; i >= 0; i-- {
 		item := pl.lastItems[i]
 		if requireNoErr && item.Error != nil {
+			log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", item.Error)
 			continue
 		}
 		return &item, nil
