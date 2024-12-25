@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -102,6 +103,14 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
 		query_log_tail.WithExtractTime(extractTime),
 		query_log_tail.WithProcessMatched(processMatched),
+	}
+
+	if cfg.File != "" {
+		options = append(options, query_log_tail.WithLabel("file", cfg.File))
+	} else {
+		for i, cmds := range cfg.Commands {
+			options = append(options, query_log_tail.WithLabel(fmt.Sprintf("command-%d", i+1), strings.Join(cmds, " ")))
+		}
 	}
 
 	var tailLogger query_log_tail.Streamer

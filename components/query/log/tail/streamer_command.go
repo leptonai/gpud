@@ -21,7 +21,11 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 		return nil, err
 	}
 
-	p, err := process.New(process.WithCommands(op.commands), process.WithRunAsBashScript())
+	processOpts := []process.OpOption{process.WithCommands(op.commands), process.WithRunAsBashScript()}
+	for k, v := range op.labels {
+		processOpts = append(processOpts, process.WithLabel(k, v))
+	}
+	p, err := process.New(processOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +159,7 @@ func (sr *commandStreamer) pollLoops(scanner *bufio.Scanner) {
 		case sr.lineC <- lineToSend:
 
 		default:
-			log.Logger.Warnw("channel is full -- dropped output", "pid", sr.proc.PID())
+			log.Logger.Warnw("channel is full -- dropped output", "pid", sr.proc.PID(), "labels", sr.proc.Labels())
 		}
 	}
 }
