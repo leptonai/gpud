@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
@@ -215,6 +216,16 @@ FROM %s`,
 		selectStatement += "\nWHERE "
 		selectStatement += fmt.Sprintf("%s >= ?", ColumnUnixSeconds)
 		args = append(args, op.sinceUnixSeconds)
+	}
+
+	if op.eventType != "" {
+		if !strings.Contains(selectStatement, "WHERE") {
+			selectStatement += "\nWHERE "
+		} else {
+			selectStatement += " AND "
+		}
+		selectStatement += fmt.Sprintf("%s = ?", ColumnEventType)
+		args = append(args, op.eventType)
 	}
 
 	if op.sortUnixSecondsAscOrder {

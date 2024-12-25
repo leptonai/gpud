@@ -115,6 +115,26 @@ LIMIT 10`,
 			wantArgs: []any{int64(1234)},
 			wantErr:  false,
 		},
+		{
+			name: "with since unix seconds and event type",
+			opts: []OpOption{WithSince(time.Unix(1234, 0)), WithEventType("xid")},
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+FROM %s
+WHERE %s >= ? AND %s = ?
+ORDER BY %s DESC`,
+				ColumnUnixSeconds,
+				ColumnDataSource,
+				ColumnEventType,
+				ColumnEventID,
+				ColumnEventDetails,
+				TableNameXidSXidEventHistory,
+				ColumnUnixSeconds,
+				ColumnEventType,
+				ColumnUnixSeconds,
+			),
+			wantArgs: []any{int64(1234), "xid"},
+			wantErr:  false,
+		},
 	}
 
 	for _, tt := range tests {
