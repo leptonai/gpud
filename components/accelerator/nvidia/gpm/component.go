@@ -81,9 +81,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.GPMEvent", last.Output)
 	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(gpmEvent.Time.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	if gpmEvent != nil {
+		lastSuccessPollElapsed := time.Now().UTC().Sub(gpmEvent.Time.Time)
+		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+		}
 	}
 
 	o := &Output{}
