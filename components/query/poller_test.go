@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -11,18 +12,39 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestPoller_ReadLastItemFromInMemoryQueue(t *testing.T) {
+func TestPollerReadLast(t *testing.T) {
+	now := time.Now()
 	pl := &poller{
-		lastItems: []Item{},
+		lastItems: []Item{
+			{Time: metav1.NewTime(now.Add(-1 * time.Second))},
+			{Time: metav1.NewTime(now)},
+		},
 	}
 
-	// Test empty queue
-	item, err := pl.readLastItemFromInMemoryQueue()
-	if err != ErrNoData {
-		t.Errorf("expected ErrNoData, got %v", err)
+	item, err := pl.readLast(true)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
 	}
-	if item != nil {
-		t.Errorf("expected nil item, got %v", item)
+	if !reflect.DeepEqual(item, &pl.lastItems[len(pl.lastItems)-1]) {
+		t.Errorf("expected last item %+v, got %+v", pl.lastItems[len(pl.lastItems)-1], item)
+	}
+}
+
+func TestPollerReadLastWithErr(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{
+			{Time: metav1.NewTime(time.Unix(1, 0))},
+			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
+			{Time: metav1.NewTime(time.Unix(3, 0)), Error: errors.New("test error")},
+		},
+	}
+
+	item, err := pl.readLast(true)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if !reflect.DeepEqual(item, &pl.lastItems[0]) {
+		t.Errorf("expected last item %+v, got %+v", pl.lastItems[0], item)
 	}
 }
 

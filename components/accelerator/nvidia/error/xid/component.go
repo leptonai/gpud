@@ -43,7 +43,7 @@ func (c *component) Name() string { return nvidia_component_error_xid_id.Name }
 
 // Just checks if the xid poller is working.
 func (c *component) States(_ context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
@@ -118,7 +118,7 @@ func (c *component) tailScan() (*Output, error) {
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 	}
 
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
@@ -148,6 +148,11 @@ func (c *component) tailScan() (*Output, error) {
 	}
 	if ev != nil && ev.Xid > 0 {
 		o.NVMLXidEvent = ev
+
+		lastSuccessPollElapsed := time.Now().UTC().Sub(ev.Time.Time)
+		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+		}
 	}
 
 	return o, nil

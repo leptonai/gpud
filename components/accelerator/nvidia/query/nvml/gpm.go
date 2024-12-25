@@ -46,6 +46,7 @@ func GPMSupported() (bool, error) {
 }
 
 type GPMEvent struct {
+	Time    metav1.Time  `json:"time"`
 	Metrics []GPMMetrics `json:"metrics"`
 	Error   error        `json:"error"`
 }
@@ -99,6 +100,7 @@ func (inst *instance) pollGPMEvents() {
 		case <-inst.rootCtx.Done():
 			return
 		case inst.gpmEventCh <- &GPMEvent{
+			Time:    metav1.NewTime(time.Now().UTC()),
 			Metrics: mss,
 			Error:   err,
 		}:

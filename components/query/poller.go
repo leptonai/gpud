@@ -39,6 +39,11 @@ type Poller interface {
 	// Last returns the last item in the queue.
 	// It returns ErrNoData if no item is collected yet.
 	Last() (*Item, error)
+
+	// LastSuccess returns the last item in the queue with no error.
+	// It returns ErrNoData if no such item is collected yet.
+	LastSuccess() (*Item, error)
+
 	// All returns all results in the queue since the given time.
 	// It returns ErrNoData if no item is collected yet.
 	All(since time.Time) ([]Item, error)
@@ -145,33 +150,25 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 		ccancel()
 
 		err = getErrHandler(err)
-		if err != nil {
-			log.Logger.Debugw("polling error", "id", id, "error", err)
-			select {
-			case <-ctx.Done():
-				return
-			case ch <- Item{
-				Time:  metav1.Time{Time: time.Now().UTC()},
-				Error: err,
-			}:
-			default:
-				log.Logger.Debugw("channel is full, skip this result and continue")
-			}
-			continue
-		}
 
 		// maybe no state at the time
-		if output == nil {
+		if output == nil && err == nil {
 			continue
 		}
 
 		select {
 		case <-ctx.Done():
 			return
+
 		case ch <- Item{
 			Time:   metav1.Time{Time: time.Now().UTC()},
 			Output: output,
+			Error:  err,
 		}:
+			if err != nil {
+				log.Logger.Debugw("polling error", "id", id, "error", err)
+			}
+
 		default:
 			log.Logger.Debugw("channel is full, skip this result and continue")
 		}
@@ -273,10 +270,19 @@ func (pl *poller) insertItemToInMemoryQueue(item Item) {
 // Last returns the last item in the queue.
 // It returns ErrNoData if no item is collected yet.
 func (pl *poller) Last() (*Item, error) {
-	return pl.readLastItemFromInMemoryQueue()
+	return pl.readLast(false)
 }
 
-func (pl *poller) readLastItemFromInMemoryQueue() (*Item, error) {
+// LastSuccess returns the last item in the queue with no error.
+// It returns ErrNoData if no item is collected yet.
+func (pl *poller) LastSuccess() (*Item, error) {
+	return pl.readLast(true)
+}
+
+// Reads the last item from the queue.
+// If requireNoErr is true, it returns the last item with no error.
+// If no item is found, it returns ErrNoData.
+func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
@@ -284,7 +290,16 @@ func (pl *poller) readLastItemFromInMemoryQueue() (*Item, error) {
 		return nil, ErrNoData
 	}
 
-	return &pl.lastItems[len(pl.lastItems)-1], nil
+	// reverse iterate
+	for i := len(pl.lastItems) - 1; i >= 0; i-- {
+		item := pl.lastItems[i]
+		if requireNoErr && item.Error != nil {
+			continue
+		}
+		return &item, nil
+	}
+
+	return nil, ErrNoData
 }
 
 // All returns all results in the queue since the given time.

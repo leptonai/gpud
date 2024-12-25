@@ -41,7 +41,7 @@ type component struct {
 func (c *component) Name() string { return nvidia_peermem_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_peermem_id.Name)
 		return []components.State{
@@ -78,6 +78,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
+	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
+	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	}
+
 	if len(allOutput.LsmodPeermemErrors) > 0 {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.LsmodPeermemErrors {

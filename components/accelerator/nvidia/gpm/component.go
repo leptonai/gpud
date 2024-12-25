@@ -45,9 +45,7 @@ type component struct {
 func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	o := &Output{}
-
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
@@ -83,6 +81,12 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.GPMEvent", last.Output)
 	}
+	lastSuccessPollElapsed := time.Now().UTC().Sub(gpmEvent.Time.Time)
+	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	}
+
+	o := &Output{}
 	if gpmEvent != nil && len(gpmEvent.Metrics) > 0 {
 		o.NVMLGPMEvent = gpmEvent
 	}

@@ -100,6 +100,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	}
 
 	o := &Output{
+		Time:                  time.Now().UTC(),
 		SMIExists:             SMIExists(),
 		FabricManagerExists:   FabricManagerExists(),
 		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
@@ -196,7 +197,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 	log.Logger.Debugw("waiting for default nvml instance")
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
+		return o, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
 	case <-nvml.DefaultInstanceReady():
 		log.Logger.Debugw("default nvml instance ready")
 	}
@@ -226,7 +227,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 
 		for _, dev := range o.NVML.DeviceInfos {
 			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
-				return nil, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
+				return o, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
 			}
 		}
 	}
@@ -293,6 +294,9 @@ const (
 )
 
 type Output struct {
+	// Time is the time when the query is executed.
+	Time time.Time `json:"time"`
+
 	// GPU device count from the /dev directory.
 	GPUDeviceCount int `json:"gpu_device_count"`
 
