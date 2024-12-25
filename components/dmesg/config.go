@@ -73,8 +73,8 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 
 			Commands: [][]string{
 				// run last commands as fallback, in case dmesg flag only works in some machines
-				{"dmesg --time-format=iso --nopager --buffer-size 163920 -w || true"},
-				{"dmesg --time-format=iso --nopager --buffer-size 163920 -W"},
+				{"dmesg --time-format=iso --nopager --buffer-size 163920 --since '1 hour ago' -w || dmesg --time-format=iso --nopager --buffer-size 163920 -w || true"},
+				{"dmesg --time-format=iso --nopager --buffer-size 163920 --since '1 hour ago' -W || dmesg --time-format=iso --nopager --buffer-size 163920 -W"},
 			},
 
 			Scan: &query_log_config.Scan{
