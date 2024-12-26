@@ -27,7 +27,7 @@ import (
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
-	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
+	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
@@ -278,7 +278,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		}
 
 		cfg.Components[nvidia_nvlink.Name] = nil
-		cfg.Components[nvidia_power.Name] = nil
+		cfg.Components[nvidia_power_id.Name] = nil
 		cfg.Components[nvidia_temperature.Name] = nil
 		cfg.Components[nvidia_utilization.Name] = nil
 		cfg.Components[nvidia_processes.Name] = nil

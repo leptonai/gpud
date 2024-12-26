@@ -131,11 +131,11 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 	des := make([]components.Event, 0)
 	for i, sxidErr := range reason.Errors {
 		if sxidErr.Time.IsZero() {
-			log.Logger.Warnw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
+			log.Logger.Debugw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
 			continue
 		}
 		if sxidErr.Time.Time.Before(since) {
-			log.Logger.Warnw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
+			log.Logger.Debugw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
 			continue
 		}
 

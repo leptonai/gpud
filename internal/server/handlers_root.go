@@ -16,7 +16,7 @@ import (
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
-	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
+	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
@@ -114,7 +114,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		if c, err := components.GetComponent(nvidia_temperature.Name); c != nil && err == nil {
 			nvidiaTemperatureChart = true
 		}
-		if c, err := components.GetComponent(nvidia_power.Name); c != nil && err == nil {
+		if c, err := components.GetComponent(nvidia_power_id.Name); c != nil && err == nil {
 			nvidiaPowerChart = true
 		}
 		if c, err := components.GetComponent(nvidia_clock_speed_id.Name); c != nil && err == nil {
@@ -151,7 +151,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		components = append(components, nvidia_temperature.Name)
 	}
 	if nvidiaPowerChart {
-		components = append(components, nvidia_power.Name)
+		components = append(components, nvidia_power_id.Name)
 	}
 	if nvidiaClockSpeedChart {
 		components = append(components, nvidia_clock_speed_id.Name)

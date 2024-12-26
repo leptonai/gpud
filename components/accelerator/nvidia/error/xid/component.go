@@ -43,30 +43,6 @@ func (c *component) Name() string { return nvidia_component_error_xid_id.Name }
 
 // Just checks if the xid poller is working.
 func (c *component) States(_ context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
-
-	// no data yet from realtime xid poller
-	// just return whatever we got from dmesg
-	if err == query.ErrNoData {
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
-		return []components.State{
-			{
-				Name:    StateNameErrorXid,
-				Healthy: true,
-				Reason:  "no xid error event",
-			},
-		}, nil
-	}
-
-	// something went wrong in the poller
-	// just return an error to surface the issue
-	if err != nil {
-		return nil, err
-	}
-	if last.Error != nil {
-		return nil, last.Error
-	}
-
 	return []components.State{
 		{
 			Name:    StateNameErrorXid,
@@ -118,7 +94,7 @@ func (c *component) tailScan() (*Output, error) {
 		o.DmesgErrors = append(o.DmesgErrors, ev)
 	}
 
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
@@ -132,15 +108,6 @@ func (c *component) tailScan() (*Output, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return nil, last.Error
-	}
-
-	// no output from the poller
-	// just return whatever we got from dmesg
-	if last.Output == nil {
-		return o, nil
-	}
 
 	ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
 	if !ok { // shoild never happen
@@ -148,6 +115,15 @@ func (c *component) tailScan() (*Output, error) {
 	}
 	if ev != nil && ev.Xid > 0 {
 		o.NVMLXidEvent = ev
+
+		if lerr := c.poller.LastError(); lerr != nil {
+			log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
+		}
+
+		lastSuccessPollElapsed := time.Now().UTC().Sub(ev.Time.Time)
+		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+		}
 	}
 
 	return o, nil

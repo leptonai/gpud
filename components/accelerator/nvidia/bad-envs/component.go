@@ -38,7 +38,7 @@ type component struct {
 func (c *component) Name() string { return bad_envs_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", bad_envs_id.Name)
 		return []components.State{
@@ -53,28 +53,19 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Reason:  "no output",
-			},
-		}, nil
-	}
 
 	allOutput, ok := last.Output.(*nvidia_query.Output)
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
+	if lerr := c.poller.LastError(); lerr != nil {
+		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
+	}
+	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
+	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	}
+
 	output := ToOutput(allOutput)
 	return output.States()
 }
@@ -101,7 +92,7 @@ func (c *component) Close() error {
 var _ components.OutputProvider = (*component)(nil)
 
 func (c *component) Output() (any, error) {
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", bad_envs_id.Name)
 		return nil, query.ErrNoData
@@ -109,16 +100,18 @@ func (c *component) Output() (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return nil, last.Error
-	}
-	if last.Output == nil {
-		return nil, nil
-	}
 
-	output, ok := last.Output.(*nvidia_query.Output)
+	allOutput, ok := last.Output.(*nvidia_query.Output)
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T, expected *nvidia_query.Output", last.Output)
 	}
-	return ToOutput(output), nil
+	if lerr := c.poller.LastError(); lerr != nil {
+		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
+	}
+	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
+	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	}
+
+	return ToOutput(allOutput), nil
 }

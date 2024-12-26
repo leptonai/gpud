@@ -41,7 +41,7 @@ type component struct {
 func (c *component) Name() string { return nvidia_peermem_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
+	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_peermem_id.Name)
 		return []components.State{
@@ -56,28 +56,19 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Reason:  "no output",
-			},
-		}, nil
-	}
 
 	allOutput, ok := last.Output.(*nvidia_query.Output)
 	if !ok {
 		return nil, fmt.Errorf("invalid output type: %T", last.Output)
 	}
+	if lerr := c.poller.LastError(); lerr != nil {
+		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
+	}
+	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
+	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
+		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	}
+
 	if len(allOutput.LsmodPeermemErrors) > 0 {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.LsmodPeermemErrors {

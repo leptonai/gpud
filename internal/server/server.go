@@ -61,6 +61,7 @@ import (
 	nvidia_persistence_mode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
 	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
+	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
@@ -800,7 +801,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, nvidia_nvlink.New(ctx, cfg))
 
-		case nvidia_power.Name:
+		case nvidia_power_id.Name:
 			cfg := nvidia_power.Config{Query: defaultQueryCfg}
 			if configValue != nil {
 				parsed, err := nvidia_power.ParseConfig(configValue, db)
