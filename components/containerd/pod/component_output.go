@@ -169,7 +169,8 @@ func ListSandboxStatus(ctx context.Context, endpoint string) ([]*runtimeapi.PodS
 			},
 		)
 		if err != nil {
-			return nil, err
+			// can be safely ignored for current loop if sandbox status fails
+			continue
 		}
 		rs = append(rs, r)
 		response, err := client.ListContainers(ctx, &runtimeapi.ListContainersRequest{

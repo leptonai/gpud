@@ -378,7 +378,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 	}
 }
 
-func TestPurge(t *testing.T) {
+func TestPurgeXidSxid(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
