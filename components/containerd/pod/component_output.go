@@ -12,6 +12,7 @@ import (
 	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/log"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
