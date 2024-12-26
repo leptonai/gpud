@@ -8,6 +8,7 @@ import (
 var ErrInvalidLimit = errors.New("limit must be greater than or equal to 0")
 
 type Op struct {
+	eventType               string
 	sinceUnixSeconds        int64
 	beforeUnixSeconds       int64
 	sortUnixSecondsAscOrder bool
@@ -26,6 +27,12 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 
 	return nil
+}
+
+func WithEventType(eventType string) OpOption {
+	return func(op *Op) {
+		op.eventType = eventType
+	}
 }
 
 // WithSince sets the since timestamp for the select queries.
