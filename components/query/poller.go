@@ -44,6 +44,11 @@ type Poller interface {
 	// It returns ErrNoData if no such item is collected yet.
 	LastSuccess() (*Item, error)
 
+	// Returns the last known error in the queue.
+	// Returns "ErrNoData" if no data is found.
+	// Returns nil if no error is found.
+	LastError() error
+
 	// All returns all results in the queue since the given time.
 	// It returns ErrNoData if no item is collected yet.
 	All(since time.Time) ([]Item, error)
@@ -301,6 +306,35 @@ func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 	}
 
 	return nil, ErrNoData
+}
+
+// Returns the last known error in the queue.
+// Returns "ErrNoData" if no data is found.
+// Returns nil if no error is found.
+func (pl *poller) LastError() error {
+	return pl.readLastErr()
+}
+
+// Returns the last known error in the queue.
+// Returns "ErrNoData" if no data is found.
+// Returns nil if no error is found.
+func (pl *poller) readLastErr() error {
+	pl.lastItemsMu.RLock()
+	defer pl.lastItemsMu.RUnlock()
+
+	if len(pl.lastItems) == 0 {
+		return ErrNoData
+	}
+
+	// reverse iterate
+	for i := len(pl.lastItems) - 1; i >= 0; i-- {
+		item := pl.lastItems[i]
+		if item.Error != nil {
+			return item.Error
+		}
+	}
+
+	return nil
 }
 
 // All returns all results in the queue since the given time.

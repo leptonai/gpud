@@ -48,6 +48,24 @@ func TestPollerReadLastWithErr(t *testing.T) {
 	}
 }
 
+func TestPollerReadLastNoData(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{
+			{Time: metav1.NewTime(time.Unix(1, 0)), Error: errors.New("test error")},
+			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
+			{Time: metav1.NewTime(time.Unix(3, 0)), Error: errors.New("test error")},
+		},
+	}
+
+	item, err := pl.readLast(true)
+	if item != nil {
+		t.Errorf("expected nil item, got %+v", item)
+	}
+	if !errors.Is(err, ErrNoData) {
+		t.Errorf("expected ErrNoData, got %v", err)
+	}
+}
+
 func TestPoller_ReadAllItemsFromInMemoryQueue(t *testing.T) {
 	pl := &poller{
 		lastItems: []Item{},
@@ -242,5 +260,33 @@ func TestPollerStartStop(t *testing.T) {
 	// no redundant start calls
 	if startFuncCalled != 1 {
 		t.Errorf("expected startFunc to be called 1 time, got %d", startFuncCalled)
+	}
+}
+
+// Return nil when no errors found in lastItems array
+func TestReadLastErrReturnsNilWhenNoErrors(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{
+			{Error: nil},
+			{Error: nil},
+			{Error: nil},
+		},
+	}
+
+	err := pl.readLastErr()
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+// Handle empty lastItems array returning ErrNoData
+func TestReadLastErrReturnsErrNoDataForEmptyArray(t *testing.T) {
+	pl := &poller{
+		lastItems: []Item{},
+	}
+
+	err := pl.readLastErr()
+	if !errors.Is(err, ErrNoData) {
+		t.Errorf("expected ErrNoData, got %v", err)
 	}
 }

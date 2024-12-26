@@ -59,23 +59,6 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Healthy: false,
-				Reason:  "no output",
-			},
-		}, nil
-	}
 
 	gpmEvent, ok := last.Output.(*nvidia_query_nvml.GPMEvent)
 	if !ok {
@@ -84,6 +67,9 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	o := &Output{}
 	if gpmEvent != nil && len(gpmEvent.Metrics) > 0 {
+		if lerr := c.poller.LastError(); lerr != nil {
+			log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
+		}
 		lastSuccessPollElapsed := time.Now().UTC().Sub(gpmEvent.Time.Time)
 		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
 			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
