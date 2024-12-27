@@ -281,6 +281,12 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 				}
 			}
 		}
+
+		// fail the whole get operation if nvidia-smi check failed
+		// because nvidia-smi provides data for all GPU components
+		if len(o.SMIQueryErrors) > 0 {
+			return o, fmt.Errorf("nvidia-smi check failed with %d error(s); %v", len(o.SMIQueryErrors), o.SMIQueryErrors)
+		}
 	}
 
 	return o, nil
