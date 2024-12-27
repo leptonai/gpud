@@ -81,13 +81,18 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 		errc <- err
 	}()
 
+	partialOutputErr := ""
+	if len(lines) > 0 {
+		partialOutputErr = fmt.Sprintf("\n\n(partial) output:\n%s", strings.Join(lines, "\n"))
+	}
+
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("nvidia-smi command timed out: %w\n\n(partial) output:\n%s", ctx.Err(), strings.Join(lines, "\n"))
+		return nil, fmt.Errorf("nvidia-smi command timed out: %w%s", ctx.Err(), partialOutputErr)
 
 	case err := <-errc:
 		if err != nil {
-			return nil, fmt.Errorf("nvidia-smi command failed: %w\n\n(partial) output:\n%s", err, strings.Join(lines, "\n"))
+			return nil, fmt.Errorf("nvidia-smi command failed: %w%s", err, partialOutputErr)
 		}
 		return []byte(strings.Join(lines, "\n")), nil
 	}
