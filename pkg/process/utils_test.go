@@ -65,7 +65,7 @@ func (p *testProcess) Abort(ctx context.Context) error {
 	return nil
 }
 
-func (p *testProcess) IsAborted() bool {
+func (p *testProcess) Aborted() bool {
 	return false
 }
 
@@ -281,6 +281,6 @@ func (p *nilReaderProcess) Abort(context.Context) error {
 	return nil
 }
 
-func (p *nilReaderProcess) IsAborted() bool {
+func (p *nilReaderProcess) Aborted() bool {
 	return false
 }

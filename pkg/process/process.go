@@ -31,7 +31,7 @@ type Process interface {
 	Abort(ctx context.Context) error
 
 	// Returns true if the process is aborted.
-	IsAborted() bool
+	Aborted() bool
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
@@ -404,7 +404,7 @@ func (p *process) Abort(ctx context.Context) error {
 	return nil
 }
 
-func (p *process) IsAborted() bool {
+func (p *process) Aborted() bool {
 	p.abortedMu.RLock()
 	defer p.abortedMu.RUnlock()
 
