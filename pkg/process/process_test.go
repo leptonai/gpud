@@ -27,6 +27,11 @@ func TestProcess(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
+	// redunant start is ok
+	if err := p.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := Read(
 		ctx,
 		p,
@@ -99,6 +104,7 @@ echo "hello"
 	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// redunant abort is ok
 	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
