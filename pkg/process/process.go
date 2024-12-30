@@ -23,13 +23,11 @@ type Process interface {
 
 	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
-
-	// Started returns a channel that is closed when the process is started.
-	Started() <-chan struct{}
+	// Returns true if the process is started.
+	Started() bool
 
 	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
-
 	// Returns true if the process is aborted.
 	Aborted() bool
 
@@ -84,8 +82,8 @@ type process struct {
 	cmdMu sync.RWMutex
 	cmd   *exec.Cmd
 
-	startedOnce sync.Once
-	startedCh   chan struct{}
+	startedMu sync.RWMutex
+	started   bool
 
 	abortedMu sync.RWMutex
 	aborted   bool
@@ -157,8 +155,8 @@ func New(opts ...OpOption) (Process, error) {
 		labels: op.labels,
 		cmd:    nil,
 
-		startedOnce: sync.Once{},
-		startedCh:   make(chan struct{}),
+		started: false,
+		aborted: false,
 
 		errc: make(chan error, errcBuffer),
 
@@ -180,6 +178,20 @@ func (p *process) Labels() map[string]string {
 }
 
 func (p *process) Start(ctx context.Context) error {
+	p.startedMu.RLock()
+	started := p.started
+	p.startedMu.RUnlock()
+	if started { // already started
+		return nil
+	}
+
+	p.abortedMu.RLock()
+	aborted := p.aborted
+	p.abortedMu.RUnlock()
+	if aborted { // already aborted
+		return nil
+	}
+
 	p.cmdMu.Lock()
 	defer p.cmdMu.Unlock()
 
@@ -200,6 +212,13 @@ func (p *process) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (p *process) Started() bool {
+	p.startedMu.RLock()
+	defer p.startedMu.RUnlock()
+
+	return p.started
 }
 
 func (p *process) startCommand() error {
@@ -232,9 +251,9 @@ func (p *process) startCommand() error {
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
 
-	p.startedOnce.Do(func() {
-		close(p.startedCh)
-	})
+	p.startedMu.Lock()
+	p.started = true
+	p.startedMu.Unlock()
 
 	return nil
 }
@@ -325,23 +344,26 @@ func (p *process) watchCmd() {
 	}
 }
 
-func (p *process) Started() <-chan struct{} {
-	return p.startedCh
-}
-
 func (p *process) Abort(ctx context.Context) error {
-	p.cmdMu.Lock()
-	defer p.cmdMu.Unlock()
-
-	if p.cmd == nil {
-		return errors.New("process not started")
+	p.startedMu.RLock()
+	started := p.started
+	p.startedMu.RUnlock()
+	if !started { // has not started yet
+		return nil
 	}
 
 	p.abortedMu.RLock()
 	aborted := p.aborted
 	p.abortedMu.RUnlock()
-	if aborted {
+	if aborted { // already aborted
 		return nil
+	}
+
+	p.cmdMu.Lock()
+	defer p.cmdMu.Unlock()
+
+	if p.cmd == nil {
+		return errors.New("process not started")
 	}
 
 	p.cancel()

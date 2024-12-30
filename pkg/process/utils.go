@@ -62,15 +62,17 @@ func WithWaitForCmd() ReadOpOption {
 	}
 }
 
-func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
-	if p.Aborted() {
-		return errors.New("process aborted")
-	}
+var (
+	ErrProcessNotStarted = errors.New("process not started")
+	ErrProcessAborted    = errors.New("process aborted")
+)
 
-	select {
-	case <-p.Started():
-	case <-ctx.Done():
-		return ctx.Err()
+func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
+	if !p.Started() {
+		return ErrProcessNotStarted
+	}
+	if p.Aborted() {
+		return ErrProcessAborted
 	}
 
 	op := &ReadOp{}

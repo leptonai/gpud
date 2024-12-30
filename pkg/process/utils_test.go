@@ -33,10 +33,8 @@ func (p *testProcess) Start(context.Context) error {
 	return nil
 }
 
-func (p *testProcess) Started() <-chan struct{} {
-	ch := make(chan struct{})
-	close(ch)
-	return ch
+func (p *testProcess) Started() bool {
+	return true
 }
 
 func (p *testProcess) StdoutReader() io.Reader {
@@ -251,10 +249,8 @@ func (p *nilReaderProcess) Start(context.Context) error {
 	return nil
 }
 
-func (p *nilReaderProcess) Started() <-chan struct{} {
-	ch := make(chan struct{})
-	close(ch)
-	return ch
+func (p *nilReaderProcess) Started() bool {
+	return true
 }
 
 func (p *nilReaderProcess) StdoutReader() io.Reader {
@@ -283,4 +279,77 @@ func (p *nilReaderProcess) Abort(context.Context) error {
 
 func (p *nilReaderProcess) Aborted() bool {
 	return false
+}
+
+// stateProcess implements Process interface for testing process states
+type stateProcess struct {
+	isStarted bool
+	isAborted bool
+}
+
+func (p *stateProcess) Labels() map[string]string {
+	return nil
+}
+
+func (p *stateProcess) PID() int32 {
+	return 0
+}
+
+func (p *stateProcess) Start(context.Context) error {
+	return nil
+}
+
+func (p *stateProcess) Started() bool {
+	return p.isStarted
+}
+
+func (p *stateProcess) StdoutReader() io.Reader {
+	return strings.NewReader("")
+}
+
+func (p *stateProcess) StderrReader() io.Reader {
+	return strings.NewReader("")
+}
+
+func (p *stateProcess) Wait() <-chan error {
+	ch := make(chan error, 1)
+	close(ch)
+	return ch
+}
+
+func (p *stateProcess) Abort(context.Context) error {
+	return nil
+}
+
+func (p *stateProcess) Aborted() bool {
+	return p.isAborted
+}
+
+func TestProcessStates(t *testing.T) {
+	// Test not started process
+	t.Run("not started process", func(t *testing.T) {
+		p := &stateProcess{isStarted: false}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != ErrProcessNotStarted {
+			t.Errorf("expected ErrProcessNotStarted, got %v", err)
+		}
+	})
+
+	// Test started process
+	t.Run("started process", func(t *testing.T) {
+		p := &stateProcess{isStarted: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != nil {
+			t.Errorf("expected no error for started process, got %v", err)
+		}
+	})
+
+	// Test aborted process
+	t.Run("aborted process", func(t *testing.T) {
+		p := &stateProcess{isStarted: true, isAborted: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != ErrProcessAborted {
+			t.Errorf("expected ErrProcessAborted, got %v", err)
+		}
+	})
 }
