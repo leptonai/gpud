@@ -360,7 +360,10 @@ type MachineMetadata struct {
 	OSMachineID   string `json:"os_machine_id"`
 }
 
-var currentMachineMetadata MachineMetadata
+var (
+	currentMachineMetadata    MachineMetadata
+	currentSystemManufacturer string
+)
 
 func init() {
 	// Linux-specific operations
@@ -394,6 +397,13 @@ func init() {
 	currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
 	if err != nil {
 		log.Logger.Warnw("failed to get os machine id", "error", err)
+	}
+
+	cctx, ccancel := context.WithTimeout(context.Background(), 20*time.Second)
+	currentSystemManufacturer, err = pkg_host.SystemManufacturer(cctx)
+	ccancel()
+	if err != nil {
+		log.Logger.Warnw("failed to get system manufacturer", "error", err)
 	}
 }
 
@@ -438,13 +448,16 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		}
 		o.VirtualizationEnvironment = virtEnv
 
-		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-		manufacturer, err := pkg_host.SystemManufacturer(cctx)
-		ccancel()
-		if err != nil {
-			return nil, err
+		// for some reason, init failed
+		if currentSystemManufacturer == "" && runtime.GOOS == "linux" {
+			cctx, ccancel = context.WithTimeout(ctx, 20*time.Second)
+			currentSystemManufacturer, err = pkg_host.SystemManufacturer(cctx)
+			ccancel()
+			if err != nil {
+				log.Logger.Warnw("failed to get system manufacturer", "error", err)
+			}
 		}
-		o.SystemManufacturer = manufacturer
+		o.SystemManufacturer = currentSystemManufacturer
 
 		o.MachineMetadata = currentMachineMetadata
 

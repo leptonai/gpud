@@ -128,7 +128,7 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", fmt.Errorf("failed to read dmidecode output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
+		return "", fmt.Errorf("failed to read dmidecode for system manufacturer: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 	out := strings.TrimSpace(strings.Join(lines, "\n"))
 

@@ -64,7 +64,7 @@ func DmidecodeUUID(ctx context.Context) (string, error) {
 			}
 		}),
 	); err != nil {
-		return "", fmt.Errorf("failed to read dmidecode output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
+		return "", fmt.Errorf("failed to read dmidecode for uuid: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
 	return uuid, nil
