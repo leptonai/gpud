@@ -33,6 +33,12 @@ func (p *testProcess) Start(context.Context) error {
 	return nil
 }
 
+func (p *testProcess) Started() <-chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
 func (p *testProcess) StdoutReader() io.Reader {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -243,6 +249,12 @@ func (p *nilReaderProcess) PID() int32 {
 
 func (p *nilReaderProcess) Start(context.Context) error {
 	return nil
+}
+
+func (p *nilReaderProcess) Started() <-chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }
 
 func (p *nilReaderProcess) StdoutReader() io.Reader {

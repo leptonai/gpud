@@ -67,6 +67,12 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		return errors.New("process aborted")
 	}
 
+	select {
+	case <-p.Started():
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
 	op := &ReadOp{}
 	if err := op.applyOpts(opts); err != nil {
 		return err

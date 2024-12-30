@@ -19,6 +19,12 @@ func TestProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	select {
+	case <-time.After(100 * time.Millisecond):
+	case <-p.Started():
+		t.Fatal("command has not started yet, unexpected")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

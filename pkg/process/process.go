@@ -24,6 +24,9 @@ type Process interface {
 	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
 
+	// Started returns a channel that is closed when the process is started.
+	Started() <-chan struct{}
+
 	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
 
@@ -80,6 +83,9 @@ type process struct {
 
 	cmdMu sync.RWMutex
 	cmd   *exec.Cmd
+
+	startedOnce sync.Once
+	startedCh   chan struct{}
 
 	abortedMu sync.RWMutex
 	aborted   bool
@@ -148,9 +154,14 @@ func New(opts ...OpOption) (Process, error) {
 		errcBuffer = op.restartConfig.Limit
 	}
 	return &process{
-		labels:      op.labels,
-		cmd:         nil,
-		errc:        make(chan error, errcBuffer),
+		labels: op.labels,
+		cmd:    nil,
+
+		startedOnce: sync.Once{},
+		startedCh:   make(chan struct{}),
+
+		errc: make(chan error, errcBuffer),
+
 		commandArgs: cmdArgs,
 		envs:        op.envs,
 		runBashFile: bashFile,
@@ -220,6 +231,10 @@ func (p *process) startCommand() error {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
+
+	p.startedOnce.Do(func() {
+		close(p.startedCh)
+	})
 
 	return nil
 }
@@ -308,6 +323,10 @@ func (p *process) watchCmd() {
 
 		restartCount++
 	}
+}
+
+func (p *process) Started() <-chan struct{} {
+	return p.startedCh
 }
 
 func (p *process) Abort(ctx context.Context) error {
