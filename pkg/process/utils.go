@@ -63,6 +63,10 @@ func WithWaitForCmd() ReadOpOption {
 }
 
 func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
+	if p.IsAborted() {
+		return errors.New("process aborted")
+	}
+
 	op := &ReadOp{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
@@ -105,6 +109,10 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+
+		if p.IsAborted() {
+			return errors.New("process aborted")
 		}
 	}
 

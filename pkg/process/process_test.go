@@ -44,6 +44,9 @@ func TestProcess(t *testing.T) {
 	if err := p.Abort(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if !p.IsAborted() {
+		t.Fatal("process is not aborted")
+	}
 }
 
 func TestProcessRunBashScriptContents(t *testing.T) {

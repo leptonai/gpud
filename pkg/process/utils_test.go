@@ -59,6 +59,10 @@ func (p *testProcess) Abort(ctx context.Context) error {
 	return nil
 }
 
+func (p *testProcess) IsAborted() bool {
+	return false
+}
+
 func newTestProcess(command string, args ...string) *testProcess {
 	cmd := exec.Command(command, args...)
 	stdout, _ := cmd.StdoutPipe()
@@ -263,4 +267,8 @@ func (p *nilReaderProcess) Wait() <-chan error {
 
 func (p *nilReaderProcess) Abort(context.Context) error {
 	return nil
+}
+
+func (p *nilReaderProcess) IsAborted() bool {
+	return false
 }

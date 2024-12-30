@@ -27,6 +27,9 @@ type Process interface {
 	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
 
+	// Returns true if the process is aborted.
+	IsAborted() bool
+
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
 	Wait() <-chan error
@@ -75,9 +78,11 @@ type process struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	cmdMu   sync.RWMutex
-	cmd     *exec.Cmd
-	aborted bool
+	cmdMu sync.RWMutex
+	cmd   *exec.Cmd
+
+	abortedMu sync.RWMutex
+	aborted   bool
 
 	// error streaming channel, closed on command exit
 	errc chan error
@@ -312,7 +317,11 @@ func (p *process) Abort(ctx context.Context) error {
 	if p.cmd == nil {
 		return errors.New("process not started")
 	}
-	if p.aborted {
+
+	p.abortedMu.RLock()
+	aborted := p.aborted
+	p.abortedMu.RUnlock()
+	if aborted {
 		return nil
 	}
 
@@ -369,8 +378,18 @@ func (p *process) Abort(ctx context.Context) error {
 	// as Wait is still waiting for the process to exit
 	// p.cmd = nil
 
+	p.abortedMu.Lock()
 	p.aborted = true
+	p.abortedMu.Unlock()
+
 	return nil
+}
+
+func (p *process) IsAborted() bool {
+	p.abortedMu.RLock()
+	defer p.abortedMu.RUnlock()
+
+	return p.aborted
 }
 
 func (p *process) PID() int32 {
