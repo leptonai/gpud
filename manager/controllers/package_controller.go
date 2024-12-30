@@ -311,6 +311,9 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	if err != nil {
 		return err
 	}
+	if err = p.Start(ctx); err != nil {
+		return err
+	}
 	if result != nil {
 		go func() {
 			lines := make([]string, 0)
@@ -330,9 +333,6 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 				*result = fmt.Sprintf("failed to run '%s %s' with error %v\n\noutput:\n%s", script, arg, err, output)
 			}
 		}()
-	}
-	if err = p.Start(ctx); err != nil {
-		return err
 	}
 	select {
 	case <-ctx.Done():
