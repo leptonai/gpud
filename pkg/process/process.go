@@ -23,9 +23,13 @@ type Process interface {
 
 	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
+	// Returns true if the process is started.
+	Started() bool
 
 	// Aborts the process and waits for it to exit.
 	Abort(ctx context.Context) error
+	// Returns true if the process is aborted.
+	Aborted() bool
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
@@ -40,6 +44,9 @@ type Process interface {
 	//
 	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
 	// If retry configuration is specified, specify the output file to read all the output.
+	//
+	// The returned reader is set to nil upon the abort call on the process,
+	// to prevent redundant closing of the reader.
 	StdoutReader() io.Reader
 
 	// Returns the stderr reader.
@@ -48,6 +55,9 @@ type Process interface {
 	//
 	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
 	// If retry configuration is specified, specify the output file to read all the output.
+	//
+	// The returned reader is set to nil upon the abort call on the process,
+	// to prevent redundant closing of the reader.
 	StderrReader() io.Reader
 }
 
@@ -72,6 +82,12 @@ type process struct {
 	cmdMu sync.RWMutex
 	cmd   *exec.Cmd
 
+	startedMu sync.RWMutex
+	started   bool
+
+	abortedMu sync.RWMutex
+	aborted   bool
+
 	// error streaming channel, closed on command exit
 	errc chan error
 
@@ -80,9 +96,9 @@ type process struct {
 	envs        []string
 	runBashFile *os.File
 
-	outputFile   *os.File
-	stdoutReader io.ReadCloser
-	stderrReader io.ReadCloser
+	outputFile       *os.File
+	stdoutReadCloser io.ReadCloser
+	stderrReadCloser io.ReadCloser
 
 	restartConfig *RestartConfig
 }
@@ -136,9 +152,14 @@ func New(opts ...OpOption) (Process, error) {
 		errcBuffer = op.restartConfig.Limit
 	}
 	return &process{
-		labels:      op.labels,
-		cmd:         nil,
-		errc:        make(chan error, errcBuffer),
+		labels: op.labels,
+		cmd:    nil,
+
+		started: false,
+		aborted: false,
+
+		errc: make(chan error, errcBuffer),
+
 		commandArgs: cmdArgs,
 		envs:        op.envs,
 		runBashFile: bashFile,
@@ -157,6 +178,20 @@ func (p *process) Labels() map[string]string {
 }
 
 func (p *process) Start(ctx context.Context) error {
+	p.startedMu.RLock()
+	started := p.started
+	p.startedMu.RUnlock()
+	if started { // already started
+		return nil
+	}
+
+	p.abortedMu.RLock()
+	aborted := p.aborted
+	p.abortedMu.RUnlock()
+	if aborted { // already aborted
+		return nil
+	}
+
 	p.cmdMu.Lock()
 	defer p.cmdMu.Unlock()
 
@@ -179,6 +214,13 @@ func (p *process) Start(ctx context.Context) error {
 	return nil
 }
 
+func (p *process) Started() bool {
+	p.startedMu.RLock()
+	defer p.startedMu.RUnlock()
+
+	return p.started
+}
+
 func (p *process) startCommand() error {
 	log.Logger.Debugw("starting command", "command", p.commandArgs)
 	p.cmd = exec.CommandContext(p.ctx, p.commandArgs[0], p.commandArgs[1:]...)
@@ -189,16 +231,16 @@ func (p *process) startCommand() error {
 		p.cmd.Stdout = p.outputFile
 		p.cmd.Stderr = p.outputFile
 
-		p.stdoutReader = p.outputFile
-		p.stderrReader = p.outputFile
+		p.stdoutReadCloser = p.outputFile
+		p.stderrReadCloser = p.outputFile
 
 	default:
 		var err error
-		p.stdoutReader, err = p.cmd.StdoutPipe()
+		p.stdoutReadCloser, err = p.cmd.StdoutPipe()
 		if err != nil {
 			return fmt.Errorf("failed to get stdout pipe: %w", err)
 		}
-		p.stderrReader, err = p.cmd.StderrPipe()
+		p.stderrReadCloser, err = p.cmd.StderrPipe()
 		if err != nil {
 			return fmt.Errorf("failed to get stderr pipe: %w", err)
 		}
@@ -208,6 +250,10 @@ func (p *process) startCommand() error {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
+
+	p.startedMu.Lock()
+	p.started = true
+	p.startedMu.Unlock()
 
 	return nil
 }
@@ -299,6 +345,20 @@ func (p *process) watchCmd() {
 }
 
 func (p *process) Abort(ctx context.Context) error {
+	p.startedMu.RLock()
+	started := p.started
+	p.startedMu.RUnlock()
+	if !started { // has not started yet
+		return nil
+	}
+
+	p.abortedMu.RLock()
+	aborted := p.aborted
+	p.abortedMu.RUnlock()
+	if aborted { // already aborted
+		return nil
+	}
+
 	p.cmdMu.Lock()
 	defer p.cmdMu.Unlock()
 
@@ -331,16 +391,24 @@ func (p *process) Abort(ctx context.Context) error {
 	if p.runBashFile != nil {
 		_ = p.runBashFile.Sync()
 		_ = p.runBashFile.Close()
-		return os.RemoveAll(p.runBashFile.Name())
+		if err := os.RemoveAll(p.runBashFile.Name()); err != nil {
+			log.Logger.Warnw("failed to remove bash file", "error", err)
+			// Don't return here, continue with cleanup
+		}
 	}
 
-	if p.stdoutReader != nil {
-		_ = p.stdoutReader.Close()
-		p.stdoutReader = nil
+	if p.stdoutReadCloser != nil {
+		_ = p.stdoutReadCloser.Close()
+
+		// set to nil to prevent redundant closing of the reader
+		p.stdoutReadCloser = nil
 	}
-	if p.stderrReader != nil {
-		_ = p.stderrReader.Close()
-		p.stderrReader = nil
+
+	if p.stderrReadCloser != nil {
+		_ = p.stderrReadCloser.Close()
+
+		// set to nil to prevent redundant closing of the reader
+		p.stderrReadCloser = nil
 	}
 
 	if p.cmd.Cancel != nil { // if created with CommandContext
@@ -351,7 +419,18 @@ func (p *process) Abort(ctx context.Context) error {
 	// as Wait is still waiting for the process to exit
 	// p.cmd = nil
 
+	p.abortedMu.Lock()
+	p.aborted = true
+	p.abortedMu.Unlock()
+
 	return nil
+}
+
+func (p *process) Aborted() bool {
+	p.abortedMu.RLock()
+	defer p.abortedMu.RUnlock()
+
+	return p.aborted
 }
 
 func (p *process) PID() int32 {
@@ -365,7 +444,7 @@ func (p *process) StdoutReader() io.Reader {
 	if p.outputFile != nil {
 		return p.outputFile
 	}
-	return p.stdoutReader
+	return p.stdoutReadCloser
 }
 
 func (p *process) StderrReader() io.Reader {
@@ -375,7 +454,7 @@ func (p *process) StderrReader() io.Reader {
 	if p.outputFile != nil {
 		return p.outputFile
 	}
-	return p.stderrReader
+	return p.stderrReadCloser
 }
 
 const bashScriptHeader = `#!/bin/bash

@@ -33,6 +33,10 @@ func (p *testProcess) Start(context.Context) error {
 	return nil
 }
 
+func (p *testProcess) Started() bool {
+	return true
+}
+
 func (p *testProcess) StdoutReader() io.Reader {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -57,6 +61,10 @@ func (p *testProcess) Abort(ctx context.Context) error {
 		return p.cmd.Process.Kill()
 	}
 	return nil
+}
+
+func (p *testProcess) Aborted() bool {
+	return false
 }
 
 func newTestProcess(command string, args ...string) *testProcess {
@@ -190,6 +198,158 @@ func TestReadAll(t *testing.T) {
 
 		if !completed {
 			t.Error("command should have completed")
+		}
+	})
+}
+
+func TestNilReaders(t *testing.T) {
+	// Test nil stdout reader
+	t.Run("nil stdout reader", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStdout: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err == nil || err.Error() != "stdout reader is nil" {
+			t.Errorf("expected 'stdout reader is nil' error, got %v", err)
+		}
+	})
+
+	// Test nil stderr reader
+	t.Run("nil stderr reader", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStderr: true}
+		err := Read(context.Background(), p, WithReadStderr())
+		if err == nil || err.Error() != "stderr reader is nil" {
+			t.Errorf("expected 'stderr reader is nil' error, got %v", err)
+		}
+	})
+
+	// Test both nil readers
+	t.Run("both nil readers", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStdout: true, returnNilStderr: true}
+		err := Read(context.Background(), p, WithReadStdout(), WithReadStderr())
+		if err == nil || err.Error() != "stdout reader is nil" {
+			t.Errorf("expected 'stdout reader is nil' error, got %v", err)
+		}
+	})
+}
+
+// nilReaderProcess implements Process interface for testing nil reader cases
+type nilReaderProcess struct {
+	returnNilStdout bool
+	returnNilStderr bool
+}
+
+func (p *nilReaderProcess) Labels() map[string]string {
+	return nil
+}
+
+func (p *nilReaderProcess) PID() int32 {
+	return 0
+}
+
+func (p *nilReaderProcess) Start(context.Context) error {
+	return nil
+}
+
+func (p *nilReaderProcess) Started() bool {
+	return true
+}
+
+func (p *nilReaderProcess) StdoutReader() io.Reader {
+	if p.returnNilStdout {
+		return nil
+	}
+	return strings.NewReader("")
+}
+
+func (p *nilReaderProcess) StderrReader() io.Reader {
+	if p.returnNilStderr {
+		return nil
+	}
+	return strings.NewReader("")
+}
+
+func (p *nilReaderProcess) Wait() <-chan error {
+	ch := make(chan error, 1)
+	close(ch)
+	return ch
+}
+
+func (p *nilReaderProcess) Abort(context.Context) error {
+	return nil
+}
+
+func (p *nilReaderProcess) Aborted() bool {
+	return false
+}
+
+// stateProcess implements Process interface for testing process states
+type stateProcess struct {
+	isStarted bool
+	isAborted bool
+}
+
+func (p *stateProcess) Labels() map[string]string {
+	return nil
+}
+
+func (p *stateProcess) PID() int32 {
+	return 0
+}
+
+func (p *stateProcess) Start(context.Context) error {
+	return nil
+}
+
+func (p *stateProcess) Started() bool {
+	return p.isStarted
+}
+
+func (p *stateProcess) StdoutReader() io.Reader {
+	return strings.NewReader("")
+}
+
+func (p *stateProcess) StderrReader() io.Reader {
+	return strings.NewReader("")
+}
+
+func (p *stateProcess) Wait() <-chan error {
+	ch := make(chan error, 1)
+	close(ch)
+	return ch
+}
+
+func (p *stateProcess) Abort(context.Context) error {
+	return nil
+}
+
+func (p *stateProcess) Aborted() bool {
+	return p.isAborted
+}
+
+func TestProcessStates(t *testing.T) {
+	// Test not started process
+	t.Run("not started process", func(t *testing.T) {
+		p := &stateProcess{isStarted: false}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != ErrProcessNotStarted {
+			t.Errorf("expected ErrProcessNotStarted, got %v", err)
+		}
+	})
+
+	// Test started process
+	t.Run("started process", func(t *testing.T) {
+		p := &stateProcess{isStarted: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != nil {
+			t.Errorf("expected no error for started process, got %v", err)
+		}
+	})
+
+	// Test aborted process
+	t.Run("aborted process", func(t *testing.T) {
+		p := &stateProcess{isStarted: true, isAborted: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err != ErrProcessAborted {
+			t.Errorf("expected ErrProcessAborted, got %v", err)
 		}
 	})
 }

@@ -62,7 +62,19 @@ func WithWaitForCmd() ReadOpOption {
 	}
 }
 
+var (
+	ErrProcessNotStarted = errors.New("process not started")
+	ErrProcessAborted    = errors.New("process aborted")
+)
+
 func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
+	if !p.Started() {
+		return ErrProcessNotStarted
+	}
+	if p.Aborted() {
+		return ErrProcessAborted
+	}
+
 	op := &ReadOp{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
@@ -71,14 +83,27 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	// combine stdout and stderr into a single reader
 	readers := []io.Reader{}
 	if op.readStdout {
-		readers = append(readers, p.StdoutReader())
+		// may happen if the process is alread aborted
+		stdoutReader := p.StdoutReader()
+		if stdoutReader == nil {
+			return errors.New("stdout reader is nil")
+		}
+		readers = append(readers, stdoutReader)
 	}
 	if op.readStderr {
-		readers = append(readers, p.StderrReader())
+		// may happen if the process is alread aborted
+		stderrReader := p.StderrReader()
+		if stderrReader == nil {
+			return errors.New("stderr reader is nil")
+		}
+		readers = append(readers, stderrReader)
 	}
 
 	combinedReader := io.MultiReader(readers...)
 	scanner := bufio.NewScanner(combinedReader)
+	if scanner == nil {
+		return errors.New("scanner is nil")
+	}
 
 	for scanner.Scan() {
 		// helps with debugging if command times out in the middle of reading
@@ -92,6 +117,10 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+
+		if p.Aborted() {
+			return errors.New("process aborted")
 		}
 	}
 
