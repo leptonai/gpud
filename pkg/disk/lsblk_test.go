@@ -20,6 +20,7 @@ package disk
 
 import (
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/dustin/go-humanize"
@@ -49,5 +50,44 @@ func TestParse(t *testing.T) {
 		blks.RenderTable(os.Stdout)
 		totalBytes := blks.GetTotalBytes()
 		t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
+	}
+}
+
+func TestParsePairs(t *testing.T) {
+	t.Parallel()
+
+	for _, f := range []string{"lsblk.3.txt"} {
+		dat, err := os.ReadFile("testdata/" + f)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		blks, err := ParsePairs(dat, WithDeviceType(func(deviceType string) bool {
+			return deviceType == "disk"
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		blks.RenderTable(os.Stdout)
+		totalBytes := blks.GetTotalBytes()
+		t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
+	}
+}
+
+func TestCheckVersion(t *testing.T) {
+	t.Parallel()
+
+	expecteds := []string{
+		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --pairs",
+		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+	}
+
+	for i, s := range []string{"lsblk，来自 util-linux 2.23.2", "lsblk from util-linux 2.37.4"} {
+		var lsblkCmd string
+		lsblkCmd = lsblkVersionCheck(s)
+		if !reflect.DeepEqual(lsblkCmd, expecteds[i]) {
+			t.Errorf("Expected %v, got %v", expecteds[i], lsblkCmd)
+		}
 	}
 }

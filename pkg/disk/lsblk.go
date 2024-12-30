@@ -24,7 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -36,23 +38,89 @@ import (
 )
 
 const (
+	lsblkVersionFlags = "--version"
 	// lsblkFlags adds device name, if add empty string - command will print info about all devices
-	lsblkFlags = "--paths --json --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
+	lsblkFlags = "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
+	// lsblkJsonFlag lsblk from version 2.37 support json response
+	lsblkJsonFlag = "--json"
+	// lsblkMinSupportJsonVersion lsblk from version 2.37 support json response
+	// https://github.com/util-linux/util-linux/blob/stable/v2.27/misc-utils/lsblk.c#L1626
+	lsblkMinSupportJsonVersion = 2.37
+	// lsblkPairsFlag lsblk lower than 2.37 only support raw and pairs response
+	lsblkPairsFlag = "--pairs"
 	// outputKey is the key to find block devices in lsblk json output
 	outputKey = "blockdevices"
 )
+
+var lsblkVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
+
+func lsblkVersionCheck(line string) string {
+	matches := lsblkVersionRegPattern.FindString(line)
+	if matches != "" {
+		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
+			if versionF >= lsblkMinSupportJsonVersion {
+				return lsblkFlags + " " + lsblkJsonFlag
+			} else {
+				return lsblkFlags + " " + lsblkPairsFlag
+			}
+		}
+	}
+
+	return ""
+}
+
+func CheckLsblk(ctx context.Context) (string, error) {
+	lsblkVersion, err := file.LocateExecutable("lsblk")
+	if err != nil {
+		return "", err
+	}
+
+	p, err := process.New(
+		process.WithCommand(lsblkVersion+" "+lsblkVersionFlags),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if err := p.Start(ctx); err != nil {
+		return "", err
+	}
+
+	var lsblkCmd string
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			lsblkCmd = lsblkVersionCheck(line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return "", fmt.Errorf("failed to check lsblk version: %w", err)
+	}
+
+	return lsblkCmd, nil
+}
 
 // GetBlockDevices run os lsblk command for device and construct BlockDevice struct based on output
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
+	// pre-check lsblk version
+	lsblkExecuteFlags, checkErr := CheckLsblk(ctx)
+	if checkErr != nil {
+		return nil, checkErr
+	}
+
 	lsblkPath, err := file.LocateExecutable("lsblk")
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	p, err := process.New(
-		process.WithCommand(lsblkPath+" "+lsblkFlags),
+		process.WithCommand(lsblkPath+" "+lsblkExecuteFlags),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -135,6 +203,143 @@ func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
 	return devs, nil
 }
 
+func ParsePairs(b []byte, opts ...OpOption) (BlockDevices, error) {
+	if len(b) == 0 {
+		return nil, errors.New("empty input provided to ParsePairs")
+	}
+
+	devs := make(BlockDevices, 0)
+
+	// parse each line
+	lines := strings.Split(string(b), "\n")
+	for _, line := range lines {
+		// skip empty line
+		if len(line) == 0 {
+			continue
+		}
+
+		// parse each row then return BlockDevice
+		disk, err := parseLineToDisk(line)
+		if err != nil {
+			return nil, err
+		}
+
+		// parse each block then add blocks slice
+		devs = append(devs, disk)
+	}
+
+	// build disk hierarchy
+	devs = buildDiskHierarchy(devs)
+	if len(devs) == 0 {
+		return nil, errors.New("build disk hierarchy failed")
+	}
+
+	// to JSON bytes
+	jsonData, err := json.MarshalIndent(struct {
+		BlockDevices BlockDevices `json:"blockdevices"`
+	}{BlockDevices: devs}, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal lsblk-blockdevices json mode")
+	}
+
+	return Parse(jsonData, opts...)
+}
+
+func parseLineToDisk(line string) (BlockDevice, error) {
+	disk := BlockDevice{}
+	parts := strings.Fields(line)
+
+	for _, part := range parts {
+		kv := strings.Split(part, "=")
+		if len(kv) != 2 {
+			continue
+		}
+		key, value := kv[0], strings.Trim(kv[1], `"`)
+		switch key {
+		case "NAME":
+			disk.Name = value
+		case "TYPE":
+			disk.Type = value
+		case "SIZE":
+			disk.Size = toCustomInt64(value)
+		case "ROTA":
+			disk.Rota = toCustomBool(value)
+		case "SERIAL":
+			disk.Serial = value
+		case "WWN":
+			disk.WWN = value
+		case "VENDOR":
+			disk.Vendor = value
+		case "MODEL":
+			disk.Model = value
+		case "REV":
+			disk.Rev = value
+		case "MOUNTPOINT":
+			disk.MountPoint = value
+		case "FSTYPE":
+			disk.FSType = value
+		case "PARTUUID":
+			disk.PartUUID = value
+		case "PKNAME":
+			disk.PKName = value
+		}
+	}
+
+	return disk, nil
+}
+
+func buildDiskHierarchy(disks BlockDevices) (finalDisks BlockDevices) {
+	// Recursive function to nest child disks into their parent disks
+	var recursiveAdd func(disk BlockDevice, disks *BlockDevices)
+
+	// Implementation of the recursive nesting function
+	recursiveAdd = func(disk BlockDevice, disks *BlockDevices) {
+		// Find the parent disk of the current disk and recursively nest
+		for i := range *disks {
+			if (*disks)[i].Name == disk.PKName {
+				// Found the parent disk, add the current disk to the parent's Children
+				(*disks)[i].Children = append((*disks)[i].Children, disk)
+				return
+			}
+
+			// If the current disk has children, continue recursively
+			recursiveAdd(disk, (*BlockDevices)(&(*disks)[i].Children))
+		}
+	}
+
+	// Add disks that don't have a parent disk to finalDisks
+	for i := range disks {
+		if disks[i].PKName == "" {
+			finalDisks = append(finalDisks, disks[i])
+		}
+	}
+
+	// Perform recursive nesting for each disk
+	for i := range disks {
+		if disks[i].PKName != "" {
+			recursiveAdd(disks[i], &finalDisks)
+		}
+	}
+
+	return finalDisks
+}
+
+func toCustomInt64(value string) CustomInt64 {
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return CustomInt64{}
+	}
+	return CustomInt64{n}
+}
+
+func toCustomBool(value string) CustomBool {
+	n, err := strconv.ParseBool(value)
+	if err != nil {
+		return CustomBool{}
+	}
+	return CustomBool{n}
+}
+
 type BlockDevices []BlockDevice
 
 func (blks BlockDevices) JSON() ([]byte, error) {
@@ -199,6 +404,7 @@ type BlockDevice struct {
 	MountPoint       string        `json:"mountpoint,omitempty"`
 	FSType           string        `json:"fstype,omitempty"`
 	PartUUID         string        `json:"partuuid,omitempty"`
+	PKName           string        `json:"-"`
 	Children         []BlockDevice `json:"children,omitempty"`
 }
 
