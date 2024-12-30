@@ -193,3 +193,74 @@ func TestReadAll(t *testing.T) {
 		}
 	})
 }
+
+func TestNilReaders(t *testing.T) {
+	// Test nil stdout reader
+	t.Run("nil stdout reader", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStdout: true}
+		err := Read(context.Background(), p, WithReadStdout())
+		if err == nil || err.Error() != "stdout reader is nil" {
+			t.Errorf("expected 'stdout reader is nil' error, got %v", err)
+		}
+	})
+
+	// Test nil stderr reader
+	t.Run("nil stderr reader", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStderr: true}
+		err := Read(context.Background(), p, WithReadStderr())
+		if err == nil || err.Error() != "stderr reader is nil" {
+			t.Errorf("expected 'stderr reader is nil' error, got %v", err)
+		}
+	})
+
+	// Test both nil readers
+	t.Run("both nil readers", func(t *testing.T) {
+		p := &nilReaderProcess{returnNilStdout: true, returnNilStderr: true}
+		err := Read(context.Background(), p, WithReadStdout(), WithReadStderr())
+		if err == nil || err.Error() != "stdout reader is nil" {
+			t.Errorf("expected 'stdout reader is nil' error, got %v", err)
+		}
+	})
+}
+
+// nilReaderProcess implements Process interface for testing nil reader cases
+type nilReaderProcess struct {
+	returnNilStdout bool
+	returnNilStderr bool
+}
+
+func (p *nilReaderProcess) Labels() map[string]string {
+	return nil
+}
+
+func (p *nilReaderProcess) PID() int32 {
+	return 0
+}
+
+func (p *nilReaderProcess) Start(context.Context) error {
+	return nil
+}
+
+func (p *nilReaderProcess) StdoutReader() io.Reader {
+	if p.returnNilStdout {
+		return nil
+	}
+	return strings.NewReader("")
+}
+
+func (p *nilReaderProcess) StderrReader() io.Reader {
+	if p.returnNilStderr {
+		return nil
+	}
+	return strings.NewReader("")
+}
+
+func (p *nilReaderProcess) Wait() <-chan error {
+	ch := make(chan error, 1)
+	close(ch)
+	return ch
+}
+
+func (p *nilReaderProcess) Abort(context.Context) error {
+	return nil
+}

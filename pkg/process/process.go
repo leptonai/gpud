@@ -40,6 +40,9 @@ type Process interface {
 	//
 	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
 	// If retry configuration is specified, specify the output file to read all the output.
+	//
+	// The returned reader is set to nil upon the abort call on the process,
+	// to prevent redundant closing of the reader.
 	StdoutReader() io.Reader
 
 	// Returns the stderr reader.
@@ -48,6 +51,9 @@ type Process interface {
 	//
 	// If the process exits with a non-zero exit code, stdout/stderr pipes may not work.
 	// If retry configuration is specified, specify the output file to read all the output.
+	//
+	// The returned reader is set to nil upon the abort call on the process,
+	// to prevent redundant closing of the reader.
 	StderrReader() io.Reader
 }
 
@@ -69,8 +75,9 @@ type process struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	cmdMu sync.RWMutex
-	cmd   *exec.Cmd
+	cmdMu   sync.RWMutex
+	cmd     *exec.Cmd
+	aborted bool
 
 	// error streaming channel, closed on command exit
 	errc chan error
@@ -80,9 +87,9 @@ type process struct {
 	envs        []string
 	runBashFile *os.File
 
-	outputFile   *os.File
-	stdoutReader io.ReadCloser
-	stderrReader io.ReadCloser
+	outputFile       *os.File
+	stdoutReadCloser io.ReadCloser
+	stderrReadCloser io.ReadCloser
 
 	restartConfig *RestartConfig
 }
@@ -189,16 +196,16 @@ func (p *process) startCommand() error {
 		p.cmd.Stdout = p.outputFile
 		p.cmd.Stderr = p.outputFile
 
-		p.stdoutReader = p.outputFile
-		p.stderrReader = p.outputFile
+		p.stdoutReadCloser = p.outputFile
+		p.stderrReadCloser = p.outputFile
 
 	default:
 		var err error
-		p.stdoutReader, err = p.cmd.StdoutPipe()
+		p.stdoutReadCloser, err = p.cmd.StdoutPipe()
 		if err != nil {
 			return fmt.Errorf("failed to get stdout pipe: %w", err)
 		}
-		p.stderrReader, err = p.cmd.StderrPipe()
+		p.stderrReadCloser, err = p.cmd.StderrPipe()
 		if err != nil {
 			return fmt.Errorf("failed to get stderr pipe: %w", err)
 		}
@@ -305,6 +312,9 @@ func (p *process) Abort(ctx context.Context) error {
 	if p.cmd == nil {
 		return errors.New("process not started")
 	}
+	if p.aborted {
+		return nil
+	}
 
 	p.cancel()
 
@@ -331,16 +341,24 @@ func (p *process) Abort(ctx context.Context) error {
 	if p.runBashFile != nil {
 		_ = p.runBashFile.Sync()
 		_ = p.runBashFile.Close()
-		return os.RemoveAll(p.runBashFile.Name())
+		if err := os.RemoveAll(p.runBashFile.Name()); err != nil {
+			log.Logger.Warnw("failed to remove bash file", "error", err)
+			// Don't return here, continue with cleanup
+		}
 	}
 
-	if p.stdoutReader != nil {
-		_ = p.stdoutReader.Close()
-		p.stdoutReader = nil
+	if p.stdoutReadCloser != nil {
+		_ = p.stdoutReadCloser.Close()
+
+		// set to nil to prevent redundant closing of the reader
+		p.stdoutReadCloser = nil
 	}
-	if p.stderrReader != nil {
-		_ = p.stderrReader.Close()
-		p.stderrReader = nil
+
+	if p.stderrReadCloser != nil {
+		_ = p.stderrReadCloser.Close()
+
+		// set to nil to prevent redundant closing of the reader
+		p.stderrReadCloser = nil
 	}
 
 	if p.cmd.Cancel != nil { // if created with CommandContext
@@ -351,6 +369,7 @@ func (p *process) Abort(ctx context.Context) error {
 	// as Wait is still waiting for the process to exit
 	// p.cmd = nil
 
+	p.aborted = true
 	return nil
 }
 
@@ -365,7 +384,7 @@ func (p *process) StdoutReader() io.Reader {
 	if p.outputFile != nil {
 		return p.outputFile
 	}
-	return p.stdoutReader
+	return p.stdoutReadCloser
 }
 
 func (p *process) StderrReader() io.Reader {
@@ -375,7 +394,7 @@ func (p *process) StderrReader() io.Reader {
 	if p.outputFile != nil {
 		return p.outputFile
 	}
-	return p.stderrReader
+	return p.stderrReadCloser
 }
 
 const bashScriptHeader = `#!/bin/bash
