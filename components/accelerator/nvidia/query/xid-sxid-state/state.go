@@ -21,7 +21,7 @@ const (
 	DeprecatedTableNameXidSXidEventHistory = "components_accelerator_nvidia_query_xid_sxid_event_history"
 
 	// new table with device ID field, introduced in v0.3.8
-	TableNameXidSXidEventHistory_v0_3_8 = "components_accelerator_nvidia_query_xid_sxid_event_history_v0_3_8"
+	TableNameXidSXidEventHistoryWithDeviceUUID = "components_accelerator_nvidia_query_xid_sxid_event_history_with_device_uuid"
 )
 
 const (
@@ -37,7 +37,7 @@ const (
 	// event id; xid or sxid
 	ColumnEventID = "event_id"
 
-	ColumnDeviceID = "device_id"
+	ColumnDeviceUUID = "device_uuid"
 
 	// event details; dmesg log line
 	ColumnEventDetails = "event_details"
@@ -90,12 +90,12 @@ CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,
 	%s TEXT,
 	%s TEXT
-);`, TableNameXidSXidEventHistory_v0_3_8,
+);`, TableNameXidSXidEventHistoryWithDeviceUUID,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
-		ColumnDeviceID,
+		ColumnDeviceUUID,
 		ColumnEventDetails,
 	))
 	return err
@@ -107,12 +107,12 @@ func InsertEvent(ctx context.Context, db *sql.DB, event Event) error {
 	insertStatement := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''));
 `,
-		TableNameXidSXidEventHistory_v0_3_8,
+		TableNameXidSXidEventHistoryWithDeviceUUID,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
-		ColumnDeviceID,
+		ColumnDeviceUUID,
 		ColumnEventDetails,
 	)
 	_, err := db.ExecContext(
@@ -136,14 +136,14 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s 
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
-		ColumnDeviceID,
+		ColumnDeviceUUID,
 		ColumnEventDetails,
-		TableNameXidSXidEventHistory_v0_3_8,
+		TableNameXidSXidEventHistoryWithDeviceUUID,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
-		ColumnDeviceID,
+		ColumnDeviceUUID,
 	)
 
 	var foundEvent Event
@@ -229,9 +229,9 @@ FROM %s`,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
-		ColumnDeviceID,
+		ColumnDeviceUUID,
 		ColumnEventDetails,
-		TableNameXidSXidEventHistory_v0_3_8,
+		TableNameXidSXidEventHistoryWithDeviceUUID,
 	)
 
 	args := []any{}
@@ -293,7 +293,7 @@ func createDeleteStatementAndArgs(opts ...OpOption) (string, []any, error) {
 	}
 
 	deleteStatement := fmt.Sprintf(`DELETE FROM %s`,
-		TableNameXidSXidEventHistory_v0_3_8,
+		TableNameXidSXidEventHistoryWithDeviceUUID,
 	)
 
 	args := []any{}
