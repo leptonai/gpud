@@ -16,7 +16,13 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const TableNameXidSXidEventHistory = "components_accelerator_nvidia_query_xid_sxid_event_history"
+const (
+	// DEPRECATED: old table without debive ID field
+	DeprecatedTableNameXidSXidEventHistory = "components_accelerator_nvidia_query_xid_sxid_event_history"
+
+	// new table with device ID field, introduced in v0.3.8
+	TableNameXidSXidEventHistory_v0_3_8 = "components_accelerator_nvidia_query_xid_sxid_event_history_v0_3_8"
+)
 
 const (
 	// unix timestamp in seconds when the event was observed
@@ -31,6 +37,8 @@ const (
 	// event id; xid or sxid
 	ColumnEventID = "event_id"
 
+	ColumnDeviceID = "device_id"
+
 	// event details; dmesg log line
 	ColumnEventDetails = "event_details"
 )
@@ -42,6 +50,7 @@ type Event struct {
 	DataSource   string
 	EventType    string
 	EventID      int64
+	DeviceID     string
 	EventDetails string
 }
 
@@ -68,34 +77,42 @@ func (e Event) ToSXidDetail() *nvidia_query_sxid.Detail {
 }
 
 func CreateTableXidSXidEventHistory(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+	_, err := db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", DeprecatedTableNameXidSXidEventHistory))
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
 	%s INTEGER NOT NULL,
+	%s TEXT,
 	%s TEXT
-);`, TableNameXidSXidEventHistory,
+);`, TableNameXidSXidEventHistory_v0_3_8,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
+		ColumnDeviceID,
 		ColumnEventDetails,
 	))
 	return err
 }
 
 func InsertEvent(ctx context.Context, db *sql.DB, event Event) error {
-	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "eventID", event.EventID, "details", event.EventDetails)
+	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "eventID", event.EventID, "deviceID", event.DeviceID, "details", event.EventDetails)
 
 	insertStatement := fmt.Sprintf(`
-INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''));
+INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''));
 `,
-		TableNameXidSXidEventHistory,
+		TableNameXidSXidEventHistory_v0_3_8,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
+		ColumnDeviceID,
 		ColumnEventDetails,
 	)
 	_, err := db.ExecContext(
@@ -105,6 +122,7 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, '')
 		event.DataSource,
 		event.EventType,
 		event.EventID,
+		event.DeviceID,
 		event.EventDetails,
 	)
 	return err
@@ -112,18 +130,20 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, '')
 
 func FindEvent(ctx context.Context, db *sql.DB, event Event) (bool, error) {
 	selectStatement := fmt.Sprintf(`
-SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ?;
+SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ? AND %s = ?;
 `,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
+		ColumnDeviceID,
 		ColumnEventDetails,
-		TableNameXidSXidEventHistory,
+		TableNameXidSXidEventHistory_v0_3_8,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
+		ColumnDeviceID,
 	)
 
 	var foundEvent Event
@@ -134,11 +154,13 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ?;
 		event.DataSource,
 		event.EventType,
 		event.EventID,
+		event.DeviceID,
 	).Scan(
 		&foundEvent.UnixSeconds,
 		&foundEvent.DataSource,
 		&foundEvent.EventType,
 		&foundEvent.EventID,
+		&foundEvent.DeviceID,
 		&foundEvent.EventDetails,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -178,6 +200,7 @@ func ReadEvents(ctx context.Context, db *sql.DB, opts ...OpOption) ([]Event, err
 			&event.DataSource,
 			&event.EventType,
 			&event.EventID,
+			&sql.NullString{String: event.DeviceID},
 			&event.EventDetails,
 		); err != nil {
 			return nil, err
@@ -200,14 +223,15 @@ func createSelectStatementAndArgs(opts ...OpOption) (string, []any, error) {
 		return "", nil, err
 	}
 
-	selectStatement := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+	selectStatement := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s`,
 		ColumnUnixSeconds,
 		ColumnDataSource,
 		ColumnEventType,
 		ColumnEventID,
+		ColumnDeviceID,
 		ColumnEventDetails,
-		TableNameXidSXidEventHistory,
+		TableNameXidSXidEventHistory_v0_3_8,
 	)
 
 	args := []any{}
@@ -269,7 +293,7 @@ func createDeleteStatementAndArgs(opts ...OpOption) (string, []any, error) {
 	}
 
 	deleteStatement := fmt.Sprintf(`DELETE FROM %s`,
-		TableNameXidSXidEventHistory,
+		TableNameXidSXidEventHistory_v0_3_8,
 	)
 
 	args := []any{}
