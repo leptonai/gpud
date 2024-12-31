@@ -20,9 +20,16 @@ const (
 	// ref.
 	// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
 	RegexNVRMXidDmesg = `NVRM: Xid.*?: (\d+),`
+
+	// Regex to extract PCI device ID from NVRM Xid messages
+	// Matches both formats: (0000:03:00) and (PCI:0000:05:00)
+	RegexNVRMXidDeviceUUID = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\)`
 )
 
-var CompiledRegexNVRMXidDmesg = regexp.MustCompile(RegexNVRMXidDmesg)
+var (
+	CompiledRegexNVRMXidDmesg      = regexp.MustCompile(RegexNVRMXidDmesg)
+	CompiledRegexNVRMXidDeviceUUID = regexp.MustCompile(RegexNVRMXidDeviceUUID)
+)
 
 // Extracts the nvidia Xid error code from the dmesg log line.
 // Returns 0 if the error code is not found.
@@ -36,9 +43,21 @@ func ExtractNVRMXid(line string) int {
 	return 0
 }
 
+// ExtractNVRMXidDeviceUUID extracts the PCI device ID from the NVRM Xid dmesg log line.
+// For input without "PCI:" prefix, it returns the ID as is.
+// For input with "PCI:" prefix, it returns the full ID including the prefix.
+// Returns empty string if the device ID is not found.
+func ExtractNVRMXidDeviceUUID(line string) string {
+	if match := CompiledRegexNVRMXidDeviceUUID.FindStringSubmatch(line); match != nil {
+		return match[1]
+	}
+	return ""
+}
+
 type DmesgError struct {
-	Detail  *Detail        `json:"detail"`
-	LogItem query_log.Item `json:"log_item"`
+	DeviceUUID string         `json:"device_uuid"`
+	Detail     *Detail        `json:"detail"`
+	LogItem    query_log.Item `json:"log_item"`
 }
 
 func (de *DmesgError) JSON() ([]byte, error) {
@@ -67,6 +86,7 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 
 func ParseDmesgLogLine(time metav1.Time, line string) (DmesgError, error) {
 	de := DmesgError{
+		DeviceUUID: ExtractNVRMXidDeviceUUID(line),
 		LogItem: query_log.Item{
 			Line:    line,
 			Matched: nil,

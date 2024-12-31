@@ -366,10 +366,12 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 func TestPurge(t *testing.T) {
 	t.Parallel()
 
+	now := time.Now()
+
 	tests := []struct {
 		name       string
 		setup      []Event
-		opts       []OpOption
+		purgeOpts  []OpOption
 		wantErr    bool
 		wantPurged int
 		wantCount  int
@@ -382,7 +384,7 @@ func TestPurge(t *testing.T) {
 				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
 				{UnixSeconds: 3000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "3", Reasons: []string{"detail3"}},
 			},
-			opts:       []OpOption{WithBefore(time.Unix(2500, 0))},
+			purgeOpts:  []OpOption{WithBefore(time.Unix(2500, 0))},
 			wantPurged: 2,
 			wantCount:  1,
 			validate: func(t *testing.T, events []Event) {
@@ -397,7 +399,7 @@ func TestPurge(t *testing.T) {
 				{UnixSeconds: 1000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "1", Reasons: []string{"detail1"}},
 				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
 			},
-			opts:       []OpOption{},
+			purgeOpts:  []OpOption{},
 			wantPurged: 2,
 			wantCount:  0,
 		},
@@ -405,7 +407,7 @@ func TestPurge(t *testing.T) {
 			name: "delete events with large dataset",
 			setup: func() []Event {
 				events := make([]Event, 100)
-				baseTime := time.Now().Unix()
+				baseTime := now.Unix()
 				for i := 0; i < 100; i++ {
 					events[i] = Event{
 						UnixSeconds: baseTime + int64(i*60), // Events 1 minute apart
@@ -417,14 +419,14 @@ func TestPurge(t *testing.T) {
 				}
 				return events
 			}(),
-			opts:       []OpOption{WithBefore(time.Now().Add(30 * time.Minute))},
+			purgeOpts:  []OpOption{WithBefore(now.Add(30 * time.Minute))},
 			wantPurged: 30,
 			wantCount:  70,
 			validate: func(t *testing.T, events []Event) {
 				if len(events) != 70 {
 					t.Errorf("expected 70 events, got %d", len(events))
 				}
-				cutoff := time.Now().Add(30 * time.Minute).Unix()
+				cutoff := now.Add(30 * time.Minute).Unix()
 				for _, e := range events {
 					if e.UnixSeconds < cutoff {
 						t.Errorf("found event with timestamp %d, which is before cutoff %d",
@@ -455,7 +457,7 @@ func TestPurge(t *testing.T) {
 			}
 
 			// perform deletion
-			purged, err := Purge(ctx, db, tt.opts...)
+			purged, err := Purge(ctx, db, tt.purgeOpts...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DeleteEvents() error = %v, wantErr %v", err, tt.wantErr)
 				return

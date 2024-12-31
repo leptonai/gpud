@@ -150,7 +150,7 @@ func (o *Output) GetReason() Reason {
 
 			DataSource: "dmesg",
 
-			DeviceUUID: "",
+			DeviceUUID: de.DeviceUUID,
 
 			Xid: xid,
 

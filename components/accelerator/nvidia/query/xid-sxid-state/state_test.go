@@ -23,15 +23,16 @@ func TestCreateSelectStatement(t *testing.T) {
 		{
 			name: "no options",
 			opts: nil,
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 ORDER BY %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -40,7 +41,7 @@ ORDER BY %s DESC`,
 		{
 			name: "with since unix seconds",
 			opts: []OpOption{WithSince(time.Unix(1234, 0))},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
 ORDER BY %s DESC`,
@@ -48,8 +49,9 @@ ORDER BY %s DESC`,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 			),
@@ -59,15 +61,16 @@ ORDER BY %s DESC`,
 		{
 			name: "with ascending order",
 			opts: []OpOption{WithSortUnixSecondsAscendingOrder()},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 ORDER BY %s ASC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -76,7 +79,7 @@ ORDER BY %s ASC`,
 		{
 			name: "with limit",
 			opts: []OpOption{WithLimit(10)},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 ORDER BY %s DESC
 LIMIT 10`,
@@ -84,8 +87,9 @@ LIMIT 10`,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 			),
 			wantArgs: nil,
@@ -98,7 +102,7 @@ LIMIT 10`,
 				WithSortUnixSecondsAscendingOrder(),
 				WithLimit(10),
 			},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
 ORDER BY %s ASC
@@ -107,8 +111,9 @@ LIMIT 10`,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 			),
@@ -118,7 +123,7 @@ LIMIT 10`,
 		{
 			name: "with since unix seconds and event type",
 			opts: []OpOption{WithSince(time.Unix(1234, 0)), WithEventType("xid")},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s >= ? AND %s = ?
 ORDER BY %s DESC`,
@@ -126,8 +131,9 @@ ORDER BY %s DESC`,
 				ColumnDataSource,
 				ColumnEventType,
 				ColumnEventID,
+				ColumnDeviceUUID,
 				ColumnEventDetails,
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 				ColumnEventType,
 				ColumnUnixSeconds,
@@ -185,6 +191,7 @@ func TestInsertAndFindEvent(t *testing.T) {
 		DataSource:   "nvml",
 		EventType:    "xid",
 		EventID:      31,
+		DeviceID:     "000",
 		EventDetails: "GPU has fallen off the bus",
 	}
 
@@ -252,6 +259,7 @@ func TestReadEvents(t *testing.T) {
 			DataSource:   "nvml",
 			EventType:    "xid",
 			EventID:      31,
+			DeviceID:     "000",
 			EventDetails: "First event",
 		},
 		{
@@ -259,6 +267,7 @@ func TestReadEvents(t *testing.T) {
 			DataSource:   "dmesg",
 			EventType:    "sxid",
 			EventID:      32,
+			DeviceID:     "000",
 			EventDetails: "Second event",
 		},
 		{
@@ -266,6 +275,7 @@ func TestReadEvents(t *testing.T) {
 			DataSource:   "nvml",
 			EventType:    "xid",
 			EventID:      33,
+			DeviceID:     "000",
 			EventDetails: "Third event",
 		},
 	}
@@ -331,7 +341,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 			name: "no options",
 			opts: []OpOption{},
 			wantStatement: fmt.Sprintf("DELETE FROM %s",
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -343,7 +353,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 				WithLimit(10),
 			},
 			wantStatement: fmt.Sprintf("DELETE FROM %s WHERE %s < ?",
-				TableNameXidSXidEventHistory,
+				TableNameXidSXidEventHistoryWithDeviceUUID,
 				ColumnUnixSeconds,
 			),
 			wantArgs: []any{int64(1234)},
@@ -512,6 +522,29 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// create deprecated table first, to test "DROP TABLE"
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS %s (
+	%s INTEGER NOT NULL,
+	%s TEXT NOT NULL,
+	%s TEXT NOT NULL,
+	%s INTEGER NOT NULL,
+	%s TEXT,
+	%s TEXT
+);`, DeprecatedTableNameXidSXidEventHistory,
+		ColumnUnixSeconds,
+		ColumnDataSource,
+		ColumnEventType,
+		ColumnEventID,
+		ColumnDeviceUUID,
+		ColumnEventDetails,
+	))
+	if err != nil {
+		db.Close()
+		os.Remove(tmpfile.Name())
+		t.Fatalf("failed to create deprecated table: %v", err)
+	}
 
 	if err := CreateTableXidSXidEventHistory(ctx, db); err != nil {
 		db.Close()
