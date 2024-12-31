@@ -183,6 +183,7 @@ func (inst *instance) pollXidEvents() {
 			DataSource:   "nvml",
 			EventType:    "xid",
 			EventID:      int64(event.Xid),
+			DeviceID:     event.DeviceUUID,
 			EventDetails: string(eb),
 		})
 		cancel()
