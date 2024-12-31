@@ -2,6 +2,7 @@ package nvml
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -39,6 +40,10 @@ type XidEvent struct {
 
 	// Set if any error happens during NVML calls.
 	Error error `json:"error,omitempty"`
+}
+
+func (ev *XidEvent) JSON() ([]byte, error) {
+	return json.Marshal(ev)
 }
 
 func (ev *XidEvent) YAML() ([]byte, error) {
@@ -132,6 +137,7 @@ func (inst *instance) pollXidEvents() {
 		if !ok {
 			msg = "received event but xid unknown"
 		}
+		log.Logger.Warnw("detected xid event", "xid", xid, "message", msg)
 
 		var deviceUUID string
 		var deviceUUIDErr error
@@ -164,8 +170,11 @@ func (inst *instance) pollXidEvents() {
 
 			Error: deviceUUIDErr,
 		}
-
-		log.Logger.Warnw("detected xid event", "xid", xid, "message", msg)
+		eb, err := event.JSON()
+		if err != nil {
+			log.Logger.Errorw("failed to marshal xid event", "error", err)
+			continue
+		}
 
 		// no need to check duplicate entries, assuming nvml event poller does not return old events
 		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
@@ -174,7 +183,7 @@ func (inst *instance) pollXidEvents() {
 			DataSource:   "nvml",
 			EventType:    "xid",
 			EventID:      int64(event.Xid),
-			EventDetails: "",
+			EventDetails: string(eb),
 		})
 		cancel()
 		if werr != nil {
