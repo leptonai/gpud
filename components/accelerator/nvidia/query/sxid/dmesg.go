@@ -52,8 +52,9 @@ func ExtractNVSwitchSXidDeviceID(line string) string {
 }
 
 type DmesgError struct {
-	Detail  *Detail        `json:"detail"`
-	LogItem query_log.Item `json:"log_item"`
+	DeviceID string         `json:"device_id"`
+	Detail   *Detail        `json:"detail"`
+	LogItem  query_log.Item `json:"log_item"`
 }
 
 func (de *DmesgError) JSON() ([]byte, error) {
@@ -82,6 +83,7 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 
 func ParseDmesgLogLine(time metav1.Time, line string) (DmesgError, error) {
 	de := DmesgError{
+		DeviceID: ExtractNVSwitchSXidDeviceID(line),
 		LogItem: query_log.Item{
 			Line:    line,
 			Matched: nil,

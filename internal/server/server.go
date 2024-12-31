@@ -319,7 +319,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					DataSource:   "dmesg",
 					EventType:    "xid",
 					EventID:      int64(ev.Detail.Xid),
-					DeviceID:     "",
+					DeviceID:     ev.DeviceID,
 					EventDetails: ev.LogItem.Line,
 				}
 
@@ -353,7 +353,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					DataSource:   "dmesg",
 					EventType:    "sxid",
 					EventID:      int64(ev.Detail.SXid),
-					DeviceID:     "",
+					DeviceID:     ev.DeviceID,
 					EventDetails: ev.LogItem.Line,
 				}
 
