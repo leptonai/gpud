@@ -29,13 +29,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dustin/go-humanize"
-	"github.com/olekukonko/tablewriter"
-	"sigs.k8s.io/yaml"
-
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
+
+	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -166,7 +166,8 @@ func ParseJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 	raw := make(map[string]BlockDevices, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal lsblk output (len=%d): %w, raw input: %q", len(b), err, string(b))
+		log.Logger.Debugw("failed to unmarshal lsblk output", "error", err, "bytes", len(b), "raw_input", string(b))
+		return nil, fmt.Errorf("failed to unmarshal lsblk output (len=%d): %w", len(b), err)
 	}
 
 	rawDevs, ok := raw[outputKey]
