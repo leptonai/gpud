@@ -35,13 +35,13 @@ func TestParse(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		blks, err := Parse(dat)
+		blks, err := ParseJSON(dat)
 		if err != nil {
 			t.Fatal(err)
 		}
 		blks.RenderTable(os.Stdout)
 
-		blks, err = Parse(dat, WithDeviceType(func(deviceType string) bool {
+		blks, err = ParseJSON(dat, WithDeviceType(func(deviceType string) bool {
 			return deviceType == "disk"
 		}))
 		if err != nil {
@@ -81,11 +81,14 @@ func TestCheckVersion(t *testing.T) {
 	expecteds := []string{
 		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --pairs",
 		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
 	}
 
-	for i, s := range []string{"lsblk，来自 util-linux 2.23.2", "lsblk from util-linux 2.37.4"} {
-		var lsblkCmd string
-		lsblkCmd = lsblkVersionCheck(s)
+	for i, s := range []string{"lsblk，来自 util-linux 2.23.2", "lsblk from util-linux 2.37.2", "lsblk from util-linux 2.37.4"} {
+		lsblkCmd, _, err := decideLsblkFlagAndParserFromVersion(s)
+		if err != nil {
+			t.Errorf("Expected %v, got %v", expecteds[i], lsblkCmd)
+		}
 		if !reflect.DeepEqual(lsblkCmd, expecteds[i]) {
 			t.Errorf("Expected %v, got %v", expecteds[i], lsblkCmd)
 		}

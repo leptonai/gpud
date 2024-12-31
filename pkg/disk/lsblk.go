@@ -33,6 +33,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"sigs.k8s.io/yaml"
 
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -54,25 +55,26 @@ const (
 
 var lsblkVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
 
-func lsblkVersionCheck(line string) string {
-	matches := lsblkVersionRegPattern.FindString(line)
+// decideLsblkFlagAndParserFromVersion decides the lsblk command flags based on the "lsblk --version" output
+func decideLsblkFlagAndParserFromVersion(verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
+	matches := lsblkVersionRegPattern.FindString(verOutput)
 	if matches != "" {
 		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
 			if versionF >= lsblkMinSupportJsonVersion {
-				return lsblkFlags + " " + lsblkJsonFlag
-			} else {
-				return lsblkFlags + " " + lsblkPairsFlag
+				return lsblkFlags + " " + lsblkJsonFlag, ParseJSON, nil
 			}
+
+			return lsblkFlags + " " + lsblkPairsFlag, ParsePairs, nil
 		}
 	}
 
-	return ""
+	return "", nil, errors.New("failed to parse 'lsblk --version' output")
 }
 
-func CheckLsblk(ctx context.Context) (string, error) {
+func decideLsblkFlag(ctx context.Context) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
 	lsblkVersion, err := file.LocateExecutable("lsblk")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	p, err := process.New(
@@ -80,47 +82,51 @@ func CheckLsblk(ctx context.Context) (string, error) {
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if err := p.Start(ctx); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	var lsblkCmd string
+	lines := make([]string, 0)
 	if err := process.Read(
 		ctx,
 		p,
 		process.WithReadStdout(),
 		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
-			lsblkCmd = lsblkVersionCheck(line)
+			lines = append(lines, line)
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", fmt.Errorf("failed to check lsblk version: %w", err)
+		return "", nil, fmt.Errorf("failed to check lsblk version: %w", err)
 	}
 
-	return lsblkCmd, nil
+	line := strings.Join(lines, "\n")
+	line = strings.TrimSpace(line)
+
+	return decideLsblkFlagAndParserFromVersion(line)
 }
 
 // GetBlockDevices run os lsblk command for device and construct BlockDevice struct based on output
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	// pre-check lsblk version
-	lsblkExecuteFlags, checkErr := CheckLsblk(ctx)
-	if checkErr != nil {
-		return nil, checkErr
-	}
-
 	lsblkPath, err := file.LocateExecutable("lsblk")
 	if err != nil {
 		return nil, err
 	}
 
+	// pre-check lsblk version
+	flags, parseFunc, checkErr := decideLsblkFlag(ctx)
+	if checkErr != nil {
+		log.Logger.Warnw("failed to decide lsblk flag and parser -- falling back to latest version", "error", checkErr)
+		flags, parseFunc = lsblkFlags+" "+lsblkJsonFlag, ParseJSON
+	}
+
 	p, err := process.New(
-		process.WithCommand(lsblkPath+" "+lsblkExecuteFlags),
+		process.WithCommand(lsblkPath+" "+flags),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -145,10 +151,10 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 		return nil, fmt.Errorf("failed to read lsblk output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
 	}
 
-	return Parse([]byte(strings.Join(lines, "\n")), opts...)
+	return parseFunc([]byte(strings.Join(lines, "\n")), opts...)
 }
 
-func Parse(b []byte, opts ...OpOption) (BlockDevices, error) {
+func ParseJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
 	}
@@ -242,7 +248,7 @@ func ParsePairs(b []byte, opts ...OpOption) (BlockDevices, error) {
 		return nil, fmt.Errorf("failed to marshal lsblk-blockdevices json mode")
 	}
 
-	return Parse(jsonData, opts...)
+	return ParseJSON(jsonData, opts...)
 }
 
 func parseLineToDisk(line string) (BlockDevice, error) {
