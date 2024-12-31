@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/host"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
@@ -279,6 +280,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 				fmt.Printf("\npartitions have total mounted size %s\n", humanize.Bytes(partitions.GetMountedTotalBytes()))
 			}
 			partitions.RenderTable(os.Stdout)
+			println()
 		}
 
 		blockDevices, err := disk.GetBlockDevices(ctx, disk.WithDeviceType(disk.DefaultMatchFuncDeviceType))
@@ -289,6 +291,16 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 				fmt.Printf("\nblock devices have total size %s\n", humanize.Bytes(blockDevices.GetTotalBytes()))
 			}
 			blockDevices.RenderTable(os.Stdout)
+			println()
+		}
+
+		infos, err := fuse.ListConnections()
+		if err != nil {
+			log.Logger.Warnw("error listing fuse connections", "error", err)
+		} else {
+			fmt.Printf("%s listed %d fuse connections\n", checkMark, len(infos))
+			infos.RenderTable(os.Stdout)
+			println()
 		}
 	}
 

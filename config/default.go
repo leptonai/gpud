@@ -44,6 +44,7 @@ import (
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	file_id "github.com/leptonai/gpud/components/file/id"
+	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	info_id "github.com/leptonai/gpud/components/info/id"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
 	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
@@ -127,6 +128,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		Components: map[string]any{
 			cpu_id.Name:           nil,
 			disk_id.Name:          disk.DefaultConfig(),
+			fuse_id.Name:          nil,
 			fd_id.Name:            nil,
 			info_id.Name:          nil,
 			memory_id.Name:        nil,

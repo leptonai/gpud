@@ -85,6 +85,9 @@ import (
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/file"
 	file_id "github.com/leptonai/gpud/components/file/id"
+	"github.com/leptonai/gpud/components/fuse"
+	fuse_id "github.com/leptonai/gpud/components/fuse/id"
+	fuse_state "github.com/leptonai/gpud/components/fuse/state"
 	"github.com/leptonai/gpud/components/info"
 	info_id "github.com/leptonai/gpud/components/info/id"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
@@ -212,6 +215,29 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {
 					log.Logger.Debugw("purged metrics", "purged", purged)
+				}
+			}
+		}
+	}()
+
+	if err := fuse_state.CreateTableFUSEConnectionsEventHistory(ctx, db); err != nil {
+		return nil, fmt.Errorf("failed to create fuse connections state table: %w", err)
+	}
+	go func() {
+		dur := fuse_state.DefaultRetentionPeriod
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+				now := time.Now().UTC()
+				before := now.Add(-dur)
+
+				purged, err := fuse_state.Purge(ctx, db, fuse_state.WithBefore(before))
+				if err != nil {
+					log.Logger.Warnw("failed to delete FUSE connections events", "error", err)
+				} else {
+					log.Logger.Debugw("deleted FUSE connections events", "before", before, "purged", purged)
 				}
 			}
 		}
@@ -426,6 +452,24 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, disk.New(ctx, cfg))
+
+		case fuse_id.Name:
+			cfg := fuse.Config{
+				Query:                                defaultQueryCfg,
+				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
+				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
+			}
+			if configValue != nil {
+				parsed, err := fuse.ParseConfig(configValue, db)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, fuse.New(ctx, cfg))
 
 		case pci_id.Name:
 			cfg := pci.Config{Query: defaultQueryCfg}
