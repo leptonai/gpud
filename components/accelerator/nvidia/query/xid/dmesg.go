@@ -23,12 +23,12 @@ const (
 
 	// Regex to extract PCI device ID from NVRM Xid messages
 	// Matches both formats: (0000:03:00) and (PCI:0000:05:00)
-	RegexNVRMXidDeviceID = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\)`
+	RegexNVRMXidDeviceUUID = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\)`
 )
 
 var (
-	CompiledRegexNVRMXidDmesg    = regexp.MustCompile(RegexNVRMXidDmesg)
-	CompiledRegexNVRMXidDeviceID = regexp.MustCompile(RegexNVRMXidDeviceID)
+	CompiledRegexNVRMXidDmesg      = regexp.MustCompile(RegexNVRMXidDmesg)
+	CompiledRegexNVRMXidDeviceUUID = regexp.MustCompile(RegexNVRMXidDeviceUUID)
 )
 
 // Extracts the nvidia Xid error code from the dmesg log line.
@@ -43,21 +43,21 @@ func ExtractNVRMXid(line string) int {
 	return 0
 }
 
-// ExtractNVRMXidDeviceID extracts the PCI device ID from the NVRM Xid dmesg log line.
+// ExtractNVRMXidDeviceUUID extracts the PCI device ID from the NVRM Xid dmesg log line.
 // For input without "PCI:" prefix, it returns the ID as is.
 // For input with "PCI:" prefix, it returns the full ID including the prefix.
 // Returns empty string if the device ID is not found.
-func ExtractNVRMXidDeviceID(line string) string {
-	if match := CompiledRegexNVRMXidDeviceID.FindStringSubmatch(line); match != nil {
+func ExtractNVRMXidDeviceUUID(line string) string {
+	if match := CompiledRegexNVRMXidDeviceUUID.FindStringSubmatch(line); match != nil {
 		return match[1]
 	}
 	return ""
 }
 
 type DmesgError struct {
-	DeviceID string         `json:"device_id"`
-	Detail   *Detail        `json:"detail"`
-	LogItem  query_log.Item `json:"log_item"`
+	DeviceUUID string         `json:"device_uuid"`
+	Detail     *Detail        `json:"detail"`
+	LogItem    query_log.Item `json:"log_item"`
 }
 
 func (de *DmesgError) JSON() ([]byte, error) {
@@ -86,7 +86,7 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 
 func ParseDmesgLogLine(time metav1.Time, line string) (DmesgError, error) {
 	de := DmesgError{
-		DeviceID: ExtractNVRMXidDeviceID(line),
+		DeviceUUID: ExtractNVRMXidDeviceUUID(line),
 		LogItem: query_log.Item{
 			Line:    line,
 			Matched: nil,

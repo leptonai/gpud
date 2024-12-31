@@ -22,12 +22,12 @@ const (
 	RegexNVSwitchSXidDmesg = `SXid.*?: (\d+),`
 
 	// Regex to extract PCI device ID from NVSwitch SXid messages
-	RegexNVSwitchSXidDeviceID = `SXid \((PCI:[0-9a-fA-F:\.]+)\)`
+	RegexNVSwitchSXidDeviceUUID = `SXid \((PCI:[0-9a-fA-F:\.]+)\)`
 )
 
 var (
-	CompiledRegexNVSwitchSXidDmesg    = regexp.MustCompile(RegexNVSwitchSXidDmesg)
-	CompiledRegexNVSwitchSXidDeviceID = regexp.MustCompile(RegexNVSwitchSXidDeviceID)
+	CompiledRegexNVSwitchSXidDmesg      = regexp.MustCompile(RegexNVSwitchSXidDmesg)
+	CompiledRegexNVSwitchSXidDeviceUUID = regexp.MustCompile(RegexNVSwitchSXidDeviceUUID)
 )
 
 // Extracts the nvidia NVSwitch SXid error code from the dmesg log line.
@@ -42,19 +42,19 @@ func ExtractNVSwitchSXid(line string) int {
 	return 0
 }
 
-// ExtractNVSwitchSXidDeviceID extracts the PCI device ID from the dmesg log line.
+// ExtractNVSwitchSXidDeviceUUID extracts the PCI device ID from the dmesg log line.
 // Returns empty string if the device ID is not found.
-func ExtractNVSwitchSXidDeviceID(line string) string {
-	if match := CompiledRegexNVSwitchSXidDeviceID.FindStringSubmatch(line); match != nil {
+func ExtractNVSwitchSXidDeviceUUID(line string) string {
+	if match := CompiledRegexNVSwitchSXidDeviceUUID.FindStringSubmatch(line); match != nil {
 		return match[1]
 	}
 	return ""
 }
 
 type DmesgError struct {
-	DeviceID string         `json:"device_id"`
-	Detail   *Detail        `json:"detail"`
-	LogItem  query_log.Item `json:"log_item"`
+	DeviceUUID string         `json:"device_uuid"`
+	Detail     *Detail        `json:"detail"`
+	LogItem    query_log.Item `json:"log_item"`
 }
 
 func (de *DmesgError) JSON() ([]byte, error) {
@@ -83,7 +83,7 @@ func ParseDmesgErrorYAML(data []byte) (*DmesgError, error) {
 
 func ParseDmesgLogLine(time metav1.Time, line string) (DmesgError, error) {
 	de := DmesgError{
-		DeviceID: ExtractNVSwitchSXidDeviceID(line),
+		DeviceUUID: ExtractNVSwitchSXidDeviceUUID(line),
 		LogItem: query_log.Item{
 			Line:    line,
 			Matched: nil,

@@ -136,7 +136,7 @@ func TestExtractNVRMXidDeviceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ExtractNVRMXidDeviceID(tt.input)
+			result := ExtractNVRMXidDeviceUUID(tt.input)
 			if result != tt.expected {
 				t.Errorf("ExtractNVRMXidDeviceID(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
