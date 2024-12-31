@@ -61,3 +61,53 @@ func TestExtractNVSwitchSXid(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractNVSwitchSXidDeviceID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "valid device ID",
+			input:    "[111111111.111] nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
+			expected: "PCI:0000:05:00.0",
+		},
+		{
+			name:     "another valid device ID",
+			input:    "[131453.740743] nvidia-nvswitch0: SXid (PCI:0000:a9:00.0): 20034, Fatal, Link 30 LTSSM Fault Up",
+			expected: "PCI:0000:a9:00.0",
+		},
+		{
+			name:     "valid device ID without timestamp",
+			input:    "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
+			expected: "PCI:0000:05:00.0",
+		},
+		{
+			name:     "another valid device ID without timestamp",
+			input:    "nvidia-nvswitch0: SXid (PCI:0000:a9:00.0): 20034, Fatal, Link 30 LTSSM Fault Up",
+			expected: "PCI:0000:a9:00.0",
+		},
+		{
+			name:     "no device ID",
+			input:    "Regular log content without SXid",
+			expected: "",
+		},
+		{
+			name:     "malformed device ID",
+			input:    "SXid (PCI:invalid): some error",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractNVSwitchSXidDeviceID(tt.input)
+			if result != tt.expected {
+				t.Errorf("ExtractNVSwitchSXidDeviceID(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}

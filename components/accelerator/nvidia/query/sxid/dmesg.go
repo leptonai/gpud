@@ -20,9 +20,15 @@ const (
 	// "D.4 Non-Fatal NVSwitch SXid Errors"
 	// https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 	RegexNVSwitchSXidDmesg = `SXid.*?: (\d+),`
+
+	// Regex to extract PCI device ID from NVSwitch SXid messages
+	RegexNVSwitchSXidDeviceID = `SXid \((PCI:[0-9a-fA-F:\.]+)\)`
 )
 
-var CompiledRegexNVSwitchSXidDmesg = regexp.MustCompile(RegexNVSwitchSXidDmesg)
+var (
+	CompiledRegexNVSwitchSXidDmesg    = regexp.MustCompile(RegexNVSwitchSXidDmesg)
+	CompiledRegexNVSwitchSXidDeviceID = regexp.MustCompile(RegexNVSwitchSXidDeviceID)
+)
 
 // Extracts the nvidia NVSwitch SXid error code from the dmesg log line.
 // Returns 0 if the error code is not found.
@@ -34,6 +40,15 @@ func ExtractNVSwitchSXid(line string) int {
 		}
 	}
 	return 0
+}
+
+// ExtractNVSwitchSXidDeviceID extracts the PCI device ID from the dmesg log line.
+// Returns empty string if the device ID is not found.
+func ExtractNVSwitchSXidDeviceID(line string) string {
+	if match := CompiledRegexNVSwitchSXidDeviceID.FindStringSubmatch(line); match != nil {
+		return match[1]
+	}
+	return ""
 }
 
 type DmesgError struct {

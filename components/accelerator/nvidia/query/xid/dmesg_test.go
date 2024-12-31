@@ -88,3 +88,58 @@ func TestExtractNVRMXid(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractNVRMXidDeviceID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "device ID without PCI prefix",
+			input:    "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
+			expected: "0000:03:00",
+		},
+		{
+			name:     "device ID with PCI prefix",
+			input:    "[...] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
+			expected: "PCI:0000:05:00",
+		},
+		{
+			name:     "device ID without PCI prefix without timestamp",
+			input:    "NVRM: Xid (0000:03:00): 14, Channel 00000001",
+			expected: "0000:03:00",
+		},
+		{
+			name:     "device ID with PCI prefix without timestamp",
+			input:    "NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
+			expected: "PCI:0000:05:00",
+		},
+		{
+			name:     "another device ID with PCI prefix",
+			input:    "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus.",
+			expected: "PCI:0000:01:00",
+		},
+		{
+			name:     "no device ID",
+			input:    "Regular log content without Xid",
+			expected: "",
+		},
+		{
+			name:     "malformed device ID",
+			input:    "NVRM: Xid (invalid): some error",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ExtractNVRMXidDeviceID(tt.input)
+			if result != tt.expected {
+				t.Errorf("ExtractNVRMXidDeviceID(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
