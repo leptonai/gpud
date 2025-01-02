@@ -391,7 +391,7 @@ func init() {
 	currentMachineMetadata.DmidecodeUUID, err = pkg_host.DmidecodeUUID(ctx)
 	cancel()
 	if err != nil {
-		log.Logger.Warnw("failed to get dmidecode uuid", "error", err)
+		log.Logger.Debugw("failed to get dmidecode uuid", "error", err)
 	}
 
 	currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
