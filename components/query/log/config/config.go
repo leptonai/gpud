@@ -42,6 +42,9 @@ type Config struct {
 
 	// Used to commit the last seek info to disk.
 	SeekInfoSyncer func(ctx context.Context, file string, seekInfo tail.SeekInfo) `json:"-"`
+
+	// Parse time format
+	TimeParseFunc query_log_common.ExtractTimeFunc `json:"-"`
 }
 
 // For each interval, execute the scanning operation

@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
-const isoTimeFormat = "2006-01-02T15:04:05,999999-07:00"
+const (
+	isoTimeFormat      = "2006-01-02T15:04:05,999999-07:00"
+	shortIsoTimeFormat = "2006-01-02T15:04:05-0700"
+)
 
 var isoTimeFormatN = len(isoTimeFormat)
+var shortIsoTimeFormatN = len(shortIsoTimeFormat)
 
-// Parses the timestamp from "dmesg --time-format=iso" output lines.
+// ParseISOtimeWithError Parses the timestamp from "dmesg --time-format=iso" output lines.
 // ref.
 // "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
 func ParseISOtimeWithError(line []byte) (time.Time, []byte, error) {
@@ -30,21 +34,37 @@ func ParseISOtimeWithError(line []byte) (time.Time, []byte, error) {
 	return parsedTime, extractedLine, nil
 }
 
+// ParseShortISOtimeWithError Parses the timestamp from "journalctl -o short-iso" output lines.
+func ParseShortISOtimeWithError(line []byte) (time.Time, []byte, error) {
+	if len(line) < shortIsoTimeFormatN {
+		return time.Time{}, nil, errors.New("line is too short")
+	}
+
+	// Example input: 2025-01-02T15:20:12+0800
+	parsedTime, err := time.Parse("2006-01-02T15:04:05-0700", string(line[:shortIsoTimeFormatN]))
+	if err != nil {
+		return time.Time{}, nil, err
+	}
+
+	extractedLine := bytes.TrimSpace(line[shortIsoTimeFormatN:])
+	return parsedTime, extractedLine, nil
+}
+
 var regexForDmesgTime = regexp.MustCompile(`^\[([^\]]+)\]`)
 
-// Parses the timestamp from "dmesg --ctime" output lines.
+// ParseCtimeWithError Parses the timestamp from "dmesg --ctime" output lines.
 // Returns a zero time if the timestamp is not found or the timestamp is invalid.
 // Returns an error if the timestamp is not found or the timestamp is invalid.
-func ParseCtimeWithError(line []byte) (time.Time, error) {
+func ParseCtimeWithError(line []byte) (time.Time, []byte, error) {
 	matches := regexForDmesgTime.FindStringSubmatch(string(line))
 	if len(matches) == 0 {
-		return time.Time{}, errors.New("no timestamp matches found")
+		return time.Time{}, nil, errors.New("no timestamp matches found")
 	}
 
 	s := matches[1]
-	timestamp, err := time.Parse("Mon Jan 2 15:04:05 2006", s)
+	timestamp, err := time.Parse(time.ANSIC, s)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, nil, err
 	}
-	return timestamp, nil
+	return timestamp, line, nil
 }
