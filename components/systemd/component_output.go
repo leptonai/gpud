@@ -174,7 +174,9 @@ func CreateGet(cfg Config) query.GetFunc {
 
 			defaultConn := GetDefaultDbusConn()
 			if defaultConn != nil {
-				active, err = defaultConn.IsActive(ctx, unit)
+				cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+				active, err = defaultConn.IsActive(cctx, unit)
+				ccancel()
 			}
 			if defaultConn == nil || err != nil {
 				active, err = systemd.IsActive(unit)
