@@ -179,6 +179,7 @@ func CreateGet(cfg Config) query.GetFunc {
 				ccancel()
 			}
 			if defaultConn == nil || err != nil {
+				log.Logger.Warnw("failed to check active status", "unit", unit, "error", err)
 				active, err = systemd.IsActive(unit)
 				if err != nil {
 					return nil, fmt.Errorf("failed to check active status for unit %q: %w", unit, err)
