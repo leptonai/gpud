@@ -13,10 +13,12 @@ const (
 	shortIsoTimeFormat = "2006-01-02T15:04:05-0700"
 )
 
-var isoTimeFormatN = len(isoTimeFormat)
-var shortIsoTimeFormatN = len(shortIsoTimeFormat)
+var (
+	isoTimeFormatN      = len(isoTimeFormat)
+	shortIsoTimeFormatN = len(shortIsoTimeFormat)
+)
 
-// ParseISOtimeWithError Parses the timestamp from "dmesg --time-format=iso" output lines.
+// ParseISOtimeWithError parses the timestamp from "dmesg --time-format=iso" output lines.
 // ref.
 // "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
 func ParseISOtimeWithError(line []byte) (time.Time, []byte, error) {
@@ -34,7 +36,7 @@ func ParseISOtimeWithError(line []byte) (time.Time, []byte, error) {
 	return parsedTime, extractedLine, nil
 }
 
-// ParseShortISOtimeWithError Parses the timestamp from "journalctl -o short-iso" output lines.
+// ParseShortISOtimeWithError parses the timestamp from "journalctl -o short-iso" output lines.
 func ParseShortISOtimeWithError(line []byte) (time.Time, []byte, error) {
 	if len(line) < shortIsoTimeFormatN {
 		return time.Time{}, nil, errors.New("line is too short")

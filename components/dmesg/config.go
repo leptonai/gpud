@@ -59,7 +59,10 @@ const (
 	DefaultDmesgCmd          = "dmesg --time-format=iso --nopager --buffer-size 163920"
 	DefaultDmesgCmdWithSince = "dmesg --time-format=iso --nopager --buffer-size 163920 --since '1 hour ago'"
 	DefaultScanDmesgCmd      = DefaultDmesgCmdWithSince + " || " + DefaultDmesgCmd + " | tail -n 200"
-	dmesgMinSupportVersion   = 2.37
+
+	// dmesg --version that supports "--since" flag
+	// ref. https://github.com/util-linux/util-linux/blob/master/Documentation/releases/v2.37-ReleaseNotes
+	dmesgSinceFlagSupportVersion = 2.37
 
 	// DefaultJournalCtlCmd default scan journalctl command
 	DefaultJournalCtlCmd     = "journalctl -qk -o short-iso --no-pager --since '1 hour ago' | tail -n 200"
@@ -68,11 +71,11 @@ const (
 
 var dmesgVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
 
-func decideDmesgOrJournalCtlFromVersion(verOutput string) bool {
+func checkDmesgVersionOutputForSinceFlag(verOutput string) bool {
 	matches := dmesgVersionRegPattern.FindString(verOutput)
 	if matches != "" {
 		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
-			if versionF >= dmesgMinSupportVersion {
+			if versionF >= dmesgSinceFlagSupportVersion {
 				return true
 			}
 		}
@@ -81,9 +84,9 @@ func decideDmesgOrJournalCtlFromVersion(verOutput string) bool {
 	return false
 }
 
-func isUseDmesg(ctx context.Context) bool {
+func checkDmesgSupportsSinceFlag(ctx context.Context) bool {
 	p, err := process.New(
-		process.WithCommand("dmesg"+" "+"--version"),
+		process.WithCommand("dmesg --version"),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -111,12 +114,12 @@ func isUseDmesg(ctx context.Context) bool {
 	line := strings.Join(lines, "\n")
 	line = strings.TrimSpace(line)
 
-	return decideDmesgOrJournalCtlFromVersion(line)
+	return checkDmesgVersionOutputForSinceFlag(line)
 }
 
 func DefaultConfig(ctx context.Context) (Config, error) {
 	// isUse is false ==> journalctl, true ==> dmesg
-	if isUse := isUseDmesg(ctx); !isUse {
+	if supported := checkDmesgSupportsSinceFlag(ctx); !supported {
 		return journalCtlDefaultConfig(ctx)
 	}
 
