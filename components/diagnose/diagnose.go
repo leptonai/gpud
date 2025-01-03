@@ -13,7 +13,6 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
@@ -150,7 +149,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
 		query_log_tail.WithLinesToTail(5000),
 		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+		query_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
 		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg match: %s", string(line)))
 		}),
