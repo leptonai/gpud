@@ -124,14 +124,23 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 	table.SetHeader([]string{"Device", "Fstype", "Mount Point", "Mounted", "Total", "Used", "Free"})
 
 	for _, part := range parts {
+		total := "n/a"
+		used := "n/a"
+		free := "n/a"
+		if part.Usage != nil {
+			total = part.Usage.TotalHumanized
+			used = part.Usage.UsedHumanized
+			free = part.Usage.FreeHumanized
+		}
+
 		table.Append([]string{
 			part.Device,
 			part.Fstype,
 			part.MountPoint,
 			strconv.FormatBool(part.Mounted),
-			part.Usage.TotalHumanized,
-			part.Usage.UsedHumanized,
-			part.Usage.FreeHumanized,
+			total,
+			used,
+			free,
 		})
 	}
 
