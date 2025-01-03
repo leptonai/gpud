@@ -174,9 +174,12 @@ func CreateGet(cfg Config) query.GetFunc {
 
 			defaultConn := GetDefaultDbusConn()
 			if defaultConn != nil {
-				active, err = defaultConn.IsActive(ctx, unit)
+				cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+				active, err = defaultConn.IsActive(cctx, unit)
+				ccancel()
 			}
 			if defaultConn == nil || err != nil {
+				log.Logger.Warnw("failed to check active status", "unit", unit, "error", err)
 				active, err = systemd.IsActive(unit)
 				if err != nil {
 					return nil, fmt.Errorf("failed to check active status for unit %q: %w", unit, err)
