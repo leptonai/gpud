@@ -58,10 +58,10 @@ var (
 	hwSlowdownPowerBrakeAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	hwSlowdownAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_hw_slowdown")
-	hwSlowdownThermalAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_hw_slowdown_thermal")
-	hwSlowdownPowerBrakeAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_hw_slowdown_power_brake")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	hwSlowdownAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown")
+	hwSlowdownThermalAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_thermal")
+	hwSlowdownPowerBrakeAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_power_brake")
 }
 
 func ReadHWSlowdown(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -137,8 +137,8 @@ func SetHWSlowdownPowerBrake(ctx context.Context, gpuID string, b bool, currentT
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

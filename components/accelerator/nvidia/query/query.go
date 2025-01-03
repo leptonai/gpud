@@ -40,7 +40,7 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func SetDefaultPoller(db *sql.DB) {
+func SetDefaultPoller(dbRW *sql.DB, dbRO *sql.DB) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			"shared-nvidia-poller",
@@ -51,7 +51,7 @@ func SetDefaultPoller(db *sql.DB) {
 					Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
 				},
 			},
-			CreateGet(db),
+			CreateGet(dbRW, dbRO),
 			nil,
 		)
 	})
@@ -70,20 +70,21 @@ func GetSuccessOnce() <-chan any {
 	return getSuccessOnce
 }
 
-func CreateGet(db *sql.DB) query.GetFunc {
+func CreateGet(dbRW *sql.DB, dbRO *sql.DB) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		// "ctx" here is the root level and used for instantiating the "shared" NVML instance "once"
 		// and all other sub-calls have its own context timeouts, thus we do not set the timeout here
 		// otherwise, we will cancel all future operations when the instance is created only once!
-		return Get(ctx, db)
+		return Get(ctx, dbRW, dbRO)
 	}
 }
 
 // Get all nvidia component queries.
-func Get(ctx context.Context, db *sql.DB) (output any, err error) {
+func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error) {
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithDB(db),
+		nvml.WithDBRW(dbRW),
+		nvml.WithDBRO(dbRO),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,
@@ -264,7 +265,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
 			for _, event := range events {
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				found, err := metrics_clock_events_state.FindEvent(cctx, db, event)
+				found, err := metrics_clock_events_state.FindEvent(cctx, dbRO, event)
 				ccancel()
 				if err != nil {
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to find clock events: %v", err))
@@ -274,7 +275,7 @@ func Get(ctx context.Context, db *sql.DB) (output any, err error) {
 					continue
 				}
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				err = metrics_clock_events_state.InsertEvent(cctx, db, event)
+				err = metrics_clock_events_state.InsertEvent(cctx, dbRW, event)
 				ccancel()
 				if err != nil {
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to persist clock events: %v", err))

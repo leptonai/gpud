@@ -126,7 +126,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 		defer db.Close()
 
-		outputRaw, err := nvidia_query.Get(ctx, db)
+		outputRaw, err := nvidia_query.Get(ctx, db, db)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
 		} else {

@@ -69,11 +69,11 @@ var (
 	volatileTotalUncorrectedAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	aggregateTotalCorrectedAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_aggregate_total_corrected")
-	aggregateTotalUncorrectedAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_aggregate_total_uncorrected")
-	volatileTotalCorrectedAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_volatile_total_corrected")
-	volatileTotalUncorrectedAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_volatile_total_uncorrected")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	aggregateTotalCorrectedAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_aggregate_total_corrected")
+	aggregateTotalUncorrectedAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_aggregate_total_uncorrected")
+	volatileTotalCorrectedAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_volatile_total_corrected")
+	volatileTotalUncorrectedAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_volatile_total_uncorrected")
 }
 
 func ReadAggregateTotalCorrected(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -156,8 +156,8 @@ func SetVolatileTotalUncorrected(ctx context.Context, gpuID string, cnt float64,
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

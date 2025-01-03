@@ -13,7 +13,7 @@ type Config struct {
 	Units []string            `json:"units"`
 }
 
-func ParseConfig(b any, db *sql.DB) (*Config, error) {
+func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	raw, err := json.Marshal(b)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,8 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 		return nil, err
 	}
 	if cfg.Query.State != nil {
-		cfg.Query.State.DB = db
+		cfg.Query.State.DBRW = dbRW
+		cfg.Query.State.DBRO = dbRO
 	}
 	return cfg, nil
 }

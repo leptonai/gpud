@@ -63,7 +63,7 @@ type OutputProvider interface {
 
 // Defines an optional component interface that supports Prometheus metrics.
 type PromRegisterer interface {
-	RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error
+	RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error
 }
 
 type State struct {

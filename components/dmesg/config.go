@@ -20,7 +20,7 @@ type Config struct {
 	Log query_log_config.Config `json:"log"`
 }
 
-func ParseConfig(b any, db *sql.DB) (*Config, error) {
+func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	raw, err := json.Marshal(b)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,8 @@ func ParseConfig(b any, db *sql.DB) (*Config, error) {
 	}
 
 	if cfg.Log.Query.State != nil {
-		cfg.Log.Query.State.DB = db
+		cfg.Log.Query.State.DBRW = dbRW
+		cfg.Log.Query.State.DBRO = dbRO
 	}
 
 	return cfg, nil

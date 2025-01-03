@@ -112,10 +112,10 @@ var (
 	)
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	totalBytesAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_total_bytes")
-	usedBytesAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_used_bytes")
-	usedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_used_percent")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	totalBytesAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_total_bytes")
+	usedBytesAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_used_bytes")
+	usedPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_used_percent")
 }
 
 func ReadTotalBytes(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -214,8 +214,8 @@ func SetFreeBytes(bytes float64) {
 	freeBytes.Set(bytes)
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

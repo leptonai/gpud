@@ -36,8 +36,8 @@ var (
 	edgeInMillisecondsAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	edgeInMillisecondsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_edge_in_milliseconds")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	edgeInMillisecondsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_edge_in_milliseconds")
 }
 
 func ReadEdgeInMilliseconds(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -62,8 +62,8 @@ func SetEdgeInMilliseconds(ctx context.Context, providerRegion string, latencyIn
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

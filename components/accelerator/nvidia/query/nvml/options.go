@@ -8,7 +8,8 @@ import (
 )
 
 type Op struct {
-	db            *sql.DB
+	dbRW          *sql.DB
+	dbRO          *sql.DB
 	gpmMetricsIDs map[nvml.GpmMetricId]struct{}
 }
 
@@ -18,9 +19,16 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
 	}
-	if op.db == nil {
+	if op.dbRW == nil {
 		var err error
-		op.db, err = sqlite.Open(":memory:")
+		op.dbRW, err = sqlite.Open(":memory:")
+		if err != nil {
+			return err
+		}
+	}
+	if op.dbRO == nil {
+		var err error
+		op.dbRO, err = sqlite.Open(":memory:", sqlite.WithReadOnly(true))
 		if err != nil {
 			return err
 		}
@@ -29,11 +37,19 @@ func (op *Op) applyOpts(opts []OpOption) error {
 }
 
 // Specifies the database instance to persist nvidia components data
-// (e.g., xid/sxid events).
+// (e.g., xid/sxid events). Must be a writable database instance.
 // If not specified, a new in-memory database is created.
-func WithDB(db *sql.DB) OpOption {
+func WithDBRW(db *sql.DB) OpOption {
 	return func(op *Op) {
-		op.db = db
+		op.dbRW = db
+	}
+}
+
+// Specifies the read-only database instance.
+// If not specified, a new in-memory database is created.
+func WithDBRO(db *sql.DB) OpOption {
+	return func(op *Op) {
+		op.dbRO = db
 	}
 }
 

@@ -197,7 +197,7 @@ func (c *component) Close() error {
 
 var _ components.PromRegisterer = (*component)(nil)
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return metrics.Register(reg, db, tableName)
+	return metrics.Register(reg, dbRW, dbRO, tableName)
 }

@@ -9,7 +9,6 @@ import (
 )
 
 // Helper function to open a SQLite3 database.
-// ref. https://github.com/mattn/go-sqlite3/blob/7658c06970ecf5588d8cd930ed1f2de7223f1010/sqlite3.go#L975
 func Open(file string, opts ...OpOption) (*sql.DB, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -26,18 +25,30 @@ func Open(file string, opts ...OpOption) (*sql.DB, error) {
 	// ref. https://www.sqlite.org/pragma.html#pragma_busy_timeout
 	// ref. https://www.sqlite.org/pragma.html#pragma_journal_mode
 	// ref. https://www.sqlite.org/pragma.html#pragma_synchronous
-	conns += "?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL&"
+	// ref. https://github.com/mattn/go-sqlite3/blob/7658c06970ecf5588d8cd930ed1f2de7223f1010/sqlite3.go#L975
+	conns += "?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
 
 	if op.readOnly {
 		conns += "&mode=ro"
+	} else {
+		// ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
+		conns += "&_txlock=immediate"
 	}
 
-	fmt.Println(conns)
-
-	// Open with URI format enabled
 	db, err := sql.Open("sqlite3", conns)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open sqlite3 database: %w (%q)", err, conns)
 	}
+
+	if !op.readOnly {
+		// single connection for writing
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+
+		// to not close
+		db.SetConnMaxLifetime(0)
+		db.SetConnMaxIdleTime(0)
+	}
+
 	return db, nil
 }
