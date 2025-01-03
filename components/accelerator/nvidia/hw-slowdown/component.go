@@ -24,14 +24,14 @@ func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
+	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_hw_slowdown_id.Name)
 
 	return &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
-		db:      cfg.Query.State.DB,
+		dbRO:    cfg.Query.State.DBRO,
 	}
 }
 
@@ -42,7 +42,7 @@ type component struct {
 	cancel   context.CancelFunc
 	poller   query.Poller
 	gatherer prometheus.Gatherer
-	db       *sql.DB
+	dbRO     *sql.DB
 }
 
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
@@ -61,7 +61,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	// so we can just read from the storage
 	events, err := nvidia_clock_events_state.ReadEvents(
 		ctx,
-		c.db,
+		c.dbRO,
 		nvidia_clock_events_state.WithSince(since),
 
 		// in order to dedup nvidia-smi events and prioritize nvml events
@@ -148,7 +148,7 @@ func (c *component) Close() error {
 
 var _ components.PromRegisterer = (*component)(nil)
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return nvidia_query_metrics_clock.Register(reg, db, tableName)
+	return nvidia_query_metrics_clock.Register(reg, dbRW, dbRO, tableName)
 }

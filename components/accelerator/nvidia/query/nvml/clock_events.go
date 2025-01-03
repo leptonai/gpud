@@ -293,7 +293,7 @@ func (inst *instance) pollClockEvents() {
 			}
 
 			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-			found, err := clock_events_state.FindEvent(cctx, inst.db, ev)
+			found, err := clock_events_state.FindEvent(cctx, inst.dbRO, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to find clock events", "uuid", dev.UUID, "error", err)
@@ -303,7 +303,7 @@ func (inst *instance) pollClockEvents() {
 				continue
 			}
 			cctx, ccancel = context.WithTimeout(inst.rootCtx, 10*time.Second)
-			err = clock_events_state.InsertEvent(cctx, inst.db, ev)
+			err = clock_events_state.InsertEvent(cctx, inst.dbRW, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to insert clock events into database", "uuid", dev.UUID, "error", err)

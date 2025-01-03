@@ -33,7 +33,6 @@ func New(ctx context.Context, cfg Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  getDefaultPoller(),
-		db:      cfg.Query.State.DB,
 	}
 }
 
@@ -45,7 +44,6 @@ type component struct {
 	cancel   context.CancelFunc
 	poller   query.Poller
 	gatherer prometheus.Gatherer
-	db       *sql.DB
 }
 
 func (c *component) Name() string { return fuse_id.Name }
@@ -95,7 +93,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := state.ReadEvents(ctx, c.db, state.WithSince(since))
+	events, err := state.ReadEvents(ctx, c.cfg.Query.State.DBRO, state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +173,7 @@ func (c *component) Close() error {
 
 var _ components.PromRegisterer = (*component)(nil)
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return metrics.Register(reg, db, tableName)
+	return metrics.Register(reg, dbRW, dbRO, tableName)
 }

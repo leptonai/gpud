@@ -36,8 +36,8 @@ var (
 	runningProcessesTotalAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	runningProcessesTotalAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_total")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	runningProcessesTotalAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_total")
 }
 
 func ReadRunningProcessesTotal(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -63,8 +63,8 @@ func SetRunningProcessesTotal(ctx context.Context, gpuID string, processes int, 
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

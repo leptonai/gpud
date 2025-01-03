@@ -64,7 +64,7 @@ func CreateGet(cfg Config) query.GetFunc {
 				continue
 			}
 
-			prev, err := state.FindEvent(ctx, cfg.Query.State.DB, now.Unix(), info.DeviceName)
+			prev, err := state.FindEvent(ctx, cfg.Query.State.DBRO, now.Unix(), info.DeviceName)
 			if err != nil {
 				return nil, err
 			}
@@ -72,7 +72,7 @@ func CreateGet(cfg Config) query.GetFunc {
 				continue
 			}
 
-			if err := state.InsertEvent(ctx, cfg.Query.State.DB, state.Event{
+			if err := state.InsertEvent(ctx, cfg.Query.State.DBRW, state.Event{
 				UnixSeconds:                          now.Unix(),
 				DeviceName:                           info.DeviceName,
 				CongestedPercentAgainstThreshold:     info.CongestedPercent,

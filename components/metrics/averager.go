@@ -72,7 +72,9 @@ func (n *noOpAverager) Read(ctx context.Context, opts ...OpOption) (state.Metric
 var _ Averager = (*continuousAverager)(nil)
 
 type continuousAverager struct {
-	db         *sql.DB
+	dbRW *sql.DB
+	dbRO *sql.DB
+
 	tableName  string
 	metricName string
 
@@ -80,9 +82,10 @@ type continuousAverager struct {
 	secondaryNameToValue   map[string]float64
 }
 
-func NewAverager(db *sql.DB, tableName string, metricName string) Averager {
+func NewAverager(dbRW *sql.DB, dbRO *sql.DB, tableName string, metricName string) Averager {
 	return &continuousAverager{
-		db:                   db,
+		dbRW:                 dbRW,
+		dbRO:                 dbRO,
 		tableName:            tableName,
 		metricName:           metricName,
 		secondaryNameToValue: make(map[string]float64, 1),
@@ -100,7 +103,7 @@ func (c *continuousAverager) Last(ctx context.Context, opts ...OpOption) (float6
 	}
 
 	if len(c.secondaryNameToValue) == 0 {
-		m, err := state.ReadLastMetric(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName)
+		m, err := state.ReadLastMetric(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName)
 		if err != nil {
 			return 0.0, false, err
 		}
@@ -137,7 +140,7 @@ func (c *continuousAverager) Observe(ctx context.Context, value float64, opts ..
 	c.secondaryNameToValue[op.metricSecondaryName] = value
 	c.secondaryNameToValueMu.Unlock()
 
-	return state.InsertMetric(ctx, c.db, c.tableName, m)
+	return state.InsertMetric(ctx, c.dbRW, c.tableName, m)
 }
 
 // Avg returns the average value from the "since" time.
@@ -147,7 +150,7 @@ func (c *continuousAverager) Avg(ctx context.Context, opts ...OpOption) (float64
 	if err := op.applyOpts(opts); err != nil {
 		return 0.0, err
 	}
-	return state.AvgSince(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName, op.since)
+	return state.AvgSince(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName, op.since)
 }
 
 // EMA returns the EMA value from the "since" time.
@@ -157,7 +160,7 @@ func (c *continuousAverager) EMA(ctx context.Context, opts ...OpOption) (float64
 	if err := op.applyOpts(opts); err != nil {
 		return 0.0, err
 	}
-	return state.EMASince(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName, op.emaPeriod, op.since)
+	return state.EMASince(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName, op.emaPeriod, op.since)
 }
 
 func (c *continuousAverager) Read(ctx context.Context, opts ...OpOption) (state.Metrics, error) {
@@ -165,7 +168,7 @@ func (c *continuousAverager) Read(ctx context.Context, opts ...OpOption) (state.
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
-	return state.ReadMetricsSince(ctx, c.db, c.tableName, c.metricName, op.metricSecondaryName, op.since)
+	return state.ReadMetricsSince(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName, op.since)
 }
 
 type Op struct {

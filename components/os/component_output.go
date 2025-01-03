@@ -462,7 +462,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		o.MachineMetadata = currentMachineMetadata
 
 		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-		lastBootID, err := state.GetLastBootID(cctx, cfg.Query.State.DB)
+		lastBootID, err := state.GetLastBootID(cctx, cfg.Query.State.DBRW)
 		ccancel()
 		if err != nil {
 			return nil, err
@@ -475,7 +475,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
 		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
 			cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-			err := state.InsertBootID(cctx, cfg.Query.State.DB, currentMachineMetadata.BootID, time.Now().UTC())
+			err := state.InsertBootID(cctx, cfg.Query.State.DBRW, currentMachineMetadata.BootID, time.Now().UTC())
 			ccancel()
 			if err != nil {
 				return nil, err
