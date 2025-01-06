@@ -391,6 +391,8 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 func TestPurgeXidSxid(t *testing.T) {
 	t.Parallel()
 
+	nowUTC := time.Now().UTC()
+
 	tests := []struct {
 		name       string
 		setup      []Event
@@ -430,7 +432,7 @@ func TestPurgeXidSxid(t *testing.T) {
 			name: "delete events with large dataset",
 			setup: func() []Event {
 				events := make([]Event, 100)
-				baseTime := time.Now().Unix()
+				baseTime := nowUTC.Unix()
 				for i := 0; i < 100; i++ {
 					events[i] = Event{
 						UnixSeconds:  baseTime + int64(i*60), // Events 1 minute apart
@@ -442,14 +444,14 @@ func TestPurgeXidSxid(t *testing.T) {
 				}
 				return events
 			}(),
-			opts:       []OpOption{WithBefore(time.Now().Add(30 * time.Minute))},
+			opts:       []OpOption{WithBefore(nowUTC.Add(30 * time.Minute))},
 			wantPurged: 30,
 			wantCount:  70,
 			validate: func(t *testing.T, events []Event) {
 				if len(events) != 70 {
 					t.Errorf("expected 70 events, got %d", len(events))
 				}
-				cutoff := time.Now().Add(30 * time.Minute).Unix()
+				cutoff := nowUTC.Add(30 * time.Minute).Unix()
 				for _, e := range events {
 					if e.UnixSeconds < cutoff {
 						t.Errorf("found event with timestamp %d, which is before cutoff %d",
