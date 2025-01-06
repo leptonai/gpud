@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -71,6 +72,25 @@ type Item struct {
 
 	Error error `json:"error,omitempty"`
 }
+
+func (item Item) JSON() ([]byte, error) {
+	return json.Marshal(item)
+}
+
+func ParseItemJSON(data []byte) (Item, error) {
+	item := Item{}
+	if err := json.Unmarshal(data, &item); err != nil {
+		return Item{}, err
+	}
+	if item.Matched != nil && item.Matched.Regex != nil {
+		if err := item.Matched.Compile(); err != nil {
+			return Item{}, err
+		}
+	}
+	return item, nil
+}
+
+type Items []Item
 
 type poller struct {
 	query.Poller

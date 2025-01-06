@@ -7,6 +7,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	query_log "github.com/leptonai/gpud/components/query/log"
+	"github.com/leptonai/gpud/log"
 )
 
 type Event struct {
@@ -28,9 +29,11 @@ func ParseEventJSON(data []byte) (*Event, error) {
 const (
 	EventNameDmesgMatched = "dmesg_matched"
 
-	EventKeyDmesgMatchedError = "error"
+	EventKeyDmesgMatchedError   = "error"
+	EventKeyDmesgMatchedLogItem = "log_item"
 )
 
+// TODO: deprecate
 func (ev *Event) Events() []components.Event {
 	if len(ev.Matched) == 0 {
 		return nil
@@ -48,6 +51,12 @@ func (ev *Event) Events() []components.Event {
 			es = logItem.Error.Error()
 		}
 
+		ob, err := logItem.JSON()
+		if err != nil {
+			log.Logger.Errorw("failed to marshal log item", "error", err)
+			continue
+		}
+
 		evs = append(evs, components.Event{
 			Time: logItem.Time,
 			Name: EventNameDmesgMatched,
@@ -57,7 +66,8 @@ func (ev *Event) Events() []components.Event {
 
 			Message: msg,
 			ExtraInfo: map[string]string{
-				EventKeyDmesgMatchedError: es,
+				EventKeyDmesgMatchedError:   es,
+				EventKeyDmesgMatchedLogItem: string(ob),
 			},
 		})
 	}
