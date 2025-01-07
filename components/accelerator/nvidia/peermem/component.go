@@ -11,7 +11,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -140,8 +139,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		//
 		// ref. https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-535-129-03/index.html
 		// ref. https://github.com/Mellanox/nv_peer_memory/issues/120
-		line := logItem.Line
-		if nvidia_query_peermem.HasInvalidContext(line) {
+		if logItem.Matched.Name == dmesg.EventNvidiaPeermemInvalidContext {
 			continue
 		}
 
