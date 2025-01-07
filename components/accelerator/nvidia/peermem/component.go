@@ -116,6 +116,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, err
 	}
 
+	return c.getEvents(ctx, since, dmesgTailResults)
+}
+
+func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailResults *dmesg.State) ([]components.Event, error) {
 	// dedup by minute level
 	seenMinute := make(map[int64]struct{})
 	events := make([]components.Event, 0)
