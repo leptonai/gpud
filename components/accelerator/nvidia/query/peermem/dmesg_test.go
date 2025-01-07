@@ -1,6 +1,7 @@
 package peermem
 
 import (
+	"regexp"
 	"testing"
 )
 
@@ -17,9 +18,20 @@ func TestRegexInvalidContext(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		matched := HasInvalidContext(test.log)
+		matched := hasInvalidContext(test.log)
 		if matched != test.matches {
 			t.Errorf("Expected match: %v, got: %v for log: %s", test.matches, matched, test.log)
 		}
 	}
+}
+
+var (
+	compiledInvalidContext = regexp.MustCompile(RegexInvalidContext)
+)
+
+func hasInvalidContext(line string) bool {
+	if match := compiledInvalidContext.FindStringSubmatch(line); match != nil {
+		return true
+	}
+	return false
 }
