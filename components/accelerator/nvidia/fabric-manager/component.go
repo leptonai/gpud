@@ -130,7 +130,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		b, _ := ev.Matched.JSON()
 		es := ""
 		if ev.Error != nil {
-			es = ev.Error.Error()
+			es = *ev.Error
 		}
 		evs = append(evs, components.Event{
 			Time: ev.Time,

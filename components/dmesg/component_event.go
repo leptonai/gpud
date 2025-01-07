@@ -48,7 +48,7 @@ func (ev *Event) Events() []components.Event {
 
 		es := ""
 		if logItem.Error != nil {
-			es = logItem.Error.Error()
+			es = *logItem.Error
 		}
 
 		ob, err := logItem.JSON()
