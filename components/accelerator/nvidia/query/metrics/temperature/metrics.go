@@ -97,10 +97,10 @@ var (
 	)
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	currentCelsiusAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_current_celsius")
-	thresholdSlowdownCelsiusAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_slowdown_threshold_celsius")
-	slowdownUsedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_slowdown_used_percent")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	currentCelsiusAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_current_celsius")
+	thresholdSlowdownCelsiusAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_slowdown_threshold_celsius")
+	slowdownUsedPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_slowdown_used_percent")
 }
 
 func ReadCurrentCelsius(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -208,8 +208,8 @@ func SetSlowdownUsedPercent(ctx context.Context, gpuID string, pct float64, curr
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

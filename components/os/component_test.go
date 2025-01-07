@@ -18,13 +18,19 @@ func TestComponent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
+	dbRW, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer dbRW.Close()
 
-	if err := state.CreateTableBootIDs(ctx, db); err != nil {
+	dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer dbRO.Close()
+
+	if err := state.CreateTableBootIDs(ctx, dbRW); err != nil {
 		t.Fatalf("failed to create boot ids table: %v", err)
 	}
 
@@ -34,7 +40,8 @@ func TestComponent(t *testing.T) {
 			Query: query_config.Config{
 				Interval: metav1.Duration{Duration: 5 * time.Second},
 				State: &query_config.State{
-					DB: db,
+					DBRW: dbRW,
+					DBRO: dbRO,
 				},
 			},
 		},

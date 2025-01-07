@@ -29,11 +29,17 @@ func TestComponentLog(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
+	dbRW, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer dbRW.Close()
+
+	dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer dbRO.Close()
 
 	pollInterval := 3 * time.Second
 	component, err := New(
@@ -43,7 +49,8 @@ func TestComponentLog(t *testing.T) {
 				Query: query_config.Config{
 					Interval: metav1.Duration{Duration: pollInterval},
 					State: &query_config.State{
-						DB: db,
+						DBRW: dbRW,
+						DBRO: dbRO,
 					},
 				},
 				BufferSize:    query_log_config.DefaultBufferSize,

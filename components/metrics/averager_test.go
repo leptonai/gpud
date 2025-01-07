@@ -12,20 +12,17 @@ import (
 func TestNewAverager(t *testing.T) {
 	t.Parallel()
 
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	a := NewAverager(db, "test_table", "test_name")
+	a := NewAverager(dbRW, dbRO, "test_table", "test_name")
 	if a == nil {
 		t.Fatal("NewAverager returned nil")
 	}
@@ -34,20 +31,17 @@ func TestNewAverager(t *testing.T) {
 func TestAveragerObserve(t *testing.T) {
 	t.Parallel()
 
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	a := NewAverager(db, "test_table", "test_name")
+	a := NewAverager(dbRW, dbRO, "test_table", "test_name")
 	now := time.Now()
 
 	numPoints := 500
@@ -163,20 +157,17 @@ func TestAveragerObserve(t *testing.T) {
 func TestAveragerAll(t *testing.T) {
 	t.Parallel()
 
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	a := NewAverager(db, "test_table", "test_name")
+	a := NewAverager(dbRW, dbRO, "test_table", "test_name")
 	now := time.Now()
 
 	values := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
@@ -218,20 +209,17 @@ func TestAveragerAll(t *testing.T) {
 }
 
 func TestEmptyAverager(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	a := NewAverager(db, "test_table", "test_name")
+	a := NewAverager(dbRW, dbRO, "test_table", "test_name")
 
 	result, err := a.Avg(ctx)
 	if err != nil {
@@ -247,16 +235,13 @@ func TestEmptyAverager(t *testing.T) {
 }
 
 func TestContinuousAveragerRead(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer db.Close()
-
-	if err := metrics_state.CreateTableMetrics(ctx, db, "test_table"); err != nil {
+	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
@@ -273,7 +258,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "empty averager",
 			setup: func() *continuousAverager {
-				return NewAverager(db, "test_table", "empty averager").(*continuousAverager)
+				return NewAverager(dbRW, dbRO, "test_table", "empty averager").(*continuousAverager)
 			},
 			since:    time.Time{},
 			expected: 0.0,
@@ -281,7 +266,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "all values",
 			setup: func() *continuousAverager {
-				a := NewAverager(db, "test_table", "all values").(*continuousAverager)
+				a := NewAverager(dbRW, dbRO, "test_table", "all values").(*continuousAverager)
 				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
 					t.Fatalf("Observe(1.0) returned error: %v", err)
 				}
@@ -299,7 +284,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "since middle",
 			setup: func() *continuousAverager {
-				a := NewAverager(db, "test_table", "since middle").(*continuousAverager)
+				a := NewAverager(dbRW, dbRO, "test_table", "since middle").(*continuousAverager)
 				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
 					t.Fatalf("Observe(1.0) returned error: %v", err)
 				}
@@ -320,7 +305,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "since before all values",
 			setup: func() *continuousAverager {
-				a := NewAverager(db, "test_table", "since before all values").(*continuousAverager)
+				a := NewAverager(dbRW, dbRO, "test_table", "since before all values").(*continuousAverager)
 				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(2))); err != nil {
 					t.Fatalf("Observe(1.0) returned error: %v", err)
 				}
@@ -335,7 +320,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "since after all values",
 			setup: func() *continuousAverager {
-				a := NewAverager(db, "test_table", "since after all values").(*continuousAverager)
+				a := NewAverager(dbRW, dbRO, "test_table", "since after all values").(*continuousAverager)
 				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
 					t.Fatalf("Observe(1.0) returned error: %v", err)
 				}
@@ -350,7 +335,7 @@ func TestContinuousAveragerRead(t *testing.T) {
 		{
 			name: "wrapped buffer",
 			setup: func() *continuousAverager {
-				a := NewAverager(db, "test_table", "wrapped buffer").(*continuousAverager)
+				a := NewAverager(dbRW, dbRO, "test_table", "wrapped buffer").(*continuousAverager)
 				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
 					t.Fatalf("Observe(1.0) returned error: %v", err)
 				}

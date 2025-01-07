@@ -86,9 +86,9 @@ var (
 	)
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	gpuUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_util_percent")
-	memoryUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_memory_util_percent")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	gpuUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_util_percent")
+	memoryUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_memory_util_percent")
 }
 
 func ReadGPUUtilPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -177,8 +177,8 @@ func SetMemoryUtilPercent(ctx context.Context, gpuID string, pct uint32, current
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

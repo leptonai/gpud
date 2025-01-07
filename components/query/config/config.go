@@ -53,7 +53,11 @@ func (cfg *Config) SetDefaultsIfNotSet() {
 }
 
 type State struct {
-	DB *sql.DB `json:"-"`
+	// DB instance for read-write.
+	DBRW *sql.DB `json:"-"`
+
+	// DB instance for read-only.
+	DBRO *sql.DB `json:"-"`
 
 	// Duration to keep states for.
 	Retention metav1.Duration `json:"retention"`

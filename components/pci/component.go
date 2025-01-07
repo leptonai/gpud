@@ -3,7 +3,6 @@ package pci
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"time"
 
@@ -24,20 +23,20 @@ func New(ctx context.Context, cfg Config) components.Component {
 	getDefaultPoller().Start(cctx, cfg.Query, id.Name)
 
 	return &component{
+		cfg:     cfg,
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  getDefaultPoller(),
-		db:      cfg.Query.State.DB,
 	}
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
+	cfg     Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
-	db      *sql.DB
 }
 
 func (c *component) Name() string { return id.Name }
@@ -51,7 +50,7 @@ const EventNameACSEnabled = "acs_enabled"
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	evs, err := state.ReadEvents(
 		ctx,
-		c.db,
+		c.cfg.Query.State.DBRO,
 		state.WithSince(since),
 	)
 	if err != nil {

@@ -178,7 +178,7 @@ func (inst *instance) pollXidEvents() {
 
 		// no need to check duplicate entries, assuming nvml event poller does not return old events
 		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-		werr := nvidia_xid_sxid_state.InsertEvent(ctx, inst.db, nvidia_xid_sxid_state.Event{
+		werr := nvidia_xid_sxid_state.InsertEvent(ctx, inst.dbRW, nvidia_xid_sxid_state.Event{
 			UnixSeconds:  event.Time.Unix(),
 			DataSource:   "nvml",
 			EventType:    "xid",

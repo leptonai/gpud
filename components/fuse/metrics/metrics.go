@@ -47,9 +47,9 @@ var (
 	connsMaxBackgroundPctAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	connsCongestedPctAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_connections_congested_percent_against_threshold")
-	connsMaxBackgroundPctAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_connections_max_background_percent_against_threshold")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	connsCongestedPctAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_connections_congested_percent_against_threshold")
+	connsMaxBackgroundPctAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_connections_max_background_percent_against_threshold")
 }
 
 func ReadConnectionsCongestedPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -94,8 +94,8 @@ func SetConnectionsMaxBackgroundPercent(ctx context.Context, deviceName string, 
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

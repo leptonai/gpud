@@ -3,7 +3,6 @@ package errorxidsxid
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"time"
@@ -24,24 +23,24 @@ func New(ctx context.Context, cfg Config) components.Component {
 
 	// this starts the Xid poller via "nvml.StartDefaultInstance"
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
+	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_error_xid_sxid_id.Name)
 
 	return &component{
+		cfg:     cfg,
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
-		db:      cfg.Query.State.DB,
 	}
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
+	cfg     Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
-	db      *sql.DB
 }
 
 func (c *component) Name() string { return nvidia_error_xid_sxid_id.Name }
@@ -61,7 +60,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.db, nvidia_xid_sxid_state.WithSince(since))
+	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.cfg.Query.State.DBRO, nvidia_xid_sxid_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}

@@ -111,16 +111,16 @@ var (
 	thresholdAllocatedFileHandlesPercentAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	allocatedFileHandlesAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_allocated_file_handles")
-	runningPIDsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_running_pids")
-	limitAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_limit")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	allocatedFileHandlesAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_allocated_file_handles")
+	runningPIDsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_running_pids")
+	limitAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_limit")
 
-	allocatedFileHandlesPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_allocated_file_handles_percent")
-	usedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_used_percent")
+	allocatedFileHandlesPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_allocated_file_handles_percent")
+	usedPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_used_percent")
 
-	thresholdUsedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_threshold_used_percent")
-	thresholdAllocatedFileHandlesPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_threshold_allocated_file_handles_percent")
+	thresholdUsedPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_threshold_used_percent")
+	thresholdAllocatedFileHandlesPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_threshold_allocated_file_handles_percent")
 }
 
 func ReadAllocatedFileHandles(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -258,8 +258,8 @@ func SetThresholdAllocatedFileHandlesPercent(ctx context.Context, pct float64, c
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

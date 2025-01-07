@@ -168,7 +168,7 @@ func (c *component) Close() error {
 
 var _ components.PromRegisterer = (*component)(nil)
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return nvidia_query_metrics_gpm.Register(reg, db, tableName)
+	return nvidia_query_metrics_gpm.Register(reg, dbRW, dbRO, tableName)
 }
