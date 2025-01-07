@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -127,6 +128,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			continue
 		}
 
+		if logItem.Matched.Name != dmesg.EventNvidiaPeermemInvalidContext {
+			continue
+		}
+
 		// skip this for now as the latest driver https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-560-35-03/index.html#abstract fixes this issue
 		// "4272659 – A design defect has been identified and mitigated in the GPU kernel-mode driver, related to the GPUDirect RDMA support
 		// in MLNX_OFED and some Ubuntu kernels, commonly referred to as the PeerDirect technology, i.e. the one using the peer-memory kernel
@@ -135,7 +140,8 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		//
 		// ref. https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-535-129-03/index.html
 		// ref. https://github.com/Mellanox/nv_peer_memory/issues/120
-		if logItem.Matched.Name == dmesg.EventNvidiaPeermemInvalidContext {
+		line := logItem.Line
+		if nvidia_query_peermem.HasInvalidContext(line) {
 			continue
 		}
 
