@@ -116,6 +116,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, err
 	}
 
+	return c.getEvents(ctx, since, dmesgTailResults)
+}
+
+func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailResults *dmesg.State) ([]components.Event, error) {
 	// dedup by minute level
 	seenMinute := make(map[int64]struct{})
 	events := make([]components.Event, 0)
@@ -126,7 +130,20 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		if logItem.Matched == nil {
 			continue
 		}
+
 		if logItem.Matched.Name != dmesg.EventNvidiaPeermemInvalidContext {
+			continue
+		}
+
+		// skip this for now as the latest driver https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-560-35-03/index.html#abstract fixes this issue
+		// "4272659 – A design defect has been identified and mitigated in the GPU kernel-mode driver, related to the GPUDirect RDMA support
+		// in MLNX_OFED and some Ubuntu kernels, commonly referred to as the PeerDirect technology, i.e. the one using the peer-memory kernel
+		// patch. In specific scenarios, for example involving the cleanup after killing of a multi-process application, this issue may lead to
+		// use-after-free and potentially to kernel memory corruption."
+		//
+		// ref. https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-535-129-03/index.html
+		// ref. https://github.com/Mellanox/nv_peer_memory/issues/120
+		if logItem.Matched.Name == dmesg.EventNvidiaPeermemInvalidContext {
 			continue
 		}
 

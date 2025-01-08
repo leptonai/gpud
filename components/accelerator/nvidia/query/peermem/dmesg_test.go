@@ -17,14 +17,21 @@ func TestRegexInvalidContext(t *testing.T) {
 		{"[123213123123] ERROR detected invalid context, skipping further processing", true},
 	}
 
-	re, err := regexp.Compile(RegexInvalidContext)
-	if err != nil {
-		t.Fatalf("Error compiling regex: %v", err)
-	}
 	for _, test := range tests {
-		matched := re.MatchString(test.log)
+		matched := hasInvalidContext(test.log)
 		if matched != test.matches {
 			t.Errorf("Expected match: %v, got: %v for log: %s", test.matches, matched, test.log)
 		}
 	}
+}
+
+var (
+	compiledInvalidContext = regexp.MustCompile(RegexInvalidContext)
+)
+
+func hasInvalidContext(line string) bool {
+	if match := compiledInvalidContext.FindStringSubmatch(line); match != nil {
+		return true
+	}
+	return false
 }
