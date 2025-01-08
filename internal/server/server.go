@@ -1215,7 +1215,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	uid, err := state.CreateMachineIDIfNotExist(ctx, dbRW, cliUID)
+	uid, err := state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create machine uid: %w", err)
 	}

@@ -31,18 +31,25 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
-	db, err := sqlite.Open(stateFile)
+
+	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer db.Close()
+	defer dbRW.Close()
 
-	uid, err := state.CreateMachineIDIfNotExist(rootCtx, db, "")
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+
+	uid, err := state.CreateMachineIDIfNotExist(rootCtx, dbRW, dbRO, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machine uid: %w", err)
 	}
 
-	components, err := state.GetComponents(rootCtx, db, uid)
+	components, err := state.GetComponents(rootCtx, dbRO, uid)
 	if err != nil {
 		return fmt.Errorf("failed to get components: %w", err)
 	}
@@ -50,7 +57,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	cliToken := cliContext.String("token")
 	endpoint := cliContext.String("endpoint")
 
-	dbToken, _ := state.GetLoginInfo(rootCtx, db, uid)
+	dbToken, _ := state.GetLoginInfo(rootCtx, dbRO, uid)
 	token := dbToken
 	if cliToken != "" {
 		token = cliToken
@@ -88,7 +95,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	}
 
 	if token != dbToken {
-		if err = state.UpdateLoginInfo(rootCtx, db, uid, token); err != nil {
+		if err = state.UpdateLoginInfo(rootCtx, dbRW, uid, token); err != nil {
 			fmt.Println("machine logged in but failed to update token:", err)
 		}
 	}

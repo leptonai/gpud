@@ -14,12 +14,20 @@ func GetUID(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get state file: %w", err)
 	}
-	db, err := sqlite.Open(stateFile)
+
+	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer db.Close()
-	uid, err := state.CreateMachineIDIfNotExist(ctx, db, "")
+	defer dbRW.Close()
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return "", fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+
+	uid, err := state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to get machine uid: %w", err)
 	}

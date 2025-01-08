@@ -25,8 +25,8 @@ const (
 	ColumnComponents  = "components"
 )
 
-func CreateTableMachineMetadata(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+func CreateTableMachineMetadata(ctx context.Context, dbRW *sql.DB) error {
+	_, err := dbRW.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s TEXT PRIMARY KEY,
 	%s INTEGER,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-func CreateMachineIDIfNotExist(ctx context.Context, db *sql.DB, providedUID string) (string, error) {
+func CreateMachineIDIfNotExist(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, providedUID string) (string, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s FROM %s
 LIMIT 1;
@@ -50,7 +50,7 @@ LIMIT 1;
 		machineID   string
 		unixSeconds int64
 	)
-	err := db.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds)
+	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds)
 	if err == nil { // reuse existing machine ID
 		return machineID, nil
 	}
@@ -81,13 +81,13 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 		ColumnMachineID,
 		ColumnUnixSeconds,
 	)
-	if _, err := db.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
+	if _, err := dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
 		return "", err
 	}
 	return uid, nil
 }
 
-func GetLoginInfo(ctx context.Context, db *sql.DB, machineID string) (string, error) {
+func GetLoginInfo(ctx context.Context, dbRO *sql.DB, machineID string) (string, error) {
 	query := fmt.Sprintf(`
 SELECT %s FROM %s WHERE %s = '%s'
 LIMIT 1;
@@ -98,11 +98,11 @@ LIMIT 1;
 		machineID,
 	)
 	var token string
-	err := db.QueryRowContext(ctx, query).Scan(&token)
+	err := dbRO.QueryRowContext(ctx, query).Scan(&token)
 	return token, err
 }
 
-func UpdateLoginInfo(ctx context.Context, db *sql.DB, machineID string, token string) error {
+func UpdateLoginInfo(ctx context.Context, dbRW *sql.DB, machineID string, token string) error {
 	query := fmt.Sprintf(`
 UPDATE %s SET %s = '%s' WHERE %s = '%s';
 `,
@@ -112,7 +112,7 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 		ColumnMachineID,
 		machineID,
 	)
-	if _, err := db.ExecContext(ctx, query); err != nil {
+	if _, err := dbRW.ExecContext(ctx, query); err != nil {
 		return err
 	}
 	return nil
