@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -69,8 +70,27 @@ type Item struct {
 	// Matched filter that was applied to this item/line.
 	Matched *query_log_common.Filter `json:"matched,omitempty"`
 
-	Error error `json:"error,omitempty"`
+	Error *string `json:"error,omitempty"`
 }
+
+func (item Item) JSON() ([]byte, error) {
+	return json.Marshal(item)
+}
+
+func ParseItemJSON(data []byte) (Item, error) {
+	item := Item{}
+	if err := json.Unmarshal(data, &item); err != nil {
+		return Item{}, err
+	}
+	if item.Matched != nil && item.Matched.Regex != nil {
+		if err := item.Matched.Compile(); err != nil {
+			return Item{}, err
+		}
+	}
+	return item, nil
+}
+
+type Items []Item
 
 type poller struct {
 	query.Poller
@@ -167,11 +187,17 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 // This only catches the realtime/latest and all the future logs.
 func (pl *poller) pollSync(ctx context.Context) {
 	for line := range pl.tailLogger.Line() {
+		var errStr *string
+		if line.Err != nil {
+			s := line.Err.Error()
+			errStr = &s
+		}
+
 		item := Item{
 			Time:    metav1.Time{Time: line.Time},
 			Line:    line.Text,
 			Matched: line.MatchedFilter,
-			Error:   line.Err,
+			Error:   errStr,
 		}
 
 		pl.bufferedItemsMu.Lock()

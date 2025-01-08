@@ -5,12 +5,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
+	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
+	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -83,8 +86,67 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
+const (
+	EventKeyUnixSeconds = "unix_seconds"
+	EventKeyLogLine     = "log_line"
+)
+
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return nil, nil
+	dmesgC, err := components.GetComponent(dmesg.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	var dmesgComponent *dmesg.Component
+	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
+		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
+			dmesgComponent = unwrapped
+		} else {
+			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
+		}
+	}
+	dmesgEvents, err := dmesgComponent.Events(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]components.Event, 0)
+	for _, ev := range dmesgEvents {
+		v, ok := ev.ExtraInfo[dmesg.EventKeyDmesgMatchedLogItem]
+		if !ok {
+			continue
+		}
+		item, err := query_log.ParseItemJSON([]byte(v))
+		if err != nil || item.Matched == nil {
+			log.Logger.Errorw("failed to parse log item or none matched", "error", err)
+			continue
+		}
+
+		name := ""
+		included := false
+		for _, owner := range item.Matched.OwnerReferences {
+			if owner != cpu_id.Name {
+				continue
+			}
+			name = item.Matched.Name
+			included = true
+		}
+		if !included {
+			continue
+		}
+
+		events = append(events, components.Event{
+			Time: ev.Time,
+			Name: name,
+			Type: components.EventTypeWarning,
+			ExtraInfo: map[string]string{
+				EventKeyUnixSeconds: strconv.FormatInt(ev.Time.Unix(), 10),
+				EventKeyLogLine:     item.Line,
+			},
+		})
+	}
+
+	return events, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

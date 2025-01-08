@@ -2,7 +2,6 @@ package dmesg
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -91,7 +90,8 @@ func ParseStateDmesgTailScanMatched(m map[string]string) (query_log.Item, error)
 	ev.Matched = f
 
 	if m[EventKeyDmesgMatchedError] != "" {
-		ev.Error = errors.New(m[EventKeyDmesgMatchedError])
+		v := m[EventKeyDmesgMatchedError]
+		ev.Error = &v
 	}
 
 	return ev, nil
@@ -138,7 +138,7 @@ func (s *State) States() []components.State {
 			b, _ := item.Matched.JSON()
 			es := ""
 			if item.Error != nil {
-				es = item.Error.Error()
+				es = *item.Error
 			}
 			cs = append(cs, components.State{
 				Name:    StateNameDmesgTailScanMatched,
