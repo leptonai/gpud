@@ -132,7 +132,9 @@ import (
 
 // Server is the gpud main daemon
 type Server struct {
-	db                    *sql.DB
+	dbRW *sql.DB
+	dbRO *sql.DB
+
 	nvidiaComponentsExist bool
 	uid                   string
 	fifoPath              string
@@ -156,16 +158,23 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if config.State != "" {
 		stateFile = config.State
 	}
-	db, err := sqlite.Open(stateFile)
+	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open state file: %w", err)
+		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
 	}
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
+	}
+
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
 	}
 	s := &Server{
-		db:                 db,
+		dbRW: dbRW,
+		dbRO: dbRO,
+
 		fifoPath:           fifoPath,
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
@@ -176,16 +185,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := state.CreateTableMachineMetadata(ctx, db); err != nil {
+	if err := state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
-	if err := state.CreateTableBootIDs(ctx, db); err != nil {
+	if err := state.CreateTableBootIDs(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create boot ids table: %w", err)
 	}
-	if err := state.CreateTableAPIVersion(ctx, db); err != nil {
+	if err := state.CreateTableAPIVersion(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
-	ver, err := state.UpdateAPIVersionIfNotExists(ctx, db, "v1")
+	ver, err := state.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to update api version: %w", err)
 	}
@@ -194,11 +203,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
-	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, db); err != nil {
+	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 
-	if err := components_metrics_state.CreateTableMetrics(ctx, db, components_metrics_state.DefaultTableName); err != nil {
+	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
 		return nil, fmt.Errorf("failed to create metrics table: %w", err)
 	}
 	go func() {
@@ -210,7 +219,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			case <-time.After(dur):
 				now := time.Now().UTC()
 				before := now.Add(-dur)
-				purged, err := components_metrics_state.PurgeMetrics(ctx, db, components_metrics_state.DefaultTableName, before)
+				purged, err := components_metrics_state.PurgeMetrics(ctx, dbRW, components_metrics_state.DefaultTableName, before)
 				if err != nil {
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {
@@ -220,7 +229,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := fuse_state.CreateTableFUSEConnectionsEventHistory(ctx, db); err != nil {
+	if err := fuse_state.CreateTableFUSEConnectionsEventHistory(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create fuse connections state table: %w", err)
 	}
 	go func() {
@@ -233,7 +242,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				now := time.Now().UTC()
 				before := now.Add(-dur)
 
-				purged, err := fuse_state.Purge(ctx, db, fuse_state.WithBefore(before))
+				purged, err := fuse_state.Purge(ctx, dbRW, fuse_state.WithBefore(before))
 				if err != nil {
 					log.Logger.Warnw("failed to delete FUSE connections events", "error", err)
 				} else {
@@ -244,7 +253,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}()
 
 	// create nvidia-specific table regardless of whether nvidia components are enabled
-	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, db); err != nil {
+	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create nvidia xid/sxid state table: %w", err)
 	}
 	go func() {
@@ -257,7 +266,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				now := time.Now().UTC()
 				before := now.Add(-dur)
 
-				purged, err := nvidia_xid_sxid_state.Purge(ctx, db, nvidia_xid_sxid_state.WithBefore(before))
+				purged, err := nvidia_xid_sxid_state.Purge(ctx, dbRW, nvidia_xid_sxid_state.WithBefore(before))
 				if err != nil {
 					log.Logger.Warnw("failed to delete nvidia xid/sxid events", "error", err)
 				} else {
@@ -267,7 +276,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := nvidia_clock_events_state.CreateTable(ctx, db); err != nil {
+	if err := nvidia_clock_events_state.CreateTable(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create nvidia clock events table: %w", err)
 	}
 	go func() {
@@ -280,7 +289,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				now := time.Now().UTC()
 				before := now.Add(-dur)
 
-				purged, err := nvidia_clock_events_state.Purge(ctx, db, nvidia_clock_events_state.WithBefore(before))
+				purged, err := nvidia_clock_events_state.Purge(ctx, dbRW, nvidia_clock_events_state.WithBefore(before))
 				if err != nil {
 					log.Logger.Warnw("failed to delete nvidia clock events", "error", err)
 				} else {
@@ -290,7 +299,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := pci_state.CreateTable(ctx, db); err != nil {
+	if err := pci_state.CreateTable(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create pci state table: %w", err)
 	}
 	go func() {
@@ -303,7 +312,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				now := time.Now().UTC()
 				before := now.Add(-dur)
 
-				purged, err := pci_state.Purge(ctx, db, pci_state.WithBefore(before))
+				purged, err := pci_state.Purge(ctx, dbRW, pci_state.WithBefore(before))
 				if err != nil {
 					log.Logger.Warnw("failed to delete pci events", "error", err)
 				} else {
@@ -349,7 +358,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					EventDetails: ev.LogItem.Line,
 				}
 
-				found, err := nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				found, err := nvidia_xid_sxid_state.FindEvent(cctx, dbRO, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find xid event in database", "error", err)
 					continue
@@ -358,7 +367,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("xid event already exists in database", "event", eventToInsert)
 					continue
 				}
-				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, dbRW, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert xid event into database", "error", werr)
 					continue
 				}
@@ -383,7 +392,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					EventDetails: ev.LogItem.Line,
 				}
 
-				found, err := nvidia_xid_sxid_state.FindEvent(cctx, db, eventToInsert)
+				found, err := nvidia_xid_sxid_state.FindEvent(cctx, dbRW, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find sxid event in database", "error", err)
 					continue
@@ -392,7 +401,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("sxid event already exists in database", "event", eventToInsert)
 					continue
 				}
-				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, db, eventToInsert); werr != nil {
+				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, dbRW, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert sxid event into database", "error", werr)
 					continue
 				}
@@ -402,13 +411,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	defaultQueryCfg := query_config.Config{
 		State: &query_config.State{
-			DB: db,
+			DBRW: dbRW,
+			DBRO: dbRO,
 		},
 	}
 	defaultLogCfg := query_log_config.Config{
 		Query: defaultQueryCfg,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-			if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
+			if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 				log.Logger.Errorw("failed to sync seek info", "error", err)
 			}
 		},
@@ -428,7 +438,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case cpu_id.Name:
 			cfg := cpu.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := cpu.ParseConfig(configValue, db)
+				parsed, err := cpu.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -442,7 +452,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case disk_id.Name:
 			cfg := disk.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := disk.ParseConfig(configValue, db)
+				parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -460,7 +470,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
 			}
 			if configValue != nil {
-				parsed, err := fuse.ParseConfig(configValue, db)
+				parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -474,7 +484,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case pci_id.Name:
 			cfg := pci.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := pci.ParseConfig(configValue, db)
+				parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -486,13 +496,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
 			cfg := dmesg.Config{Log: defaultLogCfg}
 			if configValue != nil {
-				parsed, err := dmesg.ParseConfig(configValue, db)
+				parsed, err := dmesg.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
 
 				parsed.Log.SeekInfoSyncer = func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-					if err := query_log_state.InsertLogFileSeekInfo(ctx, db, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
+					if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 						log.Logger.Errorw("failed to sync seek info", "error", err)
 					}
 				}
@@ -574,7 +584,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ThresholdRunningPIDs:          fd.DefaultThresholdRunningPIDs,
 			}
 			if configValue != nil {
-				parsed, err := fd.ParseConfig(configValue, db)
+				parsed, err := fd.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -620,7 +630,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := memory.ParseConfig(configValue, db)
+				parsed, err := memory.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -634,7 +644,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case os_id.Name:
 			cfg := os.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := os.ParseConfig(configValue, db)
+				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -648,7 +658,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case power_supply_id.Name:
 			cfg := power_supply.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := power_supply.ParseConfig(configValue, db)
+				parsed, err := power_supply.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -659,7 +669,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case systemd_id.Name:
 			cfg := component_systemd.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := component_systemd.ParseConfig(configValue, db)
+				parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -677,7 +687,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case tailscale_id.Name:
 			cfg := tailscale.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := tailscale.ParseConfig(configValue, db)
+				parsed, err := tailscale.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -691,7 +701,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_info.Name:
 			cfg := nvidia_info.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_info.ParseConfig(configValue, db)
+				parsed, err := nvidia_info.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -705,7 +715,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_badenvs_id.Name:
 			cfg := nvidia_badenvs.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_badenvs.ParseConfig(configValue, db)
+				parsed, err := nvidia_badenvs.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -719,7 +729,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_error.Name:
 			cfg := nvidia_error.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_error.ParseConfig(configValue, db)
+				parsed, err := nvidia_error.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -734,7 +744,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
 			cfg := nvidia_error_xid.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_error_xid.ParseConfig(configValue, db)
+				parsed, err := nvidia_error_xid.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -752,7 +762,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_component_error_xid_sxid_id.Name:
 			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, db)
+				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -766,7 +776,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_hw_slowdown_id.Name:
 			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, db)
+				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -780,7 +790,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_clock_speed_id.Name:
 			cfg := nvidia_clock_speed.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_clock_speed.ParseConfig(configValue, db)
+				parsed, err := nvidia_clock_speed.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -794,7 +804,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_ecc_id.Name:
 			cfg := nvidia_ecc.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_ecc.ParseConfig(configValue, db)
+				parsed, err := nvidia_ecc.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -808,7 +818,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_memory.Name:
 			cfg := nvidia_memory.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_memory.ParseConfig(configValue, db)
+				parsed, err := nvidia_memory.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -822,7 +832,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_gpm.Name:
 			cfg := nvidia_gpm.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_gpm.ParseConfig(configValue, db)
+				parsed, err := nvidia_gpm.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -836,7 +846,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_nvlink.Name:
 			cfg := nvidia_nvlink.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_nvlink.ParseConfig(configValue, db)
+				parsed, err := nvidia_nvlink.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -850,7 +860,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_power_id.Name:
 			cfg := nvidia_power.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_power.ParseConfig(configValue, db)
+				parsed, err := nvidia_power.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -864,7 +874,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_temperature.Name:
 			cfg := nvidia_temperature.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_temperature.ParseConfig(configValue, db)
+				parsed, err := nvidia_temperature.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -878,7 +888,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_utilization.Name:
 			cfg := nvidia_utilization.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_utilization.ParseConfig(configValue, db)
+				parsed, err := nvidia_utilization.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -892,7 +902,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_processes.Name:
 			cfg := nvidia_processes.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_processes.ParseConfig(configValue, db)
+				parsed, err := nvidia_processes.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -906,7 +916,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_remapped_rows.Name:
 			cfg := nvidia_remapped_rows.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_remapped_rows.ParseConfig(configValue, db)
+				parsed, err := nvidia_remapped_rows.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -920,7 +930,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_fabric_manager.Name:
 			cfg := nvidia_fabric_manager.Config{Query: defaultQueryCfg, Log: nvidia_fabric_manager.DefaultLogConfig()}
 			if configValue != nil {
-				parsed, err := nvidia_fabric_manager.ParseConfig(configValue, db)
+				parsed, err := nvidia_fabric_manager.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -938,7 +948,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_gsp_firmware_mode_id.Name:
 			cfg := nvidia_gsp_firmware_mode.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_gsp_firmware_mode.ParseConfig(configValue, db)
+				parsed, err := nvidia_gsp_firmware_mode.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -954,7 +964,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				Query: defaultQueryCfg,
 			}
 			if configValue != nil {
-				parsed, err := nvidia_infiniband.ParseConfig(configValue, db)
+				parsed, err := nvidia_infiniband.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -968,7 +978,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_peermem_id.Name:
 			cfg := nvidia_peermem.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_peermem.ParseConfig(configValue, db)
+				parsed, err := nvidia_peermem.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -982,7 +992,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_persistence_mode_id.Name:
 			cfg := nvidia_persistence_mode.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_persistence_mode.ParseConfig(configValue, db)
+				parsed, err := nvidia_persistence_mode.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -996,7 +1006,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_nccl_id.Name:
 			cfg := nvidia_nccl.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := nvidia_nccl.ParseConfig(configValue, db)
+				parsed, err := nvidia_nccl.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1010,7 +1020,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case containerd_pod_id.Name:
 			cfg := containerd_pod.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := containerd_pod.ParseConfig(configValue, db)
+				parsed, err := containerd_pod.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1024,7 +1034,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case docker_container_id.Name:
 			cfg := docker_container.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := docker_container.ParseConfig(configValue, db)
+				parsed, err := docker_container.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1038,7 +1048,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case k8s_pod_id.Name:
 			cfg := k8s_pod.Config{Query: defaultQueryCfg}
 			if configValue != nil {
-				parsed, err := k8s_pod.ParseConfig(configValue, db)
+				parsed, err := k8s_pod.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1055,7 +1065,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
 			}
 			if configValue != nil {
-				parsed, err := network_latency.ParseConfig(configValue, db)
+				parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1142,10 +1152,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					ticker.Reset(config.RetentionPeriod.Duration)
 				}
 
-				if err := state.Compact(ctx, db); err != nil {
+				if err := state.Compact(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to compact state database", "error", err)
 				}
-				if err := state.RecordMetrics(ctx, db); err != nil {
+				if err := state.RecordMetrics(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to record metrics", "error", err)
 				}
 			}
@@ -1175,7 +1185,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
 			if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
 				log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-				if err := prov.RegisterCollectors(promReg, db, components_metrics_state.DefaultTableName); err != nil {
+				if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
 					return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
 				}
 			} else {
@@ -1205,12 +1215,12 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	uid, err := state.CreateMachineIDIfNotExist(ctx, db, cliUID)
+	uid, err := state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create machine uid: %w", err)
 	}
 	s.uid = uid
-	if err = state.UpdateComponents(ctx, db, uid, strings.Join(componentNames, ",")); err != nil {
+	if err = state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
 		return nil, fmt.Errorf("failed to update components: %w", err)
 	}
 
@@ -1318,7 +1328,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					if cc, exists := lepconfig.DefaultContainerdComponent(ctx); exists {
 						ccfg := containerd_pod.Config{Query: defaultQueryCfg}
 						if cc != nil {
-							parsed, err := containerd_pod.ParseConfig(cc, db)
+							parsed, err := containerd_pod.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {
 								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
 								continue
@@ -1335,7 +1345,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
 						ccfg := docker_container.Config{Query: defaultQueryCfg}
 						if cc != nil {
-							parsed, err := docker_container.ParseConfig(cc, db)
+							parsed, err := docker_container.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {
 								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
 								continue
@@ -1352,7 +1362,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
 						if cc != nil {
-							parsed, err := k8s_pod.ParseConfig(cc, db)
+							parsed, err := k8s_pod.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {
 								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
 								continue
@@ -1387,7 +1397,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					if orig, ok := componentsToAdd[i].(interface{ Unwrap() interface{} }); ok {
 						if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
 							log.Logger.Debugw("registering prometheus collectors", "component", componentsToAdd[i].Name())
-							if err := prov.RegisterCollectors(promReg, db, components_metrics_state.DefaultTableName); err != nil {
+							if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
 								log.Logger.Errorw("failed to register metrics for component", "component", componentsToAdd[i].Name(), "error", err)
 							}
 						} else {
@@ -1403,7 +1413,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				for _, c := range componentsToAdd {
 					newComponentNames = append(newComponentNames, c.Name())
 				}
-				if err = state.UpdateComponents(ctx, db, s.uid, strings.Join(newComponentNames, ",")); err != nil {
+				if err = state.UpdateComponents(ctx, dbRW, s.uid, strings.Join(newComponentNames, ",")); err != nil {
 					log.Logger.Errorw("failed to update components", "error", err)
 				}
 
@@ -1414,7 +1424,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}()
 	}
 
-	go s.updateToken(ctx, db, uid, endpoint)
+	go s.updateToken(ctx, dbRW, uid, endpoint)
 
 	go func() {
 		srv := &http.Server{
@@ -1457,7 +1467,17 @@ func (s *Server) Stop() {
 			log.Logger.Errorf("failed to close plugin %v: %v", name, err)
 		}
 	}
-	log.Logger.Debugw("closed db", "error", s.db.Close())
+
+	if cerr := s.dbRW.Close(); cerr != nil {
+		log.Logger.Debugw("failed to close read-write db", "error", cerr)
+	} else {
+		log.Logger.Debugw("successfully closed read-write db")
+	}
+	if cerr := s.dbRO.Close(); cerr != nil {
+		log.Logger.Debugw("failed to close read-only db", "error", cerr)
+	} else {
+		log.Logger.Debugw("successfully closed read-only db")
+	}
 
 	if s.nvidiaComponentsExist {
 		serr := nvidia_query_nvml.DefaultInstance().Shutdown()

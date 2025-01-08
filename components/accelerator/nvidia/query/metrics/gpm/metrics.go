@@ -131,16 +131,16 @@ var (
 	gpuFp16UtilPercentAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	gpuSMOccupancyPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_sm_occupancy_percent")
-	gpuIntUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_int_util_percent")
-	gpuAnyTensorUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_any_tensor_util_percent")
-	gpuDFMATensorUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_dfma_tensor_util_percent")
-	gpuHMMATensorUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_hmma_tensor_util_percent")
-	gpuIMMATensorUtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_imma_tensor_util_percent")
-	gpuFp64UtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_fp64_util_percent")
-	gpuFp32UtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_fp32_util_percent")
-	gpuFp16UtilPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_gpu_fp16_util_percent")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	gpuSMOccupancyPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_sm_occupancy_percent")
+	gpuIntUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_int_util_percent")
+	gpuAnyTensorUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_any_tensor_util_percent")
+	gpuDFMATensorUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_dfma_tensor_util_percent")
+	gpuHMMATensorUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_hmma_tensor_util_percent")
+	gpuIMMATensorUtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_imma_tensor_util_percent")
+	gpuFp64UtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_fp64_util_percent")
+	gpuFp32UtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_fp32_util_percent")
+	gpuFp16UtilPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_gpu_fp16_util_percent")
 }
 
 func ReadGPUSMOccupancyPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -284,8 +284,8 @@ func SetGPUUtilPercent(ctx context.Context, metricID nvml.GpmMetricId, gpuID str
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

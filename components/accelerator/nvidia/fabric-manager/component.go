@@ -21,7 +21,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Log.Query.State.DB)
+	nvidia_query.SetDefaultPoller(cfg.Log.Query.State.DBRW, cfg.Log.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	if err := cfg.Log.Validate(); err != nil {

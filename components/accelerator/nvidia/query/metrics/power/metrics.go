@@ -97,10 +97,10 @@ var (
 	)
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	currentUsageMilliWattsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_current_usage_milli_watts")
-	enforcedLimitMilliWattsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_enforced_limit_milli_watts")
-	usedPercentAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_used_percent")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	currentUsageMilliWattsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_current_usage_milli_watts")
+	enforcedLimitMilliWattsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_enforced_limit_milli_watts")
+	usedPercentAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_used_percent")
 }
 
 func ReadCurrentUsageMilliWatts(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -208,8 +208,8 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err

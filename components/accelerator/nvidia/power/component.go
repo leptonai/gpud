@@ -21,7 +21,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DB)
+	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_power_id.Name)
 
 	return &component{
@@ -149,7 +149,7 @@ func (c *component) Close() error {
 
 var _ components.PromRegisterer = (*component)(nil)
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, db *sql.DB, tableName string) error {
+func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return nvidia_query_metrics_power.Register(reg, db, tableName)
+	return nvidia_query_metrics_power.Register(reg, dbRW, dbRO, tableName)
 }

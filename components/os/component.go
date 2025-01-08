@@ -85,7 +85,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	rebootEvents, err := state.GetRebootEvents(ctx, c.cfg.Query.State.DB, since)
+	rebootEvents, err := state.GetRebootEvents(ctx, c.cfg.Query.State.DBRW, since)
 	if err != nil {
 		return nil, err
 	}

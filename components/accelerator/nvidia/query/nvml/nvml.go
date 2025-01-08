@@ -63,7 +63,10 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
-	db *sql.DB
+	// writable database instance
+	dbRW *sql.DB
+	// read-only database instance
+	dbRO *sql.DB
 
 	clockEventsSupported    bool
 	clockEventsHWSlowdownCh chan *ClockEvents
@@ -235,7 +238,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
 
-		db: op.db,
+		dbRW: op.dbRW,
 
 		clockEventsSupported:    clockEventsSupported,
 		clockEventsHWSlowdownCh: make(chan *ClockEvents, 100),
@@ -271,7 +274,7 @@ func (inst *instance) Start() error {
 	log.Logger.Debugw("creating xid sxid event history table")
 	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
 	defer cancel()
-	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.db); err != nil {
+	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.dbRW); err != nil {
 		return err
 	}
 

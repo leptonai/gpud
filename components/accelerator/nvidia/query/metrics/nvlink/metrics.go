@@ -109,13 +109,13 @@ var (
 	rxBytesAverager = components_metrics.NewNoOpAverager()
 )
 
-func InitAveragers(db *sql.DB, tableName string) {
-	featureEnabledAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_feature_enabled")
-	replayErrorsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_replay_errors")
-	recoveryErrorsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_recovery_errors")
-	crcErrorsAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_crc_errors")
-	rxBytesAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_rx_bytes")
-	txBytesAverager = components_metrics.NewAverager(db, tableName, SubSystem+"_tx_bytes")
+func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
+	featureEnabledAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_feature_enabled")
+	replayErrorsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_replay_errors")
+	recoveryErrorsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_recovery_errors")
+	crcErrorsAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_crc_errors")
+	rxBytesAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_rx_bytes")
+	txBytesAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_tx_bytes")
 }
 
 func ReadFeatureEnabled(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
@@ -266,8 +266,8 @@ func SetRxBytes(ctx context.Context, gpuID string, bytes float64, currentTime ti
 	return nil
 }
 
-func Register(reg *prometheus.Registry, db *sql.DB, tableName string) error {
-	InitAveragers(db, tableName)
+func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
+	InitAveragers(dbRW, dbRO, tableName)
 
 	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
 		return err
