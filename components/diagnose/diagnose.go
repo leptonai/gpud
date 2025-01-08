@@ -10,7 +10,7 @@ import (
 	"time"
 
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/dmesg"
+	"github.com/leptonai/gpud/components/common/dmesg"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/pkg/host"

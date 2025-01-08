@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	common_dmesg "github.com/leptonai/gpud/components/common/dmesg"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
-	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
@@ -25,6 +25,9 @@ func New(ctx context.Context, cfg Config) components.Component {
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, cpu_id.Name)
+
+	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
 
 	return &component{
 		rootCtx: ctx,

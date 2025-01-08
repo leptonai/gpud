@@ -10,7 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/components/dmesg"
+	"github.com/leptonai/gpud/components/common/dmesg"
 	"github.com/leptonai/gpud/log"
 )
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components/dmesg"
+	"github.com/leptonai/gpud/components/common/dmesg"
 	query_log "github.com/leptonai/gpud/components/query/log"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 

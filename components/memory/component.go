@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/dmesg"
+	common_dmesg "github.com/leptonai/gpud/components/common/dmesg"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,6 +24,9 @@ func New(ctx context.Context, cfg Config) components.Component {
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, memory_id.Name)
+
+	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -92,36 +94,13 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgEvents, err := dmesgComponent.Events(ctx, since)
+	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
 	}
 
 	events := make([]components.Event, 0)
-	for _, ev := range dmesgEvents {
-		v, ok := ev.ExtraInfo[dmesg.EventKeyDmesgMatchedLogItem]
-		if !ok {
-			continue
-		}
-		item, err := query_log.ParseItemJSON([]byte(v))
-		if err != nil || item.Matched == nil {
-			log.Logger.Errorw("failed to parse log item or none matched", "error", err)
-			continue
-		}
-
+	for _, item := range logItems {
 		name := ""
 		included := false
 		for _, owner := range item.Matched.OwnerReferences {
@@ -136,11 +115,11 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 
 		events = append(events, components.Event{
-			Time: ev.Time,
+			Time: item.Time,
 			Name: name,
 			Type: components.EventTypeWarning,
 			ExtraInfo: map[string]string{
-				EventKeyUnixSeconds: strconv.FormatInt(ev.Time.Unix(), 10),
+				EventKeyUnixSeconds: strconv.FormatInt(item.Time.Unix(), 10),
 				EventKeyLogLine:     item.Line,
 			},
 		})

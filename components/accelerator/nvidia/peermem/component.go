@@ -11,7 +11,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/dmesg"
+	common_dmesg "github.com/leptonai/gpud/components/common/dmesg"
+
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
@@ -22,6 +23,9 @@ func New(ctx context.Context, cfg Config) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_peermem_id.Name)
+
+	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
 
 	return &component{
 		rootCtx: ctx,
