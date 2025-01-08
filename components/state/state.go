@@ -36,6 +36,22 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
+// Reads the machine ID from the database.
+// Returns an empty string and sql.ErrNoRows if the machine ID is not found.
+func GetMachineID(ctx context.Context, dbRO *sql.DB) (string, error) {
+	query := fmt.Sprintf(`
+SELECT %s FROM %s
+LIMIT 1;
+`,
+		ColumnMachineID,
+		TableNameMachineMetadata,
+	)
+
+	var machineID string
+	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID)
+	return machineID, err
+}
+
 func CreateMachineIDIfNotExist(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, providedUID string) (string, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s FROM %s

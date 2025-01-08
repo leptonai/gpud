@@ -33,4 +33,12 @@ func TestOpenMemory(t *testing.T) {
 		t.Fatal("failed to create machine id:", err)
 	}
 	t.Log(id)
+
+	id2, err := GetMachineID(ctx, dbRW)
+	if err != nil {
+		t.Fatal("failed to get machine id:", err)
+	}
+	if id2 != id {
+		t.Fatalf("machine id mismatch: %s != %s", id2, id)
+	}
 }
