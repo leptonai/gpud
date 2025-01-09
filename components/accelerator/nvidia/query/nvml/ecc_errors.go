@@ -22,6 +22,10 @@ type ECCErrors struct {
 	// Volatile counts are reset each time the driver loads.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
 	Volatile AllECCErrorCounts `json:"volatile"`
+
+	// Supported is true if the ECC errors are supported by the device.
+	// Set to true if any of the ECC error counts are supported.
+	Supported bool `json:"supported"`
 }
 
 func (es ECCErrors) JSON() ([]byte, error) {
@@ -129,6 +133,7 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		UUID:      uuid,
 		Aggregate: AllECCErrorCounts{},
 		Volatile:  AllECCErrorCounts{},
+		Supported: true,
 	}
 
 	var ret nvml.Return
@@ -141,12 +146,15 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.AGGREGATE_ECC,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
+
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
@@ -158,12 +166,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.AGGREGATE_ECC,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
@@ -174,12 +183,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.MEMORY_ERROR_TYPE_CORRECTED,
 		nvml.VOLATILE_ECC,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
@@ -191,12 +201,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.MEMORY_ERROR_TYPE_UNCORRECTED,
 		nvml.VOLATILE_ECC,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	if !eccModeEnabledCurrent {
@@ -216,12 +227,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_L1_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -231,12 +243,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_L1_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -246,12 +259,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_L2_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -261,12 +275,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_L2_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -276,12 +291,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_DRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -291,12 +307,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_DRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -306,12 +323,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_SRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -321,12 +339,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_SRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -336,12 +355,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 	// "Requires ECC Mode to be enabled."
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g30900e951fe44f1f952f0e6c89b0e2c1
@@ -350,12 +370,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -365,12 +386,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -380,12 +402,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -395,12 +418,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_SHM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -410,12 +434,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.AGGREGATE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_SHM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(aggregate, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(aggregate, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(aggregate, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(aggregate, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -425,12 +450,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_L1_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -440,12 +466,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_L1_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -470,12 +497,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_L2_CACHE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -485,12 +513,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_DRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -500,12 +529,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_DRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -515,12 +545,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_SRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -530,12 +561,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_SRAM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -545,12 +577,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -560,12 +593,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_DEVICE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -575,12 +609,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -590,12 +625,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_MEMORY,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -605,12 +641,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_SHM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -620,12 +657,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_TEXTURE_SHM,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -635,12 +673,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_REGISTER_FILE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, corrected) get register file ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, corrected) get register file ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, corrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, corrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	// "Requires ECC Mode to be enabled."
@@ -650,12 +689,13 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_REGISTER_FILE,
 	)
+	if IsNotSupportError(ret) {
+		log.Logger.Debugw("(volatile, uncorrected) get register file ecc errors not supported", "error", nvml.ErrorString(ret))
+		result.Supported = false
+		return result, nil
+	}
 	if ret != nvml.SUCCESS {
-		if ret == nvml.ERROR_NOT_SUPPORTED {
-			log.Logger.Debugw("(volatile, uncorrected) get register file ecc errors not supported", "error", nvml.ErrorString(ret))
-		} else {
-			return result, fmt.Errorf("(volatile, uncorrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
-		}
+		return result, fmt.Errorf("(volatile, uncorrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
 	}
 
 	return result, nil
