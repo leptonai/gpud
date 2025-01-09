@@ -64,6 +64,8 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	if IsNotSupportError(ret) {
 		return false, nil
 	}
+
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not get current clock events: %v", nvml.ErrorString(ret))
 	}
@@ -132,6 +134,8 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 		clockEvents.Supported = false
 		return clockEvents, nil
 	}
+
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return clockEvents, fmt.Errorf("failed to get device clock event reasons: %v", nvml.ErrorString(ret))
 	}
