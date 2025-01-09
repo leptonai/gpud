@@ -21,17 +21,26 @@ type Utilization struct {
 	GPUUsedPercent uint32 `json:"gpu_used_percent"`
 	// Percent of time over the past sample period during which global (device) memory was being read or written.
 	MemoryUsedPercent uint32 `json:"memory_used_percent"`
+
+	// Supported is true if the utilization is supported by the device.
+	Supported bool `json:"supported"`
 }
 
 func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
 	util := Utilization{
-		UUID: uuid,
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g540824faa6cef45500e0d1dc2f50b321
 	rates, ret := dev.GetUtilizationRates()
-	if ret != nvml.SUCCESS {
-		return Utilization{}, fmt.Errorf("failed to get device utilization rates: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		util.Supported = false
+		return util, nil
+	}
+
+	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return util, fmt.Errorf("failed to get device utilization rates: %v", nvml.ErrorString(ret))
 	}
 	util.GPUUsedPercent = rates.Gpu
 	util.MemoryUsedPercent = rates.Memory

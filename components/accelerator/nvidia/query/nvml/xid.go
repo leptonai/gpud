@@ -96,7 +96,7 @@ func (inst *instance) pollXidEvents() {
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlEvents.html#group__nvmlEvents
 		e, ret := inst.xidEventSet.Wait(5000)
 
-		if ret == nvml.ERROR_NOT_SUPPORTED {
+		if IsNotSupportError(ret) {
 			log.Logger.Warnw("xid events not supported -- skipping", "error", nvml.ErrorString(ret))
 			return
 		}
@@ -142,7 +142,7 @@ func (inst *instance) pollXidEvents() {
 		var deviceUUID string
 		var deviceUUIDErr error
 		deviceUUID, ret = e.Device.GetUUID()
-		if ret != nvml.SUCCESS {
+		if IsNotSupportError(ret) {
 			// "If we cannot reliably determine the device UUID, we mark all devices as unhealthy."
 			// ref. nvidia/k8s-device-plugin/internal/rm/health.go
 			deviceUUIDErr = fmt.Errorf("failed to get device UUID: %v", nvml.ErrorString(ret))

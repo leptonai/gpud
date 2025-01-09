@@ -34,17 +34,26 @@ type RemappedRows struct {
 	// A pending remapping won't affect future work on the GPU
 	// since error-containment and dynamic page blacklisting will take care of that.
 	RemappingFailed bool `json:"remapping_failed"`
+
+	// Supported is true if the remapped rows are supported by the device.
+	Supported bool `json:"supported"`
 }
 
 func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	remRws := RemappedRows{
-		UUID: uuid,
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g055e7c34f7f15b6ae9aac1dabd60870d
 	corrRows, uncRows, isPending, failureOccurred, ret := dev.GetRemappedRows()
-	if ret != nvml.SUCCESS {
-		return RemappedRows{}, fmt.Errorf("failed to get device remapped rows: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		remRws.Supported = false
+		return remRws, nil
+	}
+
+	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return remRws, fmt.Errorf("failed to get device remapped rows: %v", nvml.ErrorString(ret))
 	}
 	remRws.RemappedDueToCorrectableErrors = corrRows
 	remRws.RemappedDueToUncorrectableErrors = uncRows
