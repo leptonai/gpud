@@ -57,6 +57,9 @@ func (ev *GPMEvent) YAML() ([]byte, error) {
 
 func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
+	if IsNotSupportError(ret) {
+		return false, nil
+	}
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
 	}
@@ -96,6 +99,10 @@ func (inst *instance) pollGPMEvents() {
 		}
 
 		mss, err := inst.collectGPMMetrics()
+		if len(mss) == 0 {
+			continue
+		}
+
 		select {
 		case <-inst.rootCtx.Done():
 			return
@@ -180,6 +187,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 // Returns the map from the metrics ID to the value for this device.
 // Don't call these in parallel for multiple devices.
 // It "SIGSEGV: segmentation violation" in cgo execution.
+// Returns nil if it's not supported.
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/examples/gpm-metrics/main.go
 func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
@@ -190,6 +198,10 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.Gpm
 	}
 
 	sample1, ret := nvml.GpmSampleAlloc()
+	if IsNotSupportError(ret) {
+		return nil, nil
+	}
+
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("could not allocate sample: %v", nvml.ErrorString(ret))
 	}
