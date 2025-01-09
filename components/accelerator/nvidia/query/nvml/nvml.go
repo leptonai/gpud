@@ -473,18 +473,18 @@ func (inst *instance) Get() (*Output, error) {
 		var err error
 		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		if inst.clockEventsSupported {
 			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
 			if err != nil {
-				joinedErrs = append(joinedErrs, err)
+				joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 			}
 
 			// overwrite timestamp to the nearest minute
@@ -495,52 +495,52 @@ func (inst *instance) Get() (*Output, error) {
 
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.Memory, err = GetMemory(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.Power, err = GetPower(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
 		if err != nil {
-			joinedErrs = append(joinedErrs, err)
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 	}
 
