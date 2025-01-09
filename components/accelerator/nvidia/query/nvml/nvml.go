@@ -449,6 +449,7 @@ func (inst *instance) Get() (*Output, error) {
 	// so we truncate the timestamp to the nearest minute
 	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
+	joinedErrs := make([]error, 0)
 	for _, devInfo := range inst.devices {
 		// prepare/copy the static device info
 		latestInfo := &DeviceInfo{
@@ -470,21 +471,20 @@ func (inst *instance) Get() (*Output, error) {
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
 		var err error
-
 		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		if inst.clockEventsSupported {
 			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
 			if err != nil {
-				return st, err
+				joinedErrs = append(joinedErrs, err)
 			}
 
 			// overwrite timestamp to the nearest minute
@@ -495,52 +495,52 @@ func (inst *instance) Get() (*Output, error) {
 
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.Memory, err = GetMemory(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.Power, err = GetPower(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 
 		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
 		if err != nil {
-			return st, err
+			joinedErrs = append(joinedErrs, err)
 		}
 	}
 
@@ -548,7 +548,11 @@ func (inst *instance) Get() (*Output, error) {
 		return st.DeviceInfos[i].UUID < st.DeviceInfos[j].UUID
 	})
 
-	return st, nil
+	var joinedErr error
+	if len(joinedErrs) > 0 {
+		joinedErr = errors.Join(joinedErrs...)
+	}
+	return st, joinedErr
 }
 
 var (
