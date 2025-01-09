@@ -26,6 +26,9 @@ type Memory struct {
 	FreeHumanized string `json:"free_humanized"`
 
 	UsedPercent string `json:"used_percent"`
+
+	// Supported is true if the memory is supported by the device.
+	Supported bool `json:"supported"`
 }
 
 func (mem Memory) GetUsedPercent() (float64, error) {
@@ -34,26 +37,35 @@ func (mem Memory) GetUsedPercent() (float64, error) {
 
 func GetMemory(uuid string, dev device.Device) (Memory, error) {
 	mem := Memory{
-		UUID: uuid,
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlMemory__v2__t.html#structnvmlMemory__v2__t
-	infoV2, ret := dev.GetMemoryInfo_v2()
-	if ret != nvml.SUCCESS {
-		// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlMemory__t.html
-		info, ret := dev.GetMemoryInfo()
-		if ret != nvml.SUCCESS {
-			return Memory{}, fmt.Errorf("failed to get device memory info: %v", nvml.ErrorString(ret))
-		}
-		mem.TotalBytes = info.Total
-		mem.FreeBytes = info.Free
-		mem.UsedBytes = info.Used
-	} else {
+	infoV2, retV2 := dev.GetMemoryInfo_v2()
+	if retV2 == nvml.SUCCESS {
 		mem.TotalBytes = infoV2.Total
 		mem.ReservedBytes = infoV2.Reserved
 		mem.FreeBytes = infoV2.Free
 		mem.UsedBytes = infoV2.Used
+	} else { // fallback to old API
+		// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlMemory__t.html
+		infoV1, retV1 := dev.GetMemoryInfo()
+		if retV1 == nvml.SUCCESS {
+			mem.TotalBytes = infoV1.Total
+			mem.FreeBytes = infoV1.Free
+			mem.UsedBytes = infoV1.Used
+		} else {
+			if IsNotSupportError(retV1) {
+				mem.Supported = false
+				return mem, nil
+			}
+
+			// v2 API failed, v1 API failed
+			return mem, fmt.Errorf("failed to get device memory info: %v (v2 API error %v)", nvml.ErrorString(retV1), nvml.ErrorString(retV2))
+		}
 	}
+
 	mem.TotalHumanized = humanize.Bytes(mem.TotalBytes)
 	mem.ReservedHumanized = humanize.Bytes(mem.ReservedBytes)
 	mem.FreeHumanized = humanize.Bytes(mem.FreeBytes)
