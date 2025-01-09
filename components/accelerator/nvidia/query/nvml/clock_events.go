@@ -61,7 +61,7 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	_, ret := dev.GetCurrentClocksEventReasons()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
+	if IsNotSupportError(ret) {
 		return false, nil
 	}
 	if ret != nvml.SUCCESS {
@@ -97,6 +97,9 @@ type ClockEvents struct {
 	HWSlowdownThermal bool `json:"hw_thermal_slowdown"`
 	// Set true if the HW Power Brake Slowdown reason due to the external power brake assertion is active.
 	HWSlowdownPowerBrake bool `json:"hw_slowdown_power_brake"`
+
+	// Supported is true if the clock events are supported by the device.
+	Supported bool `json:"supported"`
 }
 
 func (evs *ClockEvents) JSON() ([]byte, error) {
@@ -115,8 +118,9 @@ func (evs *ClockEvents) YAML() ([]byte, error) {
 
 func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	clockEvents := ClockEvents{
-		Time: metav1.Time{Time: time.Now().UTC()},
-		UUID: uuid,
+		Time:      metav1.Time{Time: time.Now().UTC()},
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	// clock events are supported in versions 535 and above
@@ -124,6 +128,10 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	reasons, ret := dev.GetCurrentClocksEventReasons()
+	if IsNotSupportError(ret) {
+		clockEvents.Supported = false
+		return clockEvents, nil
+	}
 	if ret != nvml.SUCCESS {
 		return clockEvents, fmt.Errorf("failed to get device clock event reasons: %v", nvml.ErrorString(ret))
 	}
