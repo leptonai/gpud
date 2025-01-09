@@ -15,6 +15,9 @@ type NVLink struct {
 
 	// States is the list of nvlink states.
 	States NVLinkStates `json:"states"`
+
+	// Supported is true if the NVLink is supported by the device.
+	Supported bool `json:"supported"`
 }
 
 type NVLinkStates []NVLinkState
@@ -90,13 +93,19 @@ type NVLinkState struct {
 // Queries the nvlink information.
 func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 	nvlink := NVLink{
-		UUID: uuid,
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	for link := 0; link < int(nvml.NVLINK_MAX_LINKS); link++ {
 		// may fail at the beginning
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1g774a9e6cb2f4897701cbc01c5a0a1f3a
 		state, ret := nvml.DeviceGetNvLinkState(dev, link)
+		if IsNotSupportError(ret) {
+			nvlink.Supported = false
+			break
+		}
+
 		if ret != nvml.SUCCESS {
 			log.Logger.Debugw("failed get nvlink state -- retrying", "link", link, "error", nvml.ErrorString(ret))
 			continue
