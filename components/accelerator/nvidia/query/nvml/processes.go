@@ -27,6 +27,12 @@ type Processes struct {
 
 	// A list of running processes.
 	RunningProcesses []Process `json:"running_processes"`
+
+	// GetComputeRunningProcessesSupported is true if the device supports the getComputeRunningProcesses API.
+	GetComputeRunningProcessesSupported bool `json:"get_compute_running_processes_supported"`
+
+	// GetProcessUtilizationSupported is true if the device supports the getProcessUtilization API.
+	GetProcessUtilizationSupported bool `json:"get_process_utilization_supported"`
 }
 
 type Process struct {
@@ -60,13 +66,20 @@ func (procs *Processes) YAML() ([]byte, error) {
 
 func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 	procs := Processes{
-		UUID: uuid,
+		UUID:                                uuid,
+		GetComputeRunningProcessesSupported: true,
+		GetProcessUtilizationSupported:      true,
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g34afcba3d32066db223265aa022a6b80
 	computeProcs, ret := dev.GetComputeRunningProcesses()
-	if ret != nvml.SUCCESS {
-		return Processes{}, fmt.Errorf("failed to get device compute processes: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		procs.GetComputeRunningProcessesSupported = false
+		return procs, nil
+	}
+
+	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return procs, fmt.Errorf("failed to get device compute processes: %v", nvml.ErrorString(ret))
 	}
 
 	for _, proc := range computeProcs {
@@ -93,14 +106,19 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gb0ea5236f5e69e63bf53684a11c233bd
 		memUtil := uint32(0)
 		utils, ret := dev.GetProcessUtilization(uint64(proc.Pid))
-		if ret != nvml.SUCCESS {
+		if IsNotSupportError(ret) {
+			procs.GetProcessUtilizationSupported = false
+			return procs, nil
+		}
+
+		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 			es := nvml.ErrorString(ret)
 
 			// e.g., Not Found
 			if strings.Contains(strings.ToLower(es), "not found") {
 				continue
 			}
-			return Processes{}, fmt.Errorf("failed to get process %d utilization: %v", proc.Pid, es)
+			return procs, fmt.Errorf("failed to get process %d utilization: %v", proc.Pid, es)
 		}
 		if len(utils) > 0 {
 			// sort by last seen timestamp, so that first is the latest
@@ -118,7 +136,7 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 			if strings.Contains(strings.ToLower(err.Error()), "not found") {
 				continue
 			}
-			return Processes{}, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
+			return procs, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
 		}
 		isZombie := false
 		for _, s := range status {
@@ -130,7 +148,7 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 
 		envs, err := procObject.Environ()
 		if err != nil {
-			return Processes{}, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)
+			return procs, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)
 		}
 
 		badEnvVars := make(map[string]string)

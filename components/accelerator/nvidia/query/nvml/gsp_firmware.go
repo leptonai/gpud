@@ -22,8 +22,15 @@ func GetGSPFirmwareMode(uuid string, dev device.Device) (GSPFirmwareMode, error)
 	}
 
 	gspEnabled, supported, ret := dev.GetGspFirmwareMode()
+	if IsNotSupportError(ret) {
+		mode.Enabled = false
+		mode.Supported = false
+		return mode, nil
+	}
+
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
-		return GSPFirmwareMode{}, fmt.Errorf("failed to get gsp firmware mode: %v", nvml.ErrorString(ret))
+		return mode, fmt.Errorf("failed to get gsp firmware mode: %v", nvml.ErrorString(ret))
 	}
 	mode.Enabled = gspEnabled
 	mode.Supported = supported

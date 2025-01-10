@@ -17,6 +17,10 @@ type Power struct {
 	ManagementLimitMilliWatts uint32 `json:"management_limit_milli_watts"`
 
 	UsedPercent string `json:"used_percent"`
+
+	GetPowerUsageSupported           bool `json:"get_power_usage_supported"`
+	GetPowerLimitSupported           bool `json:"get_power_limit_supported"`
+	GetPowerManagementLimitSupported bool `json:"get_power_management_limit_supported"`
 }
 
 func (power Power) GetUsedPercent() (float64, error) {
@@ -30,22 +34,28 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7ef7dff0ff14238d08a19ad7fb23fc87
 	powerUsage, ret := dev.GetPowerUsage()
-	if ret != nvml.SUCCESS {
-		return Power{}, fmt.Errorf("failed to get device power usage: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		power.GetPowerUsageSupported = false
+	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return power, fmt.Errorf("failed to get device power usage: %v", nvml.ErrorString(ret))
 	}
 	power.UsageMilliWatts = powerUsage
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g263b5bf552d5ec7fcd29a088264d10ad
 	enforcedPowerLimit, ret := dev.GetEnforcedPowerLimit()
-	if ret != nvml.SUCCESS {
-		return Power{}, fmt.Errorf("failed to get device power limit: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		power.GetPowerLimitSupported = false
+	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return power, fmt.Errorf("failed to get device power limit: %v", nvml.ErrorString(ret))
 	}
 	power.EnforcedLimitMilliWatts = enforcedPowerLimit
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf754f109beca3a4a8c8c1cd650d7d66c
 	managementPowerLimit, ret := dev.GetPowerManagementLimit()
-	if ret != nvml.SUCCESS {
-		return Power{}, fmt.Errorf("failed to get device power management limit: %v", nvml.ErrorString(ret))
+	if IsNotSupportError(ret) {
+		power.GetPowerManagementLimitSupported = false
+	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+		return power, fmt.Errorf("failed to get device power management limit: %v", nvml.ErrorString(ret))
 	}
 	power.ManagementLimitMilliWatts = managementPowerLimit
 

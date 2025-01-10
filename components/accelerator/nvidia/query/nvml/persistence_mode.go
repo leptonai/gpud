@@ -25,17 +25,26 @@ import (
 type PersistenceMode struct {
 	UUID    string `json:"uuid"`
 	Enabled bool   `json:"enabled"`
+	// Supported is true if the persistence mode is supported by the device.
+	Supported bool `json:"supported"`
 }
 
 func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error) {
 	mode := PersistenceMode{
-		UUID: uuid,
+		UUID:      uuid,
+		Supported: true,
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g1224ad7b15d7407bebfff034ec094c6b
 	pm, ret := dev.GetPersistenceMode()
+	if IsNotSupportError(ret) {
+		mode.Supported = false
+		return mode, nil
+	}
+
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
-		return PersistenceMode{}, fmt.Errorf("failed to get device persistence mode: %v", nvml.ErrorString(ret))
+		return mode, fmt.Errorf("failed to get device persistence mode: %v", nvml.ErrorString(ret))
 	}
 	mode.Enabled = pm == nvml.FEATURE_ENABLED
 
