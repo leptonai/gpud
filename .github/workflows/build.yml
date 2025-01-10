@@ -11,10 +11,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        kernel_version: [ "5.15.0-1065-aws", "6.8.0-1011-aws" ]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -22,7 +18,7 @@ jobs:
       - name: Set up environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y linux-headers-${{ matrix.kernel_version }}
+          sudo apt-get install -y linux-headers-$(uname -r)
 
       - name: Build project
         run: |
@@ -31,5 +27,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gpud-${{ matrix.kernel_version }}
+          name: gpud
           path: bin/gpud
