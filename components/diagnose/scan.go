@@ -13,7 +13,7 @@ import (
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	"github.com/leptonai/gpud/components/common/dmesg"
+	common_dmesg "github.com/leptonai/gpud/components/common/dmesg"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
@@ -215,17 +215,18 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	println()
 
 	fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
-	defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
+	filters, err := common_dmesg.GetDefaultLogFilters(ctx)
 	if err != nil {
 		return err
 	}
+	defaultDmesgLogCfg := common_dmesg.GetDefaultLogConfig(ctx, filters)
 	matched, err := query_log_tail.Scan(
 		ctx,
 		query_log_tail.WithDedup(true),
-		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
+		query_log_tail.WithCommands(defaultDmesgLogCfg.Scan.Commands),
 		query_log_tail.WithLinesToTail(op.lines),
-		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
+		query_log_tail.WithSelectFilter(defaultDmesgLogCfg.SelectFilters...),
+		query_log_tail.WithExtractTime(defaultDmesgLogCfg.TimeParseFunc),
 		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
 			fmt.Println("line", string(line))

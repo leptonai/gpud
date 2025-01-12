@@ -55,11 +55,11 @@ func SetDefaultLogPoller(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) error 
 		return errors.New("dmesg log poller requires root privileges")
 	}
 
-	logFilters, err := getDefaultLogFilters(ctx)
+	logFilters, err := GetDefaultLogFilters(ctx)
 	if err != nil {
 		return err
 	}
-	logConfig := getDefaultLogConfig(ctx, logFilters)
+	logConfig := GetDefaultLogConfig(ctx, logFilters)
 
 	defaultLogPollerOnce.Do(func() {
 		defaultLogPoller, err = query_log.New(
@@ -168,7 +168,7 @@ func createProcessMatched(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) query
 	}
 }
 
-func getDefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
+func GetDefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
 	defaultFilters := DefaultDmesgFiltersForMemory()
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForCPU()...)
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForFileDescriptor()...)
@@ -189,7 +189,7 @@ func getDefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, erro
 	return defaultFilters, nil
 }
 
-func getDefaultLogConfig(ctx context.Context, logFilters []*query_log_common.Filter) query_log_config.Config {
+func GetDefaultLogConfig(ctx context.Context, logFilters []*query_log_common.Filter) query_log_config.Config {
 	if supported := checkDmesgSupportsSinceFlag(ctx); !supported {
 		// dmesg --time-format or --since not supported
 		// thus fallback to journalctl

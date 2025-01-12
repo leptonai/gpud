@@ -96,37 +96,20 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-
-	// tailScan fetches the latest output from the dmesg
-	// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-	// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-	dmesgTailResults, err := dmesgComponent.TailScan()
+	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
 	}
 
 	events := make([]components.Event, 0)
-	for _, logItem := range dmesgTailResults.TailScanMatched {
+	for _, logItem := range logItems {
 		if logItem.Error != nil {
 			continue
 		}
 		if logItem.Matched == nil {
 			continue
 		}
-		if logItem.Matched.Name != dmesg.EventFileDescriptorVFSFileMaxLimitReached {
+		if logItem.Matched.Name != common_dmesg.EventFileDescriptorVFSFileMaxLimitReached {
 			continue
 		}
 

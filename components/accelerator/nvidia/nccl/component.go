@@ -4,7 +4,6 @@ package nccl
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -63,39 +62,26 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
+	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
 	}
 
 	events := make([]components.Event, 0)
-	for i, logItem := range dmesgTailResults.TailScanMatched {
+	for _, logItem := range logItems {
 		if logItem.Error != nil {
 			continue
 		}
 		if logItem.Matched == nil {
 			continue
 		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNCCLSegfaultInLibnccl {
+		if logItem.Matched.Name != common_dmesg.EventNvidiaNCCLSegfaultInLibnccl {
 			continue
 		}
 
 		// "TailScanMatched" are sorted by the time from new to old
 		// thus keeping the first 30 latest, to prevent too many events
-		if i > 30 {
+		if len(events) > 30 {
 			break
 		}
 

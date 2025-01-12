@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +85,16 @@ func TestPollerTail(t *testing.T) {
 
 	cfg := query_log_config.Config{
 		File: f.Name(),
+		SelectFilters: []*query_log_common.Filter{
+			{
+				Name:      "error_filter",
+				Substring: ptr.To("error"),
+			},
+			{
+				Name:  "warning_filter",
+				Regex: ptr.To("warn.*"),
+			},
+		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -105,20 +116,23 @@ func TestPollerTail(t *testing.T) {
 
 	poller.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test")
 
-	t.Log("writing 1")
-	if _, err := f.WriteString("hello1\n"); err != nil {
-		t.Fatalf("failed to write to temp file: %v", err)
-	}
-	if ferr := f.Sync(); ferr != nil {
-		t.Fatalf("failed to sync temp file: %v", ferr)
+	// Write lines that should match and not match filters
+	t.Log("writing test lines")
+	testLines := []string{
+		"hello1\n",                  // Should not match
+		"error: something failed\n", // Should match error_filter
+		"warning: be careful\n",     // Should match warning_filter
+		"hello2\n",                  // Should not match
+		"another error occurred\n",  // Should match error_filter
 	}
 
-	t.Log("writing 2")
-	if _, err := f.WriteString("hello2\n"); err != nil {
-		t.Fatalf("failed to write to temp file: %v", err)
-	}
-	if ferr := f.Sync(); ferr != nil {
-		t.Fatalf("failed to sync temp file: %v", ferr)
+	for _, line := range testLines {
+		if _, err := f.WriteString(line); err != nil {
+			t.Fatalf("failed to write to temp file: %v", err)
+		}
+		if ferr := f.Sync(); ferr != nil {
+			t.Fatalf("failed to sync temp file: %v", ferr)
+		}
 	}
 
 	time.Sleep(10 * time.Second)
@@ -127,22 +141,52 @@ func TestPollerTail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get all items: %v", err)
 	}
-	for _, r := range allItems {
-		t.Log(r.Line)
+
+	// Verify only filtered lines are returned
+	expectedLines := []string{
+		"error: something failed",
+		"warning: be careful",
+		"another error occurred",
+	}
+
+	if len(allItems) != len(expectedLines) {
+		t.Fatalf("expected %d items, got %d", len(expectedLines), len(allItems))
+	}
+
+	for i, item := range allItems {
+		found := false
+		for _, expected := range expectedLines {
+			if strings.TrimSpace(item.Line) == strings.TrimSpace(expected) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("unexpected line found: %q", item.Line)
+		}
+
+		// Verify filter matching info is present
+		if item.Matched == nil {
+			t.Errorf("item %d: expected matched filter info, got nil", i)
+		} else {
+			if !strings.Contains(item.Line, "error") && !strings.Contains(item.Line, "warn") {
+				t.Errorf("item %d: line %q matched filter %q unexpectedly", i, item.Line, item.Matched.Name)
+			}
+		}
 	}
 
 	t.Logf("seek info %+v", poller.SeekInfo())
 
-	if synced != 2 { // 2 lines
-		t.Fatalf("expected 2 seek info sync, got %d", synced)
+	if synced != len(expectedLines) {
+		t.Fatalf("expected %d seek info sync, got %d", len(expectedLines), synced)
 	}
 
 	evs, err := poller.TailScan(ctx, query_log_tail.WithLinesToTail(1000))
 	if err != nil {
 		t.Fatalf("failed to tail: %v", err)
 	}
-	if len(evs) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(evs))
+	if len(evs) != len(expectedLines) {
+		t.Fatalf("expected %d events, got %d", len(expectedLines), len(evs))
 	}
 }
 

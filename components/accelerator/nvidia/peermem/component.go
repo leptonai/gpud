@@ -102,32 +102,21 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.getEvents(ctx, since, dmesgTailResults)
+	return c.getEvents(ctx, since)
 }
 
-func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailResults *dmesg.State) ([]components.Event, error) {
+func (c *component) getEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]components.Event, 0)
+
 	// dedup by minute level
 	seenMinute := make(map[int64]struct{})
-	events := make([]components.Event, 0)
-	for _, logItem := range dmesgTailResults.TailScanMatched {
+
+	for _, logItem := range logItems {
 		if logItem.Error != nil {
 			continue
 		}
@@ -135,7 +124,7 @@ func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailRes
 			continue
 		}
 
-		if logItem.Matched.Name != dmesg.EventNvidiaPeermemInvalidContext {
+		if logItem.Matched.Name != common_dmesg.EventNvidiaPeermemInvalidContext {
 			continue
 		}
 
@@ -147,7 +136,7 @@ func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailRes
 		//
 		// ref. https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-535-129-03/index.html
 		// ref. https://github.com/Mellanox/nv_peer_memory/issues/120
-		if logItem.Matched.Name == dmesg.EventNvidiaPeermemInvalidContext {
+		if logItem.Matched.Name == common_dmesg.EventNvidiaPeermemInvalidContext {
 			continue
 		}
 

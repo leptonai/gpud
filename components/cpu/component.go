@@ -13,7 +13,6 @@ import (
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
 	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -95,43 +94,20 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgEvents, err := dmesgComponent.Events(ctx, since)
+	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
 	}
 
 	events := make([]components.Event, 0)
-	for _, ev := range dmesgEvents {
-		v, ok := ev.ExtraInfo[dmesg.EventKeyDmesgMatchedLogItem]
-		if !ok {
-			continue
-		}
-		item, err := query_log.ParseItemJSON([]byte(v))
-		if err != nil || item.Matched == nil {
-			log.Logger.Errorw("failed to parse log item or none matched", "error", err)
-			continue
-		}
-
+	for _, logItem := range logItems {
 		name := ""
 		included := false
-		for _, owner := range item.Matched.OwnerReferences {
+		for _, owner := range logItem.Matched.OwnerReferences {
 			if owner != cpu_id.Name {
 				continue
 			}
-			name = item.Matched.Name
+			name = logItem.Matched.Name
 			included = true
 		}
 		if !included {
@@ -139,12 +115,12 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		}
 
 		events = append(events, components.Event{
-			Time: ev.Time,
+			Time: logItem.Time,
 			Name: name,
 			Type: components.EventTypeWarning,
 			ExtraInfo: map[string]string{
-				EventKeyUnixSeconds: strconv.FormatInt(ev.Time.Unix(), 10),
-				EventKeyLogLine:     item.Line,
+				EventKeyUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
+				EventKeyLogLine:     logItem.Line,
 			},
 		})
 	}
