@@ -46,13 +46,13 @@ func SetDefaultLogPoller(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) error 
 		return fmt.Errorf("os %q not supported for dmesg log poller", runtime.GOOS)
 	}
 
+	if !dmesgExists() {
+		return errors.New("dmesg not found")
+	}
+
 	asRoot := os.Geteuid() == 0 // running as root
 	if !asRoot {
 		return errors.New("dmesg log poller requires root privileges")
-	}
-
-	if !dmesgExists() {
-		return errors.New("dmesg not found")
 	}
 
 	logFilters, err := getDefaultLogFilters(ctx)
