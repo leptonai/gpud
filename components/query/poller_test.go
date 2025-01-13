@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 func TestPollerReadLast(t *testing.T) {
 	now := time.Now()
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{
 			{Time: metav1.NewTime(now.Add(-1 * time.Second))},
 			{Time: metav1.NewTime(now)},
@@ -32,6 +36,9 @@ func TestPollerReadLast(t *testing.T) {
 
 func TestPollerReadLastWithErr(t *testing.T) {
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{
 			{Time: metav1.NewTime(time.Unix(1, 0))},
 			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
@@ -50,6 +57,9 @@ func TestPollerReadLastWithErr(t *testing.T) {
 
 func TestPollerReadLastNoData(t *testing.T) {
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{
 			{Time: metav1.NewTime(time.Unix(1, 0)), Error: errors.New("test error")},
 			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
@@ -68,6 +78,9 @@ func TestPollerReadLastNoData(t *testing.T) {
 
 func TestPoller_ReadAllItemsFromInMemoryQueue(t *testing.T) {
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{},
 	}
 
@@ -155,9 +168,11 @@ func TestPoller_processResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &poller{
-				ctx:       ctx,
-				cfg:       query_config.Config{QueueSize: tt.queueN},
-				lastItems: tt.initial,
+				ctx:              ctx,
+				startedCloseOnce: sync.Once{},
+				startedCh:        make(chan any),
+				cfg:              query_config.Config{QueueSize: tt.queueN},
+				lastItems:        tt.initial,
 			}
 			if tt.newResult != nil {
 				q.processItem(*tt.newResult)
@@ -188,6 +203,9 @@ func TestPollerStartStop(t *testing.T) {
 			startFuncCalled++
 			return make(<-chan Item)
 		},
+
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
 
 		cfg:       query_config.Config{QueueSize: 3},
 		lastItems: []Item{},
@@ -266,6 +284,9 @@ func TestPollerStartStop(t *testing.T) {
 // Return nil when no errors found in lastItems array
 func TestReadLastErrReturnsNilWhenNoErrors(t *testing.T) {
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{
 			{Error: nil},
 			{Error: nil},
@@ -282,6 +303,9 @@ func TestReadLastErrReturnsNilWhenNoErrors(t *testing.T) {
 // Handle empty lastItems array returning ErrNoData
 func TestReadLastErrReturnsErrNoDataForEmptyArray(t *testing.T) {
 	pl := &poller{
+		startedCloseOnce: sync.Once{},
+		startedCh:        make(chan any),
+
 		lastItems: []Item{},
 	}
 

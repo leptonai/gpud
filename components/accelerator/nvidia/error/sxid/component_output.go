@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
-	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/log"
 
 	"github.com/dustin/go-humanize"
 	"sigs.k8s.io/yaml"
@@ -114,39 +111,4 @@ func (o *Output) GetReason() Reason {
 		)
 	}
 	return reason
-}
-
-func (o *Output) getEvents(since time.Time) []components.Event {
-	reason := o.GetReason()
-
-	des := make([]components.Event, 0)
-	for i, sxidErr := range reason.Errors {
-		if sxidErr.Time.IsZero() {
-			log.Logger.Debugw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
-			continue
-		}
-		if sxidErr.Time.Time.Before(since) {
-			log.Logger.Debugw("skipping event because it's too old", "sxid", sxidErr.SXid, "since", since, "event_time", sxidErr.Time.Time)
-			continue
-		}
-
-		msg := reason.Messages[i]
-		sxidErrBytes, _ := sxidErr.JSON()
-
-		des = append(des, components.Event{
-			Time:    sxidErr.Time,
-			Name:    EventNameErroSXid,
-			Type:    components.EventTypeCritical,
-			Message: msg,
-			ExtraInfo: map[string]string{
-				EventKeyErroSXidUnixSeconds: strconv.FormatInt(sxidErr.Time.Unix(), 10),
-				EventKeyErroSXidData:        string(sxidErrBytes),
-				EventKeyErroSXidEncoding:    StateValueErrorSXidEncodingJSON,
-			},
-		})
-	}
-	if len(des) == 0 {
-		return nil
-	}
-	return des
 }
