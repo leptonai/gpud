@@ -172,6 +172,7 @@ func GetDefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, erro
 	defaultFilters := DefaultDmesgFiltersForMemory()
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForCPU()...)
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForFileDescriptor()...)
+	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForPowerSupply()...)
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {
