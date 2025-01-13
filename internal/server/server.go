@@ -36,8 +36,6 @@ import (
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_component_error_xid_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid"
-	nvidia_component_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
@@ -577,20 +575,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
 			allComponents = append(allComponents, nvidia_error_sxid.New(ctx, cfg))
-
-		case nvidia_component_error_xid_sxid_id.Name:
-			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
 		case nvidia_hw_slowdown_id.Name:
 			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
