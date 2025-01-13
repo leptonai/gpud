@@ -27,6 +27,8 @@ type Poller interface {
 	// Redundant calls will be skipped if there's an existing poller.
 	Start(ctx context.Context, cfg query_config.Config, componentName string)
 
+	WaitStart() <-chan any
+
 	// Config returns the config used to start the poller.
 	// This is useful for debugging and logging.
 	Config() query_config.Config
@@ -84,6 +86,8 @@ func New(id string, cfg query_config.Config, getFunc GetFunc, getErrHandler GetE
 		startPollFunc:      startPoll,
 		getFunc:            getFunc,
 		getErrHandler:      getErrHandler,
+		startedCloseOnce:   sync.Once{},
+		startedCh:          make(chan any),
 		cfg:                cfg,
 		inflightComponents: make(map[string]any),
 	}
@@ -101,6 +105,9 @@ type poller struct {
 	ctxMu  sync.RWMutex
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	startedCloseOnce sync.Once
+	startedCh        chan any
 
 	cfgMu sync.RWMutex
 	cfg   query_config.Config
@@ -213,7 +220,15 @@ func (pl *poller) Start(ctx context.Context, cfg query_config.Config, componentN
 		}
 	}()
 
+	pl.startedCloseOnce.Do(func() {
+		close(pl.startedCh)
+	})
+
 	log.Logger.Debugw("started poller", "caller", componentName, "inflightComponents", len(pl.inflightComponents))
+}
+
+func (pl *poller) WaitStart() <-chan any {
+	return pl.startedCh
 }
 
 func (pl *poller) Stop(componentName string) bool {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	query_config "github.com/leptonai/gpud/components/query/config"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -16,11 +17,21 @@ func TestComponent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer db.Close()
+
 	component := New(
 		ctx,
 		Config{
 			Query: query_config.Config{
 				Interval: metav1.Duration{Duration: time.Second},
+				State: &query_config.State{
+					DBRO: db,
+					DBRW: db,
+				},
 			},
 		},
 	)
