@@ -106,5 +106,9 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+
+	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+
+	c.cancel()
 	return nil
 }

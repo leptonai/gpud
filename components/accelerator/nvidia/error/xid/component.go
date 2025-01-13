@@ -120,5 +120,8 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	c.poller.Stop(nvidia_component_error_xid_id.Name)
 
+	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+
+	c.cancel()
 	return nil
 }

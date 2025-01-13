@@ -162,6 +162,9 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	c.poller.Stop(cpu_id.Name)
 
+	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+
+	c.cancel()
 	return nil
 }
 

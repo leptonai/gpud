@@ -172,5 +172,8 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	_ = c.poller.Stop(nvidia_peermem_id.Name)
 
+	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+
+	c.cancel()
 	return nil
 }
