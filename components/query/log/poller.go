@@ -244,9 +244,7 @@ func (pl *poller) Find(since time.Time) ([]Item, error) {
 		}
 
 		itemsFromPollerOutput := item.Output.([]Item)
-		for _, item := range itemsFromPollerOutput {
-			items = append(items, item)
-		}
+		items = append(items, itemsFromPollerOutput...)
 	}
 
 	pl.bufferedItemsMu.RLock()
