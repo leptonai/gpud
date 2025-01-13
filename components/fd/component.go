@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -25,8 +26,11 @@ func New(ctx context.Context, cfg Config) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, fd_id.Name)
 
-	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
-	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
+	if perr := common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO); perr != nil {
+		log.Logger.Warnw("failed to set default log poller", "error", perr)
+	} else {
+		common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
+	}
 
 	return &component{
 		rootCtx: ctx,
@@ -96,6 +100,10 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+	if runtime.GOOS != "linux" {
+		return nil, nil
+	}
+
 	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
@@ -176,9 +184,11 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(fd_id.Name)
+	_ = c.poller.Stop(fd_id.Name)
 
-	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+	if runtime.GOOS == "linux" {
+		_ = common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+	}
 
 	c.cancel()
 	return nil

@@ -5,6 +5,7 @@ package peermem
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -24,8 +25,13 @@ func New(ctx context.Context, cfg Config) components.Component {
 	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_peermem_id.Name)
 
-	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
-	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
+	if runtime.GOOS == "linux" {
+		if perr := common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO); perr != nil {
+			log.Logger.Warnw("failed to set default log poller", "error", perr)
+		} else {
+			common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
+		}
+	}
 
 	return &component{
 		rootCtx: ctx,
@@ -106,6 +112,10 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 }
 
 func (c *component) getEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+	if runtime.GOOS != "linux" {
+		return nil, nil
+	}
+
 	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
@@ -172,7 +182,9 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	_ = c.poller.Stop(nvidia_peermem_id.Name)
 
-	common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+	if runtime.GOOS == "linux" {
+		common_dmesg.GetDefaultLogPoller().Stop(common_dmesg.Name)
+	}
 
 	c.cancel()
 	return nil
