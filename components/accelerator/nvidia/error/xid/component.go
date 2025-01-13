@@ -6,15 +6,17 @@ package xid
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	"github.com/leptonai/gpud/components/common/dmesg"
+	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+
+	"github.com/dustin/go-humanize"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -25,6 +27,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
 	return &component{
+		cfg:     cfg,
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  getDefaultPoller(),
@@ -34,6 +37,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 var _ components.Component = (*component)(nil)
 
 type component struct {
+	cfg     Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller
@@ -52,89 +56,53 @@ func (c *component) States(_ context.Context) ([]components.State, error) {
 	}, nil
 }
 
-// tailScan fetches the latest output from the dmesg and the NVML poller
-// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-// 2) NVML poller "Last" costs nothing, since we simply read the last state in the queue (no NVML call involved)
-func (c *component) tailScan() (*Output, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
+const (
+	EventNameErroXid = "error_xid"
 
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	o := &Output{}
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNVRMXid {
-			continue
-		}
-
-		ev, err := nvidia_query_xid.ParseDmesgLogLine(logItem.Time, logItem.Line)
-		if err != nil {
-			return nil, err
-		}
-		o.DmesgErrors = append(o.DmesgErrors, ev)
-	}
-
-	last, err := c.poller.LastSuccess()
-
-	// no data yet from realtime xid poller
-	// just return whatever we got from dmesg
-	if err == query.ErrNoData {
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
-		return o, nil
-	}
-
-	// something went wrong in the poller
-	// just return an error to surface the issue
-	if err != nil {
-		return nil, err
-	}
-
-	ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
-	if !ok { // shoild never happen
-		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
-	}
-	if ev != nil && ev.Xid > 0 {
-		o.NVMLXidEvent = ev
-
-		if lerr := c.poller.LastError(); lerr != nil {
-			log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-		}
-
-		lastSuccessPollElapsed := time.Now().UTC().Sub(ev.Time.Time)
-		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-		}
-	}
-
-	return o, nil
-}
+	EventKeyErroXidUnixSeconds    = "unix_seconds"
+	EventKeyErroXidData           = "data"
+	EventKeyErroXidEncoding       = "encoding"
+	EventValueErroXidEncodingJSON = "json"
+)
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	o, err := c.tailScan()
+	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.cfg.Query.State.DBRO, nvidia_xid_sxid_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}
-	return o.getEvents(since), nil
+
+	if len(events) == 0 {
+		log.Logger.Debugw("no event found", "component", c.Name(), "since", humanize.Time(since))
+		return nil, nil
+	}
+
+	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
+	convertedEvents := make([]components.Event, 0, len(events))
+	for _, event := range events {
+		if xidDetail := event.ToXidDetail(); xidDetail != nil {
+			msg := fmt.Sprintf("xid %d detected by %s (%s)",
+				event.EventID,
+				event.DataSource,
+				humanize.Time(time.Unix(event.UnixSeconds, 0)),
+			)
+			xidBytes, _ := xidDetail.JSON()
+
+			convertedEvents = append(convertedEvents, components.Event{
+				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
+				Name:    EventNameErroXid,
+				Type:    components.EventTypeCritical,
+				Message: msg,
+				ExtraInfo: map[string]string{
+					EventKeyErroXidUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
+					EventKeyErroXidData:        string(xidBytes),
+					EventKeyErroXidEncoding:    EventValueErroXidEncodingJSON,
+				},
+			})
+			continue
+		}
+	}
+
+	return convertedEvents, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

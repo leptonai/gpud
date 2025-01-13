@@ -4,23 +4,31 @@ package sxid
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/components/common/dmesg"
+	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
+
+	"github.com/dustin/go-humanize"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New() components.Component {
-	return &component{}
+func New(dbRO *sql.DB) components.Component {
+	return &component{
+		dbRO: dbRO,
+	}
 }
 
 var _ components.Component = (*component)(nil)
 
-type component struct{}
+type component struct {
+	dbRO *sql.DB
+}
 
 func (c *component) Name() string { return nvidia_component_error_sxid_id.Name }
 
@@ -32,56 +40,52 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}}, nil
 }
 
-// tailScan fetches the latest output from the dmesg
-// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-func (c *component) tailScan() (*Output, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
+const (
+	EventNameErroSXid = "error_sxid"
 
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	o := &Output{}
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNVSwitchSXid {
-			continue
-		}
-
-		ev, err := nvidia_query_sxid.ParseDmesgLogLine(logItem.Time, logItem.Line)
-		if err != nil {
-			return nil, err
-		}
-		o.DmesgErrors = append(o.DmesgErrors, ev)
-	}
-
-	return o, nil
-}
+	EventKeyErroSXidUnixSeconds    = "unix_seconds"
+	EventKeyErroSXidData           = "data"
+	EventKeyErroSXidEncoding       = "encoding"
+	EventValueErroSXidEncodingJSON = "json"
+)
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	o, err := c.tailScan()
+	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.dbRO, nvidia_xid_sxid_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}
-	return o.getEvents(since), nil
+
+	if len(events) == 0 {
+		log.Logger.Debugw("no event found", "component", c.Name(), "since", humanize.Time(since))
+		return nil, nil
+	}
+
+	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
+	convertedEvents := make([]components.Event, 0, len(events))
+	for _, event := range events {
+		if sxidDetail := event.ToSXidDetail(); sxidDetail != nil {
+			msg := fmt.Sprintf("sxid %d detected by %s (%s)",
+				event.EventID,
+				event.DataSource,
+				humanize.Time(time.Unix(event.UnixSeconds, 0)),
+			)
+			sxidBytes, _ := sxidDetail.JSON()
+
+			convertedEvents = append(convertedEvents, components.Event{
+				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
+				Name:    EventNameErroSXid,
+				Type:    components.EventTypeCritical,
+				Message: msg,
+				ExtraInfo: map[string]string{
+					EventKeyErroSXidUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
+					EventKeyErroSXidData:        string(sxidBytes),
+					EventKeyErroSXidEncoding:    EventValueErroSXidEncodingJSON,
+				},
+			})
+			continue
+		}
+	}
+	return convertedEvents, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

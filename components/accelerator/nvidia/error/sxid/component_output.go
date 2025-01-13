@@ -116,15 +116,6 @@ func (o *Output) GetReason() Reason {
 	return reason
 }
 
-const (
-	EventNameErroSXid = "error_sxid"
-
-	EventKeyErroSXidUnixSeconds    = "unix_seconds"
-	EventKeyErroSXidData           = "data"
-	EventKeyErroSXidEncoding       = "encoding"
-	EventValueErroSXidEncodingJSON = "json"
-)
-
 func (o *Output) getEvents(since time.Time) []components.Event {
 	reason := o.GetReason()
 

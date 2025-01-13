@@ -565,7 +565,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case nvidia_component_error_sxid_id.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_error_sxid.New())
+			allComponents = append(allComponents, nvidia_error_sxid.New(dbRO))
 
 		case nvidia_component_error_xid_sxid_id.Name:
 			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
