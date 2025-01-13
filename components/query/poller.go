@@ -254,7 +254,7 @@ func (pl *poller) Stop(componentName string) bool {
 		return false
 	}
 
-	// noe, len(q.inflightComponents) == 0
+	// none, len(q.inflightComponents) == 0
 	pl.cancel()
 	pl.ctx = nil
 	pl.cancel = nil
