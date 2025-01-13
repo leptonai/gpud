@@ -116,6 +116,10 @@ func (c *component) getEvents(ctx context.Context, since time.Time) ([]component
 		return nil, nil
 	}
 
+	if common_dmesg.GetDefaultLogPoller() == nil {
+		return nil, nil
+	}
+
 	logItems, err := common_dmesg.GetDefaultLogPoller().Find(since)
 	if err != nil {
 		return nil, err
