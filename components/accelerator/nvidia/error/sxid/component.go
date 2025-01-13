@@ -4,7 +4,6 @@ package sxid
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"time"
@@ -12,22 +11,33 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	common_dmesg "github.com/leptonai/gpud/components/common/dmesg"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(dbRO *sql.DB) components.Component {
+func New(ctx context.Context, cfg Config) components.Component {
+	cfg.Query.SetDefaultsIfNotSet()
+
+	cctx, ccancel := context.WithCancel(ctx)
+	common_dmesg.SetDefaultLogPoller(ctx, cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	common_dmesg.GetDefaultLogPoller().Start(cctx, cfg.Query, common_dmesg.Name)
+
 	return &component{
-		dbRO: dbRO,
+		rootCtx: ctx,
+		cancel:  ccancel,
+		cfg:     cfg,
 	}
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	dbRO *sql.DB
+	rootCtx context.Context
+	cancel  context.CancelFunc
+	cfg     Config
 }
 
 func (c *component) Name() string { return nvidia_component_error_sxid_id.Name }
@@ -50,7 +60,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.dbRO, nvidia_xid_sxid_state.WithSince(since))
+	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.cfg.Query.State.DBRO, nvidia_xid_sxid_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}

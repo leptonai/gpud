@@ -564,8 +564,19 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg))
 
 		case nvidia_component_error_sxid_id.Name:
-			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_error_sxid.New(dbRO))
+			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
+			cfg := nvidia_error_sxid.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := nvidia_error_sxid.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, nvidia_error_sxid.New(ctx, cfg))
 
 		case nvidia_component_error_xid_sxid_id.Name:
 			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
