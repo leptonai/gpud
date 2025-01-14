@@ -12,6 +12,7 @@ import (
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/log"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -120,7 +121,7 @@ func (o *Output) Evaluate(cfg Config) (string, bool, error) {
 
 			// some H100 machines only have 1 ib port in ib class dir
 			if atLeastPorts == 0 {
-				atLeastPorts = infiniband.CountInfinibandClass()
+				log.Logger.Warnw("no at least ports set -- skipping ibstat check", "infinibandClassCount", infiniband.CountInfinibandClass())
 			}
 
 			// H100 machines with 12 ib ports should default to the GPU count 8
