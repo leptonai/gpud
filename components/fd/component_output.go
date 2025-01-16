@@ -229,7 +229,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			fd_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(cfg),
 			nil,
 		)

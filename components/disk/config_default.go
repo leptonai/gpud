@@ -6,7 +6,7 @@ import (
 
 func DefaultConfig() Config {
 	cfg := Config{
-		Query:                    poller_config.DefaultConfig(),
+		PollerConfig:             poller_config.DefaultConfig(),
 		MountPointsToTrackUsage:  []string{"/"},
 		MountTargetsToTrackUsage: []string{"/var/lib/kubelet"},
 	}

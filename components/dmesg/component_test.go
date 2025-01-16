@@ -61,7 +61,7 @@ func TestComponent(t *testing.T) {
 				ctx,
 				Config{
 					Log: poller_log_config.Config{
-						Query: poller_config.Config{
+						PollerConfig: poller_config.Config{
 							Interval: metav1.Duration{Duration: pollInterval},
 						},
 						File:          f.Name(),

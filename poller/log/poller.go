@@ -174,7 +174,7 @@ func newPoller(ctx context.Context, cfg poller_log_config.Config, extractTime po
 
 	pl.Poller = poller.New(
 		name,
-		cfg.Query,
+		cfg.PollerConfig,
 		flushFunc,
 		nil,
 	)

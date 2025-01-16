@@ -187,7 +187,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			memory_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			Get,
 			nil,
 		)

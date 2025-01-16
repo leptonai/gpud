@@ -19,7 +19,7 @@ func TestComponent(t *testing.T) {
 	component := New(
 		ctx,
 		Config{
-			Query: poller_config.Config{
+			PollerConfig: poller_config.Config{
 				Interval: metav1.Duration{Duration: time.Second},
 			},
 		},

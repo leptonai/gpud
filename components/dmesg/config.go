@@ -31,9 +31,9 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 		return nil, err
 	}
 
-	if cfg.Log.Query.State != nil {
-		cfg.Log.Query.State.DBRW = dbRW
-		cfg.Log.Query.State.DBRO = dbRO
+	if cfg.Log.PollerConfig.State != nil {
+		cfg.Log.PollerConfig.State.DBRW = dbRW
+		cfg.Log.PollerConfig.State.DBRO = dbRO
 	}
 
 	return cfg, nil
@@ -136,8 +136,8 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 
 	cfg := Config{
 		Log: poller_log_config.Config{
-			Query:      poller_config.DefaultConfig(),
-			BufferSize: poller_log_config.DefaultBufferSize,
+			PollerConfig: poller_config.DefaultConfig(),
+			BufferSize:   poller_log_config.DefaultBufferSize,
 
 			Commands: [][]string{
 				// run last commands as fallback, in case dmesg flag only works in some machines
@@ -168,8 +168,8 @@ func journalCtlDefaultConfig(ctx context.Context) (Config, error) {
 
 	cfg := Config{
 		Log: poller_log_config.Config{
-			Query:      poller_config.DefaultConfig(),
-			BufferSize: poller_log_config.DefaultBufferSize,
+			PollerConfig: poller_config.DefaultConfig(),
+			BufferSize:   poller_log_config.DefaultBufferSize,
 
 			Commands: [][]string{{DefaultJournalCtlScanCmd}},
 

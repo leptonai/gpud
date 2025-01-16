@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	Query poller_config.Config `json:"query"`
-	Port  int                  `json:"port"`
+	PollerConfig poller_config.Config `json:"poller_config"`
+	Port         int                  `json:"port"`
 
 	// In case the kubelet does not open the read-only port, we ignore such errors as
 	// 'Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused'.
@@ -27,9 +27,9 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
+	if cfg.PollerConfig.State != nil {
+		cfg.PollerConfig.State.DBRW = dbRW
+		cfg.PollerConfig.State.DBRO = dbRO
 	}
 	return cfg, nil
 }

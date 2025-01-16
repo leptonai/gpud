@@ -16,11 +16,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, containerd_pod_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, containerd_pod_id.Name)
 
 	return &component{
 		rootCtx: ctx,

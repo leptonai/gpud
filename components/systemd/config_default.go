@@ -6,7 +6,7 @@ import (
 
 func DefaultConfig() Config {
 	return Config{
-		Query: poller_config.DefaultConfig(),
+		PollerConfig: poller_config.DefaultConfig(),
 		Units: []string{
 			"systemd-logind.service",
 			"systemd-journald.service",

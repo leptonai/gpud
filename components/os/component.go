@@ -17,11 +17,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, os_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, os_id.Name)
 
 	return &component{
 		rootCtx: ctx,
@@ -85,7 +85,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	rebootEvents, err := state.GetRebootEvents(ctx, c.cfg.Query.State.DBRW, since)
+	rebootEvents, err := state.GetRebootEvents(ctx, c.cfg.PollerConfig.State.DBRW, since)
 	if err != nil {
 		return nil, err
 	}

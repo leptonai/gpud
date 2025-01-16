@@ -409,14 +409,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	defaultQueryCfg := poller_config.Config{
+	defaultPollerCfg := poller_config.Config{
 		State: &poller_config.State{
 			DBRW: dbRW,
 			DBRO: dbRO,
 		},
 	}
 	defaultLogCfg := poller_log_config.Config{
-		Query: defaultQueryCfg,
+		PollerConfig: defaultPollerCfg,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
 			if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
 				log.Logger.Errorw("failed to sync seek info", "error", err)
@@ -430,13 +430,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os_id.Name]; !ok {
-		allComponents = append(allComponents, os.New(ctx, os.Config{Query: defaultQueryCfg}))
+		allComponents = append(allComponents, os.New(ctx, os.Config{PollerConfig: defaultPollerCfg}))
 	}
 
 	for k, configValue := range config.Components {
 		switch k {
 		case cpu_id.Name:
-			cfg := cpu.Config{Query: defaultQueryCfg}
+			cfg := cpu.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := cpu.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -450,7 +450,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, cpu.New(ctx, cfg))
 
 		case disk_id.Name:
-			cfg := disk.Config{Query: defaultQueryCfg}
+			cfg := disk.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -465,7 +465,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case fuse_id.Name:
 			cfg := fuse.Config{
-				Query:                                defaultQueryCfg,
+				PollerConfig:                         defaultPollerCfg,
 				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
 				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
 			}
@@ -482,7 +482,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, fuse.New(ctx, cfg))
 
 		case pci_id.Name:
-			cfg := pci.Config{Query: defaultQueryCfg}
+			cfg := pci.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -493,7 +493,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, pci.New(ctx, cfg))
 
 		case dmesg.Name:
-			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
+			// "defaultPollerCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
 			cfg := dmesg.Config{Log: defaultLogCfg}
 			if configValue != nil {
 				parsed, err := dmesg.ParseConfig(configValue, dbRW, dbRO)
@@ -579,7 +579,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case fd_id.Name:
 			cfg := fd.Config{
-				Query:                         defaultQueryCfg,
+				PollerConfig:                  defaultPollerCfg,
 				ThresholdAllocatedFileHandles: fd.DefaultThresholdAllocatedFileHandles,
 				ThresholdRunningPIDs:          fd.DefaultThresholdRunningPIDs,
 			}
@@ -628,7 +628,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, info.New(config.Annotations))
 
 		case memory_id.Name:
-			cfg := memory.Config{Query: defaultQueryCfg}
+			cfg := memory.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := memory.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -642,7 +642,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, memory.New(ctx, cfg))
 
 		case os_id.Name:
-			cfg := os.Config{Query: defaultQueryCfg}
+			cfg := os.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -656,7 +656,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, os.New(ctx, cfg))
 
 		case power_supply_id.Name:
-			cfg := power_supply.Config{Query: defaultQueryCfg}
+			cfg := power_supply.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := power_supply.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -667,7 +667,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, power_supply.New(ctx, cfg))
 
 		case systemd_id.Name:
-			cfg := component_systemd.Config{Query: defaultQueryCfg}
+			cfg := component_systemd.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -685,7 +685,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case tailscale_id.Name:
-			cfg := tailscale.Config{Query: defaultQueryCfg}
+			cfg := tailscale.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := tailscale.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -699,7 +699,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, tailscale.New(ctx, cfg))
 
 		case nvidia_info.Name:
-			cfg := nvidia_info.Config{Query: defaultQueryCfg}
+			cfg := nvidia_info.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_info.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -713,7 +713,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_info.New(ctx, cfg))
 
 		case nvidia_badenvs_id.Name:
-			cfg := nvidia_badenvs.Config{Query: defaultQueryCfg}
+			cfg := nvidia_badenvs.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_badenvs.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -727,7 +727,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_badenvs.New(ctx, cfg))
 
 		case nvidia_error.Name:
-			cfg := nvidia_error.Config{Query: defaultQueryCfg}
+			cfg := nvidia_error.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_error.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -741,8 +741,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error.New(ctx, cfg))
 
 		case nvidia_component_error_xid_id.Name:
-			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
-			cfg := nvidia_error_xid.Config{Query: defaultQueryCfg}
+			// "defaultPollerCfg" here has the db object to read xid events (read-only, writes are done in poller)
+			cfg := nvidia_error_xid.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_error_xid.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -760,7 +760,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error_sxid.New())
 
 		case nvidia_component_error_xid_sxid_id.Name:
-			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
+			cfg := nvidia_component_error_xid_sxid.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -774,7 +774,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
 		case nvidia_hw_slowdown_id.Name:
-			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
+			cfg := nvidia_hw_slowdown.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -788,7 +788,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
 		case nvidia_clock_speed_id.Name:
-			cfg := nvidia_clock_speed.Config{Query: defaultQueryCfg}
+			cfg := nvidia_clock_speed.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_clock_speed.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -802,7 +802,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, cfg))
 
 		case nvidia_ecc_id.Name:
-			cfg := nvidia_ecc.Config{Query: defaultQueryCfg}
+			cfg := nvidia_ecc.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_ecc.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -816,7 +816,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_ecc.New(ctx, cfg))
 
 		case nvidia_memory.Name:
-			cfg := nvidia_memory.Config{Query: defaultQueryCfg}
+			cfg := nvidia_memory.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_memory.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -830,7 +830,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_memory.New(ctx, cfg))
 
 		case nvidia_gpm.Name:
-			cfg := nvidia_gpm.Config{Query: defaultQueryCfg}
+			cfg := nvidia_gpm.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_gpm.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -844,7 +844,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
 
 		case nvidia_nvlink.Name:
-			cfg := nvidia_nvlink.Config{Query: defaultQueryCfg}
+			cfg := nvidia_nvlink.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_nvlink.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -858,7 +858,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_nvlink.New(ctx, cfg))
 
 		case nvidia_power_id.Name:
-			cfg := nvidia_power.Config{Query: defaultQueryCfg}
+			cfg := nvidia_power.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_power.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -872,7 +872,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_power.New(ctx, cfg))
 
 		case nvidia_temperature.Name:
-			cfg := nvidia_temperature.Config{Query: defaultQueryCfg}
+			cfg := nvidia_temperature.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_temperature.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -886,7 +886,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_temperature.New(ctx, cfg))
 
 		case nvidia_utilization.Name:
-			cfg := nvidia_utilization.Config{Query: defaultQueryCfg}
+			cfg := nvidia_utilization.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_utilization.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -900,7 +900,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_utilization.New(ctx, cfg))
 
 		case nvidia_processes.Name:
-			cfg := nvidia_processes.Config{Query: defaultQueryCfg}
+			cfg := nvidia_processes.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_processes.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -914,7 +914,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_processes.New(ctx, cfg))
 
 		case nvidia_remapped_rows.Name:
-			cfg := nvidia_remapped_rows.Config{Query: defaultQueryCfg}
+			cfg := nvidia_remapped_rows.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_remapped_rows.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -928,7 +928,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_remapped_rows.New(ctx, cfg))
 
 		case nvidia_fabric_manager.Name:
-			cfg := nvidia_fabric_manager.Config{Query: defaultQueryCfg, Log: nvidia_fabric_manager.DefaultLogConfig()}
+			cfg := nvidia_fabric_manager.Config{PollerConfig: defaultPollerCfg, Log: nvidia_fabric_manager.DefaultLogConfig()}
 			if configValue != nil {
 				parsed, err := nvidia_fabric_manager.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -946,7 +946,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, fabricManagerLogComponent)
 
 		case nvidia_gsp_firmware_mode_id.Name:
-			cfg := nvidia_gsp_firmware_mode.Config{Query: defaultQueryCfg}
+			cfg := nvidia_gsp_firmware_mode.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_gsp_firmware_mode.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -961,7 +961,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case nvidia_infiniband_id.Name:
 			cfg := &nvidia_infiniband.Config{
-				Query: defaultQueryCfg,
+				PollerConfig: defaultPollerCfg,
 			}
 			if configValue != nil {
 				parsed, err := nvidia_infiniband.ParseConfig(configValue, dbRW, dbRO)
@@ -976,7 +976,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_infiniband.New(ctx, *cfg))
 
 		case nvidia_peermem_id.Name:
-			cfg := nvidia_peermem.Config{Query: defaultQueryCfg}
+			cfg := nvidia_peermem.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_peermem.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -990,7 +990,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_peermem.New(ctx, cfg))
 
 		case nvidia_persistence_mode_id.Name:
-			cfg := nvidia_persistence_mode.Config{Query: defaultQueryCfg}
+			cfg := nvidia_persistence_mode.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_persistence_mode.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -1004,7 +1004,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_persistence_mode.New(ctx, cfg))
 
 		case nvidia_nccl_id.Name:
-			cfg := nvidia_nccl.Config{Query: defaultQueryCfg}
+			cfg := nvidia_nccl.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := nvidia_nccl.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -1018,7 +1018,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_nccl.New(ctx, cfg))
 
 		case containerd_pod_id.Name:
-			cfg := containerd_pod.Config{Query: defaultQueryCfg}
+			cfg := containerd_pod.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := containerd_pod.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -1032,7 +1032,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, containerd_pod.New(ctx, cfg))
 
 		case docker_container_id.Name:
-			cfg := docker_container.Config{Query: defaultQueryCfg}
+			cfg := docker_container.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := docker_container.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -1046,7 +1046,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, docker_container.New(ctx, cfg))
 
 		case k8s_pod_id.Name:
-			cfg := k8s_pod.Config{Query: defaultQueryCfg}
+			cfg := k8s_pod.Config{PollerConfig: defaultPollerCfg}
 			if configValue != nil {
 				parsed, err := k8s_pod.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -1061,7 +1061,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case network_latency_id.Name:
 			cfg := network_latency.Config{
-				Query:                      defaultQueryCfg,
+				PollerConfig:               defaultPollerCfg,
 				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
 			}
 			if configValue != nil {
@@ -1326,7 +1326,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					}
 
 					if cc, exists := lepconfig.DefaultContainerdComponent(ctx); exists {
-						ccfg := containerd_pod.Config{Query: defaultQueryCfg}
+						ccfg := containerd_pod.Config{PollerConfig: defaultPollerCfg}
 						if cc != nil {
 							parsed, err := containerd_pod.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {
@@ -1343,7 +1343,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					}
 
 					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
-						ccfg := docker_container.Config{Query: defaultQueryCfg}
+						ccfg := docker_container.Config{PollerConfig: defaultPollerCfg}
 						if cc != nil {
 							parsed, err := docker_container.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {
@@ -1360,7 +1360,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					}
 
 					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
-						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
+						ccfg := k8s_pod.Config{PollerConfig: defaultPollerCfg}
 						if cc != nil {
 							parsed, err := k8s_pod.ParseConfig(cc, dbRW, dbRO)
 							if err != nil {

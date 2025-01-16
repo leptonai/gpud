@@ -39,7 +39,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(cfg),
 			nil,
 		)
@@ -71,7 +71,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		evs, err := state.ReadEvents(
 			cctx,
-			cfg.Query.State.DBRO,
+			cfg.PollerConfig.State.DBRO,
 			state.WithSince(since),
 		)
 		cancel()
@@ -114,7 +114,7 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 
 		acsReasons := append([]string{fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices", currentVirtEnv.Type)}, uuids...)
 		cctx, cancel = context.WithTimeout(ctx, 10*time.Second)
-		err = state.InsertEvent(cctx, cfg.Query.State.DBRW, state.Event{
+		err = state.InsertEvent(cctx, cfg.PollerConfig.State.DBRW, state.Event{
 			UnixSeconds: nowUTC.Unix(),
 			DataSource:  id.Name,
 			EventType:   "acs_enabled",

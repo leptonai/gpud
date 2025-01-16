@@ -111,7 +111,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			network_latency_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			createGetFunc(cfg),
 			nil,
 		)

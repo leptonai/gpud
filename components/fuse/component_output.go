@@ -27,7 +27,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			fuse_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(cfg),
 			nil,
 		)
@@ -64,7 +64,7 @@ func CreateGet(cfg Config) poller.GetFunc {
 				continue
 			}
 
-			prev, err := state.FindEvent(ctx, cfg.Query.State.DBRO, now.Unix(), info.DeviceName)
+			prev, err := state.FindEvent(ctx, cfg.PollerConfig.State.DBRO, now.Unix(), info.DeviceName)
 			if err != nil {
 				return nil, err
 			}
@@ -72,7 +72,7 @@ func CreateGet(cfg Config) poller.GetFunc {
 				continue
 			}
 
-			if err := state.InsertEvent(ctx, cfg.Query.State.DBRW, state.Event{
+			if err := state.InsertEvent(ctx, cfg.PollerConfig.State.DBRW, state.Event{
 				UnixSeconds:                          now.Unix(),
 				DeviceName:                           info.DeviceName,
 				CongestedPercentAgainstThreshold:     info.CongestedPercent,

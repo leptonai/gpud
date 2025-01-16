@@ -16,11 +16,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, id.Name)
 
 	return &component{
 		cfg:     cfg,
@@ -50,7 +50,7 @@ const EventNameACSEnabled = "acs_enabled"
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	evs, err := state.ReadEvents(
 		ctx,
-		c.cfg.Query.State.DBRO,
+		c.cfg.PollerConfig.State.DBRO,
 		state.WithSince(since),
 	)
 	if err != nil {

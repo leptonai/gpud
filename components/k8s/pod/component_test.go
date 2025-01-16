@@ -94,8 +94,8 @@ func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 	srv.Close()
 
 	getFunc := CreateGet(Config{
-		Query: poller_config.Config{},
-		Port:  int(port),
+		PollerConfig: poller_config.Config{},
+		Port:         int(port),
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())

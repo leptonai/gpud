@@ -16,7 +16,7 @@ const (
 )
 
 type Config struct {
-	Query poller_config.Config `json:"query"`
+	PollerConfig poller_config.Config `json:"poller_config"`
 
 	// GlobalMillisecondThreshold is the global threshold in milliseconds for the DERP latency.
 	// If all DERP latencies are greater than this threshold, the component will be marked as failed.
@@ -34,9 +34,9 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
+	if cfg.PollerConfig.State != nil {
+		cfg.PollerConfig.State.DBRW = dbRW
+		cfg.PollerConfig.State.DBRO = dbRO
 	}
 	return cfg, nil
 }

@@ -13,11 +13,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	GetDefaultPoller().Start(cctx, cfg.Query, k8s_pod_id.Name)
+	GetDefaultPoller().Start(cctx, cfg.PollerConfig, k8s_pod_id.Name)
 	defaultPollerCloseOnce.Do(func() {
 		close(defaultPollerc)
 	})

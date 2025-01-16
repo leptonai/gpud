@@ -167,7 +167,7 @@ func setDefaultPoller(cfg Config) {
 
 		defaultPoller = poller.New(
 			disk_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(cfg),
 			diskGetErrHandler,
 		)

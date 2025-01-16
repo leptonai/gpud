@@ -8,8 +8,8 @@ import (
 )
 
 type Config struct {
-	Query    poller_config.Config `json:"query"`
-	Endpoint string               `json:"endpoint"`
+	PollerConfig poller_config.Config `json:"poller_config"`
+	Endpoint     string               `json:"endpoint"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
@@ -22,9 +22,9 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
+	if cfg.PollerConfig.State != nil {
+		cfg.PollerConfig.State.DBRW = dbRW
+		cfg.PollerConfig.State.DBRO = dbRO
 	}
 	return cfg, nil
 }

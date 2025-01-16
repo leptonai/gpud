@@ -20,11 +20,11 @@ import (
 const Name = "accelerator-nvidia-gpm"
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, Name)
 
 	return &component{
 		rootCtx: ctx,

@@ -127,7 +127,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			docker_container_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(cfg),
 			nil,
 		)

@@ -227,7 +227,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			nvidia_component_error_xid_id.Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(),
 			nil,
 		)

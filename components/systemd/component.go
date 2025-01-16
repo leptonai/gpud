@@ -18,11 +18,11 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		return nil, err
 	}
 
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, systemd_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, systemd_id.Name)
 
 	return &component{
 		rootCtx: ctx,

@@ -100,7 +100,7 @@ func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = poller.New(
 			Name,
-			cfg.Query,
+			cfg.PollerConfig,
 			CreateGet(),
 			nil,
 		)

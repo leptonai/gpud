@@ -18,11 +18,11 @@ import (
 const Name = "accelerator-nvidia-fabric-manager"
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Log.Query.State.DBRW, cfg.Log.Query.State.DBRO)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	nvidia_query.SetDefaultPoller(cfg.Log.PollerConfig.State.DBRW, cfg.Log.PollerConfig.State.DBRO)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.PollerConfig, Name)
 
 	if err := cfg.Log.Validate(); err != nil {
 		ccancel()
@@ -34,7 +34,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		ccancel()
 		return nil, err
 	}
-	fabric_manager_log.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	fabric_manager_log.GetDefaultPoller().Start(cctx, cfg.PollerConfig, Name)
 
 	return &component{
 		rootCtx:   ctx,

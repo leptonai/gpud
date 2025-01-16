@@ -18,11 +18,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, nvidia_component_error_xid_id.Name)
 
 	return &component{
 		rootCtx: ctx,

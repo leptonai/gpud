@@ -15,7 +15,7 @@ import (
 const DefaultBufferSize = 2000
 
 type Config struct {
-	Query poller_config.Config `json:"query"`
+	PollerConfig poller_config.Config `json:"poller_config"`
 
 	BufferSize int `json:"buffer_size"`
 
@@ -72,13 +72,13 @@ func (cfg *Config) Validate() error {
 }
 
 func (cfg *Config) SetDefaultsIfNotSet() {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 
 	if cfg.BufferSize == 0 {
 		cfg.BufferSize = DefaultBufferSize
 	}
-	if cfg.Query.QueueSize < cfg.BufferSize {
-		cfg.Query.QueueSize = cfg.BufferSize
+	if cfg.PollerConfig.QueueSize < cfg.BufferSize {
+		cfg.PollerConfig.QueueSize = cfg.BufferSize
 	}
 }
 

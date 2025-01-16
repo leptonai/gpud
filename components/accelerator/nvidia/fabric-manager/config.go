@@ -13,8 +13,8 @@ import (
 )
 
 type Config struct {
-	Query poller_config.Config     `json:"query"`
-	Log   poller_log_config.Config `json:"log"`
+	PollerConfig poller_config.Config     `json:"poller_config"`
+	Log          poller_log_config.Config `json:"log"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
@@ -27,13 +27,13 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
+	if cfg.PollerConfig.State != nil {
+		cfg.PollerConfig.State.DBRW = dbRW
+		cfg.PollerConfig.State.DBRO = dbRO
 	}
-	if cfg.Log.Query.State != nil {
-		cfg.Log.Query.State.DBRW = dbRW
-		cfg.Log.Query.State.DBRO = dbRO
+	if cfg.Log.PollerConfig.State != nil {
+		cfg.Log.PollerConfig.State.DBRW = dbRW
+		cfg.Log.PollerConfig.State.DBRO = dbRO
 	}
 	return cfg, nil
 }
@@ -80,7 +80,7 @@ var (
 
 func DefaultLogConfig() poller_log_config.Config {
 	return poller_log_config.Config{
-		Query:         poller_config.DefaultConfig(),
+		PollerConfig:  poller_config.DefaultConfig(),
 		BufferSize:    poller_log_config.DefaultBufferSize,
 		File:          fabricManagerLogFilePath,
 		SelectFilters: filters,

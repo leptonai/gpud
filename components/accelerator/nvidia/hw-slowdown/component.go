@@ -21,17 +21,17 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_hw_slowdown_id.Name)
+	nvidia_query.SetDefaultPoller(cfg.PollerConfig.State.DBRW, cfg.PollerConfig.State.DBRO)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.PollerConfig, nvidia_hw_slowdown_id.Name)
 
 	return &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
-		dbRO:    cfg.Query.State.DBRO,
+		dbRO:    cfg.PollerConfig.State.DBRO,
 	}
 }
 

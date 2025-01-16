@@ -27,7 +27,7 @@ func New(ctx context.Context, cfg Config, processMatched poller_log_common.Proce
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	defaultLogPoller.Start(cctx, cfg.Log.Query, Name)
+	defaultLogPoller.Start(cctx, cfg.Log.PollerConfig, Name)
 
 	return &Component{
 		cfg:            &cfg,

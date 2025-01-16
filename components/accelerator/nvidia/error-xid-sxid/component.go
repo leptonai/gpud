@@ -19,12 +19,12 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 
 	// this starts the Xid poller via "nvml.StartDefaultInstance"
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_error_xid_sxid_id.Name)
+	nvidia_query.SetDefaultPoller(cfg.PollerConfig.State.DBRW, cfg.PollerConfig.State.DBRO)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.PollerConfig, nvidia_error_xid_sxid_id.Name)
 
 	return &component{
 		cfg:     cfg,
@@ -60,7 +60,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.cfg.Query.State.DBRO, nvidia_xid_sxid_state.WithSince(since))
+	events, err := nvidia_xid_sxid_state.ReadEvents(ctx, c.cfg.PollerConfig.State.DBRO, nvidia_xid_sxid_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}

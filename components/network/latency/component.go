@@ -17,11 +17,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, network_latency_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, network_latency_id.Name)
 
 	return &component{
 		rootCtx: ctx,

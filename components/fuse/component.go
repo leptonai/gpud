@@ -22,11 +22,11 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
+	cfg.PollerConfig.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, fuse_id.Name)
+	getDefaultPoller().Start(cctx, cfg.PollerConfig, fuse_id.Name)
 
 	return &component{
 		cfg:     cfg,
@@ -93,7 +93,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := state.ReadEvents(ctx, c.cfg.Query.State.DBRO, state.WithSince(since))
+	events, err := state.ReadEvents(ctx, c.cfg.PollerConfig.State.DBRO, state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}
