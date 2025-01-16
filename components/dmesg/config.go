@@ -10,14 +10,14 @@ import (
 	"strconv"
 	"strings"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/process"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
 )
 
 type Config struct {
-	Log query_log_config.Config `json:"log"`
+	Log poller_log_config.Config `json:"log"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
@@ -135,9 +135,9 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 	}
 
 	cfg := Config{
-		Log: query_log_config.Config{
-			Query:      query_config.DefaultConfig(),
-			BufferSize: query_log_config.DefaultBufferSize,
+		Log: poller_log_config.Config{
+			Query:      poller_config.DefaultConfig(),
+			BufferSize: poller_log_config.DefaultBufferSize,
 
 			Commands: [][]string{
 				// run last commands as fallback, in case dmesg flag only works in some machines
@@ -145,7 +145,7 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 				{DefaultDmesgCmdWithSince + " -W || " + DefaultDmesgCmd + " -W"},
 			},
 
-			Scan: &query_log_config.Scan{
+			Scan: &poller_log_config.Scan{
 				Commands:    scanCommands,
 				LinesToTail: 10000,
 			},
@@ -167,13 +167,13 @@ func journalCtlDefaultConfig(ctx context.Context) (Config, error) {
 	}
 
 	cfg := Config{
-		Log: query_log_config.Config{
-			Query:      query_config.DefaultConfig(),
-			BufferSize: query_log_config.DefaultBufferSize,
+		Log: poller_log_config.Config{
+			Query:      poller_config.DefaultConfig(),
+			BufferSize: poller_log_config.DefaultBufferSize,
 
 			Commands: [][]string{{DefaultJournalCtlScanCmd}},
 
-			Scan: &query_log_config.Scan{
+			Scan: &poller_log_config.Scan{
 				Commands:    [][]string{{DefaultJournalCtlCmd}},
 				LinesToTail: 10000,
 			},

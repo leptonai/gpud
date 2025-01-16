@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/components"
-	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
+	query_log "github.com/leptonai/gpud/poller/log"
 )
 
 type Event struct {

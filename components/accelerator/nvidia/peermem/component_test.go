@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components/dmesg"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log "github.com/leptonai/gpud/poller/log"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -27,7 +27,7 @@ func TestGetEvents(t *testing.T) {
 					{
 						Time: metav1.Time{Time: time.Now()},
 						Line: "some other event",
-						Matched: &query_log_common.Filter{
+						Matched: &poller_log_common.Filter{
 							Name: "other_event",
 						},
 					},
@@ -42,7 +42,7 @@ func TestGetEvents(t *testing.T) {
 					{
 						Time: metav1.Time{Time: time.Now()},
 						Line: "nvidia-peermem invalid context",
-						Matched: &query_log_common.Filter{
+						Matched: &poller_log_common.Filter{
 							Name: dmesg.EventNvidiaPeermemInvalidContext,
 						},
 					},
@@ -57,14 +57,14 @@ func TestGetEvents(t *testing.T) {
 					{
 						Time: metav1.Time{Time: time.Now()},
 						Line: "nvidia-peermem invalid context 1",
-						Matched: &query_log_common.Filter{
+						Matched: &poller_log_common.Filter{
 							Name: dmesg.EventNvidiaPeermemInvalidContext,
 						},
 					},
 					{
 						Time: metav1.Time{Time: time.Now()},
 						Line: "nvidia-peermem invalid context 2",
-						Matched: &query_log_common.Filter{
+						Matched: &poller_log_common.Filter{
 							Name: dmesg.EventNvidiaPeermemInvalidContext,
 						},
 					},

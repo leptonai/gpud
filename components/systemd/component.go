@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/query"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
@@ -36,20 +36,20 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return systemd_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", systemd_id.Name)
 		return []components.State{
 			{
 				Name:    systemd_id.Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

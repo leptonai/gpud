@@ -3,7 +3,7 @@ package dmesg
 import (
 	fd_dmesg "github.com/leptonai/gpud/components/fd/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -17,8 +17,8 @@ const (
 	EventFileDescriptorVFSFileMaxLimitReached = "file_descriptor_vfs_file_max_limit_reached"
 )
 
-func DefaultDmesgFiltersForFileDescriptor() []*query_log_common.Filter {
-	return []*query_log_common.Filter{
+func DefaultDmesgFiltersForFileDescriptor() []*poller_log_common.Filter {
+	return []*poller_log_common.Filter{
 		{
 			Name:            EventFileDescriptorVFSFileMaxLimitReached,
 			Regex:           ptr.To(fd_dmesg.RegexVFSFileMaxLimitReached),

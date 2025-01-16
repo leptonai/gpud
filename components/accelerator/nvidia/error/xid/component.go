@@ -13,8 +13,8 @@ import (
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -36,7 +36,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return nvidia_component_error_xid_id.Name }
@@ -98,7 +98,7 @@ func (c *component) tailScan() (*Output, error) {
 
 	// no data yet from realtime xid poller
 	// just return whatever we got from dmesg
-	if err == query.ErrNoData {
+	if err == poller.ErrNoData {
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
 		return o, nil
 	}

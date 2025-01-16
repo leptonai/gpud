@@ -9,8 +9,8 @@ import (
 	"github.com/leptonai/gpud/components/fuse/metrics"
 	"github.com/leptonai/gpud/components/fuse/state"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/fuse"
+	"github.com/leptonai/gpud/poller"
 )
 
 type Output struct {
@@ -19,13 +19,13 @@ type Output struct {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			fuse_id.Name,
 			cfg.Query,
 			CreateGet(cfg),
@@ -34,11 +34,11 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) query.GetFunc {
+func CreateGet(cfg Config) poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {

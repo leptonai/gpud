@@ -1,12 +1,12 @@
 package disk
 
 import (
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 )
 
 func DefaultConfig() Config {
 	cfg := Config{
-		Query:                    query_config.DefaultConfig(),
+		Query:                    poller_config.DefaultConfig(),
 		MountPointsToTrackUsage:  []string{"/"},
 		MountTargetsToTrackUsage: []string{"/var/lib/kubelet"},
 	}

@@ -11,8 +11,8 @@ import (
 	nvidia_query_metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -38,7 +38,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx  context.Context
 	cancel   context.CancelFunc
-	poller   query.Poller
+	poller   poller.Poller
 	gatherer prometheus.Gatherer
 }
 
@@ -46,13 +46,13 @@ func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
 			{
 				Name:    Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

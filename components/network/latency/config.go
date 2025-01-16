@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
+	Query poller_config.Config `json:"query"`
 
 	// GlobalMillisecondThreshold is the global threshold in milliseconds for the DERP latency.
 	// If all DERP latencies are greater than this threshold, the component will be marked as failed.

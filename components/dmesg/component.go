@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	query_log "github.com/leptonai/gpud/poller/log"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_tail "github.com/leptonai/gpud/poller/log/tail"
 )
 
 const Name = "dmesg"
 
-func New(ctx context.Context, cfg Config, processMatched query_log_common.ProcessMatchedFunc) (components.Component, error) {
+func New(ctx context.Context, cfg Config, processMatched poller_log_common.ProcessMatchedFunc) (components.Component, error) {
 	if err := cfg.Log.Validate(); err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ type Component struct {
 	rootCtx        context.Context
 	cancel         context.CancelFunc
 	logPoller      query_log.Poller
-	processMatched query_log_common.ProcessMatchedFunc
+	processMatched poller_log_common.ProcessMatchedFunc
 }
 
 func (c *Component) Name() string { return Name }
@@ -59,12 +59,12 @@ func (c *Component) TailScan() (*State, error) {
 	if c.cfg != nil && c.cfg.Log.Scan != nil {
 		items, err := c.logPoller.TailScan(
 			c.rootCtx,
-			query_log_tail.WithDedup(true),
-			query_log_tail.WithFile(c.cfg.Log.Scan.File),
-			query_log_tail.WithCommands(c.cfg.Log.Scan.Commands),
-			query_log_tail.WithLinesToTail(c.cfg.Log.Scan.LinesToTail),
-			query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
-			query_log_tail.WithProcessMatched(c.processMatched), // used for backfilling
+			poller_log_tail.WithDedup(true),
+			poller_log_tail.WithFile(c.cfg.Log.Scan.File),
+			poller_log_tail.WithCommands(c.cfg.Log.Scan.Commands),
+			poller_log_tail.WithLinesToTail(c.cfg.Log.Scan.LinesToTail),
+			poller_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+			poller_log_tail.WithProcessMatched(c.processMatched), // used for backfilling
 		)
 		if err != nil {
 			return nil, err
@@ -92,7 +92,7 @@ func (c *Component) States(ctx context.Context) ([]components.State, error) {
 }
 
 // The dmesg component events returns the realtime events from the dmesg log poller.
-// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
+// Returns `github.com/leptonai/gpud/poller.ErrNoData` if there is no event found.
 func (c *Component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {

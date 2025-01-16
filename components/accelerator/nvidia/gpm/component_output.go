@@ -10,7 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/poller"
 
 	"sigs.k8s.io/yaml"
 )
@@ -92,13 +92,13 @@ func (o *Output) Events() []components.Event {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			Name,
 			cfg.Query,
 			CreateGet(),
@@ -107,13 +107,13 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
 // DO NOT for-loop here
-// the query.GetFunc is already called periodically in a loop by the poller
-func CreateGet() query.GetFunc {
+// the poller.GetFunc is already called periodically in a loop by the poller
+func CreateGet() poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {

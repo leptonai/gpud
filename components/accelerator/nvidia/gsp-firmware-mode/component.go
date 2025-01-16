@@ -9,8 +9,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -32,21 +32,21 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return nvidia_gsp_firmware_mode_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_gsp_firmware_mode_id.Name)
 		return []components.State{
 			{
 				Name:    nvidia_gsp_firmware_mode_id.Name,
 				Healthy: true,
-				Error:   query.ErrNoData.Error(),
-				Reason:  query.ErrNoData.Error(),
+				Error:   poller.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

@@ -8,8 +8,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 const Name = "accelerator-nvidia-info"
@@ -33,20 +33,20 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
 			{
 				Name:    Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}
@@ -108,9 +108,9 @@ var _ components.OutputProvider = (*component)(nil)
 
 func (c *component) Output() (any, error) {
 	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
-		return nil, query.ErrNoData
+		return nil, poller.ErrNoData
 	}
 
 	allOutput, ok := last.Output.(*nvidia_query.Output)

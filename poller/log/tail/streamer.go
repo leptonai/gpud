@@ -3,7 +3,7 @@ package tail
 import (
 	"sync"
 
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"github.com/nxadm/tail"
 )
@@ -21,7 +21,7 @@ type Streamer interface {
 
 type Line struct {
 	*tail.Line
-	MatchedFilter *query_log_common.Filter
+	MatchedFilter *poller_log_common.Filter
 }
 
 type streamDeduper struct {

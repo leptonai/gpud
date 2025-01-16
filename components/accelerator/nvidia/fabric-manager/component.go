@@ -10,9 +10,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
-	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
+	query_log "github.com/leptonai/gpud/poller/log"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"
@@ -49,7 +49,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx   context.Context
 	cancel    context.CancelFunc
-	poller    query.Poller
+	poller    poller.Poller
 	logPoller query_log.Poller
 }
 
@@ -57,13 +57,13 @@ func (c *component) Name() string { return Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
 			{
 				Name:    Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}
@@ -118,7 +118,7 @@ const (
 	EventKeyFabricManagerNVSwitchLogError       = "fabricmanager_nvswitch_log_error"
 )
 
-// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
+// Returns `github.com/leptonai/gpud/poller.ErrNoData` if there is no event found.
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {

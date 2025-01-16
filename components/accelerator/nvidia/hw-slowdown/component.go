@@ -12,8 +12,8 @@ import (
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,7 +40,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx  context.Context
 	cancel   context.CancelFunc
-	poller   query.Poller
+	poller   poller.Poller
 	gatherer prometheus.Gatherer
 	dbRO     *sql.DB
 }

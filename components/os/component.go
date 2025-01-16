@@ -8,9 +8,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 	cfg     Config
 }
 
@@ -44,13 +44,13 @@ func (c *component) Name() string { return os_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", os_id.Name)
 		return []components.State{
 			{
 				Name:    os_id.Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}
@@ -131,9 +131,9 @@ func (c *component) Output() (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", os_id.Name)
-		return nil, query.ErrNoData
+		return nil, poller.ErrNoData
 	}
 	if last.Error != nil {
 		return nil, last.Error

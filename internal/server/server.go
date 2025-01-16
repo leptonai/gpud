@@ -109,10 +109,6 @@ import (
 	pci_state "github.com/leptonai/gpud/components/pci/state"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_state "github.com/leptonai/gpud/components/query/log/state"
 	"github.com/leptonai/gpud/components/state"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
@@ -126,6 +122,10 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
+	query_log_state "github.com/leptonai/gpud/poller/log/state"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -322,7 +322,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	dmesgProcessMatched := func(ts time.Time, line []byte, matchedFilter *query_log_common.Filter) {
+	dmesgProcessMatched := func(ts time.Time, line []byte, matchedFilter *poller_log_common.Filter) {
 		if ts.IsZero() {
 			return
 		}
@@ -409,13 +409,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	defaultQueryCfg := query_config.Config{
-		State: &query_config.State{
+	defaultQueryCfg := poller_config.Config{
+		State: &poller_config.State{
 			DBRW: dbRW,
 			DBRO: dbRO,
 		},
 	}
-	defaultLogCfg := query_log_config.Config{
+	defaultLogCfg := poller_log_config.Config{
 		Query: defaultQueryCfg,
 		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
 			if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {

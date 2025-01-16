@@ -57,7 +57,6 @@ import (
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
-	query_config "github.com/leptonai/gpud/components/query/config"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
@@ -65,6 +64,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	pkg_file "github.com/leptonai/gpud/pkg/file"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
+	poller_config "github.com/leptonai/gpud/poller/config"
 	"github.com/leptonai/gpud/systemd"
 	"github.com/leptonai/gpud/version"
 
@@ -376,7 +376,7 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 	if err == nil {
 		log.Logger.Debugw("containerd found in PATH", "path", p)
 		return containerd_pod.Config{
-			Query:    query_config.DefaultConfig(),
+			Query:    poller_config.DefaultConfig(),
 			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
 		}, true
 	}
@@ -406,7 +406,7 @@ func DefaultContainerdComponent(ctx context.Context) (any, bool) {
 	if containerdSocketExists && containerdRunning {
 		log.Logger.Debugw("auto-detected containerd -- configuring containerd pod component")
 		return containerd_pod.Config{
-			Query:    query_config.DefaultConfig(),
+			Query:    poller_config.DefaultConfig(),
 			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
 		}, true
 	}
@@ -418,7 +418,7 @@ func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors
 	if err == nil {
 		log.Logger.Debugw("docker found in PATH", "path", p)
 		return docker_container.Config{
-			Query: query_config.DefaultConfig(),
+			Query: poller_config.DefaultConfig(),
 		}, true
 	}
 	log.Logger.Debugw("docker not found in PATH -- fallback to docker run checks", "error", err)
@@ -426,7 +426,7 @@ func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors
 	if docker_container.IsDockerRunning() {
 		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
 		return docker_container.Config{
-			Query:                  query_config.DefaultConfig(),
+			Query:                  poller_config.DefaultConfig(),
 			IgnoreConnectionErrors: ignoreConnectionErrors,
 		}, true
 	}
@@ -443,7 +443,7 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 	if err == nil {
 		log.Logger.Debugw("kubelet found in PATH", "path", p)
 		return k8s_pod.Config{
-			Query:                  query_config.DefaultConfig(),
+			Query:                  poller_config.DefaultConfig(),
 			Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
 			IgnoreConnectionErrors: ignoreConnectionErrors,
 		}, true
@@ -468,7 +468,7 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 			// "k8s_pod" requires kubelet read-only port
 			// assume if kubelet is running, it opens the most common read-only port 10255
 			return k8s_pod.Config{
-				Query:                  query_config.DefaultConfig(),
+				Query:                  poller_config.DefaultConfig(),
 				Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
 				IgnoreConnectionErrors: ignoreConnectionErrors,
 			}, true

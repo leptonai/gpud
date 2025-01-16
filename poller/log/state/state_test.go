@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	logstate "github.com/leptonai/gpud/components/query/log/state"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	logstate "github.com/leptonai/gpud/poller/log/state"
 )
 
 func TestOpenMemory(t *testing.T) {

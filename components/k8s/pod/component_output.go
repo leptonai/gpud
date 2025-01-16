@@ -13,9 +13,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/poller"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,7 +102,7 @@ func (o *Output) States(cfg Config) ([]components.State, error) {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 
 	defaultPollerCloseOnce sync.Once
 	defaultPollerc         = make(chan any)
@@ -111,7 +111,7 @@ var (
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			k8s_pod_id.Name,
 			cfg.Query,
 			CreateGet(cfg),
@@ -120,7 +120,7 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func GetDefaultPoller() query.Poller {
+func GetDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
@@ -128,7 +128,7 @@ func DefaultPollerReady() <-chan any {
 	return defaultPollerc
 }
 
-func CreateGet(cfg Config) query.GetFunc {
+func CreateGet(cfg Config) poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {

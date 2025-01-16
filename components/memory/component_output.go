@@ -12,7 +12,7 @@ import (
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -179,13 +179,13 @@ func (o *Output) States() ([]components.State, error) {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			memory_id.Name,
 			cfg.Query,
 			Get,
@@ -194,7 +194,7 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 

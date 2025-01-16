@@ -8,30 +8,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components/query"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
+	poller_log_tail "github.com/leptonai/gpud/poller/log/tail"
 
 	"github.com/nxadm/tail"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ query.Poller = (*poller)(nil)
+var _ poller.Poller = (*pollerImpl)(nil)
 
-var _ Poller = (*poller)(nil)
+var _ Poller = (*pollerImpl)(nil)
 
 // Poller implements the log file poller.
 // The underlying poller is a tail.Tail but with poll mode enabled.
 // Poll is better when there are multiple consumers (e.g., multiple log tailers)
 // reading from the same file.
 type Poller interface {
-	query.Poller
+	poller.Poller
 
 	// Config returns the config used to start the log poller.
 	// This is useful for debugging and logging.
-	LogConfig() query_log_config.Config
+	LogConfig() poller_log_config.Config
 
 	// Returns the file name that this poller watches on.
 	File() string
@@ -48,13 +48,13 @@ type Poller interface {
 	// If select filter is none, it returns all events
 	// that are already filtered by the default filters
 	// in the configuration.
-	TailScan(ctx context.Context, opts ...query_log_tail.OpOption) ([]Item, error)
+	TailScan(ctx context.Context, opts ...poller_log_tail.OpOption) ([]Item, error)
 
 	// Returns all the events for the given "since" time.
 	// If none, it returns all events that are already filtered
 	// by the default filters in the configuration.
-	// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
-	Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error)
+	// Returns `github.com/leptonai/gpud/poller.ErrNoData` if there is no event found.
+	Find(since time.Time, selectFilters ...*poller_log_common.Filter) ([]Item, error)
 
 	// Returns the last seek info.
 	SeekInfo() tail.SeekInfo
@@ -68,7 +68,7 @@ type Item struct {
 	Line string      `json:"line"`
 
 	// Matched filter that was applied to this item/line.
-	Matched *query_log_common.Filter `json:"matched,omitempty"`
+	Matched *poller_log_common.Filter `json:"matched,omitempty"`
 
 	Error *string `json:"error,omitempty"`
 }
@@ -92,12 +92,12 @@ func ParseItemJSON(data []byte) (Item, error) {
 
 type Items []Item
 
-type poller struct {
-	query.Poller
+type pollerImpl struct {
+	poller.Poller
 
-	cfg query_log_config.Config
+	cfg poller_log_config.Config
 
-	tailLogger query_log_tail.Streamer
+	tailLogger poller_log_tail.Streamer
 
 	tailFileSeekInfoMu     sync.RWMutex
 	tailFileSeekInfo       tail.SeekInfo
@@ -107,45 +107,45 @@ type poller struct {
 	bufferedItems   []Item
 }
 
-func New(ctx context.Context, cfg query_log_config.Config, extractTime query_log_common.ExtractTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (Poller, error) {
+func New(ctx context.Context, cfg poller_log_config.Config, extractTime poller_log_common.ExtractTimeFunc, processMatched poller_log_common.ProcessMatchedFunc) (Poller, error) {
 	return newPoller(ctx, cfg, extractTime, processMatched)
 }
 
-func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime query_log_common.ExtractTimeFunc, processMatched query_log_common.ProcessMatchedFunc) (*poller, error) {
+func newPoller(ctx context.Context, cfg poller_log_config.Config, extractTime poller_log_common.ExtractTimeFunc, processMatched poller_log_common.ProcessMatchedFunc) (*pollerImpl, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	cfg.SetDefaultsIfNotSet()
 
-	options := []query_log_tail.OpOption{
-		query_log_tail.WithDedup(true),
-		query_log_tail.WithSelectFilter(cfg.SelectFilters...),
-		query_log_tail.WithRejectFilter(cfg.RejectFilters...),
-		query_log_tail.WithExtractTime(extractTime),
-		query_log_tail.WithProcessMatched(processMatched),
-		query_log_tail.WithSkipEmptyLine(true),
+	options := []poller_log_tail.OpOption{
+		poller_log_tail.WithDedup(true),
+		poller_log_tail.WithSelectFilter(cfg.SelectFilters...),
+		poller_log_tail.WithRejectFilter(cfg.RejectFilters...),
+		poller_log_tail.WithExtractTime(extractTime),
+		poller_log_tail.WithProcessMatched(processMatched),
+		poller_log_tail.WithSkipEmptyLine(true),
 	}
 
 	if cfg.File != "" {
-		options = append(options, query_log_tail.WithLabel("file", cfg.File))
+		options = append(options, poller_log_tail.WithLabel("file", cfg.File))
 	} else {
 		for i, cmds := range cfg.Commands {
-			options = append(options, query_log_tail.WithLabel(fmt.Sprintf("command-%d", i+1), strings.Join(cmds, " ")))
+			options = append(options, poller_log_tail.WithLabel(fmt.Sprintf("command-%d", i+1), strings.Join(cmds, " ")))
 		}
 	}
 
-	var tailLogger query_log_tail.Streamer
+	var tailLogger poller_log_tail.Streamer
 	var err error
 	if cfg.File != "" {
-		tailLogger, err = query_log_tail.NewFromFile(ctx, cfg.File, cfg.SeekInfo, options...)
+		tailLogger, err = poller_log_tail.NewFromFile(ctx, cfg.File, cfg.SeekInfo, options...)
 	} else {
-		tailLogger, err = query_log_tail.NewFromCommand(ctx, cfg.Commands, options...)
+		tailLogger, err = poller_log_tail.NewFromCommand(ctx, cfg.Commands, options...)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	pl := &poller{
+	pl := &pollerImpl{
 		cfg:                    cfg,
 		tailLogger:             tailLogger,
 		tailFileSeekInfoSyncer: cfg.SeekInfoSyncer,
@@ -172,7 +172,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 		}
 	}
 
-	pl.Poller = query.New(
+	pl.Poller = poller.New(
 		name,
 		cfg.Query,
 		flushFunc,
@@ -185,7 +185,7 @@ func newPoller(ctx context.Context, cfg query_log_config.Config, extractTime que
 // pollSync polls the log tail from the specified file or long-running commands
 // and syncs the items to the buffered items.
 // This only catches the realtime/latest and all the future logs.
-func (pl *poller) pollSync(ctx context.Context) {
+func (pl *pollerImpl) pollSync(ctx context.Context) {
 	for line := range pl.tailLogger.Line() {
 		var errStr *string
 		if line.Err != nil {
@@ -213,21 +213,21 @@ func (pl *poller) pollSync(ctx context.Context) {
 	}
 }
 
-func (pl *poller) LogConfig() query_log_config.Config {
+func (pl *pollerImpl) LogConfig() poller_log_config.Config {
 	return pl.cfg
 }
 
-func (pl *poller) File() string {
+func (pl *pollerImpl) File() string {
 	return pl.tailLogger.File()
 }
 
-func (pl *poller) Commands() [][]string {
+func (pl *pollerImpl) Commands() [][]string {
 	return pl.tailLogger.Commands()
 }
 
 // This only catches the realtime/latest and all the future logs.
-// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
-func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filter) ([]Item, error) {
+// Returns `github.com/leptonai/gpud/poller.ErrNoData` if there is no event found.
+func (pl *pollerImpl) Find(since time.Time, selectFilters ...*poller_log_common.Filter) ([]Item, error) {
 	// 1. filter the already flushed/in-queue ones
 	polledItems, err := pl.Poller.All(since)
 	if err != nil {
@@ -251,7 +251,7 @@ func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filte
 				continue
 			}
 
-			var matchedFilter *query_log_common.Filter
+			var matchedFilter *poller_log_common.Filter
 			for _, f := range selectFilters {
 				matched, err := f.MatchString(item.Line)
 				if err != nil {
@@ -286,7 +286,7 @@ func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filte
 			continue
 		}
 
-		var matchedFilter *query_log_common.Filter
+		var matchedFilter *poller_log_common.Filter
 		for _, f := range selectFilters {
 			matched, err := f.MatchString(item.Line)
 			if err != nil {
@@ -307,7 +307,7 @@ func (pl *poller) Find(since time.Time, selectFilters ...*query_log_common.Filte
 	return items, nil
 }
 
-func (pl *poller) SeekInfo() tail.SeekInfo {
+func (pl *pollerImpl) SeekInfo() tail.SeekInfo {
 	pl.tailFileSeekInfoMu.RLock()
 	defer pl.tailFileSeekInfoMu.RUnlock()
 	return pl.tailFileSeekInfo

@@ -8,8 +8,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -32,7 +32,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 	cfg     Config
 }
 
@@ -40,13 +40,13 @@ func (c *component) Name() string { return docker_container_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", docker_container_id.Name)
 		return []components.State{
 			{
 				Name:    docker_container_id.Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

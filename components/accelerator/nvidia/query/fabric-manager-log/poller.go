@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	"github.com/leptonai/gpud/log"
+	query_log "github.com/leptonai/gpud/poller/log"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 	defaultLogPoller     query_log.Poller
 )
 
-func CreateDefaultPoller(ctx context.Context, cfg query_log_config.Config) error {
+func CreateDefaultPoller(ctx context.Context, cfg poller_log_config.Config) error {
 	var err error
 	defaultLogPollerOnce.Do(func() {
 		defaultLogPoller, err = query_log.New(

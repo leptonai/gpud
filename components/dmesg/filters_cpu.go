@@ -3,7 +3,7 @@ package dmesg
 import (
 	cpu_dmesg "github.com/leptonai/gpud/components/cpu/dmesg"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -26,8 +26,8 @@ const (
 	EventCPUSoftLockup = "cpu_soft_lockup"
 )
 
-func DefaultDmesgFiltersForCPU() []*query_log_common.Filter {
-	return []*query_log_common.Filter{
+func DefaultDmesgFiltersForCPU() []*poller_log_common.Filter {
+	return []*poller_log_common.Filter{
 		{
 			Name:            EventCPUBlockedTooLong,
 			Regex:           ptr.To(cpu_dmesg.RegexBlockedTooLong),

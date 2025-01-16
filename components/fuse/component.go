@@ -13,8 +13,8 @@ import (
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
 	"github.com/leptonai/gpud/components/fuse/state"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,7 +42,7 @@ type component struct {
 	cfg      Config
 	rootCtx  context.Context
 	cancel   context.CancelFunc
-	poller   query.Poller
+	poller   poller.Poller
 	gatherer prometheus.Gatherer
 }
 
@@ -50,13 +50,13 @@ func (c *component) Name() string { return fuse_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", fuse_id.Name)
 		return []components.State{
 			{
 				Name:    fuse_id.Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

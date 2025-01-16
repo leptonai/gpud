@@ -3,7 +3,7 @@ package dmesg
 import (
 	memory_dmesg "github.com/leptonai/gpud/components/memory/dmesg"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"k8s.io/utils/ptr"
 )
@@ -39,8 +39,8 @@ const (
 	EventMemoryEDACCorrectableErrors = "memory_edac_correctable_errors"
 )
 
-func DefaultDmesgFiltersForMemory() []*query_log_common.Filter {
-	return []*query_log_common.Filter{
+func DefaultDmesgFiltersForMemory() []*poller_log_common.Filter {
+	return []*poller_log_common.Filter{
 		{
 			Name:            EventMemoryOOM,
 			Regex:           ptr.To(memory_dmesg.RegexOOM),

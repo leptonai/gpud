@@ -11,7 +11,7 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
-// GPU object from the nvidia-smi query.
+// GPU object from the nvidia-smi poller.
 // ref. "nvidia-smi --help-query-gpu"
 type NvidiaSMIGPU struct {
 	// The original GPU identifier from the nvidia-smi query output.

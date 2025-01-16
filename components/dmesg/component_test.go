@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -41,7 +41,7 @@ func TestComponent(t *testing.T) {
 			defer cancel()
 
 			xidErr := "NVRM: Xid (0000:03:00): 14, Channel 00000001"
-			filters := []*query_log_common.Filter{
+			filters := []*poller_log_common.Filter{
 				{
 					Name:      "xid error check",
 					Substring: &xidErr,
@@ -60,8 +60,8 @@ func TestComponent(t *testing.T) {
 			component, err = New(
 				ctx,
 				Config{
-					Log: query_log_config.Config{
-						Query: query_config.Config{
+					Log: poller_log_config.Config{
+						Query: poller_config.Config{
 							Interval: metav1.Duration{Duration: pollInterval},
 						},
 						File:          f.Name(),

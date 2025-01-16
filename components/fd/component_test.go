@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,7 +19,7 @@ func TestComponent(t *testing.T) {
 	component := New(
 		ctx,
 		Config{
-			Query: query_config.Config{
+			Query: poller_config.Config{
 				Interval: metav1.Duration{Duration: 5 * time.Second},
 			},
 		},

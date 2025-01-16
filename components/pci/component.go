@@ -9,8 +9,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/pci/id"
 	"github.com/leptonai/gpud/components/pci/state"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -36,7 +36,7 @@ type component struct {
 	cfg     Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return id.Name }

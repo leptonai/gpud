@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -94,7 +94,7 @@ func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 	srv.Close()
 
 	getFunc := CreateGet(Config{
-		Query: query_config.Config{},
+		Query: poller_config.Config{},
 		Port:  int(port),
 	})
 

@@ -12,8 +12,8 @@ import (
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {
@@ -35,7 +35,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return nvidia_nccl_id.Name }

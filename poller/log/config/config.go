@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"github.com/nxadm/tail"
 )
@@ -15,7 +15,7 @@ import (
 const DefaultBufferSize = 2000
 
 type Config struct {
-	Query query_config.Config `json:"query"`
+	Query poller_config.Config `json:"query"`
 
 	BufferSize int `json:"buffer_size"`
 
@@ -31,12 +31,12 @@ type Config struct {
 	// An event is generated if any of the filters match.
 	// Useful for explicit blacklisting "error" logs
 	// (e.g., GPU error messages in dmesg).
-	SelectFilters []*query_log_common.Filter `json:"select_filters"`
+	SelectFilters []*poller_log_common.Filter `json:"select_filters"`
 	// "AND" conditions to select logs.
 	// An event is generated if all of the filters do not match.
 	// Useful for explicit whitelisting logs and catch all other
 	// (e.g., good healthy log messages).
-	RejectFilters []*query_log_common.Filter `json:"reject_filters"`
+	RejectFilters []*poller_log_common.Filter `json:"reject_filters"`
 
 	SeekInfo *tail.SeekInfo `json:"seek_info,omitempty"`
 
@@ -44,7 +44,7 @@ type Config struct {
 	SeekInfoSyncer func(ctx context.Context, file string, seekInfo tail.SeekInfo) `json:"-"`
 
 	// Parse time format
-	TimeParseFunc query_log_common.ExtractTimeFunc `json:"-"`
+	TimeParseFunc poller_log_common.ExtractTimeFunc `json:"-"`
 }
 
 // For each interval, execute the scanning operation

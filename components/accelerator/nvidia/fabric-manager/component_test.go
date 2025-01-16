@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,15 +45,15 @@ func TestComponentLog(t *testing.T) {
 	component, err := New(
 		ctx,
 		Config{
-			Log: query_log_config.Config{
-				Query: query_config.Config{
+			Log: poller_log_config.Config{
+				Query: poller_config.Config{
 					Interval: metav1.Duration{Duration: pollInterval},
-					State: &query_config.State{
+					State: &poller_config.State{
 						DBRW: dbRW,
 						DBRO: dbRO,
 					},
 				},
-				BufferSize:    query_log_config.DefaultBufferSize,
+				BufferSize:    poller_log_config.DefaultBufferSize,
 				File:          f.Name(),
 				SelectFilters: filters,
 			},

@@ -14,8 +14,6 @@ import (
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/dmesg"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/file"
@@ -24,6 +22,8 @@ import (
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_tail "github.com/leptonai/gpud/poller/log/tail"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -219,14 +219,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if err != nil {
 		return err
 	}
-	matched, err := query_log_tail.Scan(
+	matched, err := poller_log_tail.Scan(
 		ctx,
-		query_log_tail.WithDedup(true),
-		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
-		query_log_tail.WithLinesToTail(op.lines),
-		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
-		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
+		poller_log_tail.WithDedup(true),
+		poller_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
+		poller_log_tail.WithLinesToTail(op.lines),
+		poller_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
+		poller_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
+		poller_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *poller_log_common.Filter) {
 			log.Logger.Debugw("matched", "line", string(line))
 			fmt.Println("line", string(line))
 			matchedB, _ := matched.YAML()

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
-	Units []string            `json:"units"`
+	Query poller_config.Config `json:"query"`
+	Units []string             `json:"units"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {

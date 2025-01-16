@@ -9,7 +9,7 @@ import (
 
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	query_log "github.com/leptonai/gpud/components/query/log"
+	query_log "github.com/leptonai/gpud/poller/log"
 
 	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

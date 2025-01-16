@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	"github.com/leptonai/gpud/log"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
 
 	"github.com/nxadm/tail"
 )
@@ -65,7 +65,7 @@ type fileStreamer struct {
 	lineC         chan Line
 	dedupEnabled  bool
 	dedup         *streamDeduper
-	extractTime   query_log_common.ExtractTimeFunc
+	extractTime   poller_log_common.ExtractTimeFunc
 	skipEmptyLine bool
 }
 

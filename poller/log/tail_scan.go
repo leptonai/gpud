@@ -4,17 +4,17 @@ import (
 	"context"
 	"time"
 
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_tail "github.com/leptonai/gpud/poller/log/tail"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // TailScan tails the last N lines without polling, just by reading the file.
 // This only catches the old logs, not the future ones.
-func (pl *poller) TailScan(ctx context.Context, overwriteOpts ...query_log_tail.OpOption) ([]Item, error) {
+func (pl *pollerImpl) TailScan(ctx context.Context, overwriteOpts ...poller_log_tail.OpOption) ([]Item, error) {
 	items := make([]Item, 0)
-	defaultAppendMatchedFunc := func(time time.Time, line []byte, matchedFilter *query_log_common.Filter) {
+	defaultAppendMatchedFunc := func(time time.Time, line []byte, matchedFilter *poller_log_common.Filter) {
 		items = append(items, Item{
 			Time:    metav1.Time{Time: time},
 			Line:    string(line),
@@ -22,9 +22,9 @@ func (pl *poller) TailScan(ctx context.Context, overwriteOpts ...query_log_tail.
 		})
 	}
 
-	tailOverwriteOpts := &query_log_tail.Op{}
+	tailOverwriteOpts := &poller_log_tail.Op{}
 	_ = tailOverwriteOpts.ApplyOpts(overwriteOpts)
-	procMatchedFunc := func(time time.Time, line []byte, matchedFilter *query_log_common.Filter) {
+	procMatchedFunc := func(time time.Time, line []byte, matchedFilter *poller_log_common.Filter) {
 		if tailOverwriteOpts.ProcessMatched != nil {
 			tailOverwriteOpts.ProcessMatched(time, line, matchedFilter)
 		}
@@ -32,29 +32,29 @@ func (pl *poller) TailScan(ctx context.Context, overwriteOpts ...query_log_tail.
 	}
 
 	// default options
-	updatedOptions := []query_log_tail.OpOption{
-		query_log_tail.WithProcessMatched(procMatchedFunc),
+	updatedOptions := []poller_log_tail.OpOption{
+		poller_log_tail.WithProcessMatched(procMatchedFunc),
 	}
 	if pl.cfg.File != "" {
-		updatedOptions = append(updatedOptions, query_log_tail.WithFile(pl.cfg.File))
+		updatedOptions = append(updatedOptions, poller_log_tail.WithFile(pl.cfg.File))
 	}
 	if len(pl.cfg.Commands) > 0 {
-		updatedOptions = append(updatedOptions, query_log_tail.WithCommands(pl.cfg.Commands))
+		updatedOptions = append(updatedOptions, poller_log_tail.WithCommands(pl.cfg.Commands))
 	}
 	if pl.cfg.Scan != nil && pl.cfg.Scan.File != "" {
-		updatedOptions = append(updatedOptions, query_log_tail.WithFile(pl.cfg.Scan.File))
+		updatedOptions = append(updatedOptions, poller_log_tail.WithFile(pl.cfg.Scan.File))
 	}
 	if pl.cfg.Scan != nil && len(pl.cfg.Scan.Commands) > 0 {
-		updatedOptions = append(updatedOptions, query_log_tail.WithCommands(pl.cfg.Scan.Commands))
+		updatedOptions = append(updatedOptions, poller_log_tail.WithCommands(pl.cfg.Scan.Commands))
 	}
 	if len(pl.cfg.SelectFilters) > 0 {
-		updatedOptions = append(updatedOptions, query_log_tail.WithSelectFilter(pl.cfg.SelectFilters...))
+		updatedOptions = append(updatedOptions, poller_log_tail.WithSelectFilter(pl.cfg.SelectFilters...))
 	}
 
 	for _, opt := range overwriteOpts {
 		// do not overwrite the process matched function since we need default items append operation
-		tmp := &query_log_tail.Op{}
-		_ = tmp.ApplyOpts([]query_log_tail.OpOption{opt})
+		tmp := &poller_log_tail.Op{}
+		_ = tmp.ApplyOpts([]poller_log_tail.OpOption{opt})
 		if tmp.ProcessMatched != nil {
 			continue
 		}
@@ -63,7 +63,7 @@ func (pl *poller) TailScan(ctx context.Context, overwriteOpts ...query_log_tail.
 		updatedOptions = append(updatedOptions, opt)
 	}
 
-	if _, err := query_log_tail.Scan(ctx, updatedOptions...); err != nil {
+	if _, err := poller_log_tail.Scan(ctx, updatedOptions...); err != nil {
 		return nil, err
 	}
 	if len(items) == 0 {

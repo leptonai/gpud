@@ -12,8 +12,8 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -37,7 +37,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx  context.Context
 	cancel   context.CancelFunc
-	poller   query.Poller
+	poller   poller.Poller
 	gatherer prometheus.Gatherer
 }
 
@@ -45,13 +45,13 @@ func (c *component) Name() string { return fd_id.Name }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
+	if err == poller.ErrNoData { // no data
 		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", fd_id.Name)
 		return []components.State{
 			{
 				Name:    fd_id.Name,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  poller.ErrNoData.Error(),
 			},
 		}, nil
 	}

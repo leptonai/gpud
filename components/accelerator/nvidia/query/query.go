@@ -24,10 +24,10 @@ import (
 	metrics_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/utilization"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
-	"github.com/leptonai/gpud/components/query"
-	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
+	poller_config "github.com/leptonai/gpud/poller/config"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,19 +36,19 @@ import (
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func SetDefaultPoller(dbRW *sql.DB, dbRO *sql.DB) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			"shared-nvidia-poller",
-			query_config.Config{
-				Interval:  metav1.Duration{Duration: query_config.DefaultPollInterval},
-				QueueSize: query_config.DefaultQueueSize,
-				State: &query_config.State{
-					Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
+			poller_config.Config{
+				Interval:  metav1.Duration{Duration: poller_config.DefaultPollInterval},
+				QueueSize: poller_config.DefaultQueueSize,
+				State: &poller_config.State{
+					Retention: metav1.Duration{Duration: poller_config.DefaultStateRetention},
 				},
 			},
 			CreateGet(dbRW, dbRO),
@@ -57,7 +57,7 @@ func SetDefaultPoller(dbRW *sql.DB, dbRO *sql.DB) {
 	})
 }
 
-func GetDefaultPoller() query.Poller {
+func GetDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
@@ -70,7 +70,7 @@ func GetSuccessOnce() <-chan any {
 	return getSuccessOnce
 }
 
-func CreateGet(dbRW *sql.DB, dbRO *sql.DB) query.GetFunc {
+func CreateGet(dbRW *sql.DB, dbRO *sql.DB) poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		// "ctx" here is the root level and used for instantiating the "shared" NVML instance "once"
 		// and all other sub-calls have its own context timeouts, thus we do not set the timeout here

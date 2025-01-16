@@ -16,8 +16,8 @@ import (
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/components/common"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/dustin/go-humanize"
 	"sigs.k8s.io/yaml"
@@ -219,13 +219,13 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			nvidia_component_error_xid_id.Name,
 			cfg.Query,
 			CreateGet(),
@@ -234,13 +234,13 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
 // DO NOT for-loop here
-// the query.GetFunc is already called periodically in a loop by the poller
-func CreateGet() query.GetFunc {
+// the poller.GetFunc is already called periodically in a loop by the poller
+func CreateGet() poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {

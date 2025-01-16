@@ -12,8 +12,8 @@ import (
 	nvidia_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -40,7 +40,7 @@ type component struct {
 	cfg     Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
-	poller  query.Poller
+	poller  poller.Poller
 }
 
 func (c *component) Name() string { return nvidia_error_xid_sxid_id.Name }

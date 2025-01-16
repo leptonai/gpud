@@ -1,4 +1,4 @@
-package query
+package poller
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/log"
+	poller_config "github.com/leptonai/gpud/poller/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,11 +25,11 @@ type Poller interface {
 
 	// Starts the poller routine.
 	// Redundant calls will be skipped if there's an existing poller.
-	Start(ctx context.Context, cfg query_config.Config, componentName string)
+	Start(ctx context.Context, cfg poller_config.Config, componentName string)
 
 	// Config returns the config used to start the poller.
 	// This is useful for debugging and logging.
-	Config() query_config.Config
+	Config() poller_config.Config
 
 	// Stops the poller routine.
 	// Safe to call multiple times.
@@ -73,13 +73,13 @@ type GetFunc func(context.Context) (any, error)
 // GetErrHandler is a function that handles the error from the get operation.
 type GetErrHandler func(error) error
 
-func New(id string, cfg query_config.Config, getFunc GetFunc, getErrHandler GetErrHandler) Poller {
+func New(id string, cfg poller_config.Config, getFunc GetFunc, getErrHandler GetErrHandler) Poller {
 	if getErrHandler == nil {
 		getErrHandler = func(err error) error {
 			return err
 		}
 	}
-	return &poller{
+	return &pollerImpl{
 		id:                 id,
 		startPollFunc:      startPoll,
 		getFunc:            getFunc,
@@ -89,9 +89,9 @@ func New(id string, cfg query_config.Config, getFunc GetFunc, getErrHandler GetE
 	}
 }
 
-var _ Poller = (*poller)(nil)
+var _ Poller = (*pollerImpl)(nil)
 
-type poller struct {
+type pollerImpl struct {
 	id string
 
 	startPollFunc startPollFunc
@@ -103,7 +103,7 @@ type poller struct {
 	cancel context.CancelFunc
 
 	cfgMu sync.RWMutex
-	cfg   query_config.Config
+	cfg   poller_config.Config
 
 	lastItemsMu sync.RWMutex
 	lastItems   []Item
@@ -180,18 +180,18 @@ func pollLoops(ctx context.Context, id string, ch chan<- Item, interval time.Dur
 	}
 }
 
-func (pl *poller) ID() string {
+func (pl *pollerImpl) ID() string {
 	return pl.id
 }
 
-func (pl *poller) Config() query_config.Config {
+func (pl *pollerImpl) Config() poller_config.Config {
 	pl.cfgMu.RLock()
 	defer pl.cfgMu.RUnlock()
 	return pl.cfg
 }
 
 // "caller" is used for reference counting
-func (pl *poller) Start(ctx context.Context, cfg query_config.Config, componentName string) {
+func (pl *pollerImpl) Start(ctx context.Context, cfg poller_config.Config, componentName string) {
 	log.Logger.Debugw("starting poller", "interval", cfg.Interval, "queueSize", cfg.QueueSize, "componentName", componentName)
 
 	pl.ctxMu.Lock()
@@ -216,7 +216,7 @@ func (pl *poller) Start(ctx context.Context, cfg query_config.Config, componentN
 	log.Logger.Debugw("started poller", "caller", componentName, "inflightComponents", len(pl.inflightComponents))
 }
 
-func (pl *poller) Stop(componentName string) bool {
+func (pl *pollerImpl) Stop(componentName string) bool {
 	pl.ctxMu.Lock()
 	defer pl.ctxMu.Unlock()
 
@@ -247,7 +247,7 @@ func (pl *poller) Stop(componentName string) bool {
 	return true
 }
 
-func (pl *poller) processItem(item Item) {
+func (pl *pollerImpl) processItem(item Item) {
 	pl.ctxMu.RLock()
 	canceled := pl.ctx == nil
 	pl.ctxMu.RUnlock()
@@ -260,7 +260,7 @@ func (pl *poller) processItem(item Item) {
 	pl.insertItemToInMemoryQueue(item)
 }
 
-func (pl *poller) insertItemToInMemoryQueue(item Item) {
+func (pl *pollerImpl) insertItemToInMemoryQueue(item Item) {
 	queueN := pl.Config().QueueSize
 
 	pl.lastItemsMu.Lock()
@@ -274,20 +274,20 @@ func (pl *poller) insertItemToInMemoryQueue(item Item) {
 
 // Last returns the last item in the queue.
 // It returns ErrNoData if no item is collected yet.
-func (pl *poller) Last() (*Item, error) {
+func (pl *pollerImpl) Last() (*Item, error) {
 	return pl.readLast(false)
 }
 
 // LastSuccess returns the last item in the queue with no error.
 // It returns ErrNoData if no item is collected yet.
-func (pl *poller) LastSuccess() (*Item, error) {
+func (pl *pollerImpl) LastSuccess() (*Item, error) {
 	return pl.readLast(true)
 }
 
 // Reads the last item from the queue.
 // If requireNoErr is true, it returns the last item with no error.
 // If no item is found, it returns ErrNoData.
-func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
+func (pl *pollerImpl) readLast(requireNoErr bool) (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
@@ -311,14 +311,14 @@ func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 // Returns the last known error in the queue.
 // Returns "ErrNoData" if no data is found.
 // Returns nil if no error is found.
-func (pl *poller) LastError() error {
+func (pl *pollerImpl) LastError() error {
 	return pl.readLastErr()
 }
 
 // Returns the last known error in the queue.
 // Returns "ErrNoData" if no data is found.
 // Returns nil if no error is found.
-func (pl *poller) readLastErr() error {
+func (pl *pollerImpl) readLastErr() error {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
@@ -339,11 +339,11 @@ func (pl *poller) readLastErr() error {
 
 // All returns all results in the queue since the given time.
 // It returns ErrNoData if no item is collected yet.
-func (pl *poller) All(since time.Time) ([]Item, error) {
+func (pl *pollerImpl) All(since time.Time) ([]Item, error) {
 	return pl.readAllItemsFromInMemoryQueue(since)
 }
 
-func (pl *poller) readAllItemsFromInMemoryQueue(since time.Time) ([]Item, error) {
+func (pl *pollerImpl) readAllItemsFromInMemoryQueue(since time.Time) ([]Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 

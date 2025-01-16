@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 
 	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
+	poller_log_common "github.com/leptonai/gpud/poller/log/common"
+	poller_log_config "github.com/leptonai/gpud/poller/log/config"
 
 	"k8s.io/utils/ptr"
 )
 
 type Config struct {
-	Query query_config.Config     `json:"query"`
-	Log   query_log_config.Config `json:"log"`
+	Query poller_config.Config     `json:"query"`
+	Log   poller_log_config.Config `json:"log"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
@@ -59,7 +59,7 @@ const (
 )
 
 var (
-	filters = []*query_log_common.Filter{
+	filters = []*poller_log_common.Filter{
 		{
 			Name:            eventNVSwitchFatailSXid,
 			Regex:           ptr.To(fabric_manager_log.RegexNVSwitchFatalSXidFromLog),
@@ -78,10 +78,10 @@ var (
 	}
 )
 
-func DefaultLogConfig() query_log_config.Config {
-	return query_log_config.Config{
-		Query:         query_config.DefaultConfig(),
-		BufferSize:    query_log_config.DefaultBufferSize,
+func DefaultLogConfig() poller_log_config.Config {
+	return poller_log_config.Config{
+		Query:         poller_config.DefaultConfig(),
+		BufferSize:    poller_log_config.DefaultBufferSize,
 		File:          fabricManagerLogFilePath,
 		SelectFilters: filters,
 	}

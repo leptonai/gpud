@@ -8,9 +8,9 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	lep_components "github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/yaml"
@@ -231,7 +231,7 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		}
 		event, err := component.Events(c, startTime)
 		if err != nil {
-			if errors.Is(err, query.ErrNoData) {
+			if errors.Is(err, poller.ErrNoData) {
 				log.Logger.Debugw("no event found", "component", componentName)
 				continue
 			}
@@ -331,7 +331,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		}
 		events, err := component.Events(c, startTime)
 		if err != nil {
-			if errors.Is(err, query.ErrNoData) {
+			if errors.Is(err, poller.ErrNoData) {
 				log.Logger.Debugw("no event found", "component", componentName)
 				continue
 			}

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
-	Port  int                 `json:"port"`
+	Query poller_config.Config `json:"query"`
+	Port  int                  `json:"port"`
 
 	// In case the kubelet does not open the read-only port, we ignore such errors as
 	// 'Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused'.

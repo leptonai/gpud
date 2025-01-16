@@ -13,9 +13,9 @@ import (
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/poller"
 )
 
 type Output struct {
@@ -221,13 +221,13 @@ func (o *Output) States() ([]components.State, error) {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
 func setDefaultPoller(cfg Config) {
 	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			fd_id.Name,
 			cfg.Query,
 			CreateGet(cfg),
@@ -236,11 +236,11 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) query.GetFunc {
+func CreateGet(cfg Config) poller.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {

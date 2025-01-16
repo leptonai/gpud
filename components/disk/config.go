@@ -6,11 +6,11 @@ import (
 	"errors"
 	"os"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/poller/config"
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
+	Query poller_config.Config `json:"query"`
 
 	// Specifies the mount points to track the disk usage for (e.g., metrics).
 	MountPointsToTrackUsage []string `json:"mount_points_to_track_usage"`

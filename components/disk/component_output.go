@@ -14,9 +14,9 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/disk/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/leptonai/gpud/poller"
 )
 
 type Output struct {
@@ -150,7 +150,7 @@ func (o *Output) States() ([]components.State, error) {
 
 var (
 	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
+	defaultPoller     poller.Poller
 )
 
 // only set once since it relies on the kube client and specific port
@@ -165,7 +165,7 @@ func setDefaultPoller(cfg Config) {
 			return nil
 		}
 
-		defaultPoller = query.New(
+		defaultPoller = poller.New(
 			disk_id.Name,
 			cfg.Query,
 			CreateGet(cfg),
@@ -174,11 +174,11 @@ func setDefaultPoller(cfg Config) {
 	})
 }
 
-func getDefaultPoller() query.Poller {
+func getDefaultPoller() poller.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) query.GetFunc {
+func CreateGet(cfg Config) poller.GetFunc {
 	mountPointsToTrackUsage := make(map[string]struct{})
 	for _, mp := range cfg.MountPointsToTrackUsage {
 		mountPointsToTrackUsage[mp] = struct{}{}

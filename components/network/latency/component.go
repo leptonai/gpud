@@ -10,8 +10,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/poller"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -36,7 +36,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx  context.Context
 	cancel   context.CancelFunc
-	poller   query.Poller
+	poller   poller.Poller
 	gatherer prometheus.Gatherer
 	cfg      Config
 }
