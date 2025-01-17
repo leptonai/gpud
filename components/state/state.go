@@ -194,6 +194,7 @@ func Register(reg *prometheus.Registry) error {
 	return nil
 }
 
+// Requires read-write db instance.
 func RecordMetrics(ctx context.Context, db *sql.DB) error {
 	var pageCount uint64
 	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
@@ -219,11 +220,11 @@ func RecordMetrics(ctx context.Context, db *sql.DB) error {
 }
 
 func Compact(ctx context.Context, db *sql.DB) error {
-	log.Logger.Debugw("compacting state database")
+	log.Logger.Infow("compacting state database")
 	_, err := db.ExecContext(ctx, "VACUUM;")
 	if err != nil {
 		return err
 	}
-	log.Logger.Debugw("successfully compacted state database")
+	log.Logger.Infow("successfully compacted state database")
 	return nil
 }

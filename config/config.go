@@ -33,6 +33,9 @@ type Config struct {
 	// Once elapsed, old states/metrics are purged/compacted.
 	RetentionPeriod metav1.Duration `json:"retention_period"`
 
+	// Interval at which to compact the state database.
+	CompactPeriod metav1.Duration `json:"compact_period"`
+
 	// Interval at which to refresh selected components.
 	// Disables refresh if not set.
 	RefreshComponentsInterval metav1.Duration `json:"refresh_components_interval"`
@@ -75,6 +78,9 @@ func (config *Config) Validate() error {
 	}
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
+	}
+	if config.CompactPeriod.Duration < time.Minute {
+		return fmt.Errorf("compact_period must be at least 1 minute, got %d", config.CompactPeriod.Duration)
 	}
 	if config.RefreshComponentsInterval.Duration < time.Minute {
 		return fmt.Errorf("refresh_components_interval must be at least 1 minute, got %d", config.RefreshComponentsInterval.Duration)

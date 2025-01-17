@@ -78,8 +78,16 @@ const (
 )
 
 var (
-	DefaultRefreshPeriod             = metav1.Duration{Duration: time.Minute}
-	DefaultRetentionPeriod           = metav1.Duration{Duration: 30 * time.Minute}
+	DefaultRefreshPeriod = metav1.Duration{Duration: time.Minute}
+
+	// keep the state only for the last 2 hours
+	DefaultRetentionPeriod = metav1.Duration{Duration: 2 * time.Hour}
+
+	// compact/vacuum is disruptive to existing queries (including reads)
+	// but necessary to keep the state database from growing indefinitely
+	// so we only compact/vacuum once a week
+	DefaultCompactPeriod = metav1.Duration{Duration: 7 * 24 * time.Hour}
+
 	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
 )
 
@@ -136,7 +144,9 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			kernel_module_id.Name: nil,
 		},
 
-		RetentionPeriod:           DefaultRetentionPeriod,
+		RetentionPeriod: DefaultRetentionPeriod,
+		CompactPeriod:   DefaultCompactPeriod,
+
 		RefreshComponentsInterval: DefaultRefreshComponentsInterval,
 		Pprof:                     false,
 
