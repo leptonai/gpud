@@ -54,6 +54,16 @@ type Event struct {
 	EventDetails string
 }
 
+// Cache entries in-memory to dedup event by:
+// - timestamp at minute level
+// - data source (dmesg, nvml)
+// - event type (xid, sxid)
+// - event id (xid number, sxid number)
+// - device id (gpu device uuid)
+func (e Event) cacheEntryIDWithTruncatedMinute() string {
+	return fmt.Sprintf("%d-%s-%s-%d-%s", e.UnixSeconds/60, e.DataSource, e.EventType, e.EventID, e.DeviceID)
+}
+
 func (e Event) ToXidDetail() *nvidia_query_xid.Detail {
 	if e.EventType != "xid" {
 		return nil
