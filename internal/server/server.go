@@ -322,6 +322,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
+	xidSxidEventDeduper := nvidia_xid_sxid_state.NewEventDeduper(
+		nvidia_xid_sxid_state.DefaultCacheSizeInBytes,
+		nvidia_xid_sxid_state.DefaultCacheTTLInSeconds,
+	)
 	dmesgProcessMatched := func(ts time.Time, line []byte, matchedFilter *query_log_common.Filter) {
 		if ts.IsZero() {
 			return
@@ -357,7 +361,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					DeviceID:     ev.DeviceUUID,
 					EventDetails: ev.LogItem.Line,
 				}
+				if xidSxidEventDeduper.Get(eventToInsert) {
+					log.Logger.Debugw("xid event already exists in cache -- deduped", "event", eventToInsert)
+					continue
+				}
+				if err := xidSxidEventDeduper.Add(eventToInsert); err != nil {
+					log.Logger.Errorw("failed to add xid event to deduper", "error", err)
+					continue
+				}
 
+				// not found in cache, fallback to db lookup
 				found, err := nvidia_xid_sxid_state.FindEvent(cctx, dbRO, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find xid event in database", "error", err)
@@ -367,6 +380,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("xid event already exists in database", "event", eventToInsert)
 					continue
 				}
+
 				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, dbRW, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert xid event into database", "error", werr)
 					continue
@@ -391,7 +405,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					DeviceID:     ev.DeviceUUID,
 					EventDetails: ev.LogItem.Line,
 				}
+				if xidSxidEventDeduper.Get(eventToInsert) {
+					log.Logger.Debugw("sxid event already exists in cache -- deduped", "event", eventToInsert)
+					continue
+				}
+				if err := xidSxidEventDeduper.Add(eventToInsert); err != nil {
+					log.Logger.Errorw("failed to add sxid event to deduper", "error", err)
+					continue
+				}
 
+				// not found in cache, fallback to db lookup
 				found, err := nvidia_xid_sxid_state.FindEvent(cctx, dbRW, eventToInsert)
 				if err != nil {
 					log.Logger.Errorw("failed to find sxid event in database", "error", err)
@@ -401,6 +424,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Debugw("sxid event already exists in database", "event", eventToInsert)
 					continue
 				}
+
 				if werr := nvidia_xid_sxid_state.InsertEvent(cctx, dbRW, eventToInsert); werr != nil {
 					log.Logger.Errorw("failed to insert sxid event into database", "error", werr)
 					continue
