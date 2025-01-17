@@ -1140,23 +1140,39 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if config.RetentionPeriod.Duration > 0 {
+	// track metrics every hour
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ticker.Reset(time.Hour)
+			}
+
+			if err := state.RecordMetrics(ctx, dbRW); err != nil {
+				log.Logger.Errorw("failed to record metrics", "error", err)
+			}
+		}
+	}()
+
+	// compact the state database every retention period
+	if config.CompactPeriod.Duration > 0 {
 		go func() {
-			ticker := time.NewTicker(1) // only first run is 1-ns wait
+			ticker := time.NewTicker(config.CompactPeriod.Duration)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					ticker.Reset(config.RetentionPeriod.Duration)
+					ticker.Reset(config.CompactPeriod.Duration)
 				}
 
 				if err := state.Compact(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to compact state database", "error", err)
-				}
-				if err := state.RecordMetrics(ctx, dbRW); err != nil {
-					log.Logger.Errorw("failed to record metrics", "error", err)
 				}
 			}
 		}()

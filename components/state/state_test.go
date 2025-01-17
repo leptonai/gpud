@@ -42,3 +42,20 @@ func TestOpenMemory(t *testing.T) {
 		t.Fatalf("machine id mismatch: %s != %s", id2, id)
 	}
 }
+
+func TestRecordMetrics(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, close := sqlite.OpenTestDB(t)
+	defer close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := RecordMetrics(ctx, dbRO); err == nil {
+		t.Fatal("expected error but got nil")
+	}
+	if err := RecordMetrics(ctx, dbRW); err != nil {
+		t.Fatal("failed to record metrics:", err)
+	}
+}
