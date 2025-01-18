@@ -44,6 +44,11 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	// in case of driver issue, the nvidia-smi is stuck in "state:D" -- uninterruptible sleep state
 	// which may not handle the os kill signal from the context timeout/cancellation

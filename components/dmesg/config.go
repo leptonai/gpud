@@ -12,6 +12,7 @@ import (
 
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -97,6 +98,11 @@ func checkDmesgSupportsSinceFlag(ctx context.Context) bool {
 	if err := p.Start(ctx); err != nil {
 		return false
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(

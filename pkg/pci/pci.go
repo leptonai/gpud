@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 
@@ -37,6 +38,11 @@ func List(ctx context.Context, opts ...OpOption) (Devices, error) {
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(p.StdoutReader())
 	devs, err := parseLspciVVV(ctx, scanner, op.nameMatchFunc)

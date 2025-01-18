@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -37,6 +38,11 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 	if err := proc.Start(ctx); err != nil {
 		return "", err
 	}
+	defer func() {
+		if err := proc.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0, 10)
 	if err := process.Read(
@@ -54,9 +60,6 @@ func GetLatestJournalctlOutput(ctx context.Context, svcName string) (string, err
 		process.WithWaitForCmd(),
 	); err != nil {
 		return "", fmt.Errorf("failed to read journalctl output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
-	}
-	if perr := proc.Abort(ctx); perr != nil {
-		return "", err
 	}
 
 	return strings.Join(lines, "\n"), nil

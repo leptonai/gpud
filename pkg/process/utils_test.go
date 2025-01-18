@@ -56,14 +56,14 @@ func (p *testProcess) Wait() <-chan error {
 	return p.waitCh
 }
 
-func (p *testProcess) Abort(ctx context.Context) error {
+func (p *testProcess) Close(ctx context.Context) error {
 	if p.cmd.Process != nil {
 		return p.cmd.Process.Kill()
 	}
 	return nil
 }
 
-func (p *testProcess) Aborted() bool {
+func (p *testProcess) Closed() bool {
 	return false
 }
 
@@ -273,11 +273,11 @@ func (p *nilReaderProcess) Wait() <-chan error {
 	return ch
 }
 
-func (p *nilReaderProcess) Abort(context.Context) error {
+func (p *nilReaderProcess) Close(context.Context) error {
 	return nil
 }
 
-func (p *nilReaderProcess) Aborted() bool {
+func (p *nilReaderProcess) Closed() bool {
 	return false
 }
 
@@ -317,11 +317,11 @@ func (p *stateProcess) Wait() <-chan error {
 	return ch
 }
 
-func (p *stateProcess) Abort(context.Context) error {
+func (p *stateProcess) Close(context.Context) error {
 	return nil
 }
 
-func (p *stateProcess) Aborted() bool {
+func (p *stateProcess) Closed() bool {
 	return p.isAborted
 }
 

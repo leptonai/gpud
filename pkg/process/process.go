@@ -26,10 +26,11 @@ type Process interface {
 	// Returns true if the process is started.
 	Started() bool
 
-	// Aborts the process and waits for it to exit.
-	Abort(ctx context.Context) error
-	// Returns true if the process is aborted.
-	Aborted() bool
+	// Closes the process (aborts if still running) and waits for it to exit.
+	// Cleans up the process resources.
+	Close(ctx context.Context) error
+	// Returns true if the process is closed.
+	Closed() bool
 
 	// Waits for the process to exit and returns the error, if any.
 	// If the command completes successfully, the error will be nil.
@@ -344,7 +345,7 @@ func (p *process) watchCmd() {
 	}
 }
 
-func (p *process) Abort(ctx context.Context) error {
+func (p *process) Close(ctx context.Context) error {
 	p.startedMu.RLock()
 	started := p.started
 	p.startedMu.RUnlock()
@@ -426,7 +427,7 @@ func (p *process) Abort(ctx context.Context) error {
 	return nil
 }
 
-func (p *process) Aborted() bool {
+func (p *process) Closed() bool {
 	p.abortedMu.RLock()
 	defer p.abortedMu.RUnlock()
 

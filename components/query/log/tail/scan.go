@@ -50,6 +50,12 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 		if err := p.Start(ctx); err != nil {
 			return 0, err
 		}
+		defer func() {
+			if err := p.Close(ctx); err != nil {
+				log.Logger.Warnw("failed to abort command", "err", err)
+			}
+		}()
+
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
@@ -59,9 +65,6 @@ func Scan(ctx context.Context, opts ...OpOption) (int, error) {
 			}
 		}
 		if err := f.Sync(); err != nil {
-			return 0, err
-		}
-		if err := p.Abort(ctx); err != nil {
 			return 0, err
 		}
 	}

@@ -88,6 +88,11 @@ func decideLsblkFlag(ctx context.Context) (string, func([]byte, ...OpOption) (Bl
 	if err := p.Start(ctx); err != nil {
 		return "", nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(
@@ -136,6 +141,11 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(

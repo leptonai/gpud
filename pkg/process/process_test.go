@@ -3,6 +3,7 @@ package process
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,13 +44,13 @@ func TestProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if !p.Aborted() {
+	if !p.Closed() {
 		t.Fatal("process is not aborted")
 	}
 }
@@ -101,11 +102,31 @@ echo "hello"
 		t.Fatal("timeout")
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	proc, _ := p.(*process)
+	if proc.Closed() {
+		t.Fatal("process is closed")
+	}
+	bashFile := proc.runBashFile.Name()
+	if bashFile == "" {
+		t.Fatal("bash file is not created")
+	}
+
+	if _, err := os.Stat(bashFile); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 	// redunant abort is ok
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if !proc.Closed() {
+		t.Fatal("process is not closed")
+	}
+	if _, err := os.Stat(bashFile); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal(err)
 	}
 }
@@ -137,7 +158,7 @@ func TestProcessWithBash(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -176,7 +197,7 @@ func TestProcessWithTempFile(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -230,7 +251,7 @@ func TestProcessWithStdoutReader(t *testing.T) {
 	}
 	t.Logf("stdout: %q", output)
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -274,7 +295,7 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if scanner.Err() != nil {
@@ -322,7 +343,7 @@ func TestProcessWithRestarts(t *testing.T) {
 		}
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -343,7 +364,7 @@ func TestProcessSleep(t *testing.T) {
 	}
 	t.Logf("pid: %d", p.PID())
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 
@@ -395,7 +416,7 @@ func TestProcessStream(t *testing.T) {
 		t.Logf("stdout: %q", output)
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
