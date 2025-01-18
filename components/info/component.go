@@ -3,21 +3,30 @@ package info
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
+	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
+	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/memory"
+	"github.com/leptonai/gpud/pkg/uptime"
 	"github.com/leptonai/gpud/version"
+
+	"github.com/dustin/go-humanize"
 )
 
-func New(annotations map[string]string) components.Component {
+func New(annotations map[string]string, dbRO *sql.DB) components.Component {
 	return &component{
 		annotations: annotations,
+		dbRO:        dbRO,
 	}
 }
 
@@ -25,6 +34,7 @@ var _ components.Component = (*component)(nil)
 
 type component struct {
 	annotations map[string]string
+	dbRO        *sql.DB
 }
 
 func (c *component) Name() string { return info_id.Name }
@@ -35,6 +45,19 @@ const (
 	StateKeyDaemonVersion = "daemon_version"
 	StateKeyMacAddress    = "mac_address"
 	StateKeyPackages      = "packages"
+
+	StateKeyGPUdPID = "gpud_pid"
+
+	StateKeyGPUdUsageFileDescriptors = "gpud_usage_file_descriptors"
+
+	StateKeyGPUdUsageMemoryInBytes   = "gpud_usage_memory_in_bytes"
+	StateKeyGPUdUsageMemoryHumanized = "gpud_usage_memory_humanized"
+
+	StateKeyGPUdUsageDBInBytes   = "gpud_usage_db_in_bytes"
+	StateKeyGPUdUsageDBHumanized = "gpud_usage_db_humanized"
+
+	StateKeyGPUdStartTimeInUnixTime = "gpud_start_time_in_unix_time"
+	StateKeyGPUdStartTimeHumanized  = "gpud_start_time_humanized"
 
 	StateNameAnnotations = "annotations"
 )
@@ -63,6 +86,37 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		rawPayload, _ := json.Marshal(&packageStatus)
 		managedPackages = string(rawPayload)
 	}
+
+	pid := os.Getpid()
+	gpudUsageFileDescriptors, err := file.GetCurrentProcessUsage()
+	if err != nil {
+		return nil, err
+	}
+
+	gpudUsageMemoryInBytes, err := memory.GetCurrentProcessRSSInBytes()
+	if err != nil {
+		return nil, err
+	}
+	gpudUsageMemoryHumanized := humanize.Bytes(gpudUsageMemoryInBytes)
+
+	var (
+		dbSize          uint64
+		dbSizeHumanized string
+	)
+	if c.dbRO != nil {
+		dbSize, err = state.ReadDBSize(ctx, c.dbRO)
+		if err != nil {
+			return nil, err
+		}
+		dbSizeHumanized = humanize.Bytes(dbSize)
+	}
+
+	gpudStartTimeInUnixTime, err := uptime.GetCurrentProcessStartTimeInUnixTime()
+	if err != nil {
+		return nil, err
+	}
+	gpudStartTimeHumanized := humanize.Time(time.Unix(int64(gpudStartTimeInUnixTime), 0))
+
 	return []components.State{
 		{
 			Name:    StateNameDaemon,
@@ -72,6 +126,19 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 				StateKeyDaemonVersion: version.Version,
 				StateKeyMacAddress:    mac,
 				StateKeyPackages:      managedPackages,
+
+				StateKeyGPUdPID: fmt.Sprintf("%d", pid),
+
+				StateKeyGPUdUsageFileDescriptors: fmt.Sprintf("%d", gpudUsageFileDescriptors),
+
+				StateKeyGPUdUsageMemoryInBytes:   fmt.Sprintf("%d", gpudUsageMemoryInBytes),
+				StateKeyGPUdUsageMemoryHumanized: gpudUsageMemoryHumanized,
+
+				StateKeyGPUdUsageDBInBytes:   fmt.Sprintf("%d", dbSize),
+				StateKeyGPUdUsageDBHumanized: dbSizeHumanized,
+
+				StateKeyGPUdStartTimeInUnixTime: fmt.Sprintf("%d", gpudStartTimeInUnixTime),
+				StateKeyGPUdStartTimeHumanized:  gpudStartTimeHumanized,
 			},
 		},
 		{

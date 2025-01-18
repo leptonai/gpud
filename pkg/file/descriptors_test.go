@@ -37,3 +37,11 @@ func Test_getFileHandles(t *testing.T) {
 		t.Fatalf("unused is not 0: %v", unused)
 	}
 }
+
+func TestGetCurrentProcessUsage(t *testing.T) {
+	usage, err := GetCurrentProcessUsage()
+	if err != nil {
+		t.Fatalf("failed to get current process usage: %v", err)
+	}
+	t.Logf("usage: %v", usage)
+}

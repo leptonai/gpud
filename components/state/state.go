@@ -166,14 +166,6 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 }
 
 var (
-	currentPages = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "gpud",
-			Subsystem: "state_sqlite",
-			Name:      "current_pages",
-			Help:      "current number of pages",
-		},
-	)
 	currentSize = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "gpud",
@@ -185,36 +177,40 @@ var (
 )
 
 func Register(reg *prometheus.Registry) error {
-	if err := reg.Register(currentPages); err != nil {
-		return err
-	}
 	if err := reg.Register(currentSize); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Requires read-write db instance.
-func RecordMetrics(ctx context.Context, db *sql.DB) error {
+func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
 	var pageCount uint64
 	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
 	if err == sql.ErrNoRows {
-		return errors.New("no page count")
+		return 0, errors.New("no page count")
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
-	currentPages.Set(float64(pageCount))
 
 	var pageSize uint64
 	err = db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
 	if err == sql.ErrNoRows {
-		return errors.New("no page size")
+		return 0, errors.New("no page size")
 	}
+	if err != nil {
+		return 0, err
+	}
+
+	return pageCount * pageSize, nil
+}
+
+func RecordMetrics(ctx context.Context, db *sql.DB) error {
+	dbSize, err := ReadDBSize(ctx, db)
 	if err != nil {
 		return err
 	}
-	currentSize.Set(float64(pageCount * pageSize))
+	currentSize.Set(float64(dbSize))
 
 	return nil
 }
