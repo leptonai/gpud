@@ -649,7 +649,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 
 		case info_id.Name:
-			allComponents = append(allComponents, info.New(config.Annotations))
+			allComponents = append(allComponents, info.New(config.Annotations, dbRO))
 
 		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}

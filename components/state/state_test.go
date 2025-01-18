@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/sqlite"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestOpenMemory(t *testing.T) {
@@ -46,16 +48,36 @@ func TestOpenMemory(t *testing.T) {
 func TestRecordMetrics(t *testing.T) {
 	t.Parallel()
 
-	dbRW, dbRO, close := sqlite.OpenTestDB(t)
-	defer close()
+	reg := prometheus.NewRegistry()
+	if err := Register(reg); err != nil {
+		t.Fatal("failed to register metrics:", err)
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := RecordMetrics(ctx, dbRO); err == nil {
-		t.Fatal("expected error but got nil")
+	if err := CreateTableMachineMetadata(ctx, dbRW); err != nil {
+		t.Fatal("failed to create table:", err)
 	}
-	if err := RecordMetrics(ctx, dbRW); err != nil {
+	id, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, "")
+	if err != nil {
+		t.Fatal("failed to create machine id:", err)
+	}
+	t.Log(id)
+
+	if err := RecordMetrics(ctx, dbRO); err != nil {
 		t.Fatal("failed to record metrics:", err)
 	}
+	if err := Compact(ctx, dbRW); err != nil {
+		t.Fatal("failed to compact database:", err)
+	}
+
+	size, err := ReadDBSize(ctx, dbRO)
+	if err != nil {
+		t.Fatal("failed to read db size:", err)
+	}
+	t.Log(size)
 }

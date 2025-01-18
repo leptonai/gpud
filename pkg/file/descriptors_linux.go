@@ -79,3 +79,16 @@ func GetUsage() (uint64, error) {
 	}
 	return total, nil
 }
+
+// Returns the number of allocated file handles for the current process.
+func GetCurrentProcessUsage() (uint64, error) {
+	proc, err := procfs.Self()
+	if err != nil {
+		return 0, err
+	}
+	fdLen, err := proc.FileDescriptorsLen()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(fdLen), nil
+}
