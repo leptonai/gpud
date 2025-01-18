@@ -113,9 +113,14 @@ func TestExtractNVRMXidDeviceID(t *testing.T) {
 			expected: "0000:03:00",
 		},
 		{
-			name:     "device ID with PCI prefix without timestamp",
+			name:     "device ID with PCI prefix without timestamp #1",
 			input:    "NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.",
 			expected: "PCI:0000:05:00",
+		},
+		{
+			name:     "device ID with PCI prefix without timestamp #2",
+			input:    "NVRM: Xid (PCI:0000:40:00): 119, pid=2272442, name=python, Timeout after 45s of waiting for RPC response from GPU3 GSP! Expected function 76 (GSP_RM_CONTROL) (0x20801702 0x4).",
+			expected: "PCI:0000:40:00",
 		},
 		{
 			name:     "another device ID with PCI prefix",
