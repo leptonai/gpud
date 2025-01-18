@@ -1,0 +1,65 @@
+# https://goreleaser.com/customization/builds/
+builds:
+
+  - id: gpud
+    binary: gpud
+    main: ./cmd/gpud
+    env:
+      - CGO_ENABLED=1
+    flags:
+      - -v
+
+    # NOTE: the "v" prefix from the git tag is stripped for the {{.Version}}
+    ldflags:
+      - -s -w
+      - -X github.com/leptonai/gpud/version.BuildTimestamp={{.CommitTimestamp}}
+      - -X github.com/leptonai/gpud/version.Revision={{.Commit}}
+      - -X github.com/leptonai/gpud/version.Version=v{{.Version}}
+
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+# https://goreleaser.com/customization/archive/
+archives:
+
+  - id: gpud
+    format: tgz
+
+    # "builds" reference which build instances should be archived in this archive
+    builds:
+    - gpud
+
+    name_template: >-
+      {{ .Binary }}_v{{- .Version }}_{{- .Os }}_{{ .Arch }}_ubuntu22.04
+
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+
+# https://goreleaser.com/customization/changelog/
+changelog:
+  use: github-native
+
+release:
+  draft: false
+  replace_existing_draft: true
+  make_latest: true
+  mode: replace
+
+  github:
+    owner: leptonai
+    name: gpud
+
+  header: |
+    ## GPUd release notes ({{ .Date }})
+
+    Welcome to this new release!
+
+  name_template: "{{.ProjectName}}-v{{.Version}}"
+
+# ref. https://goreleaser.com/customization/checksum/?h=checksum
+checksum:
+  disable: true
