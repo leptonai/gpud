@@ -126,6 +126,7 @@ import (
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	poller_config "github.com/leptonai/gpud/pkg/poller/config"
+	poller_log_state "github.com/leptonai/gpud/pkg/poller/log/state"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -206,6 +207,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
+	}
+	if err := poller_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
+		return nil, fmt.Errorf("failed to create poller log state table: %w", err)
 	}
 
 	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
