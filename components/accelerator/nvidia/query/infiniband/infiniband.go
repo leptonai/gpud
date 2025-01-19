@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -63,6 +64,11 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 	if err := p.Start(ctx); err != nil {
 		return 0, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	count := 0
 

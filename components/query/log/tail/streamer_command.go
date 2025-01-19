@@ -182,6 +182,10 @@ func (sr *commandStreamer) waitCommand() {
 			sr.dedup.mu.Unlock()
 			seenPool.Put(sr.dedup)
 		}
+
+		if err := sr.proc.Close(sr.ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
 	}()
 
 	select {

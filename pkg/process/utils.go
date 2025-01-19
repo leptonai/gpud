@@ -71,7 +71,7 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	if !p.Started() {
 		return ErrProcessNotStarted
 	}
-	if p.Aborted() {
+	if p.Closed() {
 		return ErrProcessAborted
 	}
 
@@ -119,7 +119,7 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		default:
 		}
 
-		if p.Aborted() {
+		if p.Closed() {
 			return errors.New("process aborted")
 		}
 	}

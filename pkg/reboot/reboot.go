@@ -74,6 +74,11 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 		if err := proc.Start(ctx); err != nil {
 			return err
 		}
+		defer func() {
+			if err := proc.Close(ctx); err != nil {
+				log.Logger.Warnw("failed to abort command", "err", err)
+			}
+		}()
 
 		if err := process.Read(
 			ctx,

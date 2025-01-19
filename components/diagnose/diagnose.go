@@ -13,6 +13,7 @@ import (
 	"github.com/leptonai/gpud/components/dmesg"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
@@ -480,6 +481,12 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 	if serr := p.Start(ctx); serr != nil {
 		return serr
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -490,9 +497,6 @@ func (o *output) runCommand(ctx context.Context, subDir string, args ...string) 
 				Error:   err.Error(),
 			})
 		}
-	}
-	if err := p.Abort(ctx); err != nil {
-		return err
 	}
 
 	return nil

@@ -290,7 +290,7 @@ func runCommand(ctx context.Context, script string, result *string) error {
 			return err
 		}
 	}
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		return err
 	}
 	return nil

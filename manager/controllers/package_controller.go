@@ -314,6 +314,12 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 	if err = p.Start(ctx); err != nil {
 		return err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
 	if result != nil {
 		go func() {
 			lines := make([]string, 0)

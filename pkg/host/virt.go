@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -59,6 +60,11 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	if err := p.Start(ctx); err != nil {
 		return VirtualizationEnvironment{}, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(
@@ -116,6 +122,11 @@ func SystemManufacturer(ctx context.Context) (string, error) {
 	if err := p.Start(ctx); err != nil {
 		return "", err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(

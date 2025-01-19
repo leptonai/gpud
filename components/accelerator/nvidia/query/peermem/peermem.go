@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -35,6 +36,11 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	if err := proc.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := proc.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	// e.g.,
 	// sudo lsmod | grep nvidia_peermem
@@ -57,10 +63,6 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 		process.WithWaitForCmd(),
 	); err != nil {
 		return nil, fmt.Errorf("failed to read lsmod output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
-	}
-
-	if perr := proc.Abort(ctx); perr != nil {
-		return nil, err
 	}
 
 	o := &LsmodPeermemModuleOutput{

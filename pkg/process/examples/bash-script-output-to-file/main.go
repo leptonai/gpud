@@ -51,10 +51,10 @@ echo hello
 		panic("timeout")
 	}
 
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		panic(err)
 	}
-	if err := p.Abort(ctx); err != nil {
+	if err := p.Close(ctx); err != nil {
 		panic(err)
 	}
 

@@ -104,6 +104,11 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	lines := make([]string, 0)
 	if err := process.Read(
