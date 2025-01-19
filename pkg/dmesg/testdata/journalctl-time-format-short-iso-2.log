@@ -1,0 +1,47 @@
+2025-01-17T17:10:43+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:43+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali1d5c6a0536f: link becomes ready
+2025-01-17T17:10:45+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:45+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calib3cc1c7956f: link becomes ready
+2025-01-17T17:10:46+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:46+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calid873bd29d16: link becomes ready
+2025-01-17T17:10:48+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:48+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calif2a5f02af02: link becomes ready
+2025-01-17T17:10:49+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:49+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali359320ec001: link becomes ready
+2025-01-17T17:10:50+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:50+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali57cf0b6c7d0: link becomes ready
+2025-01-17T17:10:52+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:52+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calie488e81caab: link becomes ready
+2025-01-17T17:10:53+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali7379814f4e7: link becomes ready
+2025-01-17T17:10:54+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:10:54+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali2655f9d890b: link becomes ready
+2025-01-17T17:10:56+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali778cdf152bc: link becomes ready
+2025-01-17T17:11:06+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:06+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali39521c13148: link becomes ready
+2025-01-17T17:11:09+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:09+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali25589b996b2: link becomes ready
+2025-01-17T17:11:10+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:10+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calif435c9375a0: link becomes ready
+2025-01-17T17:11:12+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:12+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali0f0e2a5ff4c: link becomes ready
+2025-01-17T17:11:17+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:17+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali009f89aa2a2: link becomes ready
+2025-01-17T17:11:18+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-01-17T17:11:18+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): calida23a901809: link becomes ready
+2025-01-17T17:11:20+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali92efa35d5e5: link becomes ready
+2025-01-17T17:11:21+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali46ac8f4d503: link becomes ready
+2025-01-17T17:11:23+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: IPv6: ADDRCONF(NETDEV_CHANGE): cali6706ce3460d: link becomes ready
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2025-01-17T17:39:30+0000 exp03-ft-896z-1-lan.exp03-ft-896z-job-svc kernel: nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
