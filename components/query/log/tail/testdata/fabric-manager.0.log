@@ -1,0 +1,499 @@
+[Dec 18 2024 19:09:50] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:81312046c77d043a status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe aa8f62a63b474b1c 42b6541a7c99b6c6 2d4131df9e28ae09 8e4e8b14fb982022
+
+[Dec 18 2024 19:09:50] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 18 2024 19:09:50] [INFO] [tid 1584] successfully setup multicast team for request id 9309257393118184506.
+[Dec 18 2024 19:09:50] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:81312046c77d043a status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:be1e310e660a89ee Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 18 2024 20:50:46] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:4110fd7539ed0d0 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:78cdb1f7062f4f83 Flags:0
+
+[Dec 18 2024 20:50:46] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 18 2024 20:50:46] [INFO] [tid 1584] successfully released multicast team with handle 8704809329295839107.
+[Dec 18 2024 20:50:50] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:6750810887294585 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:be1e310e660a89ee Flags:0
+
+[Dec 18 2024 20:50:50] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 18 2024 20:50:50] [INFO] [tid 1584] successfully released multicast team with handle 13699441054418897390.
+[Dec 18 2024 20:51:11] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:474aad0a33fb6a4 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 aa8f62a63b474b1c 42b6541a7c99b6c6 8e4e8b14fb982022
+
+[Dec 18 2024 20:51:11] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 18 2024 20:51:11] [INFO] [tid 1584] successfully setup multicast team for request id 321069286518929060.
+[Dec 18 2024 20:51:11] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:474aad0a33fb6a4 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:964808ca391ac Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 18 2024 20:55:07] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:9e2e8b1fb8f4bea status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe aa8f62a63b474b1c 42b6541a7c99b6c6 8e4e8b14fb982022 2d4131df9e28ae09
+
+[Dec 18 2024 20:55:07] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 18 2024 20:55:07] [INFO] [tid 1584] successfully setup multicast team for request id 712387542205287402.
+[Dec 18 2024 20:55:07] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:9e2e8b1fb8f4bea status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:d6b847c17db40ca1 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 18 2024 22:34:26] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:8d09fc52bf342405 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:964808ca391ac Flags:0
+
+[Dec 18 2024 22:34:26] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 18 2024 22:34:26] [INFO] [tid 1584] successfully released multicast team with handle 2643778068517292.
+[Dec 18 2024 22:34:29] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:348a69958ddca488 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:d6b847c17db40ca1 Flags:0
+
+[Dec 18 2024 22:34:29] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 18 2024 22:34:29] [INFO] [tid 1584] successfully released multicast team with handle 15472195416194550945.
+[Dec 18 2024 22:34:53] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:cc4711684cdb2102 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe aa8f62a63b474b1c 42b6541a7c99b6c6 8e4e8b14fb982022 2d4131df9e28ae09
+
+[Dec 18 2024 22:34:53] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 18 2024 22:34:53] [INFO] [tid 1584] successfully setup multicast team for request id 14719753046747455746.
+[Dec 18 2024 22:34:53] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:cc4711684cdb2102 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:6d83a908a8b0d1d4 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 18 2024 22:38:37] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:14480877ee058b3a status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 42b6541a7c99b6c6 aa8f62a63b474b1c 8e4e8b14fb982022
+
+[Dec 18 2024 22:38:37] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 18 2024 22:38:37] [INFO] [tid 1584] successfully setup multicast team for request id 1461427390269197114.
+[Dec 18 2024 22:38:37] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:14480877ee058b3a status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:979d23505db5f18 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 00:21:29] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:dec71a0f0d4e0cad status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:6d83a908a8b0d1d4 Flags:0
+
+[Dec 19 2024 00:21:29] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 00:21:29] [INFO] [tid 1584] successfully released multicast team with handle 7891336826738233812.
+[Dec 19 2024 00:21:32] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:6cd477f793909239 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:979d23505db5f18 Flags:0
+
+[Dec 19 2024 00:21:32] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 00:21:32] [INFO] [tid 1584] successfully released multicast team with handle 682807943696703256.
+[Dec 19 2024 00:21:57] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:8945132d9ce96b32 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 8e4e8b14fb982022 2d4131df9e28ae09 42b6541a7c99b6c6 aa8f62a63b474b1c
+
+[Dec 19 2024 00:21:57] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 19 2024 00:21:57] [INFO] [tid 1584] successfully setup multicast team for request id 9891333243216161586.
+[Dec 19 2024 00:21:57] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:8945132d9ce96b32 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:a89525ac41102638 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 19 2024 00:25:55] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:6f8311d7764da20d status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d aa8f62a63b474b1c 2d4131df9e28ae09 10dbe3d570b7debe 42b6541a7c99b6c6 8e4e8b14fb982022
+
+[Dec 19 2024 00:25:55] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 19 2024 00:25:55] [INFO] [tid 1584] successfully setup multicast team for request id 8035285777259536909.
+[Dec 19 2024 00:25:55] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:6f8311d7764da20d status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:d49eacc764073ab1 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 02:12:52] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:8b33fc7f6a9e666 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:a89525ac41102638 Flags:0
+
+[Dec 19 2024 02:12:52] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 02:12:52] [INFO] [tid 1584] successfully released multicast team with handle 12147656991657961016.
+[Dec 19 2024 02:12:56] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:ce7318160f3f0735 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:d49eacc764073ab1 Flags:0
+
+[Dec 19 2024 02:12:56] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 02:12:56] [INFO] [tid 1584] successfully released multicast team with handle 15320872954737670833.
+[Dec 19 2024 02:13:18] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:ab27f999d1a250a9 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 8e4e8b14fb982022 42b6541a7c99b6c6 aa8f62a63b474b1c
+
+[Dec 19 2024 02:13:18] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 19 2024 02:13:18] [INFO] [tid 1584] successfully setup multicast team for request id 12333100543619780777.
+[Dec 19 2024 02:13:18] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:ab27f999d1a250a9 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:e9a52160a174f724 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 19 2024 02:17:23] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:2cc1d727d41d10b7 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 8e4e8b14fb982022 aa8f62a63b474b1c 42b6541a7c99b6c6
+
+[Dec 19 2024 02:17:23] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 19 2024 02:17:23] [INFO] [tid 1584] successfully setup multicast team for request id 3225095374236356791.
+[Dec 19 2024 02:17:23] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:2cc1d727d41d10b7 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:e3068dd12eb96b72 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 03:58:57] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:d84deeee6937d065 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:e9a52160a174f724 Flags:0
+
+[Dec 19 2024 03:58:57] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 03:58:57] [INFO] [tid 1584] successfully released multicast team with handle 16835899480903841572.
+[Dec 19 2024 03:59:01] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:9df8998d58020a85 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:e3068dd12eb96b72 Flags:0
+
+[Dec 19 2024 03:59:01] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 03:59:01] [INFO] [tid 1584] successfully released multicast team with handle 16358918626041490290.
+[Dec 19 2024 03:59:23] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:63444a283670ded9 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 42b6541a7c99b6c6 8e4e8b14fb982022 aa8f62a63b474b1c
+
+[Dec 19 2024 03:59:23] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 19 2024 03:59:23] [INFO] [tid 1584] successfully setup multicast team for request id 7152923644743704281.
+[Dec 19 2024 03:59:23] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:63444a283670ded9 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:bebe950509906d00 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 19 2024 04:03:08] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:46503cdff1320da1 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 2d4131df9e28ae09 aa8f62a63b474b1c 8e4e8b14fb982022 42b6541a7c99b6c6 91f357befdf5779d 10dbe3d570b7debe
+
+[Dec 19 2024 04:03:08] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 19 2024 04:03:08] [INFO] [tid 1584] successfully setup multicast team for request id 5066616513313770913.
+[Dec 19 2024 04:03:08] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:46503cdff1320da1 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:89f7de0f7ca8f5cc Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 05:44:57] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:a08081c8f6f667af status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:bebe950509906d00 Flags:0
+
+[Dec 19 2024 05:44:57] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 05:44:57] [INFO] [tid 1584] successfully released multicast team with handle 13744586961649167616.
+[Dec 19 2024 05:45:00] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:7c5f1a73c9e11bff status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:89f7de0f7ca8f5cc Flags:0
+
+[Dec 19 2024 05:45:00] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 05:45:00] [INFO] [tid 1584] successfully released multicast team with handle 9941658860540982732.
+[Dec 19 2024 05:45:22] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:211a576abf67ef47 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe 2d4131df9e28ae09 8e4e8b14fb982022 42b6541a7c99b6c6 aa8f62a63b474b1c
+
+[Dec 19 2024 05:45:22] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 19 2024 05:45:22] [INFO] [tid 1584] successfully setup multicast team for request id 2385315068635508551.
+[Dec 19 2024 05:45:22] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:211a576abf67ef47 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:fb6bb5925c36ddcf Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 19 2024 05:49:28] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:6ad541ee106b8ac9 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe aa8f62a63b474b1c 42b6541a7c99b6c6 2d4131df9e28ae09 8e4e8b14fb982022
+
+[Dec 19 2024 05:49:28] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 19 2024 05:49:28] [INFO] [tid 1584] successfully setup multicast team for request id 7698131628793236169.
+[Dec 19 2024 05:49:28] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:6ad541ee106b8ac9 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:b8231268a7c42f4a Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 05:51:53] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:ceb452f47332e769 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:b8231268a7c42f4a Flags:0
+
+[Dec 19 2024 05:51:53] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 05:51:53] [INFO] [tid 1584] successfully released multicast team with handle 13268469167864164170.
+[Dec 19 2024 05:51:53] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:5c5eef9dee70e63b status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:fb6bb5925c36ddcf Flags:0
+
+[Dec 19 2024 05:51:53] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 05:51:53] [INFO] [tid 1584] successfully released multicast team with handle 18116773566244904399.
+[Dec 19 2024 05:55:13] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:27173e309e6735f9 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 ebd867c5b4df712f 91f357befdf5779d 10dbe3d570b7debe aa8f62a63b474b1c 8e4e8b14fb982022 42b6541a7c99b6c6 2d4131df9e28ae09
+
+[Dec 19 2024 05:55:13] [INFO] [tid 1584] multicast group 0 is allocated.
+[Dec 19 2024 05:55:13] [INFO] [tid 1584] successfully setup multicast team for request id 2816788470480451065.
+[Dec 19 2024 05:55:13] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:27173e309e6735f9 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:3dbce3d9d84006d2 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 19 2024 05:59:13] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:4381a7dee8d7a213 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:203acba0a7853521 10dbe3d570b7debe 91f357befdf5779d ebd867c5b4df712f 2d4131df9e28ae09 aa8f62a63b474b1c 42b6541a7c99b6c6 8e4e8b14fb982022
+
+[Dec 19 2024 05:59:13] [INFO] [tid 1584] multicast group 1 is allocated.
+[Dec 19 2024 05:59:13] [INFO] [tid 1584] successfully setup multicast team for request id 4864353648367870483.
+[Dec 19 2024 05:59:13] [INFO] [tid 1372] Sending inband response message:  Message header details: magic Id:adbc request Id:4381a7dee8d7a213 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:972312c9c1e1a7c0 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:83:00.0 physical id 0 port 34
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:83:00.0 physical id 0 port 34
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:84:00.0 physical id 1 port 35
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:84:00.0 physical id 1 port 35
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:84:00.0 physical id 1 port 42
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:84:00.0 physical id 1 port 42
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 0
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 0
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 1
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 1
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 19
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 19
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 33
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:85:00.0 physical id 2 port 33
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 36
+[Dec 19 2024 19:17:49] [ERROR] [tid 1374] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 36
+[Dec 19 2024 19:18:07] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:c0ffe177f10f3fc7 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:972312c9c1e1a7c0 Flags:0
+
+[Dec 19 2024 19:18:07] [INFO] [tid 1584] multicast group 1 is freed.
+[Dec 19 2024 19:18:07] [INFO] [tid 1584] successfully released multicast team with handle 10890568981662508992.
+[Dec 19 2024 19:18:07] [INFO] [tid 1579] Received an inband message:  Message header details: magic Id:adbc request Id:4064dce4c3d2390f status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:3dbce3d9d84006d2 Flags:0
+
+[Dec 19 2024 19:18:07] [INFO] [tid 1584] multicast group 0 is freed.
+[Dec 19 2024 19:18:07] [INFO] [tid 1584] successfully released multicast team with handle 4448681056710690514.
+Fabric Manager Log initializing at: 12/19/2024 22:08:53.808
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Fabric Manager version 535.161.08 is running with the following configuration options
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Logging level = 4
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Logging file name/path = /var/log/fabricmanager.log
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Append to log file = 1
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Max Log file size = 1024 (MBs)
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Use Syslog file = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Fabric Manager communication ports = 16000
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Fabric Mode = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Fabric Mode Restart = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] FM Library communication bind interface = 127.0.0.1
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] FM Library communication unix domain socket =
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] FM Library communication port number = 6666
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Continue to run when facing failures = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Option when facing GPU to NVSwitch NVLink failure = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Option when facing NVSwitch to NVSwitch NVLink failure = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Option when facing NVSwitch failure = 0
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] Abort CUDA jobs when FM exits = 1
+[Dec 19 2024 22:08:53] [INFO] [tid 1570] LMDB_LOG: Successfully initialized LMDB
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] Connected to 1 node.
+
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] Getting fabric node FM version info
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] getting NVSwitch device information
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] detected system topology is based on DGX/HGX H100
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] parsed fabric topology file /usr/share/nvidia/nvswitch/dgxh100_hgxh100_topology successfully. topology name: DGXH100_HGXH100, build time: Mon Feb 27 17:25:17 2023
+.
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] fabric topology file /usr/share/nvidia/nvswitch/dgxh100_hgxh100_topology is parsed.
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] number of devices specified in topology file NVSwitches: 4, GPUs: 8
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] getting NVSwitch device information
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] dumping all the detected NVSwitch information
+  Index: 00  Physical Id: 0  PCI Bus ID: 00000000:83:00.0  Enabled Link Mask: ffffffff00000000  Arch Type: 3  UUID : SWX-8CDF9499-4961-23EF-5606-A2FA47356210
+  Index: 01  Physical Id: 1  PCI Bus ID: 00000000:84:00.0  Enabled Link Mask: ffffffff000000ff  Arch Type: 3  UUID : SWX-5D459227-13D4-09CC-6592-B4E9EDF852DA
+  Index: 02  Physical Id: 2  PCI Bus ID: 00000000:85:00.0  Enabled Link Mask: ffffffff000f000f  Arch Type: 3  UUID : SWX-EC1FEEAB-5F16-D04F-450B-7A29EB9A13CB
+  Index: 03  Physical Id: 3  PCI Bus ID: 00000000:86:00.0  Enabled Link Mask: ffffffff00000000  Arch Type: 3  UUID : SWX-35D5221F-8694-1C35-EE0B-B8C8E9224226
+
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] number of GPU base board detected: 1
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] getting NVLink device information
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] NVLink Inband feature is enabled. Hence Fabric Manager is not opening and operating on GPUs directly.
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] NVLink Autonomous Link Initialization (ALI) feature is enabled.
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] start NVSwitch 0/0 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] completed NVSwitch 0/0 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] start NVSwitch 0/1 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] completed NVSwitch 0/1 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] start NVSwitch 0/2 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] completed NVSwitch 0/2 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] start NVSwitch 0/3 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] completed NVSwitch 0/3 routing configuration
+[Dec 19 2024 22:08:54] [INFO] [tid 1570] Successfully configured all the available NVSwitches to route GPU NVLink traffic. NVLink Peer-to-Peer support will be enabled once the GPUs are successfully registered with the NVLink fabric.
+[Dec 19 2024 22:08:55] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35be83a37c0 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:9b00 Module Id:6 Uuid:GPU-2b6f61f9-8b00-3b57-d912-b62792120662 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:08:55] [INFO] [tid 1804] added GPU with UUID GPU-2b6f61f9-8b00-3b57-d912-b62792120662 based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:08:55] [INFO] [tid 1804] fid: 0  Physical ID: 6  Index: 39680  Handle: 190f91b6  PCI Bus ID: 00000000:9B:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-2b6f61f9-8b00-3b57-d912-b62792120662
+
+[Dec 19 2024 22:08:55] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35be83a37c0 status:0 type:1 length:66
+Message payload details: Probe response: Handle:33403c39190f91b6 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8260000000000 GPA Address Range:8000000000 FLA Address:260000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:08:56] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b359f3c96780 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:3b00 Module Id:3 Uuid:GPU-47daa2ad-a218-6286-252b-af45f0dfaf00 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:08:56] [INFO] [tid 1804] added GPU with UUID GPU-47daa2ad-a218-6286-252b-af45f0dfaf00 based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:08:56] [INFO] [tid 1804] fid: 0  Physical ID: 3  Index: 15104  Handle: 2e11efad  PCI Bus ID: 00000000:3B:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-47daa2ad-a218-6286-252b-af45f0dfaf00
+
+[Dec 19 2024 22:08:56] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b359f3c96780 status:0 type:1 length:66
+Message payload details: Probe response: Handle:22b5b2982e11efad GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8230000000000 GPA Address Range:8000000000 FLA Address:230000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:08:57] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35c91f45b58 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:bb00 Module Id:4 Uuid:GPU-980ea11b-91dc-db7b-72ac-0685abc43658 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:08:57] [INFO] [tid 1804] added GPU with UUID GPU-980ea11b-91dc-db7b-72ac-0685abc43658 based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:08:57] [INFO] [tid 1804] fid: 0  Physical ID: 4  Index: 47872  Handle: eec7dc43  PCI Bus ID: 00000000:BB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-980ea11b-91dc-db7b-72ac-0685abc43658
+
+[Dec 19 2024 22:08:57] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35c91f45b58 status:0 type:1 length:66
+Message payload details: Probe response: Handle:5a23e8e3eec7dc43 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8240000000000 GPA Address Range:8000000000 FLA Address:240000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35d3861e948 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:cb00 Module Id:5 Uuid:GPU-4ef109e9-e925-4834-2b85-0771b4ef696c Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1804] added GPU with UUID GPU-4ef109e9-e925-4834-2b85-0771b4ef696c based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:09:00] [INFO] [tid 1804] fid: 0  Physical ID: 5  Index: 51968  Handle: 8defc83b  PCI Bus ID: 00000000:CB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-4ef109e9-e925-4834-2b85-0771b4ef696c
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35d3861e948 status:0 type:1 length:66
+Message payload details: Probe response: Handle:d32573fc8defc83b GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8250000000000 GPA Address Range:8000000000 FLA Address:250000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35a9b2df748 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:4c00 Module Id:0 Uuid:GPU-167d8376-ee13-fca4-938a-a05167c43cdc Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1804] added GPU with UUID GPU-167d8376-ee13-fca4-938a-a05167c43cdc based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:09:00] [INFO] [tid 1804] fid: 0  Physical ID: 0  Index: 19456  Handle: ffd350b1  PCI Bus ID: 00000000:4C:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-167d8376-ee13-fca4-938a-a05167c43cdc
+
+[Dec 19 2024 22:09:00] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35a9b2df748 status:0 type:1 length:66
+Message payload details: Probe response: Handle:4e2a94ceffd350b1 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8200000000000 GPA Address Range:8000000000 FLA Address:200000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:09:01] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35b4176c0f0 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:5d00 Module Id:2 Uuid:GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:09:01] [INFO] [tid 1804] added GPU with UUID GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99 based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:09:01] [INFO] [tid 1804] fid: 0  Physical ID: 2  Index: 23808  Handle: c8889154  PCI Bus ID: 00000000:5D:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99
+
+[Dec 19 2024 22:09:01] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35b4176c0f0 status:0 type:1 length:66
+Message payload details: Probe response: Handle:4e3dea39c8889154 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8220000000000 GPA Address Range:8000000000 FLA Address:220000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:09:02] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b35ddf812a28 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:db00 Module Id:7 Uuid:GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:09:02] [INFO] [tid 1804] added GPU with UUID GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5 based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:09:02] [INFO] [tid 1804] fid: 0  Physical ID: 7  Index: 56064  Handle: 1f85f6ed  PCI Bus ID: 00000000:DB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5
+
+[Dec 19 2024 22:09:02] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b35ddf812a28 status:0 type:1 length:66
+Message payload details: Probe response: Handle:77c68cd81f85f6ed GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8270000000000 GPA Address Range:8000000000 FLA Address:270000000000 FLA Address Range:8000000000
+
+[Dec 19 2024 22:09:03] [INFO] [tid 1799] Received an inband message:  Message header details: magic Id:adbc request Id:1812b3594e37f9d8 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:1900 Module Id:1 Uuid:GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 19 2024 22:09:03] [INFO] [tid 1804] added GPU with UUID GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa based on NVLink Inband GPU probe request.
+[Dec 19 2024 22:09:03] [INFO] [tid 1804] fid: 0  Physical ID: 1  Index: 6400  Handle: 766d5cb5  PCI Bus ID: 00000000:19:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa
+
+[Dec 19 2024 22:09:03] [INFO] [tid 1576] Sending inband response message:  Message header details: magic Id:adbc request Id:1812b3594e37f9d8 status:0 type:1 length:66
+Message payload details: Probe response: Handle:e16e5bc5766d5cb5 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8210000000000 GPA Address Range:8000000000 FLA Address:210000000000 FLA Address Range:8000000000
+
+Fabric Manager Log initializing at: 12/20/2024 00:36:34.217
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Fabric Manager version 535.161.08 is running with the following configuration options
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Logging level = 4
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Logging file name/path = /var/log/fabricmanager.log
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Append to log file = 1
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Max Log file size = 1024 (MBs)
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Use Syslog file = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Fabric Manager communication ports = 16000
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Fabric Mode = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Fabric Mode Restart = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] FM Library communication bind interface = 127.0.0.1
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] FM Library communication unix domain socket =
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] FM Library communication port number = 6666
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Continue to run when facing failures = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Option when facing GPU to NVSwitch NVLink failure = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Option when facing NVSwitch to NVSwitch NVLink failure = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Option when facing NVSwitch failure = 0
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] Abort CUDA jobs when FM exits = 1
+[Dec 20 2024 00:36:34] [INFO] [tid 1597] LMDB_LOG: Successfully initialized LMDB
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] Connected to 1 node.
+
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] Getting fabric node FM version info
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] getting NVSwitch device information
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] detected system topology is based on DGX/HGX H100
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] parsed fabric topology file /usr/share/nvidia/nvswitch/dgxh100_hgxh100_topology successfully. topology name: DGXH100_HGXH100, build time: Mon Feb 27 17:25:17 2023
+.
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] fabric topology file /usr/share/nvidia/nvswitch/dgxh100_hgxh100_topology is parsed.
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] number of devices specified in topology file NVSwitches: 4, GPUs: 8
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] getting NVSwitch device information
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] dumping all the detected NVSwitch information
+  Index: 00  Physical Id: 0  PCI Bus ID: 00000000:83:00.0  Enabled Link Mask: ffffffff00000000  Arch Type: 3  UUID : SWX-8CDF9499-4961-23EF-5606-A2FA47356210
+  Index: 01  Physical Id: 1  PCI Bus ID: 00000000:84:00.0  Enabled Link Mask: ffffffff000000ff  Arch Type: 3  UUID : SWX-5D459227-13D4-09CC-6592-B4E9EDF852DA
+  Index: 02  Physical Id: 2  PCI Bus ID: 00000000:85:00.0  Enabled Link Mask: ffffffff000f000f  Arch Type: 3  UUID : SWX-EC1FEEAB-5F16-D04F-450B-7A29EB9A13CB
+  Index: 03  Physical Id: 3  PCI Bus ID: 00000000:86:00.0  Enabled Link Mask: ffffffff00000000  Arch Type: 3  UUID : SWX-35D5221F-8694-1C35-EE0B-B8C8E9224226
+
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] number of GPU base board detected: 1
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] getting NVLink device information
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] NVLink Inband feature is enabled. Hence Fabric Manager is not opening and operating on GPUs directly.
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] NVLink Autonomous Link Initialization (ALI) feature is enabled.
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] start NVSwitch 0/0 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] completed NVSwitch 0/0 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] start NVSwitch 0/1 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] completed NVSwitch 0/1 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] start NVSwitch 0/2 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] completed NVSwitch 0/2 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] start NVSwitch 0/3 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] completed NVSwitch 0/3 routing configuration
+[Dec 20 2024 00:36:35] [INFO] [tid 1597] Successfully configured all the available NVSwitches to route GPU NVLink traffic. NVLink Peer-to-Peer support will be enabled once the GPUs are successfully registered with the NVLink fabric.
+[Dec 20 2024 00:36:36] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb68f4759378 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:3b00 Module Id:3 Uuid:GPU-47daa2ad-a218-6286-252b-af45f0dfaf00 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:36] [INFO] [tid 1822] added GPU with UUID GPU-47daa2ad-a218-6286-252b-af45f0dfaf00 based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:36] [INFO] [tid 1822] fid: 0  Physical ID: 3  Index: 15104  Handle: f444cef  PCI Bus ID: 00000000:3B:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-47daa2ad-a218-6286-252b-af45f0dfaf00
+
+[Dec 20 2024 00:36:36] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb68f4759378 status:0 type:1 length:66
+Message payload details: Probe response: Handle:f5620ab00f444cef GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8230000000000 GPA Address Range:8000000000 FLA Address:230000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:37] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb6b957178c0 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:bb00 Module Id:4 Uuid:GPU-980ea11b-91dc-db7b-72ac-0685abc43658 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:37] [INFO] [tid 1822] added GPU with UUID GPU-980ea11b-91dc-db7b-72ac-0685abc43658 based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:37] [INFO] [tid 1822] fid: 0  Physical ID: 4  Index: 47872  Handle: 4f9bcdea  PCI Bus ID: 00000000:BB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-980ea11b-91dc-db7b-72ac-0685abc43658
+
+[Dec 20 2024 00:36:37] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb6b957178c0 status:0 type:1 length:66
+Message payload details: Probe response: Handle:9f8386104f9bcdea GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8240000000000 GPA Address Range:8000000000 FLA Address:240000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:39] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb699e6ad2d0 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:4c00 Module Id:0 Uuid:GPU-167d8376-ee13-fca4-938a-a05167c43cdc Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:39] [INFO] [tid 1822] added GPU with UUID GPU-167d8376-ee13-fca4-938a-a05167c43cdc based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:39] [INFO] [tid 1822] fid: 0  Physical ID: 0  Index: 19456  Handle: 1edcff95  PCI Bus ID: 00000000:4C:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-167d8376-ee13-fca4-938a-a05167c43cdc
+
+[Dec 20 2024 00:36:39] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb699e6ad2d0 status:0 type:1 length:66
+Message payload details: Probe response: Handle:f624355f1edcff95 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8200000000000 GPA Address Range:8000000000 FLA Address:200000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:40] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb6c3c1803e0 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:cb00 Module Id:5 Uuid:GPU-4ef109e9-e925-4834-2b85-0771b4ef696c Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:40] [INFO] [tid 1822] added GPU with UUID GPU-4ef109e9-e925-4834-2b85-0771b4ef696c based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:40] [INFO] [tid 1822] fid: 0  Physical ID: 5  Index: 51968  Handle: cc81c33b  PCI Bus ID: 00000000:CB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-4ef109e9-e925-4834-2b85-0771b4ef696c
+
+[Dec 20 2024 00:36:40] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb6c3c1803e0 status:0 type:1 length:66
+Message payload details: Probe response: Handle:b26daeafcc81c33b GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8250000000000 GPA Address Range:8000000000 FLA Address:250000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:42] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb6a45d84e40 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:5d00 Module Id:2 Uuid:GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:42] [INFO] [tid 1822] added GPU with UUID GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99 based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:42] [INFO] [tid 1822] fid: 0  Physical ID: 2  Index: 23808  Handle: a64309d8  PCI Bus ID: 00000000:5D:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-afe9f2ed-9dd0-572c-3cd8-b42b58b3bc99
+
+[Dec 20 2024 00:36:42] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb6a45d84e40 status:0 type:1 length:66
+Message payload details: Probe response: Handle:d2daee64a64309d8 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8220000000000 GPA Address Range:8000000000 FLA Address:220000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:43] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb6ce39d9c60 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:db00 Module Id:7 Uuid:GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:43] [INFO] [tid 1822] added GPU with UUID GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5 based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:43] [INFO] [tid 1822] fid: 0  Physical ID: 7  Index: 56064  Handle: 9026da78  PCI Bus ID: 00000000:DB:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-b0fe4996-1f7c-91f6-0ccd-08ae3b7e23c5
+
+[Dec 20 2024 00:36:43] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb6ce39d9c60 status:0 type:1 length:66
+Message payload details: Probe response: Handle:a354b7d09026da78 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8270000000000 GPA Address Range:8000000000 FLA Address:270000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:44] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb68497f1210 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:1900 Module Id:1 Uuid:GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:44] [INFO] [tid 1822] added GPU with UUID GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:44] [INFO] [tid 1822] fid: 0  Physical ID: 1  Index: 6400  Handle: 8c0f88a5  PCI Bus ID: 00000000:19:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-ee7954ec-da95-fd7a-ddfd-c6b32cc2f8aa
+
+[Dec 20 2024 00:36:44] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb68497f1210 status:0 type:1 length:66
+Message payload details: Probe response: Handle:b0f9ec7a8c0f88a5 GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8210000000000 GPA Address Range:8000000000 FLA Address:210000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 00:36:45] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:1812bb6aef48ae90 status:0 type:0 length:4d
+Message payload details: Probe request: Pci Info:9b00 Module Id:6 Uuid:GPU-2b6f61f9-8b00-3b57-d912-b62792120662 Discovered LinkMask:3ffff Enabled LinkMask:3ffff Cap Mask:0
+
+[Dec 20 2024 00:36:45] [INFO] [tid 1822] added GPU with UUID GPU-2b6f61f9-8b00-3b57-d912-b62792120662 based on NVLink Inband GPU probe request.
+[Dec 20 2024 00:36:45] [INFO] [tid 1822] fid: 0  Physical ID: 6  Index: 39680  Handle: 97e42f7b  PCI Bus ID: 00000000:9B:00.0  Discovered Link Mask: 3ffff  Enabled Link Mask: 3ffff  UUID: GPU-2b6f61f9-8b00-3b57-d912-b62792120662
+
+[Dec 20 2024 00:36:45] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:1812bb6aef48ae90 status:0 type:1 length:66
+Message payload details: Probe response: Handle:6df2dee697e42f7b GfId:0 FM Caps:7 Fabric Partition Id:ffff GPA Address:8260000000000 GPA Address Range:8000000000 FLA Address:260000000000 FLA Address Range:8000000000
+
+[Dec 20 2024 03:15:35] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:f644e674334e8af8 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:b0f9ec7a8c0f88a5 f5620ab00f444cef f624355f1edcff95 d2daee64a64309d8 b26daeafcc81c33b 9f8386104f9bcdea a354b7d09026da78 6df2dee697e42f7b
+
+[Dec 20 2024 03:15:35] [INFO] [tid 1822] multicast group 0 is allocated.
+[Dec 20 2024 03:15:35] [INFO] [tid 1822] successfully setup multicast team for request id 17745561818497977080.
+[Dec 20 2024 03:15:36] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:f644e674334e8af8 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:6ddfca266c13893c Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 20 2024 03:21:54] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:abb2d0ea13167103 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:b0f9ec7a8c0f88a5 f5620ab00f444cef f624355f1edcff95 d2daee64a64309d8 a354b7d09026da78 6df2dee697e42f7b 9f8386104f9bcdea b26daeafcc81c33b
+
+[Dec 20 2024 03:21:54] [INFO] [tid 1822] multicast group 1 is allocated.
+[Dec 20 2024 03:21:54] [INFO] [tid 1822] successfully setup multicast team for request id 12372180830101336323.
+[Dec 20 2024 03:21:54] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:abb2d0ea13167103 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:238c52d65d48b8a9 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Dec 20 2024 03:23:07] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:f25ed53748cba3f3 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:238c52d65d48b8a9 Flags:0
+
+[Dec 20 2024 03:23:07] [INFO] [tid 1822] multicast group 1 is freed.
+[Dec 20 2024 03:23:07] [INFO] [tid 1822] successfully released multicast team with handle 2561513368708495529.
+[Dec 20 2024 03:23:07] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:ac88d1d464e81558 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:6ddfca266c13893c Flags:0
+
+[Dec 20 2024 03:23:07] [INFO] [tid 1822] multicast group 0 is freed.
+[Dec 20 2024 03:23:07] [INFO] [tid 1822] successfully released multicast team with handle 7917268936311408956.
+[Dec 20 2024 03:23:32] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:6989e23eaf02591f status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:b0f9ec7a8c0f88a5 f5620ab00f444cef f624355f1edcff95 d2daee64a64309d8 a354b7d09026da78 9f8386104f9bcdea b26daeafcc81c33b 6df2dee697e42f7b
+
+[Dec 20 2024 03:23:32] [INFO] [tid 1822] multicast group 0 is allocated.
+[Dec 20 2024 03:23:32] [INFO] [tid 1822] successfully setup multicast team for request id 7604858204643809567.
+[Dec 20 2024 03:23:32] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:6989e23eaf02591f status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:c622f03e987d5484 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Dec 20 2024 03:27:28] [INFO] [tid 1817] Received an inband message:  Message header details: magic Id:adbc request Id:5ab42d347932625e status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:b0f9ec7a8c0f88a5 f5620ab00f444cef f624355f1edcff95 d2daee64a64309d8 9f8386104f9bcdea b26daeafcc81c33b 6df2dee697e42f7b a354b7d09026da78
+
+[Dec 20 2024 03:27:28] [INFO] [tid 1822] multicast group 1 is allocated.
+[Dec 20 2024 03:27:28] [INFO] [tid 1822] successfully setup multicast team for request id 6535898662616326750.
+[Dec 20 2024 03:27:28] [INFO] [tid 1603] Sending inband response message:  Message header details: magic Id:adbc request Id:5ab42d347932625e status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:ef360e92f05ab615 Flags:0 Address Base:c008000000000 Address Size:60000000
