@@ -158,7 +158,7 @@ func DefaultConfig(ctx context.Context) (Config, error) {
 
 			SelectFilters: defaultFilters,
 
-			TimeParseFunc: dmesg.ParseISOtimeWithError,
+			TimeParseFunc: dmesg.ParseDmesgTimeISO,
 		},
 	}
 	return cfg, nil
@@ -186,7 +186,7 @@ func journalCtlDefaultConfig(ctx context.Context) (Config, error) {
 
 			SelectFilters: defaultFilters,
 
-			TimeParseFunc: dmesg.ParseShortISOtimeWithError,
+			TimeParseFunc: dmesg.ParseJournalctlTimeShortISO,
 		},
 	}
 	return cfg, nil

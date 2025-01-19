@@ -63,7 +63,7 @@ func (c *Component) TailScan() (*State, error) {
 			query_log_tail.WithFile(c.cfg.Log.Scan.File),
 			query_log_tail.WithCommands(c.cfg.Log.Scan.Commands),
 			query_log_tail.WithLinesToTail(c.cfg.Log.Scan.LinesToTail),
-			query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+			query_log_tail.WithExtractTime(pkg_dmesg.ParseDmesgTimeISO),
 			query_log_tail.WithProcessMatched(c.processMatched), // used for backfilling
 		)
 		if err != nil {

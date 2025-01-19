@@ -61,7 +61,7 @@ func TestCommandStreamerDmesg(t *testing.T) {
 	streamer, err := NewFromCommand(
 		ctx,
 		[][]string{{"tail", "-f", tmpf.Name()}},
-		WithExtractTime(dmesg.ParseISOtimeWithError),
+		WithExtractTime(dmesg.ParseDmesgTimeISO),
 	)
 	if err != nil {
 		t.Fatal(err)
