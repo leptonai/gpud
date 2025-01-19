@@ -21,6 +21,9 @@ func TestSetDefaultsIfNotSet(t *testing.T) {
 			expected: Config{
 				Interval:  metav1.Duration{Duration: DefaultPollInterval},
 				QueueSize: DefaultQueueSize,
+				State: &State{
+					Retention: metav1.Duration{Duration: DefaultStateRetention},
+				},
 			},
 		},
 		{
@@ -31,6 +34,9 @@ func TestSetDefaultsIfNotSet(t *testing.T) {
 			expected: Config{
 				Interval:  metav1.Duration{Duration: 5 * time.Minute},
 				QueueSize: DefaultQueueSize,
+				State: &State{
+					Retention: metav1.Duration{Duration: DefaultStateRetention},
+				},
 			},
 		},
 		{
@@ -41,6 +47,9 @@ func TestSetDefaultsIfNotSet(t *testing.T) {
 			expected: Config{
 				Interval:  metav1.Duration{Duration: DefaultPollInterval},
 				QueueSize: 100,
+				State: &State{
+					Retention: metav1.Duration{Duration: DefaultStateRetention},
+				},
 			},
 		},
 		{

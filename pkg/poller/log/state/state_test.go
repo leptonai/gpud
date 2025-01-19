@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	logstate "github.com/leptonai/gpud/components/query/log/state"
+	logstate "github.com/leptonai/gpud/pkg/poller/log/state"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

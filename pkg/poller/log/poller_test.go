@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components/query"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
+	"github.com/leptonai/gpud/pkg/poller"
+	poller_config "github.com/leptonai/gpud/pkg/poller/config"
+	poller_log_common "github.com/leptonai/gpud/pkg/poller/log/common"
+	poller_log_config "github.com/leptonai/gpud/pkg/poller/log/config"
 
 	"github.com/nxadm/tail"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,37 +19,40 @@ import (
 func TestPoller(t *testing.T) {
 	t.Parallel()
 
-	cfg := query_log_config.Config{
-		File: "tail/testdata/kubelet.0.log",
+	cfg := poller_log_config.Config{
+		PollerConfig: poller_config.Config{
+			Interval: metav1.Duration{Duration: time.Second},
+		},
+		File: ptr.To("tail/testdata/kubelet.0.log"),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	poller, err := newPoller(ctx, cfg, nil, nil)
+	pl, err := newPoller(ctx, cfg)
 	if err != nil {
 		t.Fatalf("failed to create log poller: %v", err)
 	}
-	defer poller.Stop("test")
+	defer pl.Stop("test")
 
-	if _, err := poller.Find(time.Now().Add(time.Hour)); err != query.ErrNoData {
+	if _, err := pl.Find(time.Now().Add(time.Hour)); err != poller.ErrNoData {
 		t.Fatalf("expected no data, got %v", err)
 	}
 
 	synced := 0
 
-	poller.tailFileSeekInfoMu.Lock()
-	poller.tailFileSeekInfoSyncer = func(_ context.Context, file string, seekInfo tail.SeekInfo) {
+	pl.tailFileSeekInfoMu.Lock()
+	pl.tailFileSeekInfoSyncer = func(_ context.Context, file string, seekInfo tail.SeekInfo) {
 		synced++
 		t.Logf("seek info: %+v", seekInfo)
 	}
-	poller.tailFileSeekInfoMu.Unlock()
+	pl.tailFileSeekInfoMu.Unlock()
 
-	poller.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test")
+	pl.Start(ctx, "test")
 
 	time.Sleep(5 * time.Second)
 
-	allItems, err := poller.Find(time.Now().Add(-time.Hour))
+	allItems, err := pl.Find(time.Now().Add(-time.Hour))
 	if err != nil {
 		t.Fatalf("failed to get all items: %v", err)
 	}
@@ -58,18 +60,10 @@ func TestPoller(t *testing.T) {
 		t.Log(r.Line)
 	}
 
-	t.Logf("seek info %+v", poller.SeekInfo())
+	t.Logf("seek info %+v", pl.SeekInfo())
 
 	if synced != 20 { // 20 lines
 		t.Fatalf("expected 20 seek info sync, got %d", synced)
-	}
-
-	evs, err := poller.TailScan(ctx, query_log_tail.WithLinesToTail(1000))
-	if err != nil {
-		t.Fatalf("failed to tail: %v", err)
-	}
-	if len(evs) != 20 {
-		t.Fatalf("expected 20 events, got %d", len(evs))
 	}
 }
 
@@ -82,14 +76,17 @@ func TestPollerTail(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 
-	cfg := query_log_config.Config{
-		File: f.Name(),
+	cfg := poller_log_config.Config{
+		PollerConfig: poller_config.Config{
+			Interval: metav1.Duration{Duration: time.Second},
+		},
+		File: ptr.To(f.Name()),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	poller, err := newPoller(ctx, cfg, nil, nil)
+	poller, err := newPoller(ctx, cfg)
 	if err != nil {
 		t.Fatalf("failed to create log poller: %v", err)
 	}
@@ -103,7 +100,7 @@ func TestPollerTail(t *testing.T) {
 	}
 	poller.tailFileSeekInfoMu.Unlock()
 
-	poller.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test")
+	poller.Start(ctx, "test")
 
 	t.Log("writing 1")
 	if _, err := f.WriteString("hello1\n"); err != nil {
@@ -135,14 +132,6 @@ func TestPollerTail(t *testing.T) {
 
 	if synced != 2 { // 2 lines
 		t.Fatalf("expected 2 seek info sync, got %d", synced)
-	}
-
-	evs, err := poller.TailScan(ctx, query_log_tail.WithLinesToTail(1000))
-	if err != nil {
-		t.Fatalf("failed to tail: %v", err)
-	}
-	if len(evs) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(evs))
 	}
 }
 
@@ -191,7 +180,7 @@ func TestItemJSON(t *testing.T) {
 			item: Item{
 				Time: metav1.Time{Time: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
 				Line: "test log line",
-				Matched: &query_log_common.Filter{
+				Matched: &poller_log_common.Filter{
 					Name:  "test filter",
 					Regex: ptr.To("test.*"),
 				},

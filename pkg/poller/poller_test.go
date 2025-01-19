@@ -1,4 +1,4 @@
-package query
+package poller
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/pkg/poller/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestPollerReadLast(t *testing.T) {
 	now := time.Now()
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{
 			{Time: metav1.NewTime(now.Add(-1 * time.Second))},
 			{Time: metav1.NewTime(now)},
@@ -31,7 +31,7 @@ func TestPollerReadLast(t *testing.T) {
 }
 
 func TestPollerReadLastWithErr(t *testing.T) {
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{
 			{Time: metav1.NewTime(time.Unix(1, 0))},
 			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
@@ -49,7 +49,7 @@ func TestPollerReadLastWithErr(t *testing.T) {
 }
 
 func TestPollerReadLastNoData(t *testing.T) {
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{
 			{Time: metav1.NewTime(time.Unix(1, 0)), Error: errors.New("test error")},
 			{Time: metav1.NewTime(time.Unix(2, 0)), Error: errors.New("test error")},
@@ -67,7 +67,7 @@ func TestPollerReadLastNoData(t *testing.T) {
 }
 
 func TestPoller_ReadAllItemsFromInMemoryQueue(t *testing.T) {
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{},
 	}
 
@@ -154,9 +154,9 @@ func TestPoller_processResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := &poller{
+			q := &pollerImpl{
 				ctx:       ctx,
-				cfg:       query_config.Config{QueueSize: tt.queueN},
+				cfg:       poller_config.Config{QueueSize: tt.queueN},
 				lastItems: tt.initial,
 			}
 			if tt.newResult != nil {
@@ -182,14 +182,14 @@ func TestPoller_processResult(t *testing.T) {
 func TestPollerStartStop(t *testing.T) {
 	startFuncCalled := 0
 	cancelCalled := 0
-	q := &poller{
+	q := &pollerImpl{
 		startPollFunc: func(ctx context.Context, id string, interval time.Duration, _ time.Duration, _ GetFunc, _ GetErrHandler) <-chan Item {
 			t.Log("startFunc called")
 			startFuncCalled++
 			return make(<-chan Item)
 		},
 
-		cfg:       query_config.Config{QueueSize: 3},
+		cfg:       poller_config.Config{Interval: metav1.Duration{Duration: time.Second}, QueueSize: 3},
 		lastItems: []Item{},
 
 		inflightComponents: make(map[string]any),
@@ -198,9 +198,9 @@ func TestPollerStartStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	q.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test1")
-	q.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test2")
-	q.Start(ctx, query_config.Config{Interval: metav1.Duration{Duration: time.Second}}, "test3")
+	q.Start(ctx, "test1")
+	q.Start(ctx, "test2")
+	q.Start(ctx, "test3")
 
 	q.cancel = context.CancelFunc(func() {
 		t.Log("cancel called")
@@ -265,7 +265,7 @@ func TestPollerStartStop(t *testing.T) {
 
 // Return nil when no errors found in lastItems array
 func TestReadLastErrReturnsNilWhenNoErrors(t *testing.T) {
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{
 			{Error: nil},
 			{Error: nil},
@@ -281,7 +281,7 @@ func TestReadLastErrReturnsNilWhenNoErrors(t *testing.T) {
 
 // Handle empty lastItems array returning ErrNoData
 func TestReadLastErrReturnsErrNoDataForEmptyArray(t *testing.T) {
-	pl := &poller{
+	pl := &pollerImpl{
 		lastItems: []Item{},
 	}
 

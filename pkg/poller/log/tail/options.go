@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	poller_log_common "github.com/leptonai/gpud/pkg/poller/log/common"
 )
 
 type Op struct {
@@ -18,13 +18,13 @@ type Op struct {
 
 	perLineFunc func([]byte)
 
-	selectFilters []*query_log_common.Filter
-	rejectFilters []*query_log_common.Filter
+	selectFilters []*poller_log_common.Filter
+	rejectFilters []*poller_log_common.Filter
 
-	extractTime   query_log_common.ExtractTimeFunc
+	extractTime   poller_log_common.ExtractTimeFunc
 	skipEmptyLine bool
 
-	ProcessMatched query_log_common.ProcessMatchedFunc
+	ProcessMatched poller_log_common.ProcessMatchedFunc
 }
 
 type OpOption func(*Op)
@@ -66,7 +66,7 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 		}
 	}
 	if op.ProcessMatched == nil {
-		op.ProcessMatched = func(time.Time, []byte, *query_log_common.Filter) {}
+		op.ProcessMatched = func(time.Time, []byte, *poller_log_common.Filter) {}
 	}
 
 	return nil
@@ -122,7 +122,7 @@ func WithPerLineFunc(f func([]byte)) OpOption {
 // The line is sent when any of the filters match.
 // Useful for explicit blacklisting "error" logs
 // (e.g., GPU error messages in dmesg).
-func WithSelectFilter(filters ...*query_log_common.Filter) OpOption {
+func WithSelectFilter(filters ...*poller_log_common.Filter) OpOption {
 	return func(op *Op) {
 		if len(filters) > 0 {
 			op.selectFilters = append(op.selectFilters, filters...)
@@ -135,7 +135,7 @@ func WithSelectFilter(filters ...*query_log_common.Filter) OpOption {
 // The line is sent if and only if all of the filters do not match.
 // Useful for explicit whitelisting logs and catch all other
 // (e.g., good healthy log messages).
-func WithRejectFilter(filters ...*query_log_common.Filter) OpOption {
+func WithRejectFilter(filters ...*poller_log_common.Filter) OpOption {
 	return func(op *Op) {
 		if len(filters) > 0 {
 			op.rejectFilters = append(op.rejectFilters, filters...)
@@ -143,7 +143,7 @@ func WithRejectFilter(filters ...*query_log_common.Filter) OpOption {
 	}
 }
 
-func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_log_common.Filter, err error) {
+func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *poller_log_common.Filter, err error) {
 	if len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 {
 		// no filters
 		return true, nil, nil
@@ -202,7 +202,7 @@ func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_lo
 	return true, matchedFilter, nil
 }
 
-func WithExtractTime(f query_log_common.ExtractTimeFunc) OpOption {
+func WithExtractTime(f poller_log_common.ExtractTimeFunc) OpOption {
 	return func(op *Op) {
 		if f != nil {
 			op.extractTime = f
@@ -220,7 +220,7 @@ func WithSkipEmptyLine(skipEmptyLine bool) OpOption {
 // If not set, the matched line is no-op.
 // Useful to append to a slice or not to return a string slice
 // to avoid extra heap allocation.
-func WithProcessMatched(f query_log_common.ProcessMatchedFunc) OpOption {
+func WithProcessMatched(f poller_log_common.ProcessMatchedFunc) OpOption {
 	return func(op *Op) {
 		if f != nil {
 			op.ProcessMatched = f

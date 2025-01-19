@@ -1,4 +1,4 @@
-// Package config provides the query/poller configuration.
+// Package config provides the poller configuration.
 package config
 
 import (
@@ -46,6 +46,11 @@ func (cfg *Config) SetDefaultsIfNotSet() {
 	}
 	if cfg.QueueSize == 0 {
 		cfg.QueueSize = DefaultQueueSize
+	}
+	if cfg.State == nil {
+		cfg.State = &State{
+			Retention: metav1.Duration{Duration: DefaultStateRetention},
+		}
 	}
 	if cfg.State != nil && cfg.State.Retention.Duration == 0 {
 		cfg.State.Retention = metav1.Duration{Duration: DefaultStateRetention}
