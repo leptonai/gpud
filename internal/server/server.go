@@ -125,6 +125,7 @@ import (
 	"github.com/leptonai/gpud/internal/session"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
+	poller_config "github.com/leptonai/gpud/pkg/poller/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -448,6 +449,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		},
 	}
 
+	defaultPollerCfg := poller_config.DefaultConfig()
+	defaultPollerCfg.State.DBRW = dbRW
+	defaultPollerCfg.State.DBRO = dbRO
+
 	if err := checkDependencies(config); err != nil {
 		return nil, fmt.Errorf("dependency check failed: %w", err)
 	}
@@ -603,7 +608,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case fd_id.Name:
 			cfg := fd.Config{
-				Query:                         defaultQueryCfg,
+				PollerConfig:                  defaultPollerCfg,
 				ThresholdAllocatedFileHandles: fd.DefaultThresholdAllocatedFileHandles,
 				ThresholdRunningPIDs:          fd.DefaultThresholdRunningPIDs,
 			}
@@ -617,7 +622,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, fd.New(ctx, cfg))
+			c, err := fd.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case file_id.Name:
 			if configValue != nil {

@@ -5,40 +5,59 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
+	fd_state "github.com/leptonai/gpud/components/fd/state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/poller"
+	poller_log "github.com/leptonai/gpud/pkg/poller/log"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
-
+func New(ctx context.Context, cfg Config) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, fd_id.Name)
 
-	return &component{
+	cfg.PollerConfig.SetDefaultsIfNotSet()
+	setDefaultPoller(cfg)
+	getDefaultPoller().Start(cctx, fd_id.Name)
+
+	c := &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
+		cfg:     cfg,
 		poller:  getDefaultPoller(),
 	}
+
+	if runtime.GOOS == "linux" && process.CommandExists("dmesg") && os.Geteuid() == 0 {
+		if err := setDefaultLogPoller(ctx, cfg.PollerConfig); err != nil {
+			return nil, err
+		}
+		c.logPoller = getDefaultLogPoller()
+		c.logPoller.Start(cctx, fd_id.Name)
+	}
+
+	return c, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	rootCtx   context.Context
+	cancel    context.CancelFunc
+	cfg       Config
+	poller    poller.Poller
+	logPoller poller_log.Poller
+	gatherer  prometheus.Gatherer
 }
 
 func (c *component) Name() string { return fd_id.Name }
@@ -86,55 +105,30 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 const (
-	EventNameErrorVFSFileMaxLimitReached = "error_vfs_file_max_limit_reached"
-
 	EventKeyErrorVFSFileMaxLimitReachedUnixSeconds = "unix_seconds"
 	EventKeyErrorVFSFileMaxLimitReachedLogLine     = "log_line"
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
+	if c.logPoller == nil {
+		return nil, nil
 	}
 
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-
-	// tailScan fetches the latest output from the dmesg
-	// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-	// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-	dmesgTailResults, err := dmesgComponent.TailScan()
+	evs, err := fd_state.ReadEvents(ctx, c.cfg.PollerConfig.State.DBRO, fd_state.WithSince(since))
 	if err != nil {
 		return nil, err
 	}
 
 	events := make([]components.Event, 0)
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventFileDescriptorVFSFileMaxLimitReached {
-			continue
-		}
-
+	for _, ev := range evs {
 		events = append(events, components.Event{
-			Time:    logItem.Time,
-			Name:    EventNameErrorVFSFileMaxLimitReached,
+			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
+			Name:    ev.EventType,
 			Type:    components.EventTypeCritical,
 			Message: "VFS file-max limit reached",
 			ExtraInfo: map[string]string{
-				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
-				EventKeyErrorVFSFileMaxLimitReachedLogLine:     logItem.Line,
+				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(ev.UnixSeconds, 10),
+				EventKeyErrorVFSFileMaxLimitReachedLogLine:     ev.EventDetails,
 			},
 		})
 	}
@@ -190,7 +184,11 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(fd_id.Name)
+	_ = c.poller.Stop(fd_id.Name)
+
+	if c.logPoller != nil && runtime.GOOS == "linux" && process.CommandExists("dmesg") && os.Geteuid() == 0 {
+		_ = c.logPoller.Stop(fd_id.Name)
+	}
 
 	return nil
 }

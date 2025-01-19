@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/pkg/poller/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -16,14 +16,17 @@ func TestComponent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	component := New(
+	component, err := New(
 		ctx,
 		Config{
-			Query: query_config.Config{
+			PollerConfig: poller_config.Config{
 				Interval: metav1.Duration{Duration: 5 * time.Second},
 			},
 		},
 	)
+	if err != nil {
+		t.Fatalf("failed to create component: %v", err)
+	}
 
 	time.Sleep(time.Second)
 

@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	poller_config "github.com/leptonai/gpud/pkg/poller/config"
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
+	PollerConfig poller_config.Config `json:"poller_config"`
 
 	// ThresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
 	// at which we consider the system to be under high file descriptor usage.
@@ -31,9 +31,10 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
+	cfg.PollerConfig.SetDefaultsIfNotSet()
+	if cfg.PollerConfig.State != nil {
+		cfg.PollerConfig.State.DBRW = dbRW
+		cfg.PollerConfig.State.DBRO = dbRO
 	}
 	return cfg, nil
 }
