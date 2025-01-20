@@ -25,6 +25,7 @@ jobs:
     - name: Run tests with coverage
       run: |
         ./scripts/test-coverage-upload.sh
+  
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
