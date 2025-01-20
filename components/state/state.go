@@ -193,13 +193,3 @@ func RecordMetrics(ctx context.Context, db *sql.DB) error {
 
 	return nil
 }
-
-func Compact(ctx context.Context, db *sql.DB) error {
-	log.Logger.Infow("compacting state database")
-	_, err := db.ExecContext(ctx, "VACUUM;")
-	if err != nil {
-		return err
-	}
-	log.Logger.Infow("successfully compacted state database")
-	return nil
-}

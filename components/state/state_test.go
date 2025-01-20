@@ -71,13 +71,4 @@ func TestRecordMetrics(t *testing.T) {
 	if err := RecordMetrics(ctx, dbRO); err != nil {
 		t.Fatal("failed to record metrics:", err)
 	}
-	if err := Compact(ctx, dbRW); err != nil {
-		t.Fatal("failed to compact database:", err)
-	}
-
-	size, err := sqlite.ReadDBSize(ctx, dbRO)
-	if err != nil {
-		t.Fatal("failed to read db size:", err)
-	}
-	t.Log(size)
 }

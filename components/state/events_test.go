@@ -105,7 +105,7 @@ func TestPurgeEvents(t *testing.T) {
 
 	// Purge events older than 90 minutes
 	purgeTime := now.Add(-90 * time.Minute)
-	purged, err := Purge(ctx, dbRW, WithBefore(purgeTime))
+	purged, err := PurgeEvents(ctx, dbRW, WithBefore(purgeTime))
 	if err != nil {
 		t.Fatalf("failed to purge events: %v", err)
 	}

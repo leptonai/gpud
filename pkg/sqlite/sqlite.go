@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/leptonai/gpud/log"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -75,4 +77,14 @@ func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
 	}
 
 	return pageCount * pageSize, nil
+}
+
+func Compact(ctx context.Context, db *sql.DB) error {
+	log.Logger.Infow("compacting state database")
+	_, err := db.ExecContext(ctx, "VACUUM;")
+	if err != nil {
+		return err
+	}
+	log.Logger.Infow("successfully compacted state database")
+	return nil
 }

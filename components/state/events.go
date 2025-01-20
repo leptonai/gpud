@@ -13,9 +13,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const (
-	TableNameEvents = "components_events_v0"
-)
+const TableNameEvents = "components_events_v0"
 
 const (
 	// unix timestamp in seconds when the event was observed
@@ -271,7 +269,7 @@ FROM %s`,
 	return selectStatement, args, nil
 }
 
-func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
+func PurgeEvents(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
 	log.Logger.Debugw("purging events")
 	deleteStatement, args, err := createDeleteStatementAndArgs(opts...)
 	if err != nil {

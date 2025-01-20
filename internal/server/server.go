@@ -205,6 +205,29 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
+	if err := state.CreateEventsTable(ctx, dbRW); err != nil {
+		return nil, fmt.Errorf("failed to create events table: %w", err)
+	}
+	go func() {
+		dur := state.DefaultRetentionPeriodForEvents
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+				now := time.Now().UTC()
+				before := now.Add(-dur)
+
+				purged, err := state.PurgeEvents(ctx, dbRW, state.WithBefore(before))
+				if err != nil {
+					log.Logger.Warnw("failed to purge events", "error", err)
+				} else {
+					log.Logger.Debugw("purged events", "purged", purged)
+				}
+			}
+		}
+	}()
+
 	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
@@ -1189,7 +1212,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ticker.Reset(time.Hour)
 			}
 
-			if err := state.RecordMetrics(ctx, dbRW); err != nil {
+			if err := state.RecordMetrics(ctx, dbRO); err != nil {
 				log.Logger.Errorw("failed to record metrics", "error", err)
 			}
 		}
@@ -1208,7 +1231,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					ticker.Reset(config.CompactPeriod.Duration)
 				}
 
-				if err := state.Compact(ctx, dbRW); err != nil {
+				if err := sqlite.Compact(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to compact state database", "error", err)
 				}
 			}
