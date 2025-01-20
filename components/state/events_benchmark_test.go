@@ -61,7 +61,7 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size: %v", err)
 	}
-	t.Logf("db size: %s", humanize.Bytes(uint64(size))) // 361 M
+	t.Logf("db size: %s", humanize.Bytes(size)) // 361 M
 
 	if err := sqlite.Compact(ctx, dbRW); err != nil {
 		t.Fatalf("failed to compact db: %v", err)
@@ -71,5 +71,5 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size: %v", err)
 	}
-	t.Logf("db size: %s", humanize.Bytes(uint64(size))) // 341 MB
+	t.Logf("db size: %s", humanize.Bytes(size)) // 341 MB
 }

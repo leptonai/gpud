@@ -7,7 +7,7 @@ import (
 
 	fd_dmesg "github.com/leptonai/gpud/components/fd/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
-	fd_state "github.com/leptonai/gpud/components/fd/state"
+	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	poller_config "github.com/leptonai/gpud/pkg/poller/config"
@@ -45,29 +45,6 @@ var (
 func setDefaultLogPoller(ctx context.Context, cfg poller_config.Config) error {
 	var err error
 	defaultLogPollerOnce.Do(func() {
-		if err = fd_state.CreateTable(ctx, cfg.State.DBRW); err != nil {
-			return
-		}
-		go func() {
-			dur := fd_state.DefaultRetentionPeriod
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(dur):
-					now := time.Now().UTC()
-					before := now.Add(-dur)
-
-					purged, err := fd_state.Purge(ctx, cfg.State.DBRW, fd_state.WithBefore(before))
-					if err != nil {
-						log.Logger.Warnw("failed to delete events", "error", err)
-					} else {
-						log.Logger.Debugw("deleted events", "before", before, "purged", purged)
-					}
-				}
-			}
-		}()
-
 		var cmds *dmesg.Commands
 		cmds, err = dmesg.GetCommands(ctx)
 		if err != nil {
@@ -81,13 +58,24 @@ func setDefaultLogPoller(ctx context.Context, cfg poller_config.Config) error {
 			SelectFilters: defaultDmesgFiltersForFileDescriptor(),
 			ExtractTime:   cmds.ParseTimeFunc,
 			ProcessMatched: func(parsedTime time.Time, line []byte, filter *poller_log_common.Filter) {
-				if ierr := fd_state.InsertEvent(ctx, cfg.State.DBRW, fd_state.Event{
-					UnixSeconds:  parsedTime.Unix(),
-					DataSource:   "dmesg",
+				ev := state.Event{
+					Timestamp:    parsedTime.Unix(),
 					EventType:    filter.Name,
+					DataSource:   "dmesg",
 					EventDetails: string(line),
-				}); ierr != nil {
-					log.Logger.Errorw("failed to insert event", "error", ierr)
+				}
+
+				found, err := state.FindEvent(ctx, cfg.State.DBRO, ev)
+				if err != nil {
+					log.Logger.Errorw("failed to find event", "error", err)
+				}
+				if found {
+					log.Logger.Debugw("event already exists", "event", ev)
+					return
+				}
+
+				if err := state.InsertEvent(ctx, cfg.State.DBRW, ev); err != nil {
+					log.Logger.Errorw("failed to insert event", "error", err)
 				}
 			},
 		}

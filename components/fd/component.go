@@ -13,8 +13,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	fd_state "github.com/leptonai/gpud/components/fd/state"
 	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/poller"
 	poller_log "github.com/leptonai/gpud/pkg/poller/log"
@@ -114,7 +114,13 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		return nil, nil
 	}
 
-	evs, err := fd_state.ReadEvents(ctx, c.cfg.PollerConfig.State.DBRO, fd_state.WithSince(since))
+	evs, err := state.ReadEvents(
+		ctx,
+		c.cfg.PollerConfig.State.DBRO,
+		state.WithEventType(EventVFSFileMaxLimitReached),
+		state.WithDataSource("dmesg"),
+		state.WithSince(since),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -122,12 +128,12 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	events := make([]components.Event, 0)
 	for _, ev := range evs {
 		events = append(events, components.Event{
-			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
+			Time:    metav1.Time{Time: time.Unix(ev.Timestamp, 0)},
 			Name:    ev.EventType,
 			Type:    components.EventTypeCritical,
 			Message: "VFS file-max limit reached",
 			ExtraInfo: map[string]string{
-				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(ev.UnixSeconds, 10),
+				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(ev.Timestamp, 10),
 				EventKeyErrorVFSFileMaxLimitReachedLogLine:     ev.EventDetails,
 			},
 		})
