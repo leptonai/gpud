@@ -21,4 +21,4 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        ./scripts/tests-unit.sh
+        ./scripts/test-coverage-upload.sh
