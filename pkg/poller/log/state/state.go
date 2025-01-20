@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const TableNameLogFileSeekInfo = "components_query_log_seek_info"
+const TableNameLogFileSeekInfo = "components_poller_log_seek_info"
 
 const (
 	ColumnFile = "file"
