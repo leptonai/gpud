@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER,
 	%s TEXT,
 	%s TEXT
-);`, TableNameMachineMetadata, ColumnMachineID, ColumnUnixSeconds, ColumnToken, ColumnComponents))
+);`, TableNameMachineMetadata, ColumnMachineID, EventsTableColumnTimestamp, ColumnToken, ColumnComponents))
 	return err
 }
 
@@ -58,7 +58,7 @@ SELECT %s, %s FROM %s
 LIMIT 1;
 `,
 		ColumnMachineID,
-		ColumnUnixSeconds,
+		EventsTableColumnTimestamp,
 		TableNameMachineMetadata,
 	)
 
@@ -95,7 +95,7 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 `,
 		TableNameMachineMetadata,
 		ColumnMachineID,
-		ColumnUnixSeconds,
+		EventsTableColumnTimestamp,
 	)
 	if _, err := dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
 		return "", err
