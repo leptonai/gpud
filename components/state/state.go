@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER,
 	%s TEXT,
 	%s TEXT
-);`, TableNameMachineMetadata, ColumnMachineID, ColumnUnixSeconds, ColumnToken, ColumnComponents))
+);`, TableNameMachineMetadata, ColumnMachineID, EventsTableColumnTimestamp, ColumnToken, ColumnComponents))
 	return err
 }
 
@@ -58,7 +59,7 @@ SELECT %s, %s FROM %s
 LIMIT 1;
 `,
 		ColumnMachineID,
-		ColumnUnixSeconds,
+		EventsTableColumnTimestamp,
 		TableNameMachineMetadata,
 	)
 
@@ -95,7 +96,7 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 `,
 		TableNameMachineMetadata,
 		ColumnMachineID,
-		ColumnUnixSeconds,
+		EventsTableColumnTimestamp,
 	)
 	if _, err := dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
 		return "", err
@@ -183,44 +184,12 @@ func Register(reg *prometheus.Registry) error {
 	return nil
 }
 
-func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
-	var pageCount uint64
-	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page count")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	var pageSize uint64
-	err = db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page size")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	return pageCount * pageSize, nil
-}
-
 func RecordMetrics(ctx context.Context, db *sql.DB) error {
-	dbSize, err := ReadDBSize(ctx, db)
+	dbSize, err := sqlite.ReadDBSize(ctx, db)
 	if err != nil {
 		return err
 	}
 	currentSize.Set(float64(dbSize))
 
-	return nil
-}
-
-func Compact(ctx context.Context, db *sql.DB) error {
-	log.Logger.Infow("compacting state database")
-	_, err := db.ExecContext(ctx, "VACUUM;")
-	if err != nil {
-		return err
-	}
-	log.Logger.Infow("successfully compacted state database")
 	return nil
 }
