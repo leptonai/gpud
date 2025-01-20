@@ -197,7 +197,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}
-	if err := handleJoinResponse(rootCtx, response.Body); err != nil {
+	cctx, ccancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer ccancel()
+	if err := handleJoinResponse(cctx, response.Body); err != nil {
 		return err
 	}
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
