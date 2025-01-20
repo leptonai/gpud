@@ -75,7 +75,7 @@ func TestRecordMetrics(t *testing.T) {
 		t.Fatal("failed to compact database:", err)
 	}
 
-	size, err := ReadDBSize(ctx, dbRO)
+	size, err := sqlite.ReadDBSize(ctx, dbRO)
 	if err != nil {
 		t.Fatal("failed to read db size:", err)
 	}

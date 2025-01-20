@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -183,30 +184,8 @@ func Register(reg *prometheus.Registry) error {
 	return nil
 }
 
-func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
-	var pageCount uint64
-	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page count")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	var pageSize uint64
-	err = db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page size")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	return pageCount * pageSize, nil
-}
-
 func RecordMetrics(ctx context.Context, db *sql.DB) error {
-	dbSize, err := ReadDBSize(ctx, db)
+	dbSize, err := sqlite.ReadDBSize(ctx, db)
 	if err != nil {
 		return err
 	}
