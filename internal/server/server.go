@@ -1199,7 +1199,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ticker.Reset(time.Hour)
 			}
 
-			if err := state.RecordMetrics(ctx, dbRW); err != nil {
+			// checking sqlite db size only needs read-only access
+			if err := state.RecordMetrics(ctx, dbRO); err != nil {
 				log.Logger.Errorw("failed to record metrics", "error", err)
 			}
 		}
@@ -1218,7 +1219,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					ticker.Reset(config.CompactPeriod.Duration)
 				}
 
-				if err := state.Compact(ctx, dbRW); err != nil {
+				if err := sqlite.Compact(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to compact state database", "error", err)
 				}
 			}
