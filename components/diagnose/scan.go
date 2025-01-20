@@ -42,10 +42,6 @@ var defaultNVIDIALibraries = []string{
 
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
-	if os.Geteuid() != 0 {
-		return errors.New("requires sudo/root access in order to scan dmesg errors")
-	}
-
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
@@ -223,6 +219,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	println()
 
 	if op.dmesgCheck {
+		if os.Geteuid() != 0 {
+			return errors.New("requires sudo/root access in order to scan dmesg errors")
+		}
+
 		fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
 		defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
 		if err != nil {
