@@ -5,7 +5,7 @@ set -o pipefail
 
 LOG_FILE=${1:-test-coverage.log}
 COVERAGE_DIR=${COVERAGE_DIR:-coverage_dir}
-COVERAGE_FILE="${COVERAGE_DIR}/coverage.out"
+COVERAGE_FILE="${COVERAGE_DIR}/coverage.txt"
 
 mkdir -p "${COVERAGE_DIR}"
 
@@ -22,17 +22,6 @@ echo "=== Checking if coverage file exists ==="
 if [ ! -f "${COVERAGE_FILE}" ]; then
   echo "Coverage file not found: ${COVERAGE_FILE}"
   exit 1
-fi
-
-echo "=== Uploading coverage report to Codecov ==="
-if [ -z "${CODECOV_TOKEN}" ]; then
-  echo "Error: CODECOV_TOKEN is not set. Ensure it's configured for private repositories."
-  exit 2
-fi
-
-if ! bash <(curl -s https://codecov.io/bash) -f "${COVERAGE_FILE}" -t "${CODECOV_TOKEN}" -cF all; then
-  echo "Failed to upload to Codecov"
-  exit 3
 fi
 
 echo "=== Upload completed with exit status: $test_success ==="

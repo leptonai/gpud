@@ -23,10 +23,8 @@ jobs:
         go-version-file: go.mod 
 
     - name: Run tests with coverage
-      env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
-        go test -coverprofile=coverage.txt
+        ./scripts/test-coverage-upload.sh
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
