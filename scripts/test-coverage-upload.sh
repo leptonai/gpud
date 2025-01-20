@@ -25,9 +25,14 @@ if [ ! -f "${COVERAGE_FILE}" ]; then
 fi
 
 echo "=== Uploading coverage report to Codecov ==="
-if ! bash <(curl -s https://codecov.io/bash) -f "${COVERAGE_FILE}" -cF all; then
-  echo "Failed to upload to Codecov"
+if [ -z "${CODECOV_TOKEN}" ]; then
+  echo "Error: CODECOV_TOKEN is not set. Ensure it's configured for private repositories."
   exit 2
+fi
+
+if ! bash <(curl -s https://codecov.io/bash) -f "${COVERAGE_FILE}" -t "${CODECOV_TOKEN}" -cF all; then
+  echo "Failed to upload to Codecov"
+  exit 3
 fi
 
 echo "=== Upload completed with exit status: $test_success ==="
