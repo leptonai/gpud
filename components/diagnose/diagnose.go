@@ -170,7 +170,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		return err
 	}
 
-	if commandExists("ipmitool") {
+	if process.CommandExists("ipmitool") {
 		if err := o.runCommand(ctx, "ipmitool", "ipmitool", "fru", "list"); err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		})
 	}
 
-	if commandExists("dmesg") {
+	if process.CommandExists("dmesg") {
 		if err := o.runCommand(ctx, "dmesg", "dmesg"); err != nil {
 			return err
 		}
@@ -213,7 +213,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		})
 	}
 
-	if commandExists("dmidecode") {
+	if process.CommandExists("dmidecode") {
 		if err := o.runCommand(ctx, "dmidecode", "dmidecode"); err != nil {
 			return err
 		}
@@ -227,7 +227,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		})
 	}
 
-	if commandExists("lspci") {
+	if process.CommandExists("lspci") {
 		if err := o.runCommand(ctx, "lspci", "lspci"); err != nil {
 			return err
 		}
@@ -395,7 +395,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 }
 
 func (o *output) checkUUID(ctx context.Context) error {
-	if commandExists("dmidecode") {
+	if process.CommandExists("dmidecode") {
 		machineID, err := host.DmidecodeUUID(ctx)
 		if err != nil {
 			return err
@@ -448,7 +448,7 @@ func (o *output) checkHostname() error {
 }
 
 func (o *output) runCommand(ctx context.Context, subDir string, args ...string) error {
-	if !commandExists(args[0]) {
+	if !process.CommandExists(args[0]) {
 		o.Results = append(o.Results, CommandResult{
 			Command: strings.Join(args, " "),
 			Error:   fmt.Sprintf("%s is not installed", args[0]),

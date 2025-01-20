@@ -41,7 +41,7 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 	for _, args := range op.commandsToRun {
 		cmd := strings.Split(args[0], " ")[0]
-		if !commandExists(cmd) {
+		if !CommandExists(cmd) {
 			return fmt.Errorf("command not found: %q", cmd)
 		}
 	}
@@ -137,7 +137,7 @@ func WithRestartConfig(config RestartConfig) OpOption {
 	}
 }
 
-func commandExists(name string) bool {
+func CommandExists(name string) bool {
 	p, err := exec.LookPath(name)
 	if err != nil {
 		return false

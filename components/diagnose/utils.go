@@ -4,17 +4,8 @@ import (
 	"archive/tar"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
-
-func commandExists(name string) bool {
-	p, err := exec.LookPath(name)
-	if err != nil {
-		return false
-	}
-	return p != ""
-}
 
 func copyFile(sourceFile, targetFile string) error {
 	srcFile, err := os.Open(sourceFile)
