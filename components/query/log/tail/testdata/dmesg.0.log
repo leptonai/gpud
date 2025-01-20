@@ -1,0 +1,41 @@
+2024-11-15T05:39:15,491363+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,502491+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,513618+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,524696+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,535709+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,546781+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,557860+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,568948+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,580123+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T05:39:15,591167+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:03,470068+00:00 NVRM: Xid (PCI:0000:19:00): 48, pid='<unknown>', name=<unknown>, An uncorrectable double bit error (DBE) has been detected on GPU in the framebuffer at physAddr 0x12bac1c3e0 partition 2, subpartition 1.
+2024-11-15T12:02:03,498753+00:00 NVRM: Xid (PCI:0000:19:00): 63, pid='<unknown>', name=<unknown>, Row Remapper: New row (0x00000012bac1c3e0) marked for remapping, reset gpu to activate.
+2024-11-15T12:02:03,506595+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid='<unknown>', name=<unknown>, Contained: SM (0x1). RST: No, D-RST: No
+2024-11-15T12:02:03,521616+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 00000008
+2024-11-15T12:02:03,552642+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 00000009
+2024-11-15T12:02:03,561522+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000a
+2024-11-15T12:02:03,570101+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000b
+2024-11-15T12:02:03,578496+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000c
+2024-11-15T12:02:03,587265+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000d
+2024-11-15T12:02:03,630019+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000e
+2024-11-15T12:02:03,638794+00:00 NVRM: Xid (PCI:0000:19:00): 94, pid=1248209, name=python3.10, Ch 0000000f
+2024-11-15T12:02:15,737526+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,748853+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,760199+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,771485+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,782907+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,794161+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,805365+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,816541+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,827798+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,838837+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,849947+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,861190+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,872315+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,883572+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,894792+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,905966+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,917157+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,928245+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,939340+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
+2024-11-15T12:02:15,950445+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
