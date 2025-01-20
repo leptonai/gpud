@@ -10,6 +10,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -125,6 +126,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Fatalw("failed to open database", "error", err)
 		}
 		defer db.Close()
+
+		// "nvidia_query.Get" assumes that the "clock-events-state" table exists
+		// pre-create since this is a one-off operation
+		// TODO: move these into a single place
+		if err := nvidia_clock_events_state.CreateTable(ctx, db); err != nil {
+			log.Logger.Fatalw("failed to create clock events state table", "error", err)
+		}
 
 		outputRaw, err := nvidia_query.Get(ctx, db, db)
 		if err != nil {
