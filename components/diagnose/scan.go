@@ -222,48 +222,50 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 	println()
 
-	fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
-	defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
-	if err != nil {
-		return err
-	}
-	matched, err := query_log_tail.Scan(
-		ctx,
-		query_log_tail.WithDedup(true),
-		query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
-		query_log_tail.WithLinesToTail(op.lines),
-		query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
-		query_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
-		query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
-			log.Logger.Debugw("matched", "line", string(line))
-			fmt.Println("line", string(line))
-			matchedB, _ := matched.YAML()
-			fmt.Println(string(matchedB))
+	if op.dmesgCheck {
+		fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
+		defaultDmesgCfg, err := dmesg.DefaultConfig(ctx)
+		if err != nil {
+			return err
+		}
+		matched, err := query_log_tail.Scan(
+			ctx,
+			query_log_tail.WithDedup(true),
+			query_log_tail.WithCommands(defaultDmesgCfg.Log.Scan.Commands),
+			query_log_tail.WithLinesToTail(op.lines),
+			query_log_tail.WithSelectFilter(defaultDmesgCfg.Log.SelectFilters...),
+			query_log_tail.WithExtractTime(defaultDmesgCfg.Log.TimeParseFunc),
+			query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
+				log.Logger.Debugw("matched", "line", string(line))
+				fmt.Println("line", string(line))
+				matchedB, _ := matched.YAML()
+				fmt.Println(string(matchedB))
 
-			if xid := nvidia_query_xid.ExtractNVRMXid(string(line)); xid > 0 {
-				if dm, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
-					log.Logger.Warnw("known xid", "line", string(line))
-					yb, _ := dm.YAML()
-					fmt.Println(string(yb))
+				if xid := nvidia_query_xid.ExtractNVRMXid(string(line)); xid > 0 {
+					if dm, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
+						log.Logger.Warnw("known xid", "line", string(line))
+						yb, _ := dm.YAML()
+						fmt.Println(string(yb))
+					}
 				}
-			}
 
-			if sxid := nvidia_query_sxid.ExtractNVSwitchSXid(string(line)); sxid > 0 {
-				if dm, err := nvidia_query_sxid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
-					log.Logger.Warnw("known sxid", "line", string(line))
-					yb, _ := dm.YAML()
-					fmt.Println(string(yb))
+				if sxid := nvidia_query_sxid.ExtractNVSwitchSXid(string(line)); sxid > 0 {
+					if dm, err := nvidia_query_sxid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
+						log.Logger.Warnw("known sxid", "line", string(line))
+						yb, _ := dm.YAML()
+						fmt.Println(string(yb))
+					}
 				}
-			}
-		}),
-	)
-	if err != nil {
-		return err
-	}
-	if matched == 0 {
-		fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
-	} else {
-		fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, matched)
+			}),
+		)
+		if err != nil {
+			return err
+		}
+		if matched == 0 {
+			fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
+		} else {
+			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, matched)
+		}
 	}
 
 	if op.netcheck {

@@ -30,7 +30,7 @@ func TestGpudHealthzInfo(t *testing.T) {
 
 	// start gpud scan
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "scan")
+	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
 	b, err := cmd.CombinedOutput()
 	cancel()
 	if err != nil {

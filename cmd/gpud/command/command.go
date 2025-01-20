@@ -42,6 +42,7 @@ var (
 	pollGPMEvents bool
 	netcheck      bool
 	diskcheck     bool
+	dmesgCheck    bool
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -535,6 +536,11 @@ cat summary.txt
 					Name:        "diskcheck",
 					Usage:       "enable disk checks (default: true)",
 					Destination: &diskcheck,
+				},
+				&cli.BoolTFlag{
+					Name:        "dmesg-check",
+					Usage:       "enable dmesg checks (default: true)",
+					Destination: &dmesgCheck,
 				},
 			},
 		},
