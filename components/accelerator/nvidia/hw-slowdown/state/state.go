@@ -1,5 +1,5 @@
-// Package clockeventsstate provides the persistent storage layer for the nvidia query results.
-package clockeventsstate
+// Package state provides the persistent storage layer for the hw slowdown events.
+package state
 
 import (
 	"context"
@@ -17,7 +17,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const TableNameClockEvents = "components_accelerator_nvidia_query_clock_events"
+const (
+	DeprecatedTableNameClockEvents = "components_accelerator_nvidia_query_clock_events"
+	TableNameHWSlowdown            = "components_accelerator_nvidia_hw_slowdown_events"
+)
 
 const (
 	// unix timestamp in seconds when the event was observed
@@ -25,9 +28,6 @@ const (
 
 	// either "nvml" or "dmesg"
 	ColumnDataSource = "data_source"
-
-	// either "xid" or "sxid"
-	ColumnEventType = "event_type"
 
 	// gpu uuid
 	ColumnGPUUUID = "gpu_uuid"
@@ -40,25 +40,27 @@ const (
 const DefaultRetentionPeriod = 3 * 24 * time.Hour
 
 type Event struct {
-	UnixSeconds int64
-	DataSource  string
-	EventType   string
-	GPUUUID     string
-	Reasons     []string
+	Timestamp  int64
+	DataSource string
+	GPUUUID    string
+	Reasons    []string
 }
 
 func CreateTable(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+	_, err := db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", DeprecatedTableNameClockEvents))
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
-	%s TEXT NOT NULL,
 	%s TEXT NOT NULL
-);`, TableNameClockEvents,
+);`, TableNameHWSlowdown,
 		ColumnUnixSeconds,
 		ColumnDataSource,
-		ColumnEventType,
 		ColumnGPUUUID,
 		ColumnReasons,
 	))
@@ -66,15 +68,14 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 func InsertEvent(ctx context.Context, db *sql.DB, event Event) error {
-	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "eventType", event.EventType, "uuid", event.GPUUUID, "reasons", event.Reasons)
+	log.Logger.Debugw("inserting event", "dataSource", event.DataSource, "uuid", event.GPUUUID, "reasons", event.Reasons)
 
 	insertStatement := fmt.Sprintf(`
-INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, ''));
+INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''));
 `,
-		TableNameClockEvents,
+		TableNameHWSlowdown,
 		ColumnUnixSeconds,
 		ColumnDataSource,
-		ColumnEventType,
 		ColumnGPUUUID,
 		ColumnReasons,
 	)
@@ -88,9 +89,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, '')
 	_, err = db.ExecContext(
 		ctx,
 		insertStatement,
-		event.UnixSeconds,
+		event.Timestamp,
 		event.DataSource,
-		event.EventType,
 		event.GPUUUID,
 		string(reasonsBytes),
 	)
@@ -101,17 +101,15 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?, '')
 
 func FindEvent(ctx context.Context, db *sql.DB, event Event) (bool, error) {
 	selectStatement := fmt.Sprintf(`
-SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ?;
+SELECT %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?;
 `,
 		ColumnUnixSeconds,
 		ColumnDataSource,
-		ColumnEventType,
 		ColumnGPUUUID,
 		ColumnReasons,
-		TableNameClockEvents,
+		TableNameHWSlowdown,
 		ColumnUnixSeconds,
 		ColumnDataSource,
-		ColumnEventType,
 		ColumnGPUUUID,
 	)
 
@@ -121,14 +119,12 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s = ?;
 	err := db.QueryRowContext(
 		ctx,
 		selectStatement,
-		event.UnixSeconds,
+		event.Timestamp,
 		event.DataSource,
-		event.EventType,
 		event.GPUUUID,
 	).Scan(
-		&foundEvent.UnixSeconds,
+		&foundEvent.Timestamp,
 		&foundEvent.DataSource,
-		&foundEvent.EventType,
 		&foundEvent.GPUUUID,
 		&reasonsRaw,
 	)
@@ -178,40 +174,35 @@ func ReadEvents(ctx context.Context, db *sql.DB, opts ...OpOption) ([]Event, err
 	// data sources can be multiple (e.g., nvml and nvidia-smi)
 	// here, we prioritize nvml over nvidia-smi
 	// for the same unix second, only the one from nvml will be kept
-	unixToEventTypeToUUIDToDataSource := make(map[int64]map[string]map[string]string, 0)
+	unixToUUIDToDataSource := make(map[int64]map[string]string, 0)
 
 	events := []Event{}
 	for rows.Next() {
 		var event Event
 		var reasonsRaw string
 		if err := rows.Scan(
-			&event.UnixSeconds,
+			&event.Timestamp,
 			&event.DataSource,
-			&event.EventType,
 			&event.GPUUUID,
 			&reasonsRaw,
 		); err != nil {
 			return nil, err
 		}
 
-		_, ok := unixToEventTypeToUUIDToDataSource[event.UnixSeconds]
+		_, ok := unixToUUIDToDataSource[event.Timestamp]
 		if !ok {
-			unixToEventTypeToUUIDToDataSource[event.UnixSeconds] = make(map[string]map[string]string, 0)
-		}
-		_, ok = unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType]
-		if !ok {
-			unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType] = make(map[string]string, 0)
+			unixToUUIDToDataSource[event.Timestamp] = make(map[string]string, 0)
 		}
 
-		prevDataSource, ok := unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType][event.GPUUUID]
+		prevDataSource, ok := unixToUUIDToDataSource[event.Timestamp][event.GPUUUID]
 		currDataSource := event.DataSource
 
 		toInclude := true
 		if !ok {
-			// this GPU had NO PREVIOUS event at this unix second and event type ("nvml" or "nvidia-smi")
-			unixToEventTypeToUUIDToDataSource[event.UnixSeconds][event.EventType][event.GPUUUID] = currDataSource
+			// this GPU had NO PREVIOUS event at this unix second ("nvml" or "nvidia-smi")
+			unixToUUIDToDataSource[event.Timestamp][event.GPUUUID] = currDataSource
 		} else {
-			// this GPU HAD A PREVIOUS event at this unix second and event type BUT with different data source
+			// this GPU HAD A PREVIOUS event at this unix second BUT with different data source
 
 			// this works because we prioritize "nvml" over "nvidia-smi" in the SQL select statement
 			// "ORDER BY data_source DESC" where "nvml" comes before "nvidia-smi"
@@ -247,14 +238,13 @@ func createSelectStatementAndArgs(opts ...OpOption) (string, []any, error) {
 		return "", nil, err
 	}
 
-	selectStatement := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+	selectStatement := fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s`,
 		ColumnUnixSeconds,
 		ColumnDataSource,
-		ColumnEventType,
 		ColumnGPUUUID,
 		ColumnReasons,
-		TableNameClockEvents,
+		TableNameHWSlowdown,
 	)
 
 	args := []any{}
@@ -316,7 +306,7 @@ func createDeleteStatementAndArgs(opts ...OpOption) (string, []any, error) {
 	}
 
 	deleteStatement := fmt.Sprintf(`DELETE FROM %s`,
-		TableNameClockEvents,
+		TableNameHWSlowdown,
 	)
 
 	args := []any{}
