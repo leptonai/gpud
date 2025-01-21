@@ -8,7 +8,7 @@ import (
 )
 
 func TestWatch(t *testing.T) {
-	w, err := newWatcher("echo 123")
+	w, err := newWatcher([][]string{{"echo 123"}})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -24,7 +24,10 @@ func TestWatch(t *testing.T) {
 
 func TestDmesgLogs(t *testing.T) {
 	// sleep 3 seconds to stream the whole file before command exit
-	w, err := newWatcher("cat testdata/dmesg.decode.iso.log.0 && sleep 3")
+	w, err := newWatcher([][]string{
+		{"cat testdata/dmesg.decode.iso.log.0"},
+		{"sleep 3"},
+	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -127,7 +130,7 @@ func TestParseDmesgLine(t *testing.T) {
 }
 
 func TestWatcherClose(t *testing.T) {
-	w, err := newWatcher("sleep 10")
+	w, err := newWatcher([][]string{{"sleep 10"}})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -146,12 +149,12 @@ func TestWatcherClose(t *testing.T) {
 func TestWatcherError(t *testing.T) {
 	tests := []struct {
 		name    string
-		cmds    []string
+		cmds    [][]string
 		wantErr bool
 	}{
 		{
 			name:    "no commands",
-			cmds:    []string{},
+			cmds:    [][]string{},
 			wantErr: true,
 		},
 		{
@@ -161,19 +164,19 @@ func TestWatcherError(t *testing.T) {
 		},
 		{
 			name:    "non-existent command",
-			cmds:    []string{"nonexistentcommand"},
+			cmds:    [][]string{{"nonexistentcommand"}},
 			wantErr: true,
 		},
 		{
 			name:    "valid command",
-			cmds:    []string{"echo test"},
+			cmds:    [][]string{{"echo test"}},
 			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := newWatcher(tt.cmds...)
+			_, err := newWatcher(tt.cmds)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("newWatcher() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -183,7 +186,9 @@ func TestWatcherError(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := watch(ctx, "sleep 10")
+	ch, err := watch(ctx, [][]string{
+		{"sleep 10"},
+	})
 	if err != nil {
 		t.Fatalf("failed to create watch: %v", err)
 	}
@@ -248,8 +253,10 @@ func TestFindISOTimestampIndex(t *testing.T) {
 
 func TestWatchMultipleCommands(t *testing.T) {
 	w, err := newWatcher(
-		"echo 'first command'",
-		"echo 'second command'",
+		[][]string{
+			{"echo 'first command'"},
+			{"echo 'second command'"},
+		},
 	)
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
@@ -275,7 +282,9 @@ func TestWatchMultipleCommands(t *testing.T) {
 }
 
 func TestWatchWithError(t *testing.T) {
-	w, err := newWatcher("cat nonexistentfile")
+	w, err := newWatcher([][]string{
+		{"cat nonexistentfile"},
+	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}

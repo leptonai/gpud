@@ -12,11 +12,11 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-var DefaultWatchCommands = []string{
-	"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -w || true",
+var DefaultWatchCommands = [][]string{
+	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -w || true"},
 
 	// run last commands as fallback, in case "dmesg -w" flag only works in some machines
-	"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -W || true",
+	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -W || true"},
 }
 
 type LogLine struct {
@@ -39,16 +39,16 @@ type Watcher interface {
 }
 
 func NewWatcher() (Watcher, error) {
-	return newWatcher(DefaultWatchCommands...)
+	return newWatcher(DefaultWatchCommands)
 }
 
-func newWatcher(cmds ...string) (Watcher, error) {
+func newWatcher(cmds [][]string) (Watcher, error) {
 	if len(cmds) == 0 {
 		return nil, errors.New("no commands provided")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := watch(ctx, cmds...)
+	ch, err := watch(ctx, cmds)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -71,13 +71,19 @@ func (w *watcher) Close() {
 
 func watch(
 	ctx context.Context,
-	cmds ...string,
+	cmds [][]string,
 ) (<-chan LogLine, error) {
 	ch := make(chan LogLine, 1000)
-	p, err := process.New(
-		process.WithCommand(cmds...),
-		process.WithRunAsBashScript(), // need to run as bash script when dmesg commands are complicated
-	)
+
+	opts := []process.OpOption{}
+	for _, cmd := range cmds {
+		opts = append(opts, process.WithCommand(cmd...))
+	}
+
+	// need to run as bash script when dmesg commands are complicated
+	opts = append(opts, process.WithRunAsBashScript())
+
+	p, err := process.New(opts...)
 	if err != nil {
 		return nil, err
 	}
