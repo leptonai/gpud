@@ -85,9 +85,8 @@ func cmdRun(cliContext *cli.Context) error {
 		cfg.RetentionPeriod = metav1.Duration{Duration: retentionPeriod}
 		cfg.Web.SincePeriod = metav1.Duration{Duration: retentionPeriod}
 	}
-	if cfg.CompactPeriod.Duration < time.Minute {
-		cfg.CompactPeriod = config.DefaultCompactPeriod
-	}
+
+	cfg.CompactPeriod = config.DefaultCompactPeriod
 
 	cfg.Web.Enable = webEnable
 	if webAdmin {

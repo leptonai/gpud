@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -24,7 +25,8 @@ const (
 	ColumnMaxBackgroundPercentAgainstThreshold = "max_background_percent_against_threshold"
 )
 
-const DefaultRetentionPeriod = 3 * time.Hour
+// retain up to 3 days of events
+const DefaultRetentionPeriod = 3 * 24 * time.Hour
 
 type Event struct {
 	UnixSeconds                          int64   `json:"unix_seconds"`
@@ -70,6 +72,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 		ColumnCongestedPercentAgainstThreshold,
 		ColumnMaxBackgroundPercentAgainstThreshold,
 	)
+
+	start := time.Now()
 	_, err := db.ExecContext(
 		ctx,
 		insertStatement,
@@ -78,6 +82,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 		event.CongestedPercentAgainstThreshold,
 		event.MaxBackgroundPercentAgainstThreshold,
 	)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 
@@ -196,10 +202,14 @@ func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	start := time.Now()
 	rs, err := db.ExecContext(ctx, deleteStatement, args...)
 	if err != nil {
 		return 0, err
 	}
+	sqlite.RecordDelete(time.Since(start).Seconds())
+
 	affected, err := rs.RowsAffected()
 	if err != nil {
 		return 0, err

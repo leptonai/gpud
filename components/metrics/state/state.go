@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/leptonai/gpud/pkg/sqlite"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -56,7 +57,11 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 		ColumnMetricSecondaryName,
 		ColumnMetricValue,
 	)
+
+	start := time.Now()
 	_, err := db.ExecContext(ctx, query, metric.UnixSeconds, metric.MetricName, metric.MetricSecondaryName, metric.Value)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 
@@ -86,7 +91,11 @@ LIMIT 1;
 		MetricName:          name,
 		MetricSecondaryName: secondaryName,
 	}
+
+	start := time.Now()
 	err := db.QueryRowContext(ctx, query, name, secondaryName).Scan(&metric.UnixSeconds, &metric.Value)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -116,7 +125,11 @@ LIMIT 1;
 	metric := Metric{
 		MetricName: name,
 	}
+
+	start := time.Now()
 	err := db.QueryRowContext(ctx, query, name).Scan(&metric.UnixSeconds, &metric.MetricSecondaryName, &metric.Value)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -146,6 +159,11 @@ ORDER BY %s ASC;`,
 		ColumnMetricSecondaryName,
 		ColumnUnixSeconds,
 	)
+
+	start := time.Now()
+	defer func() {
+		sqlite.RecordSelect(time.Since(start).Seconds())
+	}()
 
 	queryRows, err := db.QueryContext(ctx, query, since.Unix(), name, secondaryName)
 	if err != nil {
@@ -188,6 +206,11 @@ ORDER BY %s ASC;`,
 		ColumnMetricName,
 		ColumnUnixSeconds,
 	)
+
+	start := time.Now()
+	defer func() {
+		sqlite.RecordSelect(time.Since(start).Seconds())
+	}()
 
 	queryRows, err := db.QueryContext(ctx, query, since.Unix(), name)
 	if err != nil {
@@ -234,8 +257,11 @@ WHERE %s = ? AND %s = ? AND %s >= ?;`,
 		sinceUnix = since.Unix()
 	}
 
+	start := time.Now()
 	var avg sql.NullFloat64
 	err := db.QueryRowContext(ctx, query, name, secondaryName, sinceUnix).Scan(&avg)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0.0, nil
@@ -304,8 +330,11 @@ func EMASince(ctx context.Context, db *sql.DB, tableName string, name string, se
 	// calculate alpha (smoothing factor)
 	alpha := 2.0 / (period.Minutes() + 1)
 
+	start := time.Now()
 	var ema sql.NullFloat64
 	err = db.QueryRowContext(ctx, query.String(), name, secondaryName, since.Unix(), alpha, alpha).Scan(&ema)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0.0, nil
@@ -323,7 +352,11 @@ func EMASince(ctx context.Context, db *sql.DB, tableName string, name string, se
 func PurgeMetrics(ctx context.Context, db *sql.DB, tableName string, before time.Time) (int, error) {
 	query := fmt.Sprintf(`
 DELETE FROM %s WHERE %s < ?;`, tableName, ColumnUnixSeconds)
+
+	start := time.Now()
 	rs, err := db.ExecContext(ctx, query, before.Unix())
+	sqlite.RecordDelete(time.Since(start).Seconds())
+
 	if err != nil {
 		return 0, err
 	}

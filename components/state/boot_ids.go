@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/leptonai/gpud/pkg/sqlite"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -26,7 +27,10 @@ func CreateTableBootIDs(ctx context.Context, db *sql.DB) error {
 
 // Returns an empty string and no error if no boot ID is found.
 func GetLastBootID(ctx context.Context, db *sql.DB) (string, error) {
+	start := time.Now()
 	row := db.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM %s ORDER BY %s DESC LIMIT 1", ColumnBootID, TableNameMachineBootIDs, ColumnBootUnixSeconds))
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	var bootID string
 	err := row.Scan(&bootID)
 	if err == sql.ErrNoRows {
@@ -36,7 +40,10 @@ func GetLastBootID(ctx context.Context, db *sql.DB) (string, error) {
 }
 
 func GetFirstBootID(ctx context.Context, db *sql.DB) (string, error) {
+	start := time.Now()
 	row := db.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM %s ORDER BY %s ASC LIMIT 1", ColumnBootID, TableNameMachineBootIDs, ColumnBootUnixSeconds))
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	var bootID string
 	err := row.Scan(&bootID)
 	if err == sql.ErrNoRows {
@@ -45,12 +52,15 @@ func GetFirstBootID(ctx context.Context, db *sql.DB) (string, error) {
 	return bootID, err
 }
 
-func InsertBootID(ctx context.Context, db *sql.DB, bootID string, time time.Time) error {
+func InsertBootID(ctx context.Context, db *sql.DB, bootID string, ts time.Time) error {
+	start := time.Now()
 	_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s) VALUES (?, ?)",
 		TableNameMachineBootIDs,
 		ColumnBootID,
 		ColumnBootUnixSeconds),
-		bootID, time.UTC().Unix())
+		bootID, ts.UTC().Unix())
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 
@@ -75,7 +85,10 @@ func GetRebootEvents(ctx context.Context, db *sql.DB, since time.Time) ([]Reboot
 	query := fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s > ? AND %s != ?", ColumnBootID, ColumnBootUnixSeconds, TableNameMachineBootIDs, ColumnBootUnixSeconds, ColumnBootID)
 	params := []any{since.UTC().Unix(), firstBootID}
 
+	start := time.Now()
 	rows, err := db.QueryContext(ctx, query, params...)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		return nil, err
 	}

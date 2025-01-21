@@ -80,13 +80,13 @@ const (
 var (
 	DefaultRefreshPeriod = metav1.Duration{Duration: time.Minute}
 
-	// keep the state only for the last 2 hours
-	DefaultRetentionPeriod = metav1.Duration{Duration: 2 * time.Hour}
+	// keep the metrics only for the last 3 hours
+	DefaultRetentionPeriod = metav1.Duration{Duration: 3 * time.Hour}
 
 	// compact/vacuum is disruptive to existing queries (including reads)
 	// but necessary to keep the state database from growing indefinitely
-	// so we only compact/vacuum once a week
-	DefaultCompactPeriod = metav1.Duration{Duration: 7 * 24 * time.Hour}
+	// TODO: disabled for now, until we have a better way to detect the performance issue
+	DefaultCompactPeriod = metav1.Duration{Duration: 0}
 
 	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
 )
