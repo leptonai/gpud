@@ -182,7 +182,6 @@ func parseDmesgLine(line string) LogLine {
 	}
 
 	extractedLine := strings.TrimSpace(line[len(isoFormat):])
-	logLine.Timestamp = parsedTime
 	logLine.Content = extractedLine
 	return logLine
 }
