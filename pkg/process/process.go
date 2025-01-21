@@ -320,7 +320,7 @@ func (p *process) watchCmd() {
 			}
 
 			if p.restartConfig == nil || !p.restartConfig.OnError {
-				log.Logger.Warnw("process exited with error", "error", err)
+				log.Logger.Debugw("process exited with error", "error", err)
 				return
 			}
 
