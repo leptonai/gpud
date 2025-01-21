@@ -265,7 +265,9 @@ func TestWatchMultipleCommands(t *testing.T) {
 
 	ch := w.Watch()
 
-	time.Sleep(time.Second) // wait for some time to be read
+	// wait for some time to be read
+	// slow CI
+	time.Sleep(2 * time.Second)
 
 	var lines []string
 	for line := range ch {
