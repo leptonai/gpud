@@ -28,6 +28,16 @@ func TestGpudHealthzInfo(t *testing.T) {
 		t.Skip("skipping e2e tests")
 	}
 
+	// start gpud scan
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
+	b, err := cmd.CombinedOutput()
+	cancel()
+	if err != nil {
+		t.Fatalf("failed to run gpud scan: %v\n%s", err, string(b))
+	}
+	t.Logf("gpud scan output:\n%s", string(b))
+
 	// get an available port
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -42,10 +52,10 @@ func TestGpudHealthzInfo(t *testing.T) {
 	randVal := randStr(t, 10)
 
 	// start gpud command
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-enable=false", "--enable-auto-update=false", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
+	cmd = exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-enable=false", "--enable-auto-update=false", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

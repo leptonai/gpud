@@ -10,6 +10,8 @@ type Op struct {
 
 	netcheck  bool
 	diskcheck bool
+
+	dmesgCheck bool
 }
 
 type OpOption func(*Op)
@@ -64,5 +66,11 @@ func WithNetcheck(b bool) OpOption {
 func WithDiskcheck(b bool) OpOption {
 	return func(op *Op) {
 		op.diskcheck = b
+	}
+}
+
+func WithDmesgCheck(b bool) OpOption {
+	return func(op *Op) {
+		op.dmesgCheck = b
 	}
 }
