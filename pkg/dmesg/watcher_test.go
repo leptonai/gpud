@@ -36,10 +36,10 @@ func TestWatchDmesgLogs(t *testing.T) {
 
 	for logLine := range w.Watch() {
 		if logLine.Facility != "kern" && logLine.Facility != "daemon" && logLine.Facility != "syslog" && logLine.Facility != "user" {
-			t.Fatalf("should see kern or daemon facility %+v", logLine)
+			t.Fatalf("unexpected facility %+v", logLine)
 		}
-		if logLine.Level == "" {
-			t.Fatalf("should see non-empty level %+v", logLine)
+		if logLine.Level != "notice" && logLine.Level != "info" && logLine.Level != "debug" && logLine.Level != "warn" && logLine.Level != "err" {
+			t.Fatalf("unexpected level %+v", logLine)
 		}
 		if logLine.Content == "" {
 			t.Fatalf("should see non-empty content %+v", logLine)
