@@ -313,7 +313,7 @@ func (p *process) watchCmd() {
 						log.Logger.Warnw("command was terminated (exit code -1) for unknown reasons", "cmd", p.cmd.String())
 					}
 				} else {
-					log.Logger.Warnw("command exited with non-zero status", "error", err, "cmd", p.cmd.String(), "exitCode", exitErr.ExitCode())
+					log.Logger.Debugw("command exited with non-zero status", "error", err, "cmd", p.cmd.String(), "exitCode", exitErr.ExitCode())
 				}
 			} else {
 				log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", p.cmd.String())
