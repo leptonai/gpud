@@ -46,6 +46,9 @@ type Config struct {
 	// Configures the local web configuration.
 	Web *Web `json:"web,omitempty"`
 
+	// Overwrites the tool binaries for testing.
+	ToolOverwriteOptions ToolOverwriteOptions `json:"tool_overwrite_options"`
+
 	// Set false to disable auto update
 	EnableAutoUpdate bool `json:"enable_auto_update"`
 
@@ -68,6 +71,13 @@ type Web struct {
 
 	// SincePeriod is the time period to start displaying metrics from.
 	SincePeriod metav1.Duration `json:"since_period"`
+}
+
+type ToolOverwriteOptions struct {
+	NvidiaSMICommand         string `json:"nvidia_smi_command"`
+	NvidiaSMIQueryCommand    string `json:"nvidia_smi_query_command"`
+	IbstatCommand            string `json:"ibstat_command"`
+	InfinibandClassDirectory string `json:"infiniband_class_directory"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

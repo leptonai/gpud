@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	"github.com/leptonai/gpud/log"
@@ -25,22 +26,16 @@ func SMIExists() bool {
 	return err == nil
 }
 
-func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
-	log.Logger.Debugw("finding nvidia-smi")
-	nvidiaSMIPath, err := file.LocateExecutable("nvidia-smi")
-	if err != nil {
-		return nil, fmt.Errorf("nvidia-smi not found (%w)", err)
-	}
-
+func RunSMI(ctx context.Context, commandArgs []string) ([]byte, error) {
 	p, err := process.New(
-		process.WithCommand(append([]string{nvidiaSMIPath}, args...)...),
+		process.WithCommand(commandArgs...),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Logger.Debugw("starting nvidia-smi", "args", args)
+	log.Logger.Debugw("starting nvidia-smi", "args", commandArgs)
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -71,6 +66,8 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 	// [Sat Oct 12 18:38:44 2024]  _nv042330rm+0x10/0x40 [nvidia]
 	// [Sat Oct 12 18:38:44 2024]  ? _nv043429rm+0x23c/0x290
 	errc := make(chan error, 1)
+
+	mu := sync.Mutex{}
 	lines := make([]string, 0)
 	go func() {
 		err := process.Read(
@@ -79,35 +76,40 @@ func RunSMI(ctx context.Context, args ...string) ([]byte, error) {
 			process.WithReadStdout(),
 			process.WithReadStderr(),
 			process.WithProcessLine(func(line string) {
+				mu.Lock()
 				lines = append(lines, line)
+				mu.Unlock()
 			}),
 			process.WithWaitForCmd(),
 		)
 		errc <- err
 	}()
 
-	partialOutputErr := ""
-	if len(lines) > 0 {
-		partialOutputErr = fmt.Sprintf("\n\n(partial) output:\n%s", strings.Join(lines, "\n"))
-	}
-
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("nvidia-smi command timed out: %w%s", ctx.Err(), partialOutputErr)
+		mu.Lock()
+		lineOutput := strings.Join(lines, "\n")
+		mu.Unlock()
+
+		return nil, fmt.Errorf("nvidia-smi command timed out: %w\n\n(partial) output:\n%s", ctx.Err(), lineOutput)
 
 	case err := <-errc:
+		mu.Lock()
+		lineOutput := strings.Join(lines, "\n")
+		mu.Unlock()
+
 		if err != nil {
-			return nil, fmt.Errorf("nvidia-smi command failed: %w%s", err, partialOutputErr)
+			return nil, fmt.Errorf("nvidia-smi command timed out: %w\n\n(partial) output:\n%s", err, lineOutput)
 		}
-		return []byte(strings.Join(lines, "\n")), nil
+		return []byte(lineOutput), nil
 	}
 }
 
 // Make sure to call this with a timeout, as a broken GPU may block the command.
 // e.g.,
 // nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from pRmApi->Control(pRmApi, RES_GET_CLIENT_HANDLE(pKernelChannel), RES_GET_HANDLE(pKernelChannel),
-func GetSMIOutput(ctx context.Context) (*SMIOutput, error) {
-	qb, err := RunSMI(ctx, "--query")
+func GetSMIOutput(ctx context.Context, smiCmds []string, smiQueryCmds []string) (*SMIOutput, error) {
+	qb, err := RunSMI(ctx, smiQueryCmds)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func GetSMIOutput(ctx context.Context) (*SMIOutput, error) {
 		return nil, err
 	}
 
-	sb, err := RunSMI(ctx)
+	sb, err := RunSMI(ctx, smiCmds)
 	if err != nil {
 		if IsErrDeviceHandleUnknownError(err) {
 			o.SummaryFailure = err

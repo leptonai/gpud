@@ -239,6 +239,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExistsMsg: nvmlExistsMsg,
 
 		dbRW: op.dbRW,
+		dbRO: op.dbRO,
 
 		clockEventsSupported:    clockEventsSupported,
 		clockEventsHWSlowdownCh: make(chan *ClockEvents, 100),

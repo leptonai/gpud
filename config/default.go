@@ -157,6 +157,13 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			SincePeriod:   DefaultRetentionPeriod,
 		},
 
+		ToolOverwriteOptions: ToolOverwriteOptions{
+			NvidiaSMICommand:         options.NvidiaSMICommand,
+			NvidiaSMIQueryCommand:    options.NvidiaSMIQueryCommand,
+			IbstatCommand:            options.IbstatCommand,
+			InfinibandClassDirectory: options.InfinibandClassDirectory,
+		},
+
 		EnableAutoUpdate: true,
 	}
 

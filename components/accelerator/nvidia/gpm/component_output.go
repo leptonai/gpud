@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
@@ -96,7 +97,7 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
+func setDefaultPoller(cfg nvidia_common.Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			Name,

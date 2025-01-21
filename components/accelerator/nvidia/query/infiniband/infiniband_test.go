@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCountInfinibandClass(t *testing.T) {
+func TestCountInfinibandClassBySubDir(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -58,7 +58,7 @@ func TestCountInfinibandClass(t *testing.T) {
 				}
 			}
 
-			got := countInfinibandClass(tt.dirPath)
+			got := CountInfinibandClassBySubDir(tt.dirPath)
 			if got != tt.want {
 				t.Errorf("countInfinibandClass() = %v, want %v", got, tt.want)
 			}

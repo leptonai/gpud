@@ -1,4 +1,4 @@
-package temperature
+package common
 
 import (
 	"database/sql"
@@ -9,6 +9,15 @@ import (
 
 type Config struct {
 	Query query_config.Config `json:"query"`
+
+	ToolOverwrites
+}
+
+type ToolOverwrites struct {
+	NvidiaSMICommand         string `json:"nvidia_smi_command"`
+	NvidiaSMIQueryCommand    string `json:"nvidia_smi_query_command"`
+	IbstatCommand            string `json:"ibstat_command"`
+	InfinibandClassDirectory string `json:"infiniband_class_directory"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {

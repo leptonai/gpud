@@ -9,6 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
@@ -18,12 +19,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	// this starts the Xid poller via "nvml.StartDefaultInstance"
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	nvidia_query.SetDefaultPoller(
+		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
+		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
+		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
+		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
+		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
+		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
+	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_error_xid_sxid_id.Name)
 
 	return &component{
@@ -37,7 +45,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	cfg     Config
+	cfg     nvidia_common.Config
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	poller  query.Poller

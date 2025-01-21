@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -66,9 +65,7 @@ func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, er
 	}
 
 	o := &LsmodPeermemModuleOutput{
-		IbstatExists:          infiniband.IbstatExists(),
-		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
-		Raw:                   strings.Join(lines, "\n"),
+		Raw: strings.Join(lines, "\n"),
 	}
 	o.IbcoreUsingPeermemModule = HasLsmodInfinibandPeerMem(o.Raw)
 
@@ -102,8 +99,6 @@ func HasLsmodInfinibandPeerMem(lsmodOutput string) bool {
 }
 
 type LsmodPeermemModuleOutput struct {
-	IbstatExists             bool   `json:"ibstat_exists"`
-	InfinibandClassExists    bool   `json:"infiniband_class_exists"`
 	Raw                      string `json:"raw"`
 	IbcoreUsingPeermemModule bool   `json:"ibcore_using_peermem_module"`
 }

@@ -283,7 +283,11 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		})
 	} else {
 		fmt.Printf("%s checking nvidia-smi output\n", inProgress)
-		nout, err := nvidia_query.GetSMIOutput(ctx)
+		nout, err := nvidia_query.GetSMIOutput(
+			ctx,
+			[]string{"nvidia-smi"},
+			[]string{"nvidia-smi", "--query"},
+		)
 		if err != nil {
 			o.Results = append(o.Results, CommandResult{
 				Command: "nvidia-smi -q",

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/leptonai/gpud/log"
@@ -32,14 +31,6 @@ func SupportsInfinibandPortRate(gpuProductName string) int {
 		return 400
 	}
 	return 0
-}
-
-func IbstatExists() bool {
-	p, err := exec.LookPath("ibstat")
-	if err != nil {
-		return false
-	}
-	return p != ""
 }
 
 // lspci | grep -i infiniband
@@ -106,18 +97,11 @@ func CountInfinibandPCIBuses(ctx context.Context) (int, error) {
 // Counts the directories in "/sys/class/infiniband".
 // Returns 0 if the directory does not exist.
 func CountInfinibandClass() int {
-	info, err := os.Stat("/sys/class/infiniband")
-	if err != nil || !info.IsDir() {
-		return 0
-	}
-	dirs, err := os.ReadDir("/sys/class/infiniband")
-	if err != nil {
-		return 0
-	}
-	return len(dirs)
+	return CountInfinibandClassBySubDir("/sys/class/infiniband")
 }
 
-func countInfinibandClass(dir string) int {
+// Count the sub-directories under the specified directory.
+func CountInfinibandClassBySubDir(dir string) int {
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
 		return 0

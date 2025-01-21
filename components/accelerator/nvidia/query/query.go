@@ -4,9 +4,9 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +28,7 @@ import (
 	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/file"
 
 	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +41,7 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func SetDefaultPoller(dbRW *sql.DB, dbRO *sql.DB) {
+func SetDefaultPoller(opts ...OpOption) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			"shared-nvidia-poller",
@@ -51,7 +52,7 @@ func SetDefaultPoller(dbRW *sql.DB, dbRO *sql.DB) {
 					Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
 				},
 			},
-			CreateGet(dbRW, dbRO),
+			CreateGet(opts...),
 			nil,
 		)
 	})
@@ -70,21 +71,26 @@ func GetSuccessOnce() <-chan any {
 	return getSuccessOnce
 }
 
-func CreateGet(dbRW *sql.DB, dbRO *sql.DB) query.GetFunc {
+func CreateGet(opts ...OpOption) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		// "ctx" here is the root level and used for instantiating the "shared" NVML instance "once"
 		// and all other sub-calls have its own context timeouts, thus we do not set the timeout here
 		// otherwise, we will cancel all future operations when the instance is created only once!
-		return Get(ctx, dbRW, dbRO)
+		return Get(ctx, opts...)
 	}
 }
 
 // Get all nvidia component queries.
-func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error) {
+func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, fmt.Errorf("failed to apply options: %w", err)
+	}
+
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithDBRW(dbRW),
-		nvml.WithDBRO(dbRO),
+		nvml.WithDBRW(op.dbRW),
+		nvml.WithDBRO(op.dbRO),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,
@@ -100,12 +106,20 @@ func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
+	p, err := file.LocateExecutable(strings.Split(op.nvidiaSMICommand, " ")[0])
+	smiExists := err == nil && p != ""
+
+	p, err = file.LocateExecutable(strings.Split(op.ibstatCommand, " ")[0])
+	ibstatExists := err == nil && p != ""
+
+	ibClassCount := infiniband.CountInfinibandClassBySubDir(op.infinibandClassDirectory)
+
 	o := &Output{
 		Time:                  time.Now().UTC(),
-		SMIExists:             SMIExists(),
+		SMIExists:             smiExists,
 		FabricManagerExists:   FabricManagerExists(),
-		InfinibandClassExists: infiniband.CountInfinibandClass() > 0,
-		IbstatExists:          infiniband.IbstatExists(),
+		InfinibandClassExists: ibClassCount > 0,
+		IbstatExists:          ibstatExists,
 	}
 
 	log.Logger.Debugw("counting gpu devices")
@@ -175,9 +189,9 @@ func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error
 	}
 
 	if o.InfinibandClassExists && o.IbstatExists {
-		log.Logger.Debugw("running ibstat")
+		log.Logger.Debugw("running ibstat", "command", op.ibstatCommand)
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-		o.Ibstat, err = infiniband.RunIbstat(cctx)
+		o.Ibstat, err = infiniband.GetIbstatOutput(cctx, []string{op.ibstatCommand})
 		ccancel()
 		if err != nil {
 			if o.Ibstat == nil {
@@ -248,7 +262,10 @@ func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error
 	if o.SMIExists {
 		// call this with a timeout, as a broken GPU may block the command.
 		cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
-		o.SMI, err = GetSMIOutput(cctx)
+		o.SMI, err = GetSMIOutput(cctx,
+			[]string{op.nvidiaSMICommand},
+			[]string{op.nvidiaSMIQueryCommand},
+		)
 		ccancel()
 		if err != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
@@ -265,7 +282,7 @@ func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error
 			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
 			for _, event := range events {
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				found, err := metrics_clock_events_state.FindEvent(cctx, dbRO, event)
+				found, err := metrics_clock_events_state.FindEvent(cctx, op.dbRO, event)
 				ccancel()
 				if err != nil {
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to find clock events: %v", err))
@@ -275,7 +292,7 @@ func Get(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (output any, err error
 					continue
 				}
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				err = metrics_clock_events_state.InsertEvent(cctx, dbRW, event)
+				err = metrics_clock_events_state.InsertEvent(cctx, op.dbRW, event)
 				ccancel()
 				if err != nil {
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to persist clock events: %v", err))
@@ -401,7 +418,12 @@ const (
 	warningSign = "\033[31m✘\033[0m"
 )
 
-func (o *Output) PrintInfo(debug bool) {
+func (o *Output) PrintInfo(opts ...OpOption) {
+	options := &Op{}
+	if err := options.applyOpts(opts); err != nil {
+		log.Logger.Warnw("failed to apply options", "error", err)
+	}
+
 	if len(o.SMIQueryErrors) > 0 {
 		fmt.Printf("%s nvidia-smi check failed with %d error(s)\n", warningSign, len(o.SMIQueryErrors))
 		for _, err := range o.SMIQueryErrors {
@@ -440,6 +462,16 @@ func (o *Output) PrintInfo(debug bool) {
 			}
 		} else {
 			fmt.Printf("%s successfully checked ibstat\n", checkMark)
+		}
+
+		if o.Ibstat != nil {
+			atLeastPorts := infiniband.CountInfinibandClassBySubDir(options.infinibandClassDirectory)
+			atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductNameFromNVML())
+			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
+				fmt.Printf("%s ibstat ports/rates check failed (%s)\n", warningSign, err)
+			} else {
+				fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
+			}
 		}
 	} else {
 		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
@@ -545,7 +577,7 @@ func (o *Output) PrintInfo(debug bool) {
 		}
 	}
 
-	if debug {
+	if options.debug {
 		copied := *o
 		if copied.Ibstat != nil {
 			copied.Ibstat.Raw = ""

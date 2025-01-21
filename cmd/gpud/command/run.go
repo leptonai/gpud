@@ -51,6 +51,11 @@ func cmdRun(cliContext *cli.Context) error {
 		config.WithFilesToCheck(filesToCheck...),
 		config.WithDockerIgnoreConnectionErrors(dockerIgnoreConnectionErrors),
 		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
+
+		config.WithNvidiaSMICommand(nvidiaSMICommand),
+		config.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
+		config.WithIbstatCommand(ibstatCommand),
+		config.WithInfinibandClassDirectory(infinibandClassDirectory),
 	}
 
 	if expectedPortStates != "" {

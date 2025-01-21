@@ -1,22 +1,15 @@
-package diagnose
+package query
+
+import "database/sql"
 
 type Op struct {
+	dbRW                     *sql.DB
+	dbRO                     *sql.DB
 	nvidiaSMICommand         string
 	nvidiaSMIQueryCommand    string
 	ibstatCommand            string
 	infinibandClassDirectory string
-
-	lines         int
-	debug         bool
-	createArchive bool
-
-	pollXidEvents bool
-	pollGPMEvents bool
-
-	netcheck  bool
-	diskcheck bool
-
-	dmesgCheck bool
+	debug                    bool
 }
 
 type OpOption func(*Op)
@@ -39,10 +32,19 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		op.infinibandClassDirectory = "/sys/class/infiniband"
 	}
 
-	if op.lines == 0 {
-		op.lines = 100
-	}
 	return nil
+}
+
+func WithDBRW(db *sql.DB) OpOption {
+	return func(op *Op) {
+		op.dbRW = db
+	}
+}
+
+func WithDBRO(db *sql.DB) OpOption {
+	return func(op *Op) {
+		op.dbRO = db
+	}
 }
 
 // Specifies the nvidia-smi binary path to overwrite the default path.
@@ -71,51 +73,8 @@ func WithInfinibandClassDirectory(p string) OpOption {
 	}
 }
 
-func WithLines(lines int) OpOption {
+func WithDebug(debug bool) OpOption {
 	return func(op *Op) {
-		op.lines = lines
-	}
-}
-
-func WithDebug(b bool) OpOption {
-	return func(op *Op) {
-		op.debug = b
-	}
-}
-
-func WithCreateArchive(b bool) OpOption {
-	return func(op *Op) {
-		op.createArchive = b
-	}
-}
-
-func WithPollXidEvents(b bool) OpOption {
-	return func(op *Op) {
-		op.pollXidEvents = b
-	}
-}
-
-func WithPollGPMEvents(b bool) OpOption {
-	return func(op *Op) {
-		op.pollGPMEvents = b
-	}
-}
-
-// WithNetcheck enables network connectivity checks to global edge/derp servers.
-func WithNetcheck(b bool) OpOption {
-	return func(op *Op) {
-		op.netcheck = b
-	}
-}
-
-func WithDiskcheck(b bool) OpOption {
-	return func(op *Op) {
-		op.diskcheck = b
-	}
-}
-
-func WithDmesgCheck(b bool) OpOption {
-	return func(op *Op) {
-		op.dmesgCheck = b
+		op.debug = debug
 	}
 }
