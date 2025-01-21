@@ -258,6 +258,8 @@ func TestWatchMultipleCommands(t *testing.T) {
 
 	ch := w.Watch()
 
+	time.Sleep(time.Second) // wait for some time to be read
+
 	var lines []string
 	for line := range ch {
 		lines = append(lines, line.Content)
