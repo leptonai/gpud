@@ -24,3 +24,5 @@ go.work.sum
 /vendor/
 /.idea/
 /bin/
+
+.DS_Store
