@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
 	"github.com/leptonai/gpud/log"
@@ -20,7 +22,6 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/uptime"
 	"github.com/leptonai/gpud/version"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dustin/go-humanize"
 )
@@ -42,6 +43,8 @@ type component struct {
 }
 
 func (c *component) Name() string { return info_id.Name }
+
+func (c *component) Start() error { return nil }
 
 const (
 	StateNameDaemon = "daemon"

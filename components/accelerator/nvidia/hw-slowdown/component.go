@@ -89,6 +89,8 @@ type component struct {
 
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
 
+func (c *component) Start() error { return nil }
+
 const (
 	StateKeyHWSlowdown = "hw_slowdown"
 )

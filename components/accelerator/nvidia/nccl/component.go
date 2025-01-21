@@ -49,6 +49,8 @@ type component struct {
 
 func (c *component) Name() string { return nvidia_nccl_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return []components.State{
 		{

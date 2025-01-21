@@ -24,6 +24,8 @@ type component struct{}
 
 func (c *component) Name() string { return nvidia_component_error_sxid_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return []components.State{{
 		Name:    StateNameErrorSXid,

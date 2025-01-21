@@ -50,6 +50,8 @@ type Component struct {
 
 func (c *Component) Name() string { return Name }
 
+func (c *Component) Start() error { return nil }
+
 func (c *Component) TailScan() (*State, error) {
 	s := &State{
 		File:         c.logPoller.File(),

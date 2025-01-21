@@ -13,6 +13,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/components/query"
@@ -82,7 +83,16 @@ func (s *Session) serve() {
 
 		case "delete":
 			go s.deleteMachine(ctx, payload)
-
+		case "sethealthy":
+			rawComponent, err := components.GetComponent("accelerator-nvidia-error-xid")
+			if err != nil {
+				break
+			}
+			if component, ok := rawComponent.(*xid.XIDComponent); ok {
+				if err = component.SetHealthy(); err != nil {
+					log.Logger.Errorw("failed to set xid healthy", "error", err)
+				}
+			}
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)

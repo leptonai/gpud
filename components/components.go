@@ -37,6 +37,10 @@ type Component interface {
 	// Must be globally unique.
 	Name() string
 
+	// Start called upon server start.
+	// Implements component-specific poller start logic.
+	Start() error
+
 	// Returns the current states of the component.
 	States(ctx context.Context) ([]State, error)
 
@@ -69,12 +73,19 @@ type PromRegisterer interface {
 type State struct {
 	Name      string            `json:"name,omitempty"`
 	Healthy   bool              `json:"healthy,omitempty"`
+	Health    string            `json:"health,omitempty"`     // Healthy, Degraded, Unhealthy
 	Reason    string            `json:"reason,omitempty"`     // a detailed and processed reason on why the component is not healthy
 	Error     string            `json:"error,omitempty"`      // the unprocessed error returned from the component
 	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
 
 	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
+
+const (
+	StateHealthy   = "Healthy"
+	StateUnhealthy = "Unhealthy"
+	StateDegraded  = "Degraded"
+)
 
 type Event struct {
 	Time             metav1.Time              `json:"time"`

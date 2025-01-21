@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
-	"time"
+
+	"github.com/dustin/go-humanize"
+	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
@@ -18,10 +19,6 @@ import (
 	"github.com/leptonai/gpud/components/common"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
-
-	"github.com/dustin/go-humanize"
-	"sigs.k8s.io/yaml"
 )
 
 type Output struct {
@@ -181,46 +178,9 @@ func (o *Output) GetReason() Reason {
 const (
 	EventNameErroXid = "error_xid"
 
-	EventKeyErroXidUnixSeconds    = "unix_seconds"
-	EventKeyErroXidData           = "data"
-	EventKeyErroXidEncoding       = "encoding"
-	EventValueErroXidEncodingJSON = "json"
+	EventKeyErroXidData = "data"
+	EventKeyDeviceUUID  = "device_uuid"
 )
-
-func (o *Output) getEvents(since time.Time) []components.Event {
-	reason := o.GetReason()
-
-	des := make([]components.Event, 0)
-	for i, xidErr := range reason.Errors {
-		if xidErr.Time.IsZero() {
-			log.Logger.Debugw("skipping event because it's too old", "xid", xidErr.Xid, "since", since, "event_time", xidErr.Time.Time)
-			continue
-		}
-		if xidErr.Time.Time.Before(since) {
-			log.Logger.Debugw("skipping event because it's too old", "xid", xidErr.Xid, "since", since, "event_time", xidErr.Time.Time)
-			continue
-		}
-
-		msg := reason.Messages[i]
-		xidErrBytes, _ := xidErr.JSON()
-
-		des = append(des, components.Event{
-			Time:    xidErr.Time,
-			Name:    EventNameErroXid,
-			Type:    common.EventTypeCritical,
-			Message: msg,
-			ExtraInfo: map[string]string{
-				EventKeyErroXidUnixSeconds: strconv.FormatInt(xidErr.Time.Unix(), 10),
-				EventKeyErroXidData:        string(xidErrBytes),
-				EventKeyErroXidEncoding:    StateValueErrorXidEncodingJSON,
-			},
-		})
-	}
-	if len(des) == 0 {
-		return nil
-	}
-	return des
-}
 
 var (
 	defaultPollerOnce sync.Once

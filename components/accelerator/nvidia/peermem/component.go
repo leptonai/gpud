@@ -49,6 +49,8 @@ type component struct {
 
 func (c *component) Name() string { return nvidia_peermem_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data

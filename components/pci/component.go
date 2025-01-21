@@ -42,6 +42,8 @@ type component struct {
 
 func (c *component) Name() string { return id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return nil, nil
 }
