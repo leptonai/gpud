@@ -174,9 +174,9 @@ func parseDmesgLine(line string) LogLine {
 		logLine.Content = line
 		return logLine
 	}
+	logLine.Timestamp = parsedTime
 
 	if len(line) < len(isoFormat) {
-		logLine.Timestamp = parsedTime
 		logLine.Content = line
 		return logLine
 	}
