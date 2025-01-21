@@ -1,13 +1,11 @@
 package nvml
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
-	clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -263,69 +261,4 @@ func (inst *instance) ClockEventsSupported() bool {
 	defer inst.mu.RUnlock()
 
 	return inst.clockEventsSupported
-}
-
-func (inst *instance) pollClockEvents() {
-	log.Logger.Debugw("polling clock events")
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-inst.rootCtx.Done():
-			return
-		case <-ticker.C:
-		}
-
-		// nvidia-smi polling happens periodically
-		// so we truncate the timestamp to the nearest minute
-		truncNowUTC := time.Now().UTC().Truncate(time.Minute)
-
-		for _, dev := range inst.devices {
-			clockEvents, err := GetClockEvents(dev.UUID, dev.device)
-			if err != nil {
-				log.Logger.Errorw("failed to get clock events", "uuid", dev.UUID, "error", err)
-				continue
-			}
-			// overwrite timestamp to the nearest minute
-			clockEvents.Time = metav1.Time{Time: truncNowUTC}
-
-			// for now we only track hw slowdown events
-			if len(clockEvents.HWSlowdownReasons) == 0 {
-				continue
-			}
-
-			ev := clock_events_state.Event{
-				UnixSeconds: clockEvents.Time.Unix(),
-				DataSource:  "nvml",
-				EventType:   "hw_slowdown",
-				GPUUUID:     dev.UUID,
-				Reasons:     clockEvents.HWSlowdownReasons,
-			}
-
-			cctx, ccancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-			found, err := clock_events_state.FindEvent(cctx, inst.dbRO, ev)
-			ccancel()
-			if err != nil {
-				log.Logger.Errorw("failed to find clock events", "uuid", dev.UUID, "error", err)
-				continue
-			}
-			if found {
-				continue
-			}
-			cctx, ccancel = context.WithTimeout(inst.rootCtx, 10*time.Second)
-			err = clock_events_state.InsertEvent(cctx, inst.dbRW, ev)
-			ccancel()
-			if err != nil {
-				log.Logger.Errorw("failed to insert clock events into database", "uuid", dev.UUID, "error", err)
-			}
-
-			select {
-			case inst.clockEventsHWSlowdownCh <- &clockEvents:
-			default:
-				log.Logger.Warnw("hw slowdown clock events channel is full, dropping clock events", "uuid", dev.UUID)
-			}
-		}
-	}
 }

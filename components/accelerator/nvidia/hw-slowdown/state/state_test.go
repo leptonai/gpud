@@ -1,4 +1,4 @@
-package clockeventsstate
+package state
 
 import (
 	"context"
@@ -23,15 +23,14 @@ func TestCreateSelectStatement(t *testing.T) {
 		{
 			name: "no options",
 			opts: nil,
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s
 ORDER BY %s DESC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
-				ColumnEventType,
 				ColumnGPUUUID,
 				ColumnReasons,
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 			),
@@ -41,16 +40,15 @@ ORDER BY %s DESC, %s DESC`,
 		{
 			name: "with since unix seconds",
 			opts: []OpOption{WithSince(time.Unix(1234, 0))},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
 ORDER BY %s DESC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
-				ColumnEventType,
 				ColumnGPUUUID,
 				ColumnReasons,
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 				ColumnDataSource,
@@ -61,15 +59,14 @@ ORDER BY %s DESC, %s DESC`,
 		{
 			name: "with ascending order",
 			opts: []OpOption{WithSortUnixSecondsAscendingOrder()},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s
 ORDER BY %s ASC, %s DESC`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
-				ColumnEventType,
 				ColumnGPUUUID,
 				ColumnReasons,
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 			),
@@ -79,16 +76,15 @@ ORDER BY %s ASC, %s DESC`,
 		{
 			name: "with limit",
 			opts: []OpOption{WithLimit(10)},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s
 ORDER BY %s DESC, %s DESC
 LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
-				ColumnEventType,
 				ColumnGPUUUID,
 				ColumnReasons,
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 				ColumnDataSource,
 			),
@@ -102,17 +98,16 @@ LIMIT 10`,
 				WithSortUnixSecondsAscendingOrder(),
 				WithLimit(10),
 			},
-			want: fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
+			want: fmt.Sprintf(`SELECT %s, %s, %s, %s
 FROM %s
 WHERE %s >= ?
 ORDER BY %s ASC, %s DESC
 LIMIT 10`,
 				ColumnUnixSeconds,
 				ColumnDataSource,
-				ColumnEventType,
 				ColumnGPUUUID,
 				ColumnReasons,
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 				ColumnUnixSeconds,
 				ColumnDataSource,
@@ -166,11 +161,10 @@ func TestInsertAndFindEvent(t *testing.T) {
 	defer cancel()
 
 	event := Event{
-		UnixSeconds: time.Now().Unix(),
-		DataSource:  "nvml",
-		EventType:   "hw_slowdown",
-		GPUUUID:     "31",
-		Reasons:     []string{"GPU has fallen off the bus"},
+		Timestamp:  time.Now().Unix(),
+		DataSource: "nvml",
+		GPUUUID:    "31",
+		Reasons:    []string{"GPU has fallen off the bus"},
 	}
 
 	// Test insertion
@@ -233,25 +227,22 @@ func TestReadEvents(t *testing.T) {
 	// Insert test events
 	testEvents := []Event{
 		{
-			UnixSeconds: baseTime,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "31",
-			Reasons:     []string{"First event"},
+			Timestamp:  baseTime,
+			DataSource: "nvml",
+			GPUUUID:    "31",
+			Reasons:    []string{"First event"},
 		},
 		{
-			UnixSeconds: baseTime + 1,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "32",
-			Reasons:     []string{"Second event"},
+			Timestamp:  baseTime + 1,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "32",
+			Reasons:    []string{"Second event"},
 		},
 		{
-			UnixSeconds: baseTime + 2,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "33",
-			Reasons:     []string{"Third event"},
+			Timestamp:  baseTime + 2,
+			DataSource: "nvml",
+			GPUUUID:    "33",
+			Reasons:    []string{"Third event"},
 		},
 	}
 
@@ -287,7 +278,7 @@ func TestReadEvents(t *testing.T) {
 
 	t.Logf("searching for events since: %d", baseTime+1)
 	for _, e := range events {
-		t.Logf("Found event with timestamp: %d", e.UnixSeconds)
+		t.Logf("Found event with timestamp: %d", e.Timestamp)
 	}
 
 	if len(events) != 2 {
@@ -299,7 +290,7 @@ func TestReadEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("ReadEvents with ascending order failed: %v", err)
 	}
-	if len(events) != 3 || events[0].UnixSeconds > events[len(events)-1].UnixSeconds {
+	if len(events) != 3 || events[0].Timestamp > events[len(events)-1].Timestamp {
 		t.Error("Events not properly ordered in ascending order")
 	}
 }
@@ -316,7 +307,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 			name: "no options",
 			opts: []OpOption{},
 			wantStatement: fmt.Sprintf("DELETE FROM %s",
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 			),
 			wantArgs: nil,
 			wantErr:  false,
@@ -328,7 +319,7 @@ func TestCreateDeleteStatementAndArgs(t *testing.T) {
 				WithLimit(10),
 			},
 			wantStatement: fmt.Sprintf("DELETE FROM %s WHERE %s < ?",
-				TableNameClockEvents,
+				TableNameHWSlowdown,
 				ColumnUnixSeconds,
 			),
 			wantArgs: []any{int64(1234)},
@@ -380,15 +371,15 @@ func TestPurge(t *testing.T) {
 		{
 			name: "delete events before timestamp",
 			setup: []Event{
-				{UnixSeconds: 1000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "1", Reasons: []string{"detail1"}},
-				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
-				{UnixSeconds: 3000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "3", Reasons: []string{"detail3"}},
+				{Timestamp: 1000, DataSource: "nvml", GPUUUID: "1", Reasons: []string{"detail1"}},
+				{Timestamp: 2000, DataSource: "nvml", GPUUUID: "2", Reasons: []string{"detail2"}},
+				{Timestamp: 3000, DataSource: "nvml", GPUUUID: "3", Reasons: []string{"detail3"}},
 			},
 			purgeOpts:  []OpOption{WithBefore(time.Unix(2500, 0))},
 			wantPurged: 2,
 			wantCount:  1,
 			validate: func(t *testing.T, events []Event) {
-				if len(events) == 0 || events[0].UnixSeconds != 3000 {
+				if len(events) == 0 || events[0].Timestamp != 3000 {
 					t.Errorf("expected event with timestamp 3000, got %+v", events)
 				}
 			},
@@ -396,8 +387,8 @@ func TestPurge(t *testing.T) {
 		{
 			name: "delete all events",
 			setup: []Event{
-				{UnixSeconds: 1000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "1", Reasons: []string{"detail1"}},
-				{UnixSeconds: 2000, DataSource: "nvml", EventType: "hw_slowdown", GPUUUID: "2", Reasons: []string{"detail2"}},
+				{Timestamp: 1000, DataSource: "nvml", GPUUUID: "1", Reasons: []string{"detail1"}},
+				{Timestamp: 2000, DataSource: "nvml", GPUUUID: "2", Reasons: []string{"detail2"}},
 			},
 			purgeOpts:  []OpOption{},
 			wantPurged: 2,
@@ -410,11 +401,10 @@ func TestPurge(t *testing.T) {
 				baseTime := now.Unix()
 				for i := 0; i < 100; i++ {
 					events[i] = Event{
-						UnixSeconds: baseTime + int64(i*60), // Events 1 minute apart
-						DataSource:  "nvml",
-						EventType:   "hw_slowdown",
-						GPUUUID:     fmt.Sprintf("%d", i+1),
-						Reasons:     []string{fmt.Sprintf("detail%d", i+1)},
+						Timestamp:  baseTime + int64(i*60), // Events 1 minute apart
+						DataSource: "nvml",
+						GPUUUID:    fmt.Sprintf("%d", i+1),
+						Reasons:    []string{fmt.Sprintf("detail%d", i+1)},
 					}
 				}
 				return events
@@ -428,9 +418,9 @@ func TestPurge(t *testing.T) {
 				}
 				cutoff := now.Add(30 * time.Minute).Unix()
 				for _, e := range events {
-					if e.UnixSeconds < cutoff {
+					if e.Timestamp < cutoff {
 						t.Errorf("found event with timestamp %d, which is before cutoff %d",
-							e.UnixSeconds, cutoff)
+							e.Timestamp, cutoff)
 					}
 				}
 			},
@@ -526,18 +516,16 @@ func TestDedupEvents(t *testing.T) {
 	// place nvidia-smi first but read will return nvml first
 	events := []Event{
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 	}
 
@@ -573,23 +561,21 @@ func TestDedupEvents(t *testing.T) {
 	// Test case 2: Multiple events with different timestamps
 	events = []Event{
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1001,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail2"},
+			Timestamp:  1001,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail2"},
 		},
 	}
 
 	// Clear the table
-	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameHWSlowdown); err != nil {
 		t.Fatalf("failed to clear table: %v", err)
 	}
 
@@ -614,23 +600,21 @@ func TestDedupEvents(t *testing.T) {
 	// Test case 3: Multiple GPUs at same timestamp
 	events = []Event{
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "2",
-			Reasons:     []string{"detail2"},
+			Timestamp:  1000,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "2",
+			Reasons:    []string{"detail2"},
 		},
 	}
 
 	// Clear the table
-	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameHWSlowdown); err != nil {
 		t.Fatalf("failed to clear table: %v", err)
 	}
 
@@ -666,18 +650,16 @@ func TestDataSourceOrdering(t *testing.T) {
 	events := []Event{
 		// Intentionally insert nvidia-smi first to verify ordering is by data source
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 	}
 
@@ -713,37 +695,33 @@ func TestDataSourceOrdering(t *testing.T) {
 	// Test case 2: Multiple events with mixed timestamps - verify ordering within same timestamp
 	events = []Event{
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1001,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail2"},
+			Timestamp:  1001,
+			DataSource: "nvidia-smi",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail2"},
 		},
 		{
-			UnixSeconds: 1000,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail1"},
+			Timestamp:  1000,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail1"},
 		},
 		{
-			UnixSeconds: 1001,
-			DataSource:  "nvml",
-			EventType:   "hw_slowdown",
-			GPUUUID:     "1",
-			Reasons:     []string{"detail2"},
+			Timestamp:  1001,
+			DataSource: "nvml",
+			GPUUUID:    "1",
+			Reasons:    []string{"detail2"},
 		},
 	}
 
 	// Clear the table
-	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameClockEvents); err != nil {
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+TableNameHWSlowdown); err != nil {
 		t.Fatalf("failed to clear table: %v", err)
 	}
 
@@ -780,9 +758,9 @@ func TestDataSourceOrdering(t *testing.T) {
 
 		for i, expected := range expectedOrder {
 			got := readEvents[i]
-			if got.UnixSeconds != expected.unixSeconds || got.DataSource != expected.dataSource {
+			if got.Timestamp != expected.unixSeconds || got.DataSource != expected.dataSource {
 				t.Errorf("event[%d]: expected {unix: %d, source: %s}, got {unix: %d, source: %s}",
-					i, expected.unixSeconds, expected.dataSource, got.UnixSeconds, got.DataSource)
+					i, expected.unixSeconds, expected.dataSource, got.Timestamp, got.DataSource)
 			}
 		}
 	}

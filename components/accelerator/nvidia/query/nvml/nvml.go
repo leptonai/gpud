@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	"github.com/leptonai/gpud/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,8 +69,7 @@ type instance struct {
 	// read-only database instance
 	dbRO *sql.DB
 
-	clockEventsSupported    bool
-	clockEventsHWSlowdownCh chan *ClockEvents
+	clockEventsSupported bool
 
 	xidErrorSupported   bool
 	xidEventMask        uint64
@@ -241,8 +241,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
 
-		clockEventsSupported:    clockEventsSupported,
-		clockEventsHWSlowdownCh: make(chan *ClockEvents, 100),
+		clockEventsSupported: clockEventsSupported,
 
 		xidErrorSupported:   false,
 		xidEventSet:         xidEventSet,
@@ -370,10 +369,6 @@ func (inst *instance) Start() error {
 		}
 	}
 
-	if inst.clockEventsSupported {
-		go inst.pollClockEvents()
-	}
-
 	if inst.xidErrorSupported {
 		go inst.pollXidEvents()
 	} else {
@@ -485,13 +480,40 @@ func (inst *instance) Get() (*Output, error) {
 		if inst.clockEventsSupported {
 			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
 			if err != nil {
-				joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+			} else {
+				if len(clockEvents.HWSlowdownReasons) > 0 {
+					// overwrite timestamp to the nearest minute
+					clockEvents.Time = metav1.Time{Time: truncNowUTC}
+
+					latestInfo.ClockEvents = &clockEvents
+
+					ev := nvidia_hw_slowdown_state.Event{
+						Timestamp:  clockEvents.Time.Unix(),
+						DataSource: "nvml",
+						GPUUUID:    devInfo.UUID,
+						Reasons:    clockEvents.HWSlowdownReasons,
+					}
+
+					cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
+					found, err := nvidia_hw_slowdown_state.FindEvent(cctx, inst.dbRO, ev)
+					ccancel()
+					if err != nil {
+						log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
+						joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+					} else if !found {
+						log.Logger.Warnw("detected hw slowdown clock events", "hwSlowdownReasons", clockEvents.HWSlowdownReasons)
+
+						cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
+						err = nvidia_hw_slowdown_state.InsertEvent(cctx, inst.dbRW, ev)
+						ccancel()
+						if err != nil {
+							log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
+							joinedErrs = append(joinedErrs, fmt.Errorf("failed to insert clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+						}
+					}
+				}
 			}
-
-			// overwrite timestamp to the nearest minute
-			clockEvents.Time = metav1.Time{Time: truncNowUTC}
-
-			latestInfo.ClockEvents = &clockEvents
 		}
 
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)

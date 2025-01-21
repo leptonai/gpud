@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
+	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
@@ -461,8 +461,8 @@ func (o *SMIOutput) FindHWSlowdownErrs() []string {
 	return errs
 }
 
-func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []metrics_clock_events_state.Event {
-	var events []metrics_clock_events_state.Event
+func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []nvidia_hw_slowdown_state.Event {
+	var events []nvidia_hw_slowdown_state.Event
 	for _, g := range o.GPUs {
 		if g.ClockEventReasons == nil {
 			continue
@@ -474,12 +474,11 @@ func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []metrics_clock_events_s
 		}
 		sort.Strings(hwSlowdownErrs)
 
-		events = append(events, metrics_clock_events_state.Event{
-			UnixSeconds: unixSeconds,
-			DataSource:  "nvidia-smi",
-			EventType:   "hw_slowdown",
-			GPUUUID:     g.ID,
-			Reasons:     hwSlowdownErrs,
+		events = append(events, nvidia_hw_slowdown_state.Event{
+			Timestamp:  unixSeconds,
+			DataSource: "nvidia-smi",
+			GPUUUID:    g.ID,
+			Reasons:    hwSlowdownErrs,
 		})
 	}
 	return events

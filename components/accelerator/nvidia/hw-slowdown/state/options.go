@@ -1,4 +1,4 @@
-package clockeventsstate
+package state
 
 import (
 	"errors"

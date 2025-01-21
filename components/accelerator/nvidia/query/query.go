@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	metrics_clock_events_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/clock-events-state"
+	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
@@ -282,19 +282,23 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
 			for _, event := range events {
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				found, err := metrics_clock_events_state.FindEvent(cctx, op.dbRO, event)
+				found, err := nvidia_hw_slowdown_state.FindEvent(cctx, op.dbRO, event)
 				ccancel()
 				if err != nil {
+					log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", event.GPUUUID)
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to find clock events: %v", err))
 					continue
 				}
 				if found {
 					continue
 				}
+
+				log.Logger.Warnw("detected hw slowdown clock events", "gpu_uuid", event.GPUUUID)
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				err = metrics_clock_events_state.InsertEvent(cctx, op.dbRW, event)
+				err = nvidia_hw_slowdown_state.InsertEvent(cctx, op.dbRW, event)
 				ccancel()
 				if err != nil {
+					log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", event.GPUUUID)
 					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to persist clock events: %v", err))
 				}
 			}
