@@ -2,13 +2,11 @@ package config
 
 import (
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 )
 
 type Op struct {
 	FilesToCheck                  []string
 	KernelModulesToCheck          []string
-	ExpectedPortStates            *infiniband.ExpectedPortStates
 	DockerIgnoreConnectionErrors  bool
 	KubeletIgnoreConnectionErrors bool
 
@@ -34,12 +32,6 @@ func WithFilesToCheck(files ...string) OpOption {
 func WithKernelModulesToCheck(modules ...string) OpOption {
 	return func(op *Op) {
 		op.KernelModulesToCheck = append(op.KernelModulesToCheck, modules...)
-	}
-}
-
-func WithExpectedPortStates(exp infiniband.ExpectedPortStates) OpOption {
-	return func(op *Op) {
-		op.ExpectedPortStates = &exp
 	}
 }
 

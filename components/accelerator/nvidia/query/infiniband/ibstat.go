@@ -128,6 +128,10 @@ func (cards IBStatCards) Match(expectedPhysicalState string, expectedState strin
 
 // CheckPortsAndRate checks if the number of active IB ports matches expectations
 func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) error {
+	if atLeastPorts == 0 && atLeastRate == 0 {
+		return nil
+	}
+
 	totalPorts := len(cards)
 
 	// select all "up" devices, and count the ones that match the expected rate with ">="

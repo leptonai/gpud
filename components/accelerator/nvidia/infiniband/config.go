@@ -3,6 +3,7 @@ package infiniband
 import (
 	"database/sql"
 	"encoding/json"
+	"sync"
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	query_config "github.com/leptonai/gpud/components/query/config"
@@ -11,9 +12,27 @@ import (
 type Config struct {
 	Query query_config.Config `json:"query"`
 
-	ExpectedPortStates
-
 	nvidia_common.ToolOverwrites
+}
+
+var (
+	defaultExpectedPortStatesMu sync.RWMutex
+	defaultExpectedPortStates   = ExpectedPortStates{
+		AtLeastPorts: 0,
+		AtLeastRate:  0,
+	}
+)
+
+func GetDefaultExpectedPortStates() ExpectedPortStates {
+	defaultExpectedPortStatesMu.RLock()
+	defer defaultExpectedPortStatesMu.RUnlock()
+	return defaultExpectedPortStates
+}
+
+func SetDefaultExpectedPortStates(states ExpectedPortStates) {
+	defaultExpectedPortStatesMu.Lock()
+	defer defaultExpectedPortStatesMu.Unlock()
+	defaultExpectedPortStates = states
 }
 
 // Configures the expected state of the ports.

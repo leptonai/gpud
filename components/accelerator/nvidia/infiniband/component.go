@@ -76,6 +76,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	output := ToOutput(allOutput)
+
 	return output.States(c.cfg)
 }
 
