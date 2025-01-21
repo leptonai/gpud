@@ -79,9 +79,6 @@ func (config *Config) Validate() error {
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
 	}
-	if config.CompactPeriod.Duration < time.Minute {
-		return fmt.Errorf("compact_period must be at least 1 minute, got %d", config.CompactPeriod.Duration)
-	}
 	if config.RefreshComponentsInterval.Duration < time.Minute {
 		return fmt.Errorf("refresh_components_interval must be at least 1 minute, got %d", config.RefreshComponentsInterval.Duration)
 	}

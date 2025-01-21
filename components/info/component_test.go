@@ -3,12 +3,14 @@ package info
 import (
 	"context"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestComponent(t *testing.T) {
 	t.Parallel()
 
-	component := New(map[string]string{"a": "b"}, nil)
+	component := New(map[string]string{"a": "b"}, nil, prometheus.DefaultGatherer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

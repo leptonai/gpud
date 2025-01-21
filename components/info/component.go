@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -17,16 +18,19 @@ import (
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/memory"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/uptime"
 	"github.com/leptonai/gpud/version"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dustin/go-humanize"
 )
 
-func New(annotations map[string]string, dbRO *sql.DB) components.Component {
+func New(annotations map[string]string, dbRO *sql.DB, gatherer prometheus.Gatherer) components.Component {
 	return &component{
 		annotations: annotations,
 		dbRO:        dbRO,
+		gatherer:    gatherer,
 	}
 }
 
@@ -35,6 +39,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	annotations map[string]string
 	dbRO        *sql.DB
+	gatherer    prometheus.Gatherer
 }
 
 func (c *component) Name() string { return info_id.Name }
@@ -56,10 +61,27 @@ const (
 	StateKeyGPUdUsageDBInBytes   = "gpud_usage_db_in_bytes"
 	StateKeyGPUdUsageDBHumanized = "gpud_usage_db_humanized"
 
+	StateKeyGPUdUsageInsertUpdateTotal               = "gpud_usage_insert_update_total"
+	StateKeyGPUdUsageInsertUpdateAvgQPS              = "gpud_usage_insert_update_avg_qps"
+	StateKeyGPUdUsageInsertUpdateAvgLatencyInSeconds = "gpud_usage_insert_update_avg_latency_in_seconds"
+
+	StateKeyGPUdUsageDeleteTotal               = "gpud_usage_delete_total"
+	StateKeyGPUdUsageDeleteAvgQPS              = "gpud_usage_delete_avg_qps"
+	StateKeyGPUdUsageDeleteAvgLatencyInSeconds = "gpud_usage_delete_avg_latency_in_seconds"
+
+	StateKeyGPUdUsageSelectTotal               = "gpud_usage_select_total"
+	StateKeyGPUdUsageSelectAvgQPS              = "gpud_usage_select_avg_qps"
+	StateKeyGPUdUsageSelectAvgLatencyInSeconds = "gpud_usage_select_avg_latency_in_seconds"
+
 	StateKeyGPUdStartTimeInUnixTime = "gpud_start_time_in_unix_time"
 	StateKeyGPUdStartTimeHumanized  = "gpud_start_time_humanized"
 
 	StateNameAnnotations = "annotations"
+)
+
+var (
+	lastSQLiteMetricsMu sync.Mutex
+	lastSQLiteMetrics   sqlite.Metrics
 )
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
@@ -111,6 +133,32 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		dbSizeHumanized = humanize.Bytes(dbSize)
 	}
 
+	currMetrics, err := sqlite.ReadMetrics(c.gatherer)
+	if err != nil {
+		return nil, err
+	}
+
+	var prev sqlite.Metrics
+	lastSQLiteMetricsMu.Lock()
+	if !lastSQLiteMetrics.IsZero() {
+		prev = lastSQLiteMetrics
+	}
+	if !currMetrics.IsZero() {
+		lastSQLiteMetrics = currMetrics
+	}
+	lastSQLiteMetricsMu.Unlock()
+
+	elapsedSeconds := currMetrics.Time.Sub(prev.Time).Seconds()
+
+	insertUpdateAvgQPS := float64(0)
+	deleteAvgQPS := float64(0)
+	selectAvgQPS := float64(0)
+	if !prev.IsZero() && !currMetrics.IsZero() {
+		insertUpdateAvgQPS = float64(currMetrics.InsertUpdateTotal) / elapsedSeconds
+		deleteAvgQPS = float64(currMetrics.DeleteTotal) / elapsedSeconds
+		selectAvgQPS = float64(currMetrics.SelectTotal) / elapsedSeconds
+	}
+
 	gpudStartTimeInUnixTime, err := uptime.GetCurrentProcessStartTimeInUnixTime()
 	if err != nil {
 		return nil, err
@@ -136,6 +184,18 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 				StateKeyGPUdUsageDBInBytes:   fmt.Sprintf("%d", dbSize),
 				StateKeyGPUdUsageDBHumanized: dbSizeHumanized,
+
+				StateKeyGPUdUsageInsertUpdateTotal:               fmt.Sprintf("%d", currMetrics.InsertUpdateTotal),
+				StateKeyGPUdUsageInsertUpdateAvgQPS:              fmt.Sprintf("%.3f", insertUpdateAvgQPS),
+				StateKeyGPUdUsageInsertUpdateAvgLatencyInSeconds: fmt.Sprintf("%.7f", currMetrics.InsertUpdateSecondsAvg),
+
+				StateKeyGPUdUsageDeleteTotal:               fmt.Sprintf("%d", currMetrics.DeleteTotal),
+				StateKeyGPUdUsageDeleteAvgQPS:              fmt.Sprintf("%.3f", deleteAvgQPS),
+				StateKeyGPUdUsageDeleteAvgLatencyInSeconds: fmt.Sprintf("%.7f", currMetrics.DeleteSecondsAvg),
+
+				StateKeyGPUdUsageSelectTotal:               fmt.Sprintf("%d", currMetrics.SelectTotal),
+				StateKeyGPUdUsageSelectAvgQPS:              fmt.Sprintf("%.3f", selectAvgQPS),
+				StateKeyGPUdUsageSelectAvgLatencyInSeconds: fmt.Sprintf("%.7f", currMetrics.SelectSecondsAvg),
 
 				StateKeyGPUdStartTimeInUnixTime: fmt.Sprintf("%d", gpudStartTimeInUnixTime),
 				StateKeyGPUdStartTimeHumanized:  gpudStartTimeHumanized,

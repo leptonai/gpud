@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 const (
@@ -36,7 +39,11 @@ func UpdateAPIVersion(ctx context.Context, db *sql.DB, apiVersion string) error 
 	query := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s) VALUES (?)
 `, TableNameAPIVersion, ColumnAPIVersion)
+
+	start := time.Now()
 	_, err := db.ExecContext(ctx, query, apiVersion)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 

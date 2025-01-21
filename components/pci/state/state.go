@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -32,7 +33,8 @@ const (
 	ColumnReasons = "reasons"
 )
 
-const DefaultRetentionPeriod = 128 * time.Hour
+// retain up to 3 days of events
+const DefaultRetentionPeriod = 3 * 24 * time.Hour
 
 type Event struct {
 	UnixSeconds int64
@@ -74,6 +76,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''));
 	if err != nil {
 		return err
 	}
+
+	start := time.Now()
 	_, err = db.ExecContext(
 		ctx,
 		insertStatement,
@@ -82,6 +86,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''));
 		event.EventType,
 		string(reasonsBytes),
 	)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 
@@ -99,9 +105,10 @@ SELECT %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?;
 		ColumnEventType,
 	)
 
+	start := time.Now()
 	var foundEvent Event
 	var reasonsRaw string
-	if err := db.QueryRowContext(
+	err := db.QueryRowContext(
 		ctx,
 		selectStatement,
 		event.UnixSeconds,
@@ -112,7 +119,10 @@ SELECT %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?;
 		&foundEvent.DataSource,
 		&foundEvent.EventType,
 		&reasonsRaw,
-	); err != nil {
+	)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
@@ -141,6 +151,11 @@ func ReadEvents(ctx context.Context, db *sql.DB, opts ...OpOption) ([]Event, err
 	if err != nil {
 		return nil, err
 	}
+
+	start := time.Now()
+	defer func() {
+		sqlite.RecordSelect(time.Since(start).Seconds())
+	}()
 
 	rows, err := db.QueryContext(ctx, selectStatement, args...)
 	if err != nil {
@@ -230,10 +245,15 @@ func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	start := time.Now()
 	rs, err := db.ExecContext(ctx, deleteStatement, args...)
+	sqlite.RecordDelete(time.Since(start).Seconds())
+
 	if err != nil {
 		return 0, err
 	}
+
 	affected, err := rs.RowsAffected()
 	if err != nil {
 		return 0, err

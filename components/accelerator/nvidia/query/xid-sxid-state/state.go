@@ -12,6 +12,7 @@ import (
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -43,7 +44,8 @@ const (
 	ColumnEventDetails = "event_details"
 )
 
-const DefaultRetentionPeriod = 3 * time.Hour
+// retain up to 3 days of events
+const DefaultRetentionPeriod = 3 * 24 * time.Hour
 
 type Event struct {
 	UnixSeconds  int64
@@ -125,6 +127,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?,
 		ColumnDeviceUUID,
 		ColumnEventDetails,
 	)
+
+	start := time.Now()
 	_, err := db.ExecContext(
 		ctx,
 		insertStatement,
@@ -135,6 +139,8 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, NULLIF(?,
 		event.DeviceID,
 		event.EventDetails,
 	)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
 	return err
 }
 
@@ -156,8 +162,9 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s 
 		ColumnDeviceUUID,
 	)
 
+	start := time.Now()
 	var foundEvent Event
-	if err := db.QueryRowContext(
+	err := db.QueryRowContext(
 		ctx,
 		selectStatement,
 		event.UnixSeconds,
@@ -172,7 +179,10 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ? AND %s 
 		&foundEvent.EventID,
 		&foundEvent.DeviceID,
 		&foundEvent.EventDetails,
-	); err != nil {
+	)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
@@ -284,10 +294,14 @@ func Purge(ctx context.Context, db *sql.DB, opts ...OpOption) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	start := time.Now()
 	rs, err := db.ExecContext(ctx, deleteStatement, args...)
 	if err != nil {
 		return 0, err
 	}
+	sqlite.RecordDelete(time.Since(start).Seconds())
+
 	affected, err := rs.RowsAffected()
 	if err != nil {
 		return 0, err

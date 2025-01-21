@@ -167,6 +167,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
+	promReg := prometheus.NewRegistry()
+	if err := sqlite.Register(promReg); err != nil {
+		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
+	}
+
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
@@ -649,7 +654,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 
 		case info_id.Name:
-			allComponents = append(allComponents, info.New(config.Annotations, dbRO))
+			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
 
 		case memory_id.Name:
 			cfg := memory.Config{Query: defaultQueryCfg}
@@ -1105,8 +1110,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	promReg := prometheus.NewRegistry()
-
 	if err := metrics.Register(promReg); err != nil {
 		return nil, fmt.Errorf("failed to register metrics: %w", err)
 	}
@@ -1200,6 +1203,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 			}
 		}()
+	} else {
+		log.Logger.Debugw("compact period is not set, skipping compacting")
 	}
 
 	for i := range allComponents {

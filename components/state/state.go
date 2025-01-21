@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -66,7 +67,11 @@ LIMIT 1;
 		machineID   string
 		unixSeconds int64
 	)
+
+	start := time.Now()
 	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err == nil { // reuse existing machine ID
 		return machineID, nil
 	}
@@ -97,7 +102,12 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 		ColumnMachineID,
 		ColumnUnixSeconds,
 	)
-	if _, err := dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix()); err != nil {
+
+	start = time.Now()
+	_, err = dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix())
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
+	if err != nil {
 		return "", err
 	}
 	return uid, nil
@@ -113,8 +123,12 @@ LIMIT 1;
 		ColumnMachineID,
 		machineID,
 	)
+
+	start := time.Now()
 	var token string
 	err := dbRO.QueryRowContext(ctx, query).Scan(&token)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	return token, err
 }
 
@@ -128,10 +142,12 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 		ColumnMachineID,
 		machineID,
 	)
-	if _, err := dbRW.ExecContext(ctx, query); err != nil {
-		return err
-	}
-	return nil
+
+	start := time.Now()
+	_, err := dbRW.ExecContext(ctx, query)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
+	return err
 }
 
 func GetComponents(ctx context.Context, db *sql.DB, machineID string) (string, error) {
@@ -144,8 +160,12 @@ LIMIT 1;
 		ColumnMachineID,
 		machineID,
 	)
+
+	start := time.Now()
 	var components string
 	err := db.QueryRowContext(ctx, query).Scan(&components)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	return components, err
 }
 
@@ -159,10 +179,12 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 		ColumnMachineID,
 		machineID,
 	)
-	if _, err := db.ExecContext(ctx, query); err != nil {
-		return err
-	}
-	return nil
+
+	start := time.Now()
+	_, err := db.ExecContext(ctx, query)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+
+	return err
 }
 
 var (
