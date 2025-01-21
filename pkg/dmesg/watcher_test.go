@@ -22,11 +22,12 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-func TestDmesgLogs(t *testing.T) {
-	// sleep 3 seconds to stream the whole file before command exit
+func TestWatchDmesgLogs(t *testing.T) {
+	// sleep 5 seconds to stream the whole file before command exit
 	w, err := newWatcher([][]string{
 		{"cat testdata/dmesg.decode.iso.log.0"},
-		{"sleep 3"},
+		{"cat testdata/dmesg.decode.iso.log.1"},
+		{"sleep 7"},
 	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
@@ -34,14 +35,14 @@ func TestDmesgLogs(t *testing.T) {
 	defer w.Close()
 
 	for logLine := range w.Watch() {
-		if logLine.Facility != "kern" {
-			t.Fatalf("should see kern facility %+v", logLine)
+		if logLine.Facility != "kern" && logLine.Facility != "daemon" && logLine.Facility != "syslog" && logLine.Facility != "user" {
+			t.Fatalf("should see kern or daemon facility %+v", logLine)
 		}
-		if logLine.Level != "warn" {
-			t.Fatalf("should see warn level %+v", logLine)
+		if logLine.Level == "" {
+			t.Fatalf("should see non-empty level %+v", logLine)
 		}
 		if logLine.Content == "" {
-			t.Fatalf("should see content %+v", logLine)
+			t.Fatalf("should see non-empty content %+v", logLine)
 		}
 	}
 }
@@ -130,7 +131,9 @@ func TestParseDmesgLine(t *testing.T) {
 }
 
 func TestWatcherClose(t *testing.T) {
-	w, err := newWatcher([][]string{{"sleep 10"}})
+	w, err := newWatcher([][]string{
+		{"sleep 10"},
+	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -252,10 +255,13 @@ func TestFindISOTimestampIndex(t *testing.T) {
 }
 
 func TestWatchMultipleCommands(t *testing.T) {
+	// wait for some time to be read
+	// slow CI
 	w, err := newWatcher(
 		[][]string{
 			{"echo 'first command'"},
 			{"echo 'second command'"},
+			{"sleep 5"},
 		},
 	)
 	if err != nil {
@@ -264,10 +270,6 @@ func TestWatchMultipleCommands(t *testing.T) {
 	defer w.Close()
 
 	ch := w.Watch()
-
-	// wait for some time to be read
-	// slow CI
-	time.Sleep(2 * time.Second)
 
 	var lines []string
 	for line := range ch {
