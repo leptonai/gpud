@@ -15,6 +15,9 @@ import (
 var DefaultWatchCommands = [][]string{
 	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -w || true"},
 
+	// in case "dmesg -w" fails, tail the existing dmesg buffer
+	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 || true"},
+
 	// run last commands as fallback, in case "dmesg -w" flag only works in some machines
 	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -W || true"},
 }
