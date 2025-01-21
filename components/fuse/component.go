@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
 	"github.com/leptonai/gpud/components/fuse/state"
@@ -125,7 +126,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		convertedEvents = append(convertedEvents, components.Event{
 			Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 			Name:    EventNameFuseConnections,
-			Type:    components.EventTypeCritical,
+			Type:    common.EventTypeCritical,
 			Message: strings.Join(msgs, ", "),
 			ExtraInfo: map[string]string{
 				EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),

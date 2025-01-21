@@ -14,6 +14,7 @@ import (
 	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
@@ -172,7 +173,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		convertedEvents = append(convertedEvents, components.Event{
 			Time:    metav1.Time{Time: time.Unix(event.Timestamp, 0).UTC()},
 			Name:    EventNameHWSlowdown,
-			Type:    components.EventTypeWarning,
+			Type:    common.EventTypeWarning,
 			Message: strings.Join(event.Reasons, ", "),
 			ExtraInfo: map[string]string{
 				EventKeyGPUUUID: event.GPUUUID,

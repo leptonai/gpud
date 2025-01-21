@@ -125,7 +125,7 @@ func (o *Output) GetReason() Reason {
 			suggestedActions = o.NVMLXidEvent.Detail.SuggestedActionsByGPUd
 		}
 
-		reason.Errors = append(reason.Errors, XidError{
+		xidErr := XidError{
 			Time: o.NVMLXidEvent.Time,
 
 			DataSource: "nvml",
@@ -136,7 +136,12 @@ func (o *Output) GetReason() Reason {
 
 			SuggestedActionsByGPUd:    suggestedActions,
 			CriticalErrorMarkedByGPUd: o.NVMLXidEvent.Detail != nil && o.NVMLXidEvent.Detail.CriticalErrorMarkedByGPUd,
-		})
+		}
+		if o.NVMLXidEvent.Detail != nil {
+			xidErr.EventType = o.NVMLXidEvent.Detail.EventType
+		}
+
+		reason.Errors = append(reason.Errors, xidErr)
 	}
 
 	for _, de := range o.DmesgErrors {
@@ -145,8 +150,7 @@ func (o *Output) GetReason() Reason {
 		}
 
 		xid := uint64(de.Detail.Xid)
-
-		reason.Errors = append(reason.Errors, XidError{
+		xidErr := XidError{
 			Time: de.LogItem.Time,
 
 			DataSource: "dmesg",
@@ -154,10 +158,14 @@ func (o *Output) GetReason() Reason {
 			DeviceUUID: de.DeviceUUID,
 
 			Xid: xid,
+		}
+		if de.Detail != nil {
+			xidErr.SuggestedActionsByGPUd = de.Detail.SuggestedActionsByGPUd
+			xidErr.CriticalErrorMarkedByGPUd = de.Detail.CriticalErrorMarkedByGPUd
+			xidErr.EventType = de.Detail.EventType
+		}
 
-			SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
-			CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
-		})
+		reason.Errors = append(reason.Errors, xidErr)
 	}
 
 	sort.Slice(reason.Errors, func(i, j int) bool {
@@ -203,7 +211,7 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 		des = append(des, components.Event{
 			Time:    xidErr.Time,
 			Name:    EventNameErroXid,
-			Type:    components.EventTypeCritical,
+			Type:    common.EventTypeCritical,
 			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroXidUnixSeconds: strconv.FormatInt(xidErr.Time.Unix(), 10),

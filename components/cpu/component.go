@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
 	"github.com/leptonai/gpud/components/dmesg"
@@ -138,7 +139,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time: ev.Time,
 			Name: name,
-			Type: components.EventTypeWarning,
+			Type: common.EventTypeWarning,
 			ExtraInfo: map[string]string{
 				EventKeyUnixSeconds: strconv.FormatInt(ev.Time.Unix(), 10),
 				EventKeyLogLine:     item.Line,

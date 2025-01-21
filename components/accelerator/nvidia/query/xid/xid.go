@@ -3,6 +3,7 @@ package xid
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/leptonai/gpud/components/common"
 )
@@ -20,6 +21,8 @@ type Detail struct {
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this Xid as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+	// EventType is the type of the event.
+	EventType common.EventType `json:"event_type"`
 
 	// PotentialHWError is true if the Xid indicates a potential hardware error.
 	// Source: https://docs.nvidia.com/deploy/xid-errors/index.html#xid-error-listing
@@ -105,6 +108,15 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
+// make sure we do not have unknown event type
+func init() {
+	for id, detail := range details {
+		if detail.EventType == common.EventTypeUnknown || string(detail.EventType) == "" {
+			panic(fmt.Sprintf("unknown event type for Xid %d", id))
+		}
+	}
+}
+
 // Copied from https://docs.nvidia.com/deploy/xid-details/index.html#xid-error-listing.
 // See https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages for more details.
 var details = map[int]Detail{
@@ -116,6 +128,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -136,6 +151,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -154,6 +172,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -174,6 +195,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -192,6 +216,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -212,6 +239,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -231,6 +261,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -249,6 +282,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -284,6 +320,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -303,6 +342,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -321,6 +363,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -355,6 +400,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -418,6 +466,10 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:     true,
@@ -441,6 +493,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -459,6 +514,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -494,6 +552,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -512,6 +573,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -547,6 +611,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -581,6 +648,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -599,6 +669,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -619,6 +692,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -637,6 +713,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -657,6 +736,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -676,6 +758,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -694,6 +779,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -729,6 +817,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -762,6 +853,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -797,6 +891,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -831,6 +928,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -864,6 +964,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -931,6 +1034,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU but HARDWARE_INSPECTION when the issue persists
+		EventType: common.EventTypeCritical,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1003,6 +1109,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1036,6 +1145,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1071,6 +1183,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1104,6 +1219,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1139,6 +1257,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1157,6 +1278,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1223,6 +1347,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1241,6 +1368,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1261,6 +1391,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1279,6 +1412,9 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1313,6 +1449,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1377,6 +1516,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU but HARDWARE_INSPECTION when the issue persists
+		EventType: common.EventTypeCritical,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1447,6 +1589,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1516,6 +1661,10 @@ var details = map[int]Detail{
 		// unhealthy if there's no previous Xid event in the same time window
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:     false,
@@ -1554,6 +1703,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1587,6 +1739,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1666,6 +1821,9 @@ The error is also reported to your application. In most cases, you need to reset
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -1684,6 +1842,9 @@ The error is also reported to your application. In most cases, you need to reset
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1704,6 +1865,9 @@ The error is also reported to your application. In most cases, you need to reset
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1722,6 +1886,9 @@ The error is also reported to your application. In most cases, you need to reset
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1742,6 +1909,9 @@ The error is also reported to your application. In most cases, you need to reset
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1760,6 +1930,9 @@ The error is also reported to your application. In most cases, you need to reset
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1780,6 +1953,9 @@ The error is also reported to your application. In most cases, you need to reset
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1798,6 +1974,9 @@ The error is also reported to your application. In most cases, you need to reset
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1818,6 +1997,9 @@ The error is also reported to your application. In most cases, you need to reset
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -1837,6 +2019,9 @@ The error is also reported to your application. In most cases, you need to reset
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -1855,6 +2040,9 @@ The error is also reported to your application. In most cases, you need to reset
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1890,6 +2078,9 @@ The error is also reported to your application. In most cases, you need to reset
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -1923,6 +2114,9 @@ The error is also reported to your application. In most cases, you need to reset
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1991,6 +2185,9 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -2056,6 +2253,9 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2146,6 +2346,9 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2235,6 +2438,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2271,6 +2477,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
+		EventType: common.EventTypeCritical,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2290,6 +2499,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -2308,6 +2520,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2376,6 +2591,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		// TODO
 		// ignore first xid 68 occurrences
 		CriticalErrorMarkedByGPUd: true,
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2447,6 +2665,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2465,6 +2686,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2485,6 +2709,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2504,6 +2731,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2522,6 +2752,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2620,6 +2853,9 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2638,6 +2874,9 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2658,6 +2897,9 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2676,6 +2918,9 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2710,6 +2955,9 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2785,6 +3033,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2803,6 +3054,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2838,6 +3092,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		},
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2856,6 +3113,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2876,6 +3136,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2894,6 +3157,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2914,6 +3180,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -2932,6 +3201,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2952,6 +3224,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -2970,6 +3245,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2990,6 +3268,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3009,6 +3290,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -3027,6 +3311,9 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3098,6 +3385,10 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		},
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3116,6 +3407,9 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3208,6 +3502,9 @@ This event is generated if the error suppression mechanism successfully suppress
 		// ignore the first few occurrences and then suggest reboot
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
+		EventType: common.EventTypeCritical,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3295,6 +3592,10 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3313,6 +3614,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3333,6 +3637,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3351,6 +3658,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3371,6 +3681,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3389,6 +3702,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3409,6 +3725,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3427,6 +3746,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3447,6 +3769,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3465,6 +3790,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3485,6 +3813,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3503,6 +3834,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3523,6 +3857,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -3542,6 +3879,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -3560,6 +3900,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3595,6 +3938,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		},
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3613,6 +3959,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3633,6 +3982,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3651,6 +4003,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3671,6 +4026,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3689,6 +4047,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3709,6 +4070,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3728,6 +4092,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3746,6 +4113,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3814,6 +4184,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3880,6 +4253,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3948,6 +4324,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -3966,6 +4345,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4034,6 +4416,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -4052,6 +4437,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4072,6 +4460,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -4090,6 +4481,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4110,6 +4504,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4128,6 +4525,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4148,6 +4548,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4166,6 +4569,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4186,6 +4592,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4204,6 +4613,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4224,6 +4636,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4243,6 +4658,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4261,6 +4679,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4326,6 +4747,10 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		},
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4345,6 +4770,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4363,6 +4791,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4431,6 +4862,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		EventType: common.EventTypeFatal,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                true,
@@ -4449,6 +4883,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4469,6 +4906,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
+
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:                false,
@@ -4487,6 +4927,9 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// Xids whose GPUd.RepairActions is empty
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them

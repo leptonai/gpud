@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
@@ -130,7 +131,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time:    logItem.Time,
 			Name:    EventNameErrorVFSFileMaxLimitReached,
-			Type:    components.EventTypeCritical,
+			Type:    common.EventTypeCritical,
 			Message: "VFS file-max limit reached",
 			ExtraInfo: map[string]string{
 				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),

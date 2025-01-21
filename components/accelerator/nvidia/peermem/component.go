@@ -12,6 +12,7 @@ import (
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -164,7 +165,7 @@ func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailRes
 		events = append(events, components.Event{
 			Time: logItem.Time,
 			Name: EventNamePeermemInvalidContextFromDmesg,
-			Type: components.EventTypeCritical,
+			Type: common.EventTypeCritical,
 			ExtraInfo: map[string]string{
 				EventKeyPeermemInvalidContextFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
 				EventKeyPeermemInvalidContextFromDmesgLogLine:     logItem.Line,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/components/state"
@@ -102,7 +103,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		evs = append(evs, components.Event{
 			Time:    metav1.Time{Time: rebootedAt},
 			Name:    "reboot",
-			Type:    components.EventTypeWarning,
+			Type:    common.EventTypeWarning,
 			Message: fmt.Sprintf("system reboot detected (%s)", rebootedAtHumanized),
 		})
 	}

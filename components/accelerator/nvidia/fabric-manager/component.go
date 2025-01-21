@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/query"
 	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
@@ -142,7 +143,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		evs = append(evs, components.Event{
 			Time: ev.Time,
 			Name: Name,
-			Type: components.EventTypeCritical,
+			Type: common.EventTypeCritical,
 			ExtraInfo: map[string]string{
 				EventKeyFabricManagerNVSwitchLogUnixSeconds: fmt.Sprintf("%d", ev.Time.Unix()),
 				EventKeyFabricManagerNVSwitchLogLine:        ev.Line,

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
 )
@@ -62,7 +63,7 @@ func (ev *Event) Events() []components.Event {
 			Name: EventNameDmesgMatched,
 
 			// criticality should be decided in individual components
-			Type: components.EventTypeWarning,
+			Type: common.EventTypeWarning,
 
 			Message: msg,
 			ExtraInfo: map[string]string{
