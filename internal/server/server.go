@@ -34,6 +34,7 @@ import (
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
@@ -728,9 +729,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, tailscale.New(ctx, cfg))
 
 		case nvidia_info.Name:
-			cfg := nvidia_info.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_info.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -742,9 +743,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_info.New(ctx, cfg))
 
 		case nvidia_badenvs_id.Name:
-			cfg := nvidia_badenvs.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_badenvs.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -756,9 +757,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_badenvs.New(ctx, cfg))
 
 		case nvidia_error.Name:
-			cfg := nvidia_error.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_error.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -771,9 +772,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case nvidia_component_error_xid_id.Name:
 			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
-			cfg := nvidia_error_xid.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_error_xid.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -789,9 +790,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error_sxid.New())
 
 		case nvidia_component_error_xid_sxid_id.Name:
-			cfg := nvidia_component_error_xid_sxid.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_component_error_xid_sxid.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -803,9 +804,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_component_error_xid_sxid.New(ctx, cfg))
 
 		case nvidia_hw_slowdown_id.Name:
-			cfg := nvidia_hw_slowdown.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_hw_slowdown.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -817,9 +818,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
 
 		case nvidia_clock_speed_id.Name:
-			cfg := nvidia_clock_speed.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_clock_speed.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -831,9 +832,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, cfg))
 
 		case nvidia_ecc_id.Name:
-			cfg := nvidia_ecc.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_ecc.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -845,9 +846,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_ecc.New(ctx, cfg))
 
 		case nvidia_memory.Name:
-			cfg := nvidia_memory.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_memory.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -859,9 +860,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_memory.New(ctx, cfg))
 
 		case nvidia_gpm.Name:
-			cfg := nvidia_gpm.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_gpm.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -873,9 +874,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
 
 		case nvidia_nvlink.Name:
-			cfg := nvidia_nvlink.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_nvlink.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -887,9 +888,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_nvlink.New(ctx, cfg))
 
 		case nvidia_power_id.Name:
-			cfg := nvidia_power.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_power.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -901,9 +902,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_power.New(ctx, cfg))
 
 		case nvidia_temperature.Name:
-			cfg := nvidia_temperature.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_temperature.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -915,9 +916,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_temperature.New(ctx, cfg))
 
 		case nvidia_utilization.Name:
-			cfg := nvidia_utilization.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_utilization.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -929,9 +930,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_utilization.New(ctx, cfg))
 
 		case nvidia_processes.Name:
-			cfg := nvidia_processes.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_processes.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -943,9 +944,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_processes.New(ctx, cfg))
 
 		case nvidia_remapped_rows.Name:
-			cfg := nvidia_remapped_rows.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_remapped_rows.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -957,7 +958,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_remapped_rows.New(ctx, cfg))
 
 		case nvidia_fabric_manager.Name:
-			cfg := nvidia_fabric_manager.Config{Query: defaultQueryCfg, Log: nvidia_fabric_manager.DefaultLogConfig()}
+			cfg := nvidia_fabric_manager.Config{
+				Query:          defaultQueryCfg,
+				Log:            nvidia_fabric_manager.DefaultLogConfig(),
+				ToolOverwrites: options.ToolOverwrites,
+			}
 			if configValue != nil {
 				parsed, err := nvidia_fabric_manager.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -975,9 +980,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, fabricManagerLogComponent)
 
 		case nvidia_gsp_firmware_mode_id.Name:
-			cfg := nvidia_gsp_firmware_mode.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_gsp_firmware_mode.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -990,7 +995,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case nvidia_infiniband_id.Name:
 			cfg := &nvidia_infiniband.Config{
-				Query: defaultQueryCfg,
+				Query:              defaultQueryCfg,
+				ExpectedPortStates: nvidia_infiniband.ExpectedPortStates{}, // for now, we set empty
+				ToolOverwrites:     options.ToolOverwrites,
 			}
 			if configValue != nil {
 				parsed, err := nvidia_infiniband.ParseConfig(configValue, dbRW, dbRO)
@@ -1005,9 +1012,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_infiniband.New(ctx, *cfg))
 
 		case nvidia_peermem_id.Name:
-			cfg := nvidia_peermem.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_peermem.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1019,9 +1026,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_peermem.New(ctx, cfg))
 
 		case nvidia_persistence_mode_id.Name:
-			cfg := nvidia_persistence_mode.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_persistence_mode.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}
@@ -1033,9 +1040,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_persistence_mode.New(ctx, cfg))
 
 		case nvidia_nccl_id.Name:
-			cfg := nvidia_nccl.Config{Query: defaultQueryCfg}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
 			if configValue != nil {
-				parsed, err := nvidia_nccl.ParseConfig(configValue, dbRW, dbRO)
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
 				}

@@ -1,11 +1,43 @@
 package query
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
+
+func TestGetSMIOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// iterate all files in "testdata/"
+	matches, err := filepath.Glob("testdata/nvidia-smi-query.*.out.*.valid")
+	if err != nil {
+		t.Fatalf("failed to glob: %v", err)
+	}
+
+	for _, queryFile := range matches {
+		o, err := GetSMIOutput(
+			ctx,
+			[]string{"cat", "testdata/nvidia-smi.550.90.07.out.0.valid"},
+			[]string{"cat", queryFile},
+		)
+		if err != nil {
+			// TODO: fix
+			// CI can be flaky due to "cat" output being different
+			t.Logf("%q: %v", queryFile, err)
+			continue
+		}
+
+		o.Raw = ""
+		o.Summary = ""
+
+		t.Logf("%q:\n%+v", queryFile, o)
+	}
+}
 
 func TestParse4090Valid(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.154.05.out.0.valid.4090")

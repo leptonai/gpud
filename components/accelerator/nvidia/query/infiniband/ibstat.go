@@ -5,24 +5,51 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/process"
 	"sigs.k8s.io/yaml"
 )
 
-func RunIbstat(ctx context.Context) (*IbstatOutput, error) {
-	p, err := exec.LookPath("ibstat")
-	if err != nil {
-		return nil, fmt.Errorf("ibstat not found (%w)", err)
+func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutput, error) {
+	if len(ibstatCommands) == 0 {
+		ibstatCommands = []string{"ibstat"}
 	}
-	b, err := exec.CommandContext(ctx, p).CombinedOutput()
+
+	p, err := process.New(
+		process.WithCommand(ibstatCommands...),
+		process.WithRunAsBashScript(),
+	)
 	if err != nil {
 		return nil, err
 	}
+
+	if err := p.Start(ctx); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
+	lines := make([]string, 0)
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			lines = append(lines, line)
+		}),
+		process.WithWaitForCmd(),
+	); err != nil {
+		return nil, fmt.Errorf("failed to read ibstat output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
+	}
+
 	o := &IbstatOutput{
-		Raw: string(b),
+		Raw: strings.Join(lines, "\n"),
 	}
 
 	// TODO: once stable return error

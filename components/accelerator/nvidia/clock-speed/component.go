@@ -9,6 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
 	"github.com/leptonai/gpud/components/query"
@@ -17,11 +18,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	nvidia_query.SetDefaultPoller(
+		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
+		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
+		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
+		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
+		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
+		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
+	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_clock_speed_id.Name)
 
 	return &component{

@@ -8,16 +8,24 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	bad_envs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	nvidia_query.SetDefaultPoller(
+		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
+		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
+		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
+		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
+		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
+		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
+	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, bad_envs_id.Name)
 
 	return &component{

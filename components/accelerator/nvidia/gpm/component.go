@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_query_metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
@@ -19,7 +20,7 @@ import (
 
 const Name = "accelerator-nvidia-gpm"
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 

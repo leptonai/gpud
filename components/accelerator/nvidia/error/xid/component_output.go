@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -223,7 +224,7 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
+func setDefaultPoller(cfg nvidia_common.Config) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			nvidia_component_error_xid_id.Name,

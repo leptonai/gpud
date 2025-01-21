@@ -31,6 +31,10 @@ func cmdScan(cliContext *cli.Context) error {
 		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),
 		diagnose.WithDmesgCheck(dmesgCheck),
+		diagnose.WithNvidiaSMICommand(nvidiaSMICommand),
+		diagnose.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
+		diagnose.WithIbstatCommand(ibstatCommand),
+		diagnose.WithInfinibandClassDirectory(infinibandClassDirectory),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		diagnoseOpts = append(diagnoseOpts, diagnose.WithDebug(true))

@@ -54,6 +54,11 @@ var (
 
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
+
+	nvidiaSMICommand         string
+	nvidiaSMIQueryCommand    string
+	ibstatCommand            string
+	infinibandClassDirectory string
 )
 
 const (
@@ -71,7 +76,6 @@ func App() *cli.App {
 	app.Description = "monitor your GPU/CPU machines and run workloads"
 
 	app.Commands = []cli.Command{
-
 		{
 			Name:  "login",
 			Usage: "login gpud to lepton.ai (called automatically in gpud up with non-empty --token)",
@@ -262,6 +266,32 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "kubelet-ignore-connection-errors",
 					Usage:       "ignore connection errors to kubelet read-only port, useful when kubelet readOnlyPort is disabled (default: false)",
 					Destination: &kubeletIgnoreConnectionErrors,
+				},
+
+				// only for testing
+				cli.StringFlag{
+					Name:        "nvidia-smi-command",
+					Usage:       "sets the nvidia-smi command (leave empty for default, useful for testing)",
+					Destination: &nvidiaSMICommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "nvidia-smi-query-command",
+					Usage:       "sets the nvidia-smi --query command (leave empty for default, useful for testing)",
+					Destination: &nvidiaSMIQueryCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstat-command",
+					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
+					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "infiniband-class-directory",
+					Usage:       "sets the infiniband class directory (leave empty for default, useful for testing)",
+					Destination: &infinibandClassDirectory,
+					Hidden:      true,
 				},
 			},
 		},
@@ -541,6 +571,31 @@ cat summary.txt
 					Name:        "dmesg-check",
 					Usage:       "enable dmesg checks (default: true)",
 					Destination: &dmesgCheck,
+				},
+				// only for testing
+				cli.StringFlag{
+					Name:        "nvidia-smi-command",
+					Usage:       "sets the nvidia-smi command (leave empty for default, useful for testing)",
+					Destination: &nvidiaSMICommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "nvidia-smi-query-command",
+					Usage:       "sets the nvidia-smi --query command (leave empty for default, useful for testing)",
+					Destination: &nvidiaSMIQueryCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstat-command",
+					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
+					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "infiniband-class-directory",
+					Usage:       "sets the infiniband class directory (leave empty for default, useful for testing)",
+					Destination: &infinibandClassDirectory,
+					Hidden:      true,
 				},
 			},
 		},

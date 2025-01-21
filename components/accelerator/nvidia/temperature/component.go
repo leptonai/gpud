@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/temperature"
 	"github.com/leptonai/gpud/components/query"
@@ -18,11 +19,18 @@ import (
 
 const Name = "accelerator-nvidia-temperature"
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(cfg.Query.State.DBRW, cfg.Query.State.DBRO)
+	nvidia_query.SetDefaultPoller(
+		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
+		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
+		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
+		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
+		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
+		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
+	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	return &component{

@@ -1,12 +1,39 @@
 package infiniband
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
+
+func TestGetIbstatOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// iterate all files in "testdata/"
+	matches, err := filepath.Glob("testdata/ibstat.*")
+	if err != nil {
+		t.Fatalf("failed to glob: %v", err)
+	}
+
+	for _, queryFile := range matches {
+		o, err := GetIbstatOutput(
+			ctx,
+			[]string{"cat", queryFile},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		o.Raw = ""
+
+		t.Logf("%q:\n%+v", queryFile, o)
+	}
+}
 
 func TestParseIBStat(t *testing.T) {
 	input := `CA 'mlx5_0'

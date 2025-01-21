@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	query_config "github.com/leptonai/gpud/components/query/config"
 )
 
@@ -11,6 +12,8 @@ type Config struct {
 	Query query_config.Config `json:"query"`
 
 	ExpectedPortStates
+
+	nvidia_common.ToolOverwrites
 }
 
 // Configures the expected state of the ports.

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
+	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
@@ -15,6 +16,7 @@ import (
 type Config struct {
 	Query query_config.Config     `json:"query"`
 	Log   query_log_config.Config `json:"log"`
+	nvidia_common.ToolOverwrites
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
