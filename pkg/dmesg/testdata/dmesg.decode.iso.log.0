@@ -1,0 +1,636 @@
+kern  :warn  : 2025-01-21T02:21:33,498559+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:21:33,498648+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:21:33,498749+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546f30=0x124000e 0x546f34=0x24 0x546f28=0xf81eb60 0x546f2c=0x1174
+kern  :warn  : 2025-01-21T02:21:33,498965+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:21:33,499059+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:21:33,499153+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cf30=0x11a000e 0x54cf34=0x24 0x54cf28=0xf81eb60 0x54cf2c=0x1174
+kern  :warn  : 2025-01-21T02:21:33,499338+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T02:21:33,499427+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:21:33,499515+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554fb0=0x11a000e 0x554fb4=0x24 0x554fa8=0xf81eb60 0x554fac=0x1174
+kern  :warn  : 2025-01-21T02:21:33,499693+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:21:33,499783+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:21:33,499870+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x555f30=0x11f000e 0x555f34=0x24 0x555f28=0xf81eb60 0x555f2c=0x1174
+kern  :warn  : 2025-01-21T02:21:33,500051+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:21:33,500140+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:21:33,500227+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556f30=0x116000e 0x556f34=0x24 0x556f28=0xf81eb60 0x556f2c=0x1174
+kern  :warn  : 2025-01-21T02:21:33,502278+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2815167, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T02:44:00,563375+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:44:00,563475+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:44:00,563564+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514730=0x107000e 0x514734=0x24 0x514728=0xf81eb60 0x51472c=0x1174
+kern  :warn  : 2025-01-21T02:44:00,563763+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:44:00,563852+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:44:00,563940+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51c730=0x107000e 0x51c734=0x24 0x51c728=0xf81eb60 0x51c72c=0x1174
+kern  :warn  : 2025-01-21T02:44:00,564134+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T02:44:00,564251+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T02:44:00,564343+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524730=0x106000e 0x524734=0x24 0x524728=0xf81eb60 0x52472c=0x1174
+kern  :warn  : 2025-01-21T02:44:00,566421+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2823801, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T03:16:32,154004+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,154115+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,154216+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5067b0=0x12d000e 0x5067b4=0x24 0x5067a8=0xf81eb60 0x5067ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,154409+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,154500+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,154587+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50cfb0=0x12e000e 0x50cfb4=0x24 0x50cfa8=0xf81eb60 0x50cfac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,154774+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,154873+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,154973+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50d7b0=0x12f000e 0x50d7b4=0x24 0x50d7a8=0xf81eb60 0x50d7ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,155179+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,155269+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,155355+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5157b0=0x12e000e 0x5157b4=0x24 0x5157a8=0xf81eb60 0x5157ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,155542+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,155631+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,155718+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x515f30=0x128000e 0x515f34=0x24 0x515f28=0xf81eb60 0x515f2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,155929+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,156031+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,156131+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x516730=0x129000e 0x516734=0x24 0x516728=0xf81eb60 0x51672c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,156331+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,156420+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,156508+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x516fb0=0x12a000e 0x516fb4=0x24 0x516fa8=0xf81eb60 0x516fac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,156697+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,156791+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,156925+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51dfb0=0x12d000e 0x51dfb4=0x24 0x51dfa8=0xf81eb60 0x51dfac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,157169+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,157279+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,157386+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51e730=0x12c000e 0x51e734=0x24 0x51e728=0xf81eb60 0x51e72c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,157617+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,157722+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,157829+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524730=0x12d000e 0x524734=0x24 0x524728=0xf81eb60 0x52472c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,158026+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,158136+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,158236+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5247b0=0x12c000e 0x5247b4=0x24 0x5247a8=0xf81eb60 0x5247ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,158462+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,158566+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,158670+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524f30=0x127000e 0x524f34=0x24 0x524f28=0xf81eb60 0x524f2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,158919+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,159036+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,159139+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52c730=0x12e000e 0x52c734=0x24 0x52c728=0xf81eb60 0x52c72c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,159374+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,159479+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,159578+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52d730=0x12d000e 0x52d734=0x24 0x52d728=0xf81eb60 0x52d72c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,159821+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,159937+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,160053+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52ef30=0x129000e 0x52ef34=0x24 0x52ef28=0xf81eb60 0x52ef2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,160287+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,160390+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,160490+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535730=0x12c000e 0x535734=0x24 0x535728=0xf81eb60 0x53572c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,160733+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,160848+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,160975+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535f30=0x12d000e 0x535f34=0x24 0x535f28=0xf81eb60 0x535f2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,161161+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,161264+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,161368+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535fb0=0x12e000e 0x535fb4=0x24 0x535fa8=0xf81eb60 0x535fac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,161597+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,161705+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,161815+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x536730=0x12a000e 0x536734=0x24 0x536728=0xf81eb60 0x53672c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,162056+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,162161+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,162261+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x536fb0=0x12f000e 0x536fb4=0x24 0x536fa8=0xf81eb60 0x536fac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,162493+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,162594+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,162699+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e7b0=0x12d000e 0x53e7b4=0x24 0x53e7a8=0xf81eb60 0x53e7ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,162947+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,163057+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,163158+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53ef30=0x12e000e 0x53ef34=0x24 0x53ef28=0xf81eb60 0x53ef2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,163337+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,163441+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,163543+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53efb0=0x12f000e 0x53efb4=0x24 0x53efa8=0xf81eb60 0x53efac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,163787+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,163904+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,164014+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544fb0=0x12c000e 0x544fb4=0x24 0x544fa8=0xf81eb60 0x544fac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,164238+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,164344+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,164443+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5457b0=0x12f000e 0x5457b4=0x24 0x5457a8=0xf81eb60 0x5457ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,164680+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,164798+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,164926+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54d7b0=0x12f000e 0x54d7b4=0x24 0x54d7a8=0xf81eb60 0x54d7ac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,165156+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,165260+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,165361+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54efb0=0x12e000e 0x54efb4=0x24 0x54efa8=0xf81eb60 0x54efac=0x1174
+kern  :warn  : 2025-01-21T03:16:32,165591+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,165709+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,165823+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554730=0x129000e 0x554734=0x24 0x554728=0xf81eb60 0x55472c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,166057+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,166164+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,166264+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554f30=0x12d000e 0x554f34=0x24 0x554f28=0xf81eb60 0x554f2c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,166494+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:16:32,166598+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:16:32,166696+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556730=0x12c000e 0x556734=0x24 0x556728=0xf81eb60 0x55672c=0x1174
+kern  :warn  : 2025-01-21T03:16:32,169326+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2839444, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T03:30:00,931836+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,931936+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,932027+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5047b0=0x12c000e 0x5047b4=0x4 0x5047a8=0xf81eb60 0x5047ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,932220+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,932309+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,932397+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5057b0=0x121000e 0x5057b4=0x24 0x5057a8=0xf81eb60 0x5057ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,932587+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,932677+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,932764+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x506730=0x10c000e 0x506734=0x24 0x506728=0xf81eb60 0x50672c=0x1174
+kern  :warn  : 2025-01-21T03:30:00,932916+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,933005+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,933095+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5067b0=0x124000e 0x5067b4=0x24 0x5067a8=0xf81eb60 0x5067ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,933293+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,933383+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,933469+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50cfb0=0x12b000e 0x50cfb4=0x24 0x50cfa8=0xf81eb60 0x50cfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,933659+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,933748+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,933835+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50dfb0=0x12f000e 0x50dfb4=0x24 0x50dfa8=0xf81eb60 0x50dfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,934022+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,934111+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,934197+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50e7b0=0x12a000e 0x50e7b4=0x24 0x50e7a8=0xf81eb60 0x50e7ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,934394+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,934484+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,934603+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514f30=0x100000e 0x514f34=0x24 0x514f28=0xf81eb60 0x514f2c=0x1174
+kern  :warn  : 2025-01-21T03:30:00,934791+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,934895+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,935003+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514fb0=0x12c000e 0x514fb4=0x24 0x514fa8=0xf81eb60 0x514fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,935244+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,935349+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,935450+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x515fb0=0x128000e 0x515fb4=0x24 0x515fa8=0xf81eb60 0x515fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,935679+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,935793+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,935895+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x516fb0=0x120000e 0x516fb4=0x24 0x516fa8=0xf81eb60 0x516fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,936132+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,936233+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,936334+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51cf30=0x10a000e 0x51cf34=0x24 0x51cf28=0xf81eb60 0x51cf2c=0x1174
+kern  :warn  : 2025-01-21T03:30:00,936517+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,936618+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,936717+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51cfb0=0x120000e 0x51cfb4=0x24 0x51cfa8=0xf81eb60 0x51cfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,936948+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,937052+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,937152+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51dfb0=0x120000e 0x51dfb4=0x24 0x51dfa8=0xf81eb60 0x51dfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,937381+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,937487+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,937588+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51e7b0=0x12e000e 0x51e7b4=0x24 0x51e7a8=0xf81eb60 0x51e7ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,937818+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,937925+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,938027+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51efb0=0x124000e 0x51efb4=0x24 0x51efa8=0xf81eb60 0x51efac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,938258+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,938360+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,938459+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524fb0=0x121000e 0x524fb4=0x24 0x524fa8=0xf81eb60 0x524fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,938717+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,938826+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x525fb0=0x128000e 0x525fb4=0x20 0x525fa8=0xf81eb60 0x525fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,939055+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,939158+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,939257+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5267b0=0x126000e 0x5267b4=0x24 0x5267a8=0xf81eb60 0x5267ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,939484+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,939592+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,939693+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x526fb0=0x12c000e 0x526fb4=0x24 0x526fa8=0xf81eb60 0x526fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,939928+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,940035+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,940135+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52cf30=0x107000e 0x52cf34=0x24 0x52cf28=0xf81eb60 0x52cf2c=0x1174
+kern  :warn  : 2025-01-21T03:30:00,940313+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,940417+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,940520+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52cfb0=0x12b000e 0x52cfb4=0x24 0x52cfa8=0xf81eb60 0x52cfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,940751+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,940854+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,940953+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52dfb0=0x12f000e 0x52dfb4=0x24 0x52dfa8=0xf81eb60 0x52dfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,941172+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,941272+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52e7b0=0x129000e 0x52e7b4=0x20 0x52e7a8=0xf81eb60 0x52e7ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,941499+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,941603+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,941705+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52efb0=0x129000e 0x52efb4=0x24 0x52efa8=0xf81eb60 0x52efac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,941938+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,942041+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,942140+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534fb0=0x129000e 0x534fb4=0x24 0x534fa8=0xf81eb60 0x534fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,942370+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,942475+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,942589+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535fb0=0x125000e 0x535fb4=0x24 0x535fa8=0xf81eb60 0x535fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,942818+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,942925+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,943025+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5367b0=0x12f000e 0x5367b4=0x24 0x5367a8=0xf81eb60 0x5367ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,943254+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,943356+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,943455+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x536fb0=0x12c000e 0x536fb4=0x24 0x536fa8=0xf81eb60 0x536fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,943689+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,943791+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,943893+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53cfb0=0x129000e 0x53cfb4=0x24 0x53cfa8=0xf81eb60 0x53cfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,944119+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,944222+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,944320+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53dfb0=0x12b000e 0x53dfb4=0x24 0x53dfa8=0xf81eb60 0x53dfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,944546+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,944649+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,944747+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e7b0=0x12e000e 0x53e7b4=0x24 0x53e7a8=0xf81eb60 0x53e7ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,944977+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,945082+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,945182+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53efb0=0x12f000e 0x53efb4=0x24 0x53efa8=0xf81eb60 0x53efac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,945413+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,945517+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,945615+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544fb0=0x12e000e 0x544fb4=0x24 0x544fa8=0xf81eb60 0x544fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,945842+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,945947+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,946046+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545fb0=0x124000e 0x545fb4=0x24 0x545fa8=0xf81eb60 0x545fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,946273+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,946375+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,946472+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5467b0=0x12b000e 0x5467b4=0x24 0x5467a8=0xf81eb60 0x5467ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,946712+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,946816+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,946917+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546fb0=0x124000e 0x546fb4=0x24 0x546fa8=0xf81eb60 0x546fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,947150+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,947253+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,947355+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cfb0=0x12e000e 0x54cfb4=0x24 0x54cfa8=0xf81eb60 0x54cfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,947583+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,947686+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,947787+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54dfb0=0x121000e 0x54dfb4=0x24 0x54dfa8=0xf81eb60 0x54dfac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,948018+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,948119+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,948220+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54e7b0=0x126000e 0x54e7b4=0x24 0x54e7a8=0xf81eb60 0x54e7ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,948445+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,948551+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,948650+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54efb0=0x126000e 0x54efb4=0x24 0x54efa8=0xf81eb60 0x54efac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,948883+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,948986+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,949086+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554fb0=0x129000e 0x554fb4=0x24 0x554fa8=0xf81eb60 0x554fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,949314+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,949418+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,949515+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x555fb0=0x12e000e 0x555fb4=0x24 0x555fa8=0xf81eb60 0x555fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,949741+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,949843+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,949943+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5567b0=0x124000e 0x5567b4=0x24 0x5567a8=0xf81eb60 0x5567ac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,950181+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:30:00,950285+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:30:00,950383+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556fb0=0x125000e 0x556fb4=0x24 0x556fa8=0xf81eb60 0x556fac=0x1174
+kern  :warn  : 2025-01-21T03:30:00,952042+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ChID 0008, Class 0000c9c0, Offset 00000510, Data 0017e2ac
+kern  :warn  : 2025-01-21T03:41:59,830825+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,830923+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,831014+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514730=0x100000e 0x514734=0x24 0x514728=0xf81eb60 0x51472c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,831213+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,831302+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,831390+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51c730=0x104000e 0x51c734=0x24 0x51c728=0xf81eb60 0x51c72c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,831585+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,831674+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,831761+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524730=0x105000e 0x524734=0x24 0x524728=0xf81eb60 0x52472c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,831959+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,832049+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,832136+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52c730=0x107000e 0x52c734=0x24 0x52c728=0xf81eb60 0x52c72c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,832331+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,832420+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,832507+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534730=0x106000e 0x534734=0x24 0x534728=0xf81eb60 0x53472c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,832701+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,832791+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,832896+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53c730=0x106000e 0x53c734=0x24 0x53c728=0xf81eb60 0x53c72c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,833124+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:41:59,833220+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:41:59,833312+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544730=0x107000e 0x544734=0x24 0x544728=0xf81eb60 0x54472c=0x1174
+kern  :warn  : 2025-01-21T03:41:59,835387+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2877200, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T03:55:46,870863+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,870962+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,871052+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5047b0=0x10e000e 0x5047b4=0x24 0x5047a8=0xf81eb60 0x5047ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,871247+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,871337+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,871424+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50c7b0=0x10f000e 0x50c7b4=0x24 0x50c7a8=0xf81eb60 0x50c7ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,871613+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,871702+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,871789+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50cf30=0x10f000e 0x50cf34=0x24 0x50cf28=0xf81eb60 0x50cf2c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,871979+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,872068+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,872156+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51d7b0=0x10e000e 0x51d7b4=0x24 0x51d7a8=0xf81eb60 0x51d7ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,872344+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,872433+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,872520+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51ef30=0x10f000e 0x51ef34=0x24 0x51ef28=0xf81eb60 0x51ef2c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,872711+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,872801+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,872889+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5347b0=0x10e000e 0x5347b4=0x24 0x5347a8=0xf81eb60 0x5347ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,873076+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,873165+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,873252+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534fb0=0x10d000e 0x534fb4=0x24 0x534fa8=0xf81eb60 0x534fac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,873442+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,873531+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,873618+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53c730=0x10f000e 0x53c734=0x24 0x53c728=0xf81eb60 0x53c72c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,873802+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,873892+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,873978+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53dfb0=0x10a000e 0x53dfb4=0x24 0x53dfa8=0xf81eb60 0x53dfac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,874156+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,874265+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,874356+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e730=0x10e000e 0x53e734=0x24 0x53e728=0xf81eb60 0x53e72c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,874567+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,874662+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,874750+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5447b0=0x10e000e 0x5447b4=0x24 0x5447a8=0xf81eb60 0x5447ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,874931+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,875020+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,875107+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544f30=0x109000e 0x544f34=0x24 0x544f28=0xf81eb60 0x544f2c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,875286+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,875375+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,875462+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545730=0x10e000e 0x545734=0x24 0x545728=0xf81eb60 0x54572c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,875604+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,875694+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,875782+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5457b0=0x10f000e 0x5457b4=0x24 0x5457a8=0xf81eb60 0x5457ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,875968+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,876057+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,876144+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545f30=0x10a000e 0x545f34=0x24 0x545f28=0xf81eb60 0x545f2c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,876323+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,876413+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,876500+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546730=0x10f000e 0x546734=0x24 0x546728=0xf81eb60 0x54672c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,876678+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,876767+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,876854+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546f30=0x10f000e 0x546f34=0x24 0x546f28=0xf81eb60 0x546f2c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,877036+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,877125+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,877212+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54c730=0x10e000e 0x54c734=0x24 0x54c728=0xf81eb60 0x54c72c=0x1174
+kern  :warn  : 2025-01-21T03:55:46,877354+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,877443+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,877529+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54c7b0=0x10d000e 0x54c7b4=0x24 0x54c7a8=0xf81eb60 0x54c7ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,877711+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T03:55:46,877801+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T03:55:46,877888+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5547b0=0x10e000e 0x5547b4=0x24 0x5547a8=0xf81eb60 0x5547ac=0x1174
+kern  :warn  : 2025-01-21T03:55:46,879972+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2886782, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T04:13:34,167130+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,167233+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,167329+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x505730=0x100000e 0x505734=0x24 0x505728=0xf81eb60 0x50572c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,167541+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,167634+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,167725+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x505f30=0x10d000e 0x505f34=0x24 0x505f28=0xf81eb60 0x505f2c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,167917+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,168006+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,168094+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x506730=0x103000e 0x506734=0x24 0x506728=0xf81eb60 0x50672c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,168286+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,168375+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,168462+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51d7b0=0x10b000e 0x51d7b4=0x24 0x51d7a8=0xf81eb60 0x51d7ac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,168649+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,168737+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,168824+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51dfb0=0x10f000e 0x51dfb4=0x24 0x51dfa8=0xf81eb60 0x51dfac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,169012+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,169101+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,169188+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51e730=0x10e000e 0x51e734=0x24 0x51e728=0xf81eb60 0x51e72c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,169380+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,169469+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,169556+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524730=0x10f000e 0x524734=0x24 0x524728=0xf81eb60 0x52472c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,169777+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,169873+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,169965+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52df30=0x10b000e 0x52df34=0x24 0x52df28=0xf81eb60 0x52df2c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,170163+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,170253+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,170340+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53d7b0=0x10b000e 0x53d7b4=0x24 0x53d7a8=0xf81eb60 0x53d7ac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,170518+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,170607+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,170694+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e7b0=0x109000e 0x53e7b4=0x24 0x53e7a8=0xf81eb60 0x53e7ac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,170872+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,170961+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,171048+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53efb0=0x108000e 0x53efb4=0x24 0x53efa8=0xf81eb60 0x53efac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,171230+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,171319+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,171406+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544fb0=0x108000e 0x544fb4=0x24 0x544fa8=0xf81eb60 0x544fac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,171583+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,171672+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,171759+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5457b0=0x10d000e 0x5457b4=0x24 0x5457a8=0xf81eb60 0x5457ac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,171937+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,172026+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,172113+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545fb0=0x10e000e 0x545fb4=0x24 0x545fa8=0xf81eb60 0x545fac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,172292+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,172381+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,172468+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546f30=0x107000e 0x546f34=0x24 0x546f28=0xf81eb60 0x546f2c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,172610+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,172699+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,172786+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546fb0=0x101000e 0x546fb4=0x24 0x546fa8=0xf81eb60 0x546fac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,172968+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,173057+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,173143+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54c730=0x108000e 0x54c734=0x24 0x54c728=0xf81eb60 0x54c72c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,173323+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,173412+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,173499+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cf30=0x10d000e 0x54cf34=0x24 0x54cf28=0xf81eb60 0x54cf2c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,173695+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,173791+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,173882+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x555730=0x10d000e 0x555734=0x24 0x555728=0xf81eb60 0x55572c=0x1174
+kern  :warn  : 2025-01-21T04:13:34,174086+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:13:34,174177+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:13:34,174264+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556fb0=0x107000e 0x556fb4=0x24 0x556fa8=0xf81eb60 0x556fac=0x1174
+kern  :warn  : 2025-01-21T04:13:34,176373+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2897677, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T04:26:49,784235+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,784335+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,784425+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5047b0=0x101000e 0x5047b4=0x4 0x5047a8=0xf81eb60 0x5047ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,784618+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,784708+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,784796+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x504f30=0x11d000e 0x504f34=0x24 0x504f28=0xf81eb60 0x504f2c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,784986+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,785075+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,785162+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5057b0=0x102000e 0x5057b4=0x24 0x5057a8=0xf81eb60 0x5057ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,785351+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,785441+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,785535+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5067b0=0x10a000e 0x5067b4=0x24 0x5067a8=0xf81eb60 0x5067ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,785775+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,785866+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,785953+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50c730=0x118000e 0x50c734=0x24 0x50c728=0xf81eb60 0x50c72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,786146+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,786235+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,786322+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50cfb0=0x107000e 0x50cfb4=0x24 0x50cfa8=0xf81eb60 0x50cfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,786510+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,786599+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,786686+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50dfb0=0x10d000e 0x50dfb4=0x24 0x50dfa8=0xf81eb60 0x50dfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,786874+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 1, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,786962+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 1, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,787050+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x50e7b0=0x102000e 0x50e7b4=0x24 0x50e7a8=0xf81eb60 0x50e7ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,787237+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,787347+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,787439+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514730=0x11b000e 0x514734=0x24 0x514728=0xf81eb60 0x51472c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,787645+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,787740+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,787831+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x514fb0=0x10e000e 0x514fb4=0x24 0x514fa8=0xf81eb60 0x514fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,788022+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,788131+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,788225+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x515730=0x11e000e 0x515734=0x24 0x515728=0xf81eb60 0x51572c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,788435+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,788532+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,788627+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x515fb0=0x10a000e 0x515fb4=0x24 0x515fa8=0xf81eb60 0x515fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,788821+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,788919+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,789012+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x516fb0=0x10c000e 0x516fb4=0x24 0x516fa8=0xf81eb60 0x516fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,789218+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,789317+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,789413+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51c730=0x111000e 0x51c734=0x24 0x51c728=0xf81eb60 0x51c72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,789626+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,789731+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,789823+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51cfb0=0x102000e 0x51cfb4=0x24 0x51cfa8=0xf81eb60 0x51cfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,790040+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,790140+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,790235+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51d730=0x119000e 0x51d734=0x24 0x51d728=0xf81eb60 0x51d72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,790462+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,790565+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,790667+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51dfb0=0x103000e 0x51dfb4=0x24 0x51dfa8=0xf81eb60 0x51dfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,790892+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,790997+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,791098+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51e7b0=0x10b000e 0x51e7b4=0x24 0x51e7a8=0xf81eb60 0x51e7ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,791339+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,791439+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,791536+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51efb0=0x10f000e 0x51efb4=0x24 0x51efa8=0xf81eb60 0x51efac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,791760+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,791856+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,791950+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524730=0x11b000e 0x524734=0x24 0x524728=0xf81eb60 0x52472c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,792162+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,792268+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,792369+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x524fb0=0x100000e 0x524fb4=0x24 0x524fa8=0xf81eb60 0x524fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,792604+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,792708+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,792801+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x525730=0x11d000e 0x525734=0x24 0x525728=0xf81eb60 0x52572c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,793037+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,793139+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,793234+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x525fb0=0x10a000e 0x525fb4=0x24 0x525fa8=0xf81eb60 0x525fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,793465+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,793573+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,793674+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5267b0=0x10c000e 0x5267b4=0x24 0x5267a8=0xf81eb60 0x5267ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,793886+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,793988+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,794091+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x526fb0=0x107000e 0x526fb4=0x24 0x526fa8=0xf81eb60 0x526fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,794331+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,794435+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,794531+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52c730=0x11f000e 0x52c734=0x24 0x52c728=0xf81eb60 0x52c72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,794751+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,794853+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,794955+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52cfb0=0x10d000e 0x52cfb4=0x24 0x52cfa8=0xf81eb60 0x52cfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,795182+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,795289+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,795385+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52d730=0x115000e 0x52d734=0x24 0x52d728=0xf81eb60 0x52d72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,795597+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,795697+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,795792+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52dfb0=0x10f000e 0x52dfb4=0x24 0x52dfa8=0xf81eb60 0x52dfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,796003+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,796104+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,796192+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52e7b0=0x102000e 0x52e7b4=0x24 0x52e7a8=0xf81eb60 0x52e7ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,796388+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 5, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,796484+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 5, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,796584+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x52efb0=0x105000e 0x52efb4=0x24 0x52efa8=0xf81eb60 0x52efac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,796810+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,796905+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,797008+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534730=0x11a000e 0x534734=0x24 0x534728=0xf81eb60 0x53472c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,797220+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,797310+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,797398+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534fb0=0x104000e 0x534fb4=0x24 0x534fa8=0xf81eb60 0x534fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,797579+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,797669+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,797755+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535730=0x11b000e 0x535734=0x24 0x535728=0xf81eb60 0x53572c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,797936+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,798025+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,798112+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x535fb0=0x108000e 0x535fb4=0x24 0x535fa8=0xf81eb60 0x535fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,798290+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,798378+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,798465+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5367b0=0x10d000e 0x5367b4=0x24 0x5367a8=0xf81eb60 0x5367ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,798643+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,798731+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,798818+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x536fb0=0x10e000e 0x536fb4=0x24 0x536fa8=0xf81eb60 0x536fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,799001+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,799090+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,799177+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53c730=0x117000e 0x53c734=0x24 0x53c728=0xf81eb60 0x53c72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,799370+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,799461+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,799548+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53cfb0=0x104000e 0x53cfb4=0x24 0x53cfa8=0xf81eb60 0x53cfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,799730+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,799820+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,799907+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53d730=0x11b000e 0x53d734=0x24 0x53d728=0xf81eb60 0x53d72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,800086+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,800175+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,800262+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53dfb0=0x10e000e 0x53dfb4=0x24 0x53dfa8=0xf81eb60 0x53dfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,800441+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,800530+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,800617+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e7b0=0x106000e 0x53e7b4=0x24 0x53e7a8=0xf81eb60 0x53e7ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,800796+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,800885+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,800972+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53efb0=0x10b000e 0x53efb4=0x24 0x53efa8=0xf81eb60 0x53efac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,801154+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,801243+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,801330+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544730=0x11f000e 0x544734=0x24 0x544728=0xf81eb60 0x54472c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,801509+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,801598+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,801685+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x544fb0=0x109000e 0x544fb4=0x24 0x544fa8=0xf81eb60 0x544fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,801863+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,801952+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,802039+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545730=0x11d000e 0x545734=0x24 0x545728=0xf81eb60 0x54572c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,802217+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,802306+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,802393+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545fb0=0x105000e 0x545fb4=0x24 0x545fa8=0xf81eb60 0x545fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,802570+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,802659+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,802746+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5467b0=0x10b000e 0x5467b4=0x24 0x5467a8=0xf81eb60 0x5467ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,802923+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,803012+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,803099+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546fb0=0x10e000e 0x546fb4=0x24 0x546fa8=0xf81eb60 0x546fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,803293+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,803387+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,803479+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54c730=0x118000e 0x54c734=0x24 0x54c728=0xf81eb60 0x54c72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,803662+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,803751+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,803838+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cfb0=0x10d000e 0x54cfb4=0x24 0x54cfa8=0xf81eb60 0x54cfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,804016+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,804105+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,804192+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54d730=0x11f000e 0x54d734=0x24 0x54d728=0xf81eb60 0x54d72c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,804372+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,804461+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,804548+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54dfb0=0x10e000e 0x54dfb4=0x24 0x54dfa8=0xf81eb60 0x54dfac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,804725+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,804814+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,804901+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54e7b0=0x10f000e 0x54e7b4=0x24 0x54e7a8=0xf81eb60 0x54e7ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,805079+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,805168+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,805255+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54efb0=0x103000e 0x54efb4=0x24 0x54efa8=0xf81eb60 0x54efac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,805437+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 0, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,805526+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 0, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,805613+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554730=0x11d000e 0x554734=0x24 0x554728=0xf81eb60 0x55472c=0x1174
+kern  :warn  : 2025-01-21T04:26:49,805792+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,805881+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,805968+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554fb0=0x10b000e 0x554fb4=0x24 0x554fa8=0xf81eb60 0x554fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,806145+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 3, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,806234+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 3, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,806321+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x555fb0=0x109000e 0x555fb4=0x24 0x555fa8=0xf81eb60 0x555fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,806499+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,806589+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,806675+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5567b0=0x107000e 0x5567b4=0x24 0x5567a8=0xf81eb60 0x5567ac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,806856+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:26:49,806944+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:26:49,807031+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556fb0=0x10a000e 0x556fb4=0x24 0x556fa8=0xf81eb60 0x556fac=0x1174
+kern  :warn  : 2025-01-21T04:26:49,808300+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ChID 0008, Class 0000c9c0, Offset 00000510, Data 0017e2ac
+kern  :warn  : 2025-01-21T04:41:44,278145+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 0, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,278245+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 0, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,278335+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5047b0=0x11e000e 0x5047b4=0x24 0x5047a8=0xf81eb60 0x5047ac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,278529+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 2, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,278618+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 2, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,278705+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x516f30=0x119000e 0x516f34=0x24 0x516f28=0xf81eb60 0x516f2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,278897+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 1, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,278986+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 1, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,279074+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51cf30=0x11d000e 0x51cf34=0x24 0x51cf28=0xf81eb60 0x51cf2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,279263+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 3, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,279354+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 3, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,279441+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x51ef30=0x11e000e 0x51ef34=0x24 0x51ef28=0xf81eb60 0x51ef2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,279633+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,279722+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,279810+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x525730=0x11b000e 0x525734=0x24 0x525728=0xf81eb60 0x52572c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,280030+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 4, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,280126+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 4, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,280217+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x525f30=0x118000e 0x525f34=0x24 0x525f28=0xf81eb60 0x525f2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,280428+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 6, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,280518+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 6, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,280605+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x534fb0=0x11d000e 0x534fb4=0x24 0x534fa8=0xf81eb60 0x534fac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,280797+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 0, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,280886+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 0, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,280973+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53c7b0=0x11f000e 0x53c7b4=0x24 0x53c7a8=0xf81eb60 0x53c7ac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,281156+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,281245+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,281332+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53cfb0=0x11e000e 0x53cfb4=0x24 0x53cfa8=0xf81eb60 0x53cfac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,281512+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 3, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,281601+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 3, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,281688+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53df30=0x11f000e 0x53df34=0x24 0x53df28=0xf81eb60 0x53df2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,281866+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 7, TPC 4, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,281954+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 7, TPC 4, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,282041+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x53e7b0=0x11d000e 0x53e7b4=0x24 0x53e7a8=0xf81eb60 0x53e7ac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,282221+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,282311+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,282397+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x545730=0x11e000e 0x545734=0x24 0x545728=0xf81eb60 0x54572c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,282540+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 2, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,282629+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 2, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,282716+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x5457b0=0x11f000e 0x5457b4=0x24 0x5457a8=0xf81eb60 0x5457ac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,282894+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,282983+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,283070+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546f30=0x11c000e 0x546f34=0x24 0x546f28=0xf81eb60 0x546f2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,283212+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 8, TPC 5, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,283302+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,283390+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546fb0=0x11f000e 0x546fb4=0x24 0x546fa8=0xf81eb60 0x546fac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,283575+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,283671+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,283758+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cfb0=0x11f000e 0x54cfb4=0x24 0x54cfa8=0xf81eb60 0x54cfac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,283937+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284042+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54d730=0x11c000e 0x54d734=0x20 0x54d728=0xf81eb60 0x54d72c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284250+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284345+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,284433+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54ef30=0x117000e 0x54ef34=0x24 0x54ef28=0xf81eb60 0x54ef2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284616+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284705+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,284792+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554fb0=0x119000e 0x554fb4=0x24 0x554fa8=0xf81eb60 0x554fac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284971+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,285060+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,285147+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556730=0x117000e 0x556734=0x24 0x556728=0xf81eb60 0x55672c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,287197+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2924364, name=pt_main_thread, Ch 00000008
