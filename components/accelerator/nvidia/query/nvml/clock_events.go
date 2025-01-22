@@ -18,7 +18,7 @@ import (
 // Returns false if any device does not support clock events.
 // ref. undefined symbol: nvmlDeviceGetCurrentClocksEventReasons for older nvidia drivers
 func ClockEventsSupported() (bool, error) {
-	nvmlLib := nvml.New()
+	nvmlLib := NewNVML()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
