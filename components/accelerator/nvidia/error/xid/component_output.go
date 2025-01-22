@@ -159,7 +159,6 @@ func (o *Output) GetReason() Reason {
 		if de.Detail != nil {
 			xidErr.SuggestedActionsByGPUd = de.Detail.SuggestedActionsByGPUd
 			xidErr.CriticalErrorMarkedByGPUd = de.Detail.CriticalErrorMarkedByGPUd
-			xidErr.EventType = de.Detail.EventType
 		}
 
 		reason.Errors = append(reason.Errors, xidErr)
