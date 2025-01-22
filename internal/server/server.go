@@ -995,9 +995,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case nvidia_infiniband_id.Name:
 			cfg := &nvidia_infiniband.Config{
-				Query:              defaultQueryCfg,
-				ExpectedPortStates: nvidia_infiniband.ExpectedPortStates{}, // for now, we set empty
-				ToolOverwrites:     options.ToolOverwrites,
+				Query:          defaultQueryCfg,
+				ToolOverwrites: options.ToolOverwrites,
 			}
 			if configValue != nil {
 				parsed, err := nvidia_infiniband.ParseConfig(configValue, dbRW, dbRO)

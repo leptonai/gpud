@@ -19,7 +19,6 @@ import (
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -311,11 +310,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_fabric_manager.Name] = nil
 
 		cfg.Components[nvidia_infiniband_id.Name] = nil
-		if options.ExpectedPortStates != nil {
-			cfg.Components[nvidia_infiniband_id.Name] = &nvidia_infiniband.Config{
-				ExpectedPortStates: *options.ExpectedPortStates,
-			}
-		}
 
 		cfg.Components[nvidia_nccl_id.Name] = nil
 		cfg.Components[nvidia_peermem_id.Name] = nil

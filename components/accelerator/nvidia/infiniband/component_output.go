@@ -1,17 +1,16 @@
 package infiniband
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/log"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -94,56 +93,58 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	return nil, errors.New("no state found")
 }
 
+var (
+	msgMustSetPortsOrRate = "must set ports or rate"
+	msgNoIbstatExists     = "no ibstat exists while configured to check ibstat"
+	msgNoIbstatDataFound  = "no ibstat data found while configured to check ibstat"
+	msgNoIbstatIssueFound = "no infiniband issue found in ibstat"
+)
+
 // Returns the output evaluation reason and its healthy-ness.
-func (o *Output) Evaluate(cfg Config) (string, bool, error) {
+// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
+func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
+	// nothing specified for this machine, gpud MUST skip the ib check
+	if cfg.AtLeastPorts == 0 && cfg.AtLeastRate == 0 {
+		return msgMustSetPortsOrRate, true, nil
+	}
+
 	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
-		return fmt.Sprintf("%q GPUs do not support infiniband", o.GPUProductName), true, nil
+		return fmt.Sprintf("%q GPUs do not support infiniband while configured to check ibstat", o.GPUProductName), true, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	count, err := infiniband.CountInfinibandPCIBuses(ctx)
-	if err != nil {
-		return fmt.Sprintf("failed to count infiniband pci buses: %s", err), false, nil
-	}
-	if count == 0 {
-		return "no infiniband pci buses found", true, nil
+	if len(o.Ibstat.Errors) > 0 {
+		return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 	}
 
-	if o.InfinibandClassExists && o.IbstatExists {
-		if len(o.Ibstat.Errors) > 0 {
-			return fmt.Sprintf("infiniband suppported but ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
-		}
-		if len(o.Ibstat.Parsed) > 0 {
-			// Get expected port count
-			atLeastPorts := cfg.ExpectedPortStates.AtLeastPorts
-
-			// some H100 machines only have 1 ib port in ib class dir
-			if atLeastPorts == 0 {
-				atLeastPorts = infiniband.CountInfinibandClass()
-			}
-
-			// H100 machines with 12 ib ports should default to the GPU count 8
-			if atLeastPorts == 0 || atLeastPorts > o.GPUCount {
-				atLeastPorts = o.GPUCount
-			}
-
-			// no rate is set, use the default rate based on the product
-			atLeastRate := cfg.ExpectedPortStates.AtLeastRate
-			if atLeastRate == 0 {
-				atLeastRate = infiniband.SupportsInfinibandPortRate(o.GPUProductName)
-			}
-
-			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-				return err.Error(), false, nil
-			}
-		}
+	if !o.IbstatExists {
+		return msgNoIbstatExists, false, nil
 	}
-	return "no infiniband class found or no ibstat exists or no ibstat issue/error found", true, nil
+
+	if len(o.Ibstat.Parsed) == 0 {
+		return msgNoIbstatDataFound, false, nil
+	}
+
+	atLeastPorts := cfg.AtLeastPorts
+	atLeastRate := cfg.AtLeastRate
+	if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
+		return err.Error(), false, nil
+	}
+
+	return msgNoIbstatIssueFound, true, nil
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
-	outputReasons, healthy, err := o.Evaluate(cfg)
+	// TODO: remove this once we have dynamic expected port states updates
+	// we only keep this for backwards compatibility
+	atLeastPorts := infiniband.CountInfinibandClassBySubDir(cfg.InfinibandClassDirectory)
+	atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductName)
+	log.Logger.Infow("setting default expected port states", "at_least_ports", atLeastPorts, "at_least_rate", atLeastRate, "gpu_product_name", o.GPUProductName)
+	SetDefaultExpectedPortStates(ExpectedPortStates{
+		AtLeastPorts: atLeastPorts,
+		AtLeastRate:  atLeastRate,
+	})
+
+	outputReasons, healthy, err := o.Evaluate(GetDefaultExpectedPortStates())
 	if err != nil {
 		return nil, err
 	}

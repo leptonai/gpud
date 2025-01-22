@@ -462,6 +462,30 @@ func TestValidateIBPorts(t *testing.T) {
 			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_1, mlx5_3)"),
 		},
 		{
+			name: "some ports disabled but with high enough rate but missing ports/rates",
+			cards: IBStatCards{
+				{
+					Name:  "mlx5_0",
+					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+				},
+				{
+					Name:  "mlx5_1",
+					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+				},
+				{
+					Name:  "mlx5_2",
+					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+				},
+				{
+					Name:  "mlx5_3",
+					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+				},
+			},
+			atLeastPorts: 0,
+			atLeastRate:  0,
+			wantErr:      nil,
+		},
+		{
 			name: "zero required ports",
 			cards: IBStatCards{
 				{
