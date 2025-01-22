@@ -12,6 +12,7 @@ import (
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
@@ -107,7 +108,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Time: logItem.Time,
 			Name: EventNameNCCLSegfaultInLibncclFromDmesg,
-			Type: components.EventTypeCritical,
+			Type: common.EventTypeCritical,
 			ExtraInfo: map[string]string{
 				EventKeyNCCLSegfaultInLibncclFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
 				EventKeyNCCLSegfaultInLibncclFromDmesgLogLine:     logItem.Line,

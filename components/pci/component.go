@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/pci/id"
 	"github.com/leptonai/gpud/components/pci/state"
 	"github.com/leptonai/gpud/components/query"
@@ -65,7 +66,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 		events = append(events, components.Event{
 			Name:    EventNameACSEnabled,
 			Time:    metav1.Time{Time: time.Unix(ev.UnixSeconds, 0)},
-			Type:    components.EventTypeWarning,
+			Type:    common.EventTypeWarning,
 			Message: strings.Join(ev.Reasons, ", "),
 		})
 	}

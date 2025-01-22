@@ -3,6 +3,7 @@ package sxid
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/leptonai/gpud/components/common"
 )
@@ -21,6 +22,8 @@ type Detail struct {
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this SXid as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+	// EventType is the type of the event.
+	EventType common.EventType `json:"event_type"`
 
 	PotentialFatal bool   `json:"potential_fatal"`
 	AlwaysFatal    bool   `json:"always_fatal"`
@@ -48,6 +51,9 @@ var defaultPotentialFatalErr = Detail{
 	SuggestedActionsByGPUd:    nil,
 	CriticalErrorMarkedByGPUd: false,
 
+	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+	EventType: common.EventTypeWarning,
+
 	PotentialFatal: true,
 	AlwaysFatal:    false,
 	Impact: `If the error occurred on an NVSwitch access port, the impact will be limited to the corresponding guest VM. To recover, shut down the guest VM.
@@ -71,11 +77,23 @@ var defaultAlwaysFatalErr = Detail{
 	SuggestedActionsByGPUd:    nil,
 	CriticalErrorMarkedByGPUd: false,
 
+	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+	EventType: common.EventTypeWarning,
+
 	PotentialFatal: true,
 	AlwaysFatal:    true,
 	Impact:         `Always fatal to the entire fabric/system.`,
 	Recovery:       "Restart the host to reset the entire fabric/system.",
 	OtherImpact:    "",
+}
+
+// make sure we do not have unknown event type
+func init() {
+	for id, detail := range details {
+		if detail.EventType == common.EventTypeUnknown || string(detail.EventType) == "" {
+			panic(fmt.Sprintf("unknown event type for SXid %d", id))
+		}
+	}
 }
 
 // References:
@@ -118,6 +136,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "Corresponding GPU NVLink traffic will be stalled, and the subsequent GPU access will hang. The GPU driver on the guest VM will abort CUDA jobs with Xid 45.",
@@ -134,6 +155,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -152,6 +176,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -168,6 +195,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -186,6 +216,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -202,6 +235,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -220,6 +256,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -236,6 +275,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -254,6 +296,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -270,6 +315,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -288,6 +336,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -304,6 +355,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -322,6 +376,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -338,6 +395,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -356,6 +416,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -372,6 +435,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -390,6 +456,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -406,6 +475,9 @@ var details = map[int]Detail{
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -424,6 +496,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -441,6 +516,9 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "No guest VM impact because the NVSwitch hardware will auto correct the ECC errors.",
@@ -455,8 +533,12 @@ var details = map[int]Detail{
 		Description: "",
 
 		// NVLink packet needs to transmitted, may impact NVLink throughput
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -486,6 +568,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "Corresponding GPU NVLink traffic will be stalled, and subsequent GPU access will hang. The GPU driver on the guest VM will abort CUDA jobs with Xid 45.",
@@ -514,6 +599,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: false,
 		AlwaysFatal:    false,
 		Impact:         "This error is usually accompanied by a fatal SXid error that will affect the corresponding GPU NVLink traffic.",
@@ -528,8 +616,12 @@ var details = map[int]Detail{
 		Description: "",
 
 		// this SXid can be safely ignored
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -545,8 +637,12 @@ var details = map[int]Detail{
 		Description: "",
 
 		// due to a broken/inconsistent connection or uncoordinated shutdown
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -590,6 +686,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -619,6 +718,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -650,6 +752,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -679,6 +784,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -710,6 +818,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -739,6 +850,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -770,6 +884,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -799,6 +916,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -830,6 +950,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -859,6 +982,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -890,6 +1016,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -919,6 +1048,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -950,6 +1082,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -966,6 +1101,9 @@ var details = map[int]Detail{
 		// TODO
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -997,6 +1135,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1026,6 +1167,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1057,6 +1201,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1086,6 +1233,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1117,6 +1267,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1146,6 +1299,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1177,6 +1333,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1206,6 +1365,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1237,6 +1399,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1266,6 +1431,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1297,6 +1465,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1326,6 +1497,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1357,6 +1531,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1386,6 +1563,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1417,6 +1597,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1446,6 +1629,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1477,6 +1663,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1506,6 +1695,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1537,6 +1729,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1566,6 +1761,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1597,6 +1795,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1627,6 +1828,9 @@ var details = map[int]Detail{
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1656,6 +1860,9 @@ var details = map[int]Detail{
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1695,6 +1902,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: true,
 		AlwaysFatal:    false,
 		Impact:         "This error could occur due to a broken/inconsistent connection or uncoordinated shutdown.",
@@ -1724,6 +1934,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1755,6 +1968,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1785,6 +2001,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
 		Impact:         defaultPotentialFatalErr.Impact,
@@ -1814,6 +2033,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1857,6 +2079,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -1886,6 +2111,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1917,6 +2145,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -1946,6 +2177,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -1977,6 +2211,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2006,6 +2243,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2037,6 +2277,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2066,6 +2309,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2097,6 +2343,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2126,6 +2375,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2157,6 +2409,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2186,6 +2441,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2217,6 +2475,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2246,6 +2507,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2277,6 +2541,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2306,6 +2573,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2337,6 +2607,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2366,6 +2639,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
+
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2397,6 +2673,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2427,6 +2706,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		},
 		CriticalErrorMarkedByGPUd: true,
 
+		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
+		EventType: common.EventTypeFatal,
+
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
 		Impact:         defaultAlwaysFatalErr.Impact,
@@ -2456,6 +2738,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: true,
 		AlwaysFatal:    false,
 		Impact:         "",
@@ -2472,6 +2757,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		// TODO
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2490,6 +2778,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: true,
 		AlwaysFatal:    true,
 		Impact:         "If it occurs, it is fatal to the fabric/system.",
@@ -2507,6 +2798,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
 
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
+
 		PotentialFatal: true,
 		AlwaysFatal:    false,
 		Impact:         "This error might force the specified NVSwitch Links to enter power saving mode (Single Lane Mode) and impact over the NVLink throughput.",
@@ -2523,6 +2817,9 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		// TODO
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2555,8 +2852,12 @@ _RX_SHORT_ERROR_RATE in https://github.com/NVIDIA/open-gpu-kernel-modules/blob/d
 
 `,
 
+		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
 		SuggestedActionsByGPUd:    nil,
 		CriticalErrorMarkedByGPUd: false,
+
+		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
+		EventType: common.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,

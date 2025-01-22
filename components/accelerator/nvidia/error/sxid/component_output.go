@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/dustin/go-humanize"
@@ -88,7 +89,7 @@ func (o *Output) GetReason() Reason {
 
 		sxid := uint64(de.Detail.SXid)
 
-		reason.Errors = append(reason.Errors, SXidError{
+		sxidErr := SXidError{
 			Time: de.LogItem.Time,
 
 			DataSource: "dmesg",
@@ -96,10 +97,13 @@ func (o *Output) GetReason() Reason {
 			DeviceUUID: de.DeviceUUID,
 
 			SXid: sxid,
+		}
+		if de.Detail != nil {
+			sxidErr.SuggestedActionsByGPUd = de.Detail.SuggestedActionsByGPUd
+			sxidErr.CriticalErrorMarkedByGPUd = de.Detail.CriticalErrorMarkedByGPUd
+		}
 
-			SuggestedActionsByGPUd:    de.Detail.SuggestedActionsByGPUd,
-			CriticalErrorMarkedByGPUd: de.Detail.CriticalErrorMarkedByGPUd,
-		})
+		reason.Errors = append(reason.Errors, sxidErr)
 	}
 
 	sort.Slice(reason.Errors, func(i, j int) bool {
@@ -145,7 +149,7 @@ func (o *Output) getEvents(since time.Time) []components.Event {
 		des = append(des, components.Event{
 			Time:    sxidErr.Time,
 			Name:    EventNameErroSXid,
-			Type:    components.EventTypeCritical,
+			Type:    common.EventTypeCritical,
 			Message: msg,
 			ExtraInfo: map[string]string{
 				EventKeyErroSXidUnixSeconds: strconv.FormatInt(sxidErr.Time.Unix(), 10),

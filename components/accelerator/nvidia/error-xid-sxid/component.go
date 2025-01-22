@@ -13,6 +13,7 @@ import (
 	nvidia_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
@@ -92,7 +93,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			convertedEvents = append(convertedEvents, components.Event{
 				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroXid,
-				Type:    components.EventTypeCritical,
+				Type:    common.EventTypeCritical,
 				Message: msg,
 				ExtraInfo: map[string]string{
 					EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
@@ -114,7 +115,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 			convertedEvents = append(convertedEvents, components.Event{
 				Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
 				Name:    EventNameErroSXid,
-				Type:    components.EventTypeCritical,
+				Type:    common.EventTypeCritical,
 				Message: msg,
 				ExtraInfo: map[string]string{
 					EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
