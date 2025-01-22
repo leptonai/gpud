@@ -58,7 +58,7 @@ func InsertBootID(ctx context.Context, db *sql.DB, bootID string, ts time.Time) 
 		TableNameMachineBootIDs,
 		ColumnBootID,
 		ColumnBootUnixSeconds),
-		bootID, ts.UTC().Unix())
+		bootID, ts.Unix())
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
@@ -83,7 +83,7 @@ func GetRebootEvents(ctx context.Context, db *sql.DB, since time.Time) ([]Reboot
 	}
 
 	query := fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s > ? AND %s != ?", ColumnBootID, ColumnBootUnixSeconds, TableNameMachineBootIDs, ColumnBootUnixSeconds, ColumnBootID)
-	params := []any{since.UTC().Unix(), firstBootID}
+	params := []any{since.Unix(), firstBootID}
 
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, query, params...)

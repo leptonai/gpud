@@ -32,7 +32,7 @@ func (op *Op) applyOpts(opts []OpOption) error {
 // If not specified, it returns all events.
 func WithSince(t time.Time) OpOption {
 	return func(op *Op) {
-		op.sinceUnixSeconds = t.UTC().Unix()
+		op.sinceUnixSeconds = t.Unix()
 	}
 }
 
@@ -40,7 +40,7 @@ func WithSince(t time.Time) OpOption {
 // If not specified, it deletes all events.
 func WithBefore(t time.Time) OpOption {
 	return func(op *Op) {
-		op.beforeUnixSeconds = t.UTC().Unix()
+		op.beforeUnixSeconds = t.Unix()
 	}
 }
 
