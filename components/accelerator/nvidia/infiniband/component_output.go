@@ -97,7 +97,7 @@ var (
 	msgMustSetPortsOrRate = "must set ports or rate"
 	msgNoIbstatExists     = "no ibstat exists while configured to check ibstat"
 	msgNoIbstatDataFound  = "no ibstat data found while configured to check ibstat"
-	msgNoIbstatIssueFound = "ok -- no ibstat issue/error found"
+	msgNoIbstatIssueFound = "no infiniband issue found in ibstat"
 )
 
 // Returns the output evaluation reason and its healthy-ness.
