@@ -94,10 +94,10 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 var (
-	msgNoAtLeastPortsOrRateSet = "no at least ports or at least rate set"
-	msgNoIbstatExists          = "no ibstat exists while configured to check ibstat"
-	msgNoIbstatDataFound       = "no ibstat data found while configured to check ibstat"
-	msgNoIbstatIssueFound      = "ok -- no ibstat issue/error found"
+	msgMustSetPortsOrRate = "must set ports or rate"
+	msgNoIbstatExists     = "no ibstat exists while configured to check ibstat"
+	msgNoIbstatDataFound  = "no ibstat data found while configured to check ibstat"
+	msgNoIbstatIssueFound = "ok -- no ibstat issue/error found"
 )
 
 // Returns the output evaluation reason and its healthy-ness.
@@ -105,7 +105,7 @@ var (
 func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 	// nothing specified for this machine, gpud MUST skip the ib check
 	if cfg.AtLeastPorts == 0 && cfg.AtLeastRate == 0 {
-		return msgNoAtLeastPortsOrRateSet, true, nil
+		return msgMustSetPortsOrRate, true, nil
 	}
 
 	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
