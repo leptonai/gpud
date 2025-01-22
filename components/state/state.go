@@ -104,7 +104,7 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 	)
 
 	start = time.Now()
-	_, err = dbRW.ExecContext(ctx, query, uid, time.Now().UTC().Unix())
+	_, err = dbRW.ExecContext(ctx, query, uid, time.Now().Unix())
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	if err != nil {
