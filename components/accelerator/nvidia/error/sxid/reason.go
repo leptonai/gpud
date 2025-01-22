@@ -42,8 +42,6 @@ type SXidError struct {
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
-	// EventType is the type of the event.
-	EventType common.EventType `json:"event_type"`
 }
 
 func (sxidErr SXidError) JSON() ([]byte, error) {
