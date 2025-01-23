@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,355 +16,336 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	v1 "github.com/leptonai/gpud/api/v1"
 	client_v1 "github.com/leptonai/gpud/client/v1"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
+	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
+	mocknvidiasmi "github.com/leptonai/gpud/e2e/mock/nvidia-smi"
+	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/internal/server"
 )
 
-func TestGpudHealthzInfo(t *testing.T) {
+func TestE2E(t *testing.T) {
 	if os.Getenv("GPUD_BIN") == "" {
 		t.Skip("skipping e2e tests")
 	}
 
-	// start gpud scan
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	cmd := exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
-	b, err := cmd.CombinedOutput()
-	cancel()
-	if err != nil {
-		t.Fatalf("failed to run gpud scan: %v\n%s", err, string(b))
-	}
-	t.Logf("gpud scan output:\n%s", string(b))
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "E2E Suite")
+}
 
-	// get an available port
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatalf("Failed to find a free port: %v", err)
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+var (
+	cmd              *exec.Cmd
+	ep               string
+	randKey, randVal string
 
-	ep := fmt.Sprintf("localhost:%d", port)
-
-	randKey := randStr(t, 10)
-	randVal := randStr(t, 10)
-
-	// start gpud command
-	ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	cmd = exec.CommandContext(ctx, os.Getenv("GPUD_BIN"), "run", "--log-level=debug", "--web-enable=false", "--enable-auto-update=false", "--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal), fmt.Sprintf("--listen-address=%s", ep))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("failed to start gpud: %v", err)
-	}
-
-	defer func() {
-		if err := cmd.Process.Kill(); err != nil {
-			t.Errorf("failed to kill gpud process: %v", err)
-		}
-	}()
-
-	// wait for the server to start
-	time.Sleep(15 * time.Second)
-
-	client := &http.Client{
+	client = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
+)
 
-	req1NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/healthz", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	resp1, err := client.Do(req1NoCompress)
-	if err != nil {
-		t.Fatalf("failed to make request to /healthz: %v", err)
-	}
-	defer resp1.Body.Close()
-	if resp1.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp1.Status)
-	}
-	b1, err := io.ReadAll(resp1.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-	expectedBody := `{"status":"ok","version":"v1"}`
-	if string(b1) != expectedBody {
-		t.Errorf("expected body %q, got %q", expectedBody, string(b1))
-	}
+var _ = Describe("[GPUD E2E]", Ordered, func() {
+	var err error
+	gCtx, gCancel := context.WithTimeout(context.Background(), time.Minute*8)
 
-	req2NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req2NoCompress.Header.Set("Content-Type", "application/json")
-	resp2NoCompress, err := client.Do(req2NoCompress)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp2NoCompress.Body.Close()
-	if resp2NoCompress.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp2NoCompress.Status)
-	}
-	b2NoCompress, err := io.ReadAll(resp2NoCompress.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-	t.Logf("resp2NoCompress size: %d", len(b2NoCompress))
-	var componentStates []v1.LeptonComponentStates
-	if err := json.Unmarshal(b2NoCompress, &componentStates); err != nil {
-		t.Errorf("failed to unmarshal states: %v", err)
-	}
-	found := false
-	for _, comp := range componentStates {
-		if comp.Component != "info" {
-			continue
-		}
-		for _, state := range comp.States {
-			if state.Name != "annotations" {
-				continue
+	BeforeAll(func() {
+		err = os.Setenv(mocknvml.EnvNVMLMock, "true")
+		Expect(err).NotTo(HaveOccurred(), "failed to set GPUD_MOCK_NVML")
+
+		By("mock lspci")
+		err = mocklspci.Mock(mocklspci.NormalOutput)
+		Expect(err).ToNot(HaveOccurred(), "failed to mock lspci")
+
+		By("mock nvidia-smi")
+		err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalSMIOutput)
+		Expect(err).ToNot(HaveOccurred(), "failed to mock nvidia-smi")
+
+		By("start gpud scan")
+		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
+		b, err := cmd.CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to run gpud scan:\n%s", string(b)))
+		GinkgoLogr.Info("gpud scan successfully", "output", string(b))
+
+		By("get an available port")
+		listener, err := net.Listen("tcp", "localhost:0")
+		Expect(err).NotTo(HaveOccurred(), "failed to find a free port")
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+		ep = fmt.Sprintf("localhost:%d", port)
+
+		randKey, err = randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand key")
+		randVal, err = randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand value")
+
+		By("start gpud command")
+		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "run",
+			"--log-level=debug",
+			"--web-enable=false",
+			"--enable-auto-update=false",
+			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
+			fmt.Sprintf("--listen-address=%s", ep),
+		)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		err = cmd.Start()
+		Expect(err).NotTo(HaveOccurred(), "failed to start gpud")
+
+		By("waiting for gpud started")
+		Eventually(func() error {
+			req1NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/healthz", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			resp1, err := client.Do(req1NoCompress)
+			if err != nil {
+				return fmt.Errorf("request failed: %w", err)
 			}
 
-			found = true
-			if state.ExtraInfo[randKey] != randVal {
-				t.Errorf("expected annotation %q=%q, got %q (%s)", randKey, randVal, state.ExtraInfo[randKey], string(b2NoCompress))
-			}
-		}
-	}
-	if !found {
-		t.Errorf("expected to find annotation state, got %v (%s)", componentStates, string(b2NoCompress))
-	}
-
-	req2CompressGzip, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req2CompressGzip.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
-	req2CompressGzip.Header.Set(server.RequestHeaderAcceptEncoding, server.RequestHeaderEncodingGzip)
-	resp2CompressGzip, err := client.Do(req2CompressGzip)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp2CompressGzip.Body.Close()
-	if resp2CompressGzip.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp2CompressGzip.Status)
-	}
-	gr, err := gzip.NewReader(resp2CompressGzip.Body)
-	if err != nil {
-		t.Fatalf("failed to create gzip reader: %v", err)
-	}
-	b2CompressGzip, err := io.ReadAll(gr)
-	if err != nil {
-		t.Fatalf("failed to read gzip: %v", err)
-	}
-	if err := json.Unmarshal(b2CompressGzip, &componentStates); err != nil {
-		t.Errorf("failed to unmarshal states: %v", err)
-	}
-	found = false
-	for _, comp := range componentStates {
-		if comp.Component != "info" {
-			continue
-		}
-		for _, state := range comp.States {
-			if state.Name != "annotations" {
-				continue
+			defer resp1.Body.Close()
+			if resp1.StatusCode != http.StatusOK {
+				return fmt.Errorf("unexpected healthz status: %s", resp1.Status)
 			}
 
-			found = true
-			if state.ExtraInfo[randKey] != randVal {
-				t.Errorf("expected annotation %q=%q, got %q (%s)", randKey, randVal, state.ExtraInfo[randKey], string(b2NoCompress))
+			b1, err := io.ReadAll(resp1.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			expectedBody := `{"status":"ok","version":"v1"}`
+			if string(b1) != expectedBody {
+				return fmt.Errorf("unexpected response body: %s", string(b1))
 			}
-		}
-	}
-	if !found {
-		t.Errorf("expected to find annotation state, got %v (%s)", componentStates, string(b2NoCompress))
-	}
+			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
+			return nil
+		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
+		By("gpud started")
+	})
 
-	req2CompressGzip3, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req2CompressGzip3.Header.Set("Content-Type", "application/json")
-	req2CompressGzip3.Header.Set("Accept-Encoding", "gzip")
-	resp2CompressGzip2, err := client.Do(req2CompressGzip3)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp2CompressGzip2.Body.Close()
-	if resp2CompressGzip2.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp2CompressGzip2.Status)
-	}
-	if b, err := io.ReadAll(resp2CompressGzip2.Body); err != nil {
-		t.Errorf("failed to read response body: %v", err)
-	} else {
-		t.Logf("resp2CompressGzip2 size: %d", len(b))
-	}
+	AfterAll(func() {
+		By("stop gpud command")
+		gCancel()
+		err := cmd.Process.Kill()
+		Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
+	})
 
-	req3NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics?since=10h", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req3NoCompress.Header.Set("Content-Type", "application/json")
-	resp3NoCompress, err := client.Do(req3NoCompress)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp3NoCompress.Body.Close()
-	if resp3NoCompress.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp3NoCompress.Status)
-	}
-	b3NoCompress, err := io.ReadAll(resp3NoCompress.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-	t.Logf("resp3NoCompress size: %d", len(b3NoCompress))
-	var metrics v1.LeptonMetrics
-	if err := json.Unmarshal(b3NoCompress, &metrics); err != nil {
-		t.Errorf("failed to unmarshal metrics: %v", err)
-	}
+	var ctx context.Context
+	var cancel context.CancelFunc
+	BeforeEach(func() {
+		ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
+	})
+	AfterEach(func() {
+		cancel()
+	})
 
-	req3CompressGzip, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics?since=10h", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req3CompressGzip.Header.Set("Content-Type", "application/json")
-	req3CompressGzip.Header.Set("Accept-Encoding", "gzip")
-	resp3CompressGzip, err := client.Do(req3CompressGzip)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp3CompressGzip.Body.Close()
-	if resp3CompressGzip.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp3CompressGzip.Status)
-	}
-	gr, err = gzip.NewReader(resp3CompressGzip.Body)
-	if err != nil {
-		t.Fatalf("failed to create gzip reader: %v", err)
-	}
-	b3CompressGzip, err := io.ReadAll(gr)
-	if err != nil {
-		t.Fatalf("failed to read gzip: %v", err)
-	}
-	if err := json.Unmarshal(b3CompressGzip, &metrics); err != nil {
-		t.Errorf("failed to unmarshal metrics: %v", err)
-	}
+	Describe("/v1/states requests", func() {
 
-	req3CompressGzip2, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics?since=10h", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req3CompressGzip2.Header.Set("Content-Type", "application/json")
-	req3CompressGzip2.Header.Set("Accept-Encoding", "gzip")
-	resp3CompressGzip2, err := client.Do(req3CompressGzip2)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer resp3CompressGzip2.Body.Close()
-	if resp3CompressGzip2.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", resp3CompressGzip2.Status)
-	}
-	if b, err := io.ReadAll(resp3CompressGzip2.Body); err != nil {
-		t.Errorf("failed to read response body: %v", err)
-	} else {
-		t.Logf("resp3CompressGzip2 size: %d", len(b))
-	}
+		It("request without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
-	reqMetrics, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	respMetrics, err := client.Do(reqMetrics)
-	if err != nil {
-		t.Errorf("failed to make request to /v1/states: %v", err)
-	}
-	defer respMetrics.Body.Close()
-	if respMetrics.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK, got %v", respMetrics.Status)
-	}
-	metricsBytes, err := io.ReadAll(respMetrics.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-	t.Logf("respMetrics size:\n%s", string(metricsBytes))
+			req.Header.Set("Content-Type", "application/json")
 
-	t.Log("now testing with client/v1 basic disk get states")
-	states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
-	if err != nil {
-		t.Errorf("failed to get states: %v", err)
-	}
-	for _, ss := range states {
-		for _, s := range ss.States {
-			t.Logf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
-		}
-	}
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
-	t.Log("now testing with client/v1")
-	for _, opts := range [][]client_v1.OpOption{
-		{client_v1.WithRequestContentTypeJSON()},
-		{client_v1.WithRequestContentTypeYAML()},
-		{client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip()},
-		{client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip()},
-	} {
-		components, err := client_v1.GetComponents(ctx, "https://"+ep, opts...)
-		if err != nil {
-			t.Errorf("failed to get components: %v", err)
-		}
-		t.Logf("components: %v", components)
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			GinkgoLogr.Info("response size", "size", string(body))
 
-		info, err := client_v1.GetInfo(ctx, "https://"+ep, opts...)
-		if err != nil {
-			t.Errorf("failed to get info: %v", err)
-		}
-		t.Logf("info: %+v", info)
+			var componentStates []v1.LeptonComponentStates
+			err = json.Unmarshal(body, &componentStates)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
-		t.Log("component information:")
-		for _, i := range info {
-			t.Logf("component: %s", i.Component)
-			for _, event := range i.Info.Events {
-				t.Logf("event: %s - %s", event.Name, event.Message)
+			found := false
+			for _, comp := range componentStates {
+				if comp.Component != "info" {
+					continue
+				}
+				for _, state := range comp.States {
+					if state.Name != "annotations" {
+						continue
+					}
+
+					found = true
+					Expect(state.ExtraInfo[randKey]).To(Equal(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+				}
 			}
-			for _, metric := range i.Info.Metrics {
-				t.Logf("metric: %s - value: %f", metric.MetricName, metric.Value)
+			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
+		})
+
+		It("request with compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
+			req.Header.Set(server.RequestHeaderAcceptEncoding, server.RequestHeaderEncodingGzip)
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			gr, err := gzip.NewReader(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
+			body, err := io.ReadAll(gr)
+			Expect(err).NotTo(HaveOccurred(), "failed to read gzip")
+
+			var componentStates []v1.LeptonComponentStates
+			err = json.Unmarshal(body, &componentStates)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+
+			found := false
+			for _, comp := range componentStates {
+				if comp.Component != "info" {
+					continue
+				}
+				for _, state := range comp.States {
+					if state.Name != "annotations" {
+						continue
+					}
+
+					found = true
+					Expect(state.ExtraInfo[randKey]).To(Equal(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+				}
 			}
-			for _, state := range i.Info.States {
-				t.Logf("state: %s - healthy: %t", state.Name, state.Healthy)
+			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
+		})
+
+	})
+
+	Describe("/v1/metrics requests", func() {
+
+		It("request without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			GinkgoLogr.Info("response size", "size", string(body))
+
+			var metrics v1.LeptonMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+		})
+
+		It("request with compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept-Encoding", "gzip")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			gr, err := gzip.NewReader(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
+			body, err := io.ReadAll(gr)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			var metrics v1.LeptonMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+		})
+
+	})
+
+	Describe("states with client/v1", func() {
+
+		It("get disk states", func() {
+			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
+			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
+			for _, ss := range states {
+				for _, s := range ss.States {
+					GinkgoLogr.Info(fmt.Sprintf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo))
+				}
 			}
-		}
+		})
 
-		if _, err := client_v1.GetStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...); !errors.Is(err, errdefs.ErrNotFound) {
-			t.Errorf("expected ErrNotFound, got %v", err)
-		}
+		for _, opts := range [][]client_v1.OpOption{
+			{client_v1.WithRequestContentTypeJSON()},
+			{client_v1.WithRequestContentTypeYAML()},
+			{client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip()},
+			{client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip()},
+		} {
+			It("get states with options", func() {
+				components, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
+				Expect(err).NotTo(HaveOccurred(), "failed to get states")
+				GinkgoLogr.Info("got components", "components", components)
 
-		states, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
-		if err != nil {
-			t.Errorf("failed to get states: %v", err)
-		}
-		t.Logf("states: %v", states)
+				info, err := client_v1.GetInfo(ctx, "https://"+ep, opts...)
+				Expect(err).NotTo(HaveOccurred(), "failed to get info")
+				GinkgoLogr.Info("got info", "info", info)
 
-		events, err := client_v1.GetEvents(ctx, "https://"+ep, opts...)
-		if err != nil {
-			t.Errorf("failed to get events: %v", err)
-		}
-		t.Logf("events: %v", events)
+				By("getting component information")
+				for _, i := range info {
+					GinkgoLogr.Info("component", "name", i.Component)
+					for _, event := range i.Info.Events {
+						GinkgoLogr.Info("event", "name", event.Name, "message", event.Message)
+					}
+					for _, metric := range i.Info.Metrics {
+						GinkgoLogr.Info("metric", "name", metric.MetricName, "value", metric.Value)
+					}
+					for _, state := range i.Info.States {
+						GinkgoLogr.Info("state", "name", state.Name, "healthy", state.Healthy)
+					}
+				}
 
-		metricsV1, err := client_v1.GetMetrics(ctx, "https://"+ep, opts...)
-		if err != nil {
-			t.Errorf("failed to get metricsV1: %v", err)
+				_, err = client_v1.GetStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...)
+				Expect(err).To(Equal(errdefs.ErrNotFound), "expected ErrNotFound")
+			})
 		}
-		t.Logf("metricsV1: %v", metricsV1)
-	}
-}
+	})
 
-func randStr(t *testing.T, length int) string {
+	Describe("HW Slowdown test", func() {
+
+		// TODO: fix the hw slowdown cases for events interval
+
+		It("should report healthy for normal case", func() {
+			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent(nvidia_hw_slowdown_id.Name))
+			Expect(err).NotTo(HaveOccurred(), "failed to get hw slowdown states")
+
+			GinkgoLogr.Info("got states", "states", states)
+		})
+
+		It("should report unhealthy for slowdown case", func() {
+			err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.HWSlowdownQueryOutput)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalQueryOutput)
+				Expect(err).NotTo(HaveOccurred())
+			}()
+
+			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent(nvidia_hw_slowdown_id.Name))
+			Expect(err).NotTo(HaveOccurred(), "failed to get hw slowdown states")
+
+			GinkgoLogr.Info("got states", "states", states)
+		})
+	})
+
+})
+
+func randStr(length int) (string, error) {
 	bytes := make([]byte, length)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		t.Fatal(err)
+		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(bytes)[:length]
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
 }

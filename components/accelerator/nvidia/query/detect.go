@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	nvmlquery "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
-
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
-	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // Returns true if the local machine has NVIDIA GPUs installed.
@@ -50,17 +50,15 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 
 // Loads the product name of the NVIDIA GPU device.
 func LoadGPUDeviceName(ctx context.Context) (string, error) {
-	nvmlLib := nvml.New()
+	nvmlLib := nvmlquery.NewNVML()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
 
 	deviceLib := device.New(nvmlLib)
-	infoLib := nvinfo.New(
-		nvinfo.WithNvmlLib(nvmlLib),
-		nvinfo.WithDeviceLib(deviceLib),
-	)
 
+	// do not check nvml lib if it is mocked
+	infoLib := nvmlquery.NewNVInfo(nvmlLib, deviceLib)
 	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
 	if !nvmlExists {
 		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)

@@ -11,15 +11,34 @@ import (
 	"sync"
 	"time"
 
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
-	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
-	"github.com/leptonai/gpud/log"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
+	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
+	"github.com/leptonai/gpud/log"
 )
+
+func NewNVML() nvml.Interface {
+	if mocknvml.IsMockedNVML() {
+		return mocknvml.MockInstance
+	}
+	return nvml.New()
+}
+
+func NewNVInfo(nvmlLib nvml.Interface, deviceLib device.Interface) nvinfo.Interface {
+	opts := []nvinfo.Option{
+		nvinfo.WithNvmlLib(nvmlLib),
+		nvinfo.WithDeviceLib(deviceLib),
+	}
+	if mocknvml.IsMockedNVML() {
+		opts = append(opts, nvinfo.WithPropertyExtractor(mocknvml.MockNVInfoExtractor))
+	}
+	return nvinfo.New(opts...)
+}
 
 type Output struct {
 	Exists      bool          `json:"exists"`
@@ -133,7 +152,7 @@ type DeviceInfo struct {
 }
 
 func GetDriverVersion() (string, error) {
-	nvmlLib := nvml.New()
+	nvmlLib := NewNVML()
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
@@ -177,7 +196,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		gpmMetricsIDs = append(gpmMetricsIDs, id)
 	}
 
-	nvmlLib := nvml.New()
+	nvmlLib := NewNVML()
 
 	log.Logger.Debugw("initializing nvml library")
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
@@ -206,10 +225,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	deviceLib := device.New(nvmlLib)
 
 	log.Logger.Debugw("creating info library")
-	infoLib := nvinfo.New(
-		nvinfo.WithNvmlLib(nvmlLib),
-		nvinfo.WithDeviceLib(deviceLib),
-	)
+	infoLib := NewNVInfo(nvmlLib, deviceLib)
 
 	log.Logger.Debugw("checking if nvml exists from info library")
 	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
