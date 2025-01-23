@@ -266,6 +266,11 @@ func (o *Output) States() ([]components.State, error) {
 
 	states := []components.State{
 		{
+			Name:    os_id.Name,
+			Healthy: true,
+			Reason:  "os healthy",
+		},
+		{
 			Name:    StateNameVirtualizationEnvironment,
 			Healthy: true,
 			Reason:  virtReason,
