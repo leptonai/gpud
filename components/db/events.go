@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -17,11 +18,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const schemaVersion = "v0_4_0"
+
 // Creates the default table name for the component.
 // The table name is in the format of "components_{component_name}_events_v0_4_0".
 // Suffix with the version, in case we change the table schema.
 func CreateDefaultTableName(componentName string) string {
-	return fmt.Sprintf("components_%s_events_v0_4_0", componentName)
+	c := strings.ReplaceAll(componentName, " ", "_")
+	c = strings.ReplaceAll(c, "-", "_")
+	c = strings.ReplaceAll(c, "__", "_")
+	c = strings.ToLower(c)
+	tableName := fmt.Sprintf("components_%s_events_%s", c, schemaVersion)
+	return tableName
 }
 
 const (

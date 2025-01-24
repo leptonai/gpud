@@ -12,10 +12,65 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestCreateDefaultTableName(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple name",
+			input:    "test",
+			expected: fmt.Sprintf("components_test_events_%s", schemaVersion),
+		},
+		{
+			name:     "name with spaces",
+			input:    "test component",
+			expected: fmt.Sprintf("components_test_component_events_%s", schemaVersion),
+		},
+		{
+			name:     "name with hyphens",
+			input:    "test-component",
+			expected: fmt.Sprintf("components_test_component_events_%s", schemaVersion),
+		},
+		{
+			name:     "mixed case",
+			input:    "TestComponent",
+			expected: fmt.Sprintf("components_testcomponent_events_%s", schemaVersion),
+		},
+		{
+			name:     "complex name",
+			input:    "Test Component-Name",
+			expected: fmt.Sprintf("components_test_component_name_events_%s", schemaVersion),
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: fmt.Sprintf("components__events_%s", schemaVersion),
+		},
+		{
+			name:     "multiple spaces and hyphens",
+			input:    "test  component--name",
+			expected: fmt.Sprintf("components_test_component_name_events_%s", schemaVersion),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := CreateDefaultTableName(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
 
 func TestTableInsertsReads(t *testing.T) {
 	t.Parallel()
