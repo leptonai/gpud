@@ -1204,7 +1204,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					ticker.Reset(config.CompactPeriod.Duration)
 				}
 
-				if err := state.Compact(ctx, dbRW); err != nil {
+				if err := sqlite.Compact(ctx, dbRW); err != nil {
 					log.Logger.Errorw("failed to compact state database", "error", err)
 				}
 			}

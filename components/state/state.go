@@ -205,44 +205,12 @@ func Register(reg *prometheus.Registry) error {
 	return nil
 }
 
-func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
-	var pageCount uint64
-	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page count")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	var pageSize uint64
-	err = db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
-	if err == sql.ErrNoRows {
-		return 0, errors.New("no page size")
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	return pageCount * pageSize, nil
-}
-
 func RecordMetrics(ctx context.Context, db *sql.DB) error {
-	dbSize, err := ReadDBSize(ctx, db)
+	dbSize, err := sqlite.ReadDBSize(ctx, db)
 	if err != nil {
 		return err
 	}
 	currentSize.Set(float64(dbSize))
 
-	return nil
-}
-
-func Compact(ctx context.Context, db *sql.DB) error {
-	log.Logger.Infow("compacting state database")
-	_, err := db.ExecContext(ctx, "VACUUM;")
-	if err != nil {
-		return err
-	}
-	log.Logger.Infow("successfully compacted state database")
 	return nil
 }

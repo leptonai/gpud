@@ -2,11 +2,17 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,15 +33,17 @@ func TestTableInsertsReads(t *testing.T) {
 
 	first := time.Now().UTC()
 
-	events := []Event{}
+	events := []components.Event{}
 	eventsN := 10
 	for i := 0; i < eventsN; i++ {
-		events = append(events, Event{
-			Timestamp:        first.Add(time.Duration(i) * time.Second).Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			Message:          fmt.Sprintf("OOM event %d occurred", i),
-			SuggestedActions: fmt.Sprintf("oom_reaper: reaped process %d (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0", i),
+		events = append(events, components.Event{
+			Time:    metav1.Time{Time: first.Add(time.Duration(i) * time.Second)},
+			Name:    "dmesg",
+			Type:    common.EventTypeWarning,
+			Message: fmt.Sprintf("OOM event %d occurred", i),
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{fmt.Sprintf("oom_reaper: reaped process %d (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0", i)},
+			},
 		})
 	}
 
@@ -49,7 +57,7 @@ func TestTableInsertsReads(t *testing.T) {
 
 	// make sure timestamp is in descending order
 	for i := 1; i < len(events); i++ {
-		assert.Greater(t, events[i-1].Timestamp, events[i].Timestamp, "timestamps should be in descending order")
+		assert.Greater(t, events[i-1].Time.Unix(), events[i].Time.Unix(), "timestamps should be in descending order")
 		// Since events are returned in descending order (newest first),
 		// the message index should be eventsN - (i + 1) for the current event
 		expectedMsg := fmt.Sprintf("OOM event %d occurred", eventsN-(i+1))
@@ -76,24 +84,30 @@ func TestGetEventsTimeRange(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        baseTime.Add(-10 * time.Minute).Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			SuggestedActions: "old event",
+			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+			Name: "dmesg",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"old event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Add(-5 * time.Minute).Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			SuggestedActions: "mid event",
+			Time: metav1.Time{Time: baseTime.Add(-5 * time.Minute)},
+			Name: "dmesg",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"mid event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			SuggestedActions: "recent event",
+			Time: metav1.Time{Time: baseTime},
+			Name: "dmesg",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"recent event"},
+			},
 		},
 	}
 
@@ -110,7 +124,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 	recentEvents, err := db.Get(ctx, baseTime.Add(-2*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(recentEvents))
-	assert.Equal(t, "recent event", recentEvents[0].SuggestedActions)
+	assert.Equal(t, "recent event", recentEvents[0].SuggestedActions.Descriptions[0])
 }
 
 func TestEmptyResults(t *testing.T) {
@@ -153,24 +167,30 @@ func TestMultipleEventTypes(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			SuggestedActions: "oom event",
+			Time: metav1.Time{Time: baseTime},
+			Name: "dmesg",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"oom event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Add(1 * time.Second).Unix(),
-			Name:             "syslog",
-			Type:             "memory_edac_correctable_errors",
-			SuggestedActions: "edac event",
+			Time: metav1.Time{Time: baseTime.Add(1 * time.Second)},
+			Name: "syslog",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"edac event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Add(2 * time.Second).Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom_cgroup",
-			SuggestedActions: "cgroup event",
+			Time: metav1.Time{Time: baseTime.Add(2 * time.Second)},
+			Name: "dmesg",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"cgroup event"},
+			},
 		},
 	}
 
@@ -184,9 +204,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	assert.Equal(t, 3, len(results))
 
 	// Verify events are in descending order
-	assert.Equal(t, "memory_oom_cgroup", results[0].Type)
-	assert.Equal(t, "memory_edac_correctable_errors", results[1].Type)
-	assert.Equal(t, "memory_oom", results[2].Type)
+	assert.Equal(t, common.EventTypeWarning, results[0].Type)
+	assert.Equal(t, common.EventTypeWarning, results[1].Type)
+	assert.Equal(t, common.EventTypeWarning, results[2].Type)
 }
 
 func TestPurgePartial(t *testing.T) {
@@ -204,20 +224,24 @@ func TestPurgePartial(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        baseTime.Add(-10 * time.Minute).Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			ExtraInfo:        `{"a":"b"}`,
-			SuggestedActions: "old event",
+			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+			Name:      "dmesg",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"id": "old_event"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"old event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			ExtraInfo:        `{"a":"b"}`,
-			SuggestedActions: "recent event",
+			Time:      metav1.Time{Time: baseTime},
+			Name:      "dmesg",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"id": "new_event"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"recent event"},
+			},
 		},
 	}
 
@@ -234,7 +258,20 @@ func TestPurgePartial(t *testing.T) {
 	remaining, err := store.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
-	assert.Equal(t, "recent event", remaining[0].SuggestedActions)
+	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
+
+	// Try to find old event by ExtraInfo
+	oldEvent := components.Event{
+		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+		Name:      "test",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"id": "old_event"},
+	}
+	found, err := store.Find(ctx, oldEvent)
+	assert.NoError(t, err)
+	assert.Nil(t, found, "Old event should not be found after purge")
 }
 
 func TestFindEvent(t *testing.T) {
@@ -252,12 +289,14 @@ func TestFindEvent(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	testEvent := Event{
-		Timestamp:        baseTime.Add(-10 * time.Minute).Unix(),
-		Name:             "dmesg",
-		Type:             "memory_oom",
-		ExtraInfo:        `{"a":"b"}`,
-		SuggestedActions: "old event",
+	testEvent := components.Event{
+		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+		Name:      "dmesg",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"a": "b"},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"old event"},
+		},
 	}
 
 	// Test finding non-existent event
@@ -271,11 +310,11 @@ func TestFindEvent(t *testing.T) {
 	found, err = store.Find(ctx, testEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, testEvent.Timestamp, found.Timestamp)
+	assert.Equal(t, testEvent.Time.Unix(), found.Time.Unix())
 	assert.Equal(t, testEvent.Name, found.Name)
 	assert.Equal(t, testEvent.Type, found.Type)
 	assert.Equal(t, testEvent.ExtraInfo, found.ExtraInfo)
-	assert.Equal(t, testEvent.SuggestedActions, found.SuggestedActions)
+	assert.Equal(t, testEvent.SuggestedActions.Descriptions[0], found.SuggestedActions.Descriptions[0])
 }
 
 func TestFindEventPartialMatch(t *testing.T) {
@@ -293,23 +332,27 @@ func TestFindEventPartialMatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	testEvent := Event{
-		Timestamp:        baseTime.Unix(),
-		Name:             "dmesg",
-		Type:             "memory_oom",
-		ExtraInfo:        `{"a":"b"}`,
-		SuggestedActions: "original details",
+	testEvent := components.Event{
+		Time:      metav1.Time{Time: baseTime},
+		Name:      "dmesg",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"a": "b"},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"original details"},
+		},
 	}
 
 	assert.NoError(t, store.Insert(ctx, testEvent))
 
 	// Test finding with matching timestamp/source/type but different details
-	searchEvent := Event{
-		Timestamp:        testEvent.Timestamp,
-		Name:             testEvent.Name,
-		Type:             testEvent.Type,
-		ExtraInfo:        testEvent.ExtraInfo,
-		SuggestedActions: "different details",
+	searchEvent := components.Event{
+		Time:      metav1.Time{Time: testEvent.Time.Time},
+		Name:      testEvent.Name,
+		Type:      testEvent.Type,
+		ExtraInfo: testEvent.ExtraInfo,
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"different details"},
+		},
 	}
 
 	found, err := store.Find(ctx, searchEvent)
@@ -332,20 +375,24 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			ExtraInfo:        `{"a":"b"}`,
-			SuggestedActions: "first event",
+			Time:      metav1.Time{Time: baseTime},
+			Name:      "dmesg",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"a": "b"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"first event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "dmesg",
-			Type:             "memory_oom",
-			ExtraInfo:        `{"a":"b"}`,
-			SuggestedActions: "second event",
+			Time:      metav1.Time{Time: baseTime},
+			Name:      "dmesg",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"a": "b"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"second event"},
+			},
 		},
 	}
 
@@ -355,11 +402,11 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	}
 
 	// Search should return the first matching event
-	searchEvent := Event{
-		Timestamp: baseTime.Unix(),
+	searchEvent := components.Event{
+		Time:      metav1.Time{Time: baseTime},
 		Name:      "dmesg",
-		Type:      "memory_oom",
-		ExtraInfo: `{"a":"b"}`,
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"a": "b"},
 	}
 
 	found, err := store.Find(ctx, searchEvent)
@@ -369,7 +416,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	// Should match one of the events
 	foundMatch := false
 	for _, ev := range events {
-		if found.SuggestedActions == ev.SuggestedActions {
+		if found.SuggestedActions.Descriptions[0] == ev.SuggestedActions.Descriptions[0] {
 			foundMatch = true
 			break
 		}
@@ -392,12 +439,17 @@ func TestEventWithIDs(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	event := Event{
-		Timestamp:        baseTime.Unix(),
-		Name:             "nvidia-smi",
-		Type:             "gpu_error",
-		ExtraInfo:        `{"xid": "123", "gpu_uuid": "gpu-123"}`,
-		SuggestedActions: "GPU error details",
+	event := components.Event{
+		Time: metav1.Time{Time: baseTime},
+		Name: "nvidia-smi",
+		Type: common.EventTypeWarning,
+		ExtraInfo: map[string]string{
+			"xid":      "123",
+			"gpu_uuid": "gpu-123",
+		},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"GPU error details"},
+		},
 	}
 
 	// Test insert and find with ExtraInfo
@@ -410,10 +462,10 @@ func TestEventWithIDs(t *testing.T) {
 	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 
 	// Test find with partial ExtraInfo match
-	partialEvent := Event{
-		Timestamp: event.Timestamp,
-		Name:      event.Name,
-		Type:      event.Type,
+	partialEvent := components.Event{
+		Time: metav1.Time{Time: event.Time.Time},
+		Name: event.Name,
+		Type: event.Type,
 	}
 
 	found, err = store.Find(ctx, partialEvent)
@@ -422,11 +474,14 @@ func TestEventWithIDs(t *testing.T) {
 	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 
 	// Test find with different ExtraInfo
-	differentEvent := Event{
-		Timestamp: event.Timestamp,
-		Name:      event.Name,
-		Type:      event.Type,
-		ExtraInfo: `{"xid": "different", "gpu_uuid": "different-gpu"}`,
+	differentEvent := components.Event{
+		Time: metav1.Time{Time: event.Time.Time},
+		Name: event.Name,
+		Type: event.Type,
+		ExtraInfo: map[string]string{
+			"xid":      "different",
+			"gpu_uuid": "different-gpu",
+		},
 	}
 
 	found, err = store.Find(ctx, differentEvent)
@@ -449,12 +504,14 @@ func TestNullEventIDs(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	event := Event{
-		Timestamp:        baseTime.Unix(),
-		Name:             "dmesg",
-		Type:             "system_event",
-		ExtraInfo:        "",
-		SuggestedActions: "Event with null ExtraInfo",
+	event := components.Event{
+		Time:      metav1.Time{Time: baseTime},
+		Name:      "dmesg",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"Event with null ExtraInfo"},
+		},
 	}
 
 	// Test insert and find with null ExtraInfo
@@ -482,20 +539,24 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        baseTime.Add(-10 * time.Minute).Unix(),
-			Name:             "test",
-			Type:             "event_type",
-			ExtraInfo:        `{"id": "old_event"}`,
-			SuggestedActions: "old event",
+			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+			Name:      "test",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"id": "old_event"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"old event"},
+			},
 		},
 		{
-			Timestamp:        baseTime.Unix(),
-			Name:             "test",
-			Type:             "event_type",
-			ExtraInfo:        `{"id": "new_event"}`,
-			SuggestedActions: "new event",
+			Time:      metav1.Time{Time: baseTime},
+			Name:      "test",
+			Type:      common.EventTypeWarning,
+			ExtraInfo: map[string]string{"id": "new_event"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"new event"},
+			},
 		},
 	}
 
@@ -513,14 +574,16 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	remaining, err := db.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
-	assert.Equal(t, `{"id": "new_event"}`, remaining[0].ExtraInfo)
+	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
 
 	// Try to find old event by ExtraInfo
-	oldEvent := Event{
-		Timestamp: baseTime.Add(-10 * time.Minute).Unix(),
+	oldEvent := components.Event{
+		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "test",
-		Type:      "event_type",
-		ExtraInfo: `{"id": "old_event"}`,
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := db.Find(ctx, oldEvent)
 	assert.NoError(t, err)
@@ -559,11 +622,13 @@ func TestContextCancellation(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	event := Event{
-		Timestamp:        time.Now().UTC().Unix(),
-		Name:             "test",
-		Type:             "test_event",
-		SuggestedActions: "Test details",
+	event := components.Event{
+		Time: metav1.Time{Time: time.Now().UTC()},
+		Name: "test",
+		Type: common.EventTypeWarning,
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"Test details"},
+		},
 	}
 
 	err = store.Insert(canceledCtx, event)
@@ -597,11 +662,13 @@ func TestConcurrentAccess(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := Event{
-				Timestamp:        baseTime.Add(time.Duration(i) * time.Second).Unix(),
-				Name:             "concurrent",
-				Type:             "test_event",
-				SuggestedActions: fmt.Sprintf("Concurrent event %d", i),
+			event := components.Event{
+				Time: metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
+				Name: "concurrent",
+				Type: common.EventTypeWarning,
+				SuggestedActions: &common.SuggestedActions{
+					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
+				},
 			}
 			assert.NoError(t, db.Insert(ctx, event))
 		}
@@ -641,22 +708,26 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
 	assert.NoError(t, err)
 
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp:        time.Now().UTC().Unix(),
-			Name:             "test;source",
-			Type:             "test'type",
-			Message:          "message with special chars: !@#$%^&*()",
-			ExtraInfo:        "special chars: !@#$%^&*()",
-			SuggestedActions: "details with special chars",
+			Time:      metav1.Time{Time: time.Now().UTC()},
+			Name:      "test;source",
+			Type:      common.EventTypeWarning,
+			Message:   "message with special chars: !@#$%^&*()",
+			ExtraInfo: map[string]string{"special chars": "!@#$%^&*()"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"details with special chars"},
+			},
 		},
 		{
-			Timestamp:        time.Now().UTC().Unix(),
-			Name:             "unicode_source_🔥",
-			Type:             "unicode_type_⚡",
-			Message:          "unicode message: 你好",
-			ExtraInfo:        "unicode info: 你好",
-			SuggestedActions: "unicode details: 世界！",
+			Time:      metav1.Time{Time: time.Now().UTC()},
+			Name:      "unicode_source_🔥",
+			Type:      common.EventTypeWarning,
+			Message:   "unicode message: 你好",
+			ExtraInfo: map[string]string{"unicode info": "你好"},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"unicode details: 世界！"},
+			},
 		},
 	}
 
@@ -672,7 +743,7 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 		assert.Equal(t, event.Type, found.Type)
 		assert.Equal(t, event.Message, found.Message)
 		assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
-		assert.Equal(t, event.SuggestedActions, found.SuggestedActions)
+		assert.Equal(t, event.SuggestedActions.Descriptions[0], found.SuggestedActions.Descriptions[0])
 	}
 }
 
@@ -696,11 +767,13 @@ func TestLargeEventDetails(t *testing.T) {
 		largeDetail[i] = byte('a' + (i % 26))
 	}
 
-	event := Event{
-		Timestamp:        time.Now().UTC().Unix(),
-		Name:             "test",
-		Type:             "large_event",
-		SuggestedActions: string(largeDetail),
+	event := components.Event{
+		Time: metav1.Time{Time: time.Now().UTC()},
+		Name: "test",
+		Type: common.EventTypeWarning,
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{string(largeDetail)},
+		},
 	}
 
 	err = db.Insert(ctx, event)
@@ -709,7 +782,7 @@ func TestLargeEventDetails(t *testing.T) {
 	found, err := db.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, event.SuggestedActions, found.SuggestedActions)
+	assert.Equal(t, event.SuggestedActions.Descriptions[0], found.SuggestedActions.Descriptions[0])
 }
 
 func TestTimestampBoundaries(t *testing.T) {
@@ -737,11 +810,13 @@ func TestTimestampBoundaries(t *testing.T) {
 	}
 
 	for _, ts := range timestamps {
-		event := Event{
-			Timestamp:        ts,
-			Name:             "test",
-			Type:             "timestamp_test",
-			SuggestedActions: fmt.Sprintf("timestamp: %d", ts),
+		event := components.Event{
+			Time: metav1.Time{Time: time.Unix(ts, 0)},
+			Name: "test",
+			Type: common.EventTypeWarning,
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{fmt.Sprintf("timestamp: %d", ts)},
+			},
 		}
 
 		err = store.Insert(ctx, event)
@@ -750,7 +825,7 @@ func TestTimestampBoundaries(t *testing.T) {
 		found, err := store.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
-		assert.Equal(t, ts, found.Timestamp)
+		assert.Equal(t, ts, found.Time.Unix())
 	}
 
 	// Test retrieval with various time ranges
@@ -784,12 +859,14 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := Event{
-				Timestamp:        baseTime.Add(time.Duration(i) * time.Second).Unix(),
-				Name:             "concurrent",
-				Type:             "test_event",
-				ExtraInfo:        fmt.Sprintf("info_%d", i),
-				SuggestedActions: fmt.Sprintf("Concurrent event %d", i),
+			event := components.Event{
+				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
+				Name:      "concurrent",
+				Type:      common.EventTypeWarning,
+				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
+				SuggestedActions: &common.SuggestedActions{
+					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
+				},
 			}
 			assert.NoError(t, store.Insert(ctx, event))
 		}
@@ -799,11 +876,11 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent reads
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := Event{
-				Timestamp: baseTime.Add(time.Duration(i) * time.Second).Unix(),
+			event := components.Event{
+				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name:      "concurrent",
-				Type:      "test_event",
-				ExtraInfo: fmt.Sprintf("info_%d", i),
+				Type:      common.EventTypeWarning,
+				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
 			found, err := store.Find(ctx, event)
 			if err == nil && found != nil {
@@ -825,8 +902,10 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Verify each event has unique info
 	infoMap := make(map[string]bool)
 	for _, event := range events {
-		assert.False(t, infoMap[event.ExtraInfo], "Duplicate extra info found")
-		infoMap[event.ExtraInfo] = true
+		// Convert the entire ExtraInfo map to a string for comparison
+		infoStr := fmt.Sprintf("%v", event.ExtraInfo)
+		assert.False(t, infoMap[infoStr], "Duplicate extra info found")
+		infoMap[infoStr] = true
 	}
 }
 
@@ -872,30 +951,30 @@ func TestEventMessage(t *testing.T) {
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
-	events := []Event{
+	events := []components.Event{
 		{
-			Timestamp: baseTime.Unix(),
-			Name:      "test",
-			Type:      "test_event",
-			Message:   "Test message with normal text",
+			Time:    metav1.Time{Time: baseTime},
+			Name:    "test",
+			Type:    common.EventTypeWarning,
+			Message: "Test message with normal text",
 		},
 		{
-			Timestamp: baseTime.Add(1 * time.Second).Unix(),
-			Name:      "test",
-			Type:      "test_event",
-			Message:   "", // Empty message
+			Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
+			Name:    "test",
+			Type:    common.EventTypeWarning,
+			Message: "", // Empty message
 		},
 		{
-			Timestamp: baseTime.Add(2 * time.Second).Unix(),
-			Name:      "test",
-			Type:      "test_event",
-			Message:   "Message with special chars: !@#$%^&*()",
+			Time:    metav1.Time{Time: baseTime.Add(2 * time.Second)},
+			Name:    "test",
+			Type:    common.EventTypeWarning,
+			Message: "Message with special chars: !@#$%^&*()",
 		},
 		{
-			Timestamp: baseTime.Add(3 * time.Second).Unix(),
-			Name:      "test",
-			Type:      "test_event",
-			Message:   "Unicode message: 你好世界",
+			Time:    metav1.Time{Time: baseTime.Add(3 * time.Second)},
+			Name:    "test",
+			Type:    common.EventTypeWarning,
+			Message: "Unicode message: 你好世界",
 		},
 	}
 
@@ -911,11 +990,11 @@ func TestEventMessage(t *testing.T) {
 	}
 
 	// Test finding with message as part of search criteria
-	searchEvent := Event{
-		Timestamp: baseTime.Unix(),
-		Name:      "test",
-		Type:      "test_event",
-		Message:   "Test message with normal text",
+	searchEvent := components.Event{
+		Time:    metav1.Time{Time: baseTime},
+		Name:    "test",
+		Type:    common.EventTypeWarning,
+		Message: "Test message with normal text",
 	}
 	found, err := store.Find(ctx, searchEvent)
 	assert.NoError(t, err)
@@ -923,11 +1002,11 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, searchEvent.Message, found.Message)
 
 	// Test finding with empty message
-	emptyMessageEvent := Event{
-		Timestamp: baseTime.Add(1 * time.Second).Unix(),
-		Name:      "test",
-		Type:      "test_event",
-		Message:   "",
+	emptyMessageEvent := components.Event{
+		Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
+		Name:    "test",
+		Type:    common.EventTypeWarning,
+		Message: "",
 	}
 	found, err = store.Find(ctx, emptyMessageEvent)
 	assert.NoError(t, err)
@@ -935,11 +1014,11 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, "", found.Message)
 
 	// Test finding with non-matching message
-	nonMatchingEvent := Event{
-		Timestamp: baseTime.Unix(),
-		Name:      "test",
-		Type:      "test_event",
-		Message:   "Non-matching message",
+	nonMatchingEvent := components.Event{
+		Time:    metav1.Time{Time: baseTime},
+		Name:    "test",
+		Type:    common.EventTypeWarning,
+		Message: "Non-matching message",
 	}
 	found, err = store.Find(ctx, nonMatchingEvent)
 	assert.NoError(t, err)
@@ -955,4 +1034,231 @@ func TestEventMessage(t *testing.T) {
 		expectedMsg := events[len(events)-1-i].Message
 		assert.Equal(t, expectedMsg, event.Message)
 	}
+}
+
+func TestNilSuggestedActions(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	assert.NoError(t, err)
+
+	baseTime := time.Now().UTC()
+	event := components.Event{
+		Time:             metav1.Time{Time: baseTime},
+		Name:             "test",
+		Type:             common.EventTypeWarning,
+		Message:          "Test message",
+		ExtraInfo:        map[string]string{"key": "value"},
+		SuggestedActions: nil, // Explicitly set to nil
+	}
+
+	// Test insert and find with nil SuggestedActions
+	err = store.Insert(ctx, event)
+	assert.NoError(t, err)
+
+	found, err := store.Find(ctx, event)
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Nil(t, found.SuggestedActions)
+}
+
+func TestInvalidJSONHandling(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	assert.NoError(t, err)
+
+	// Insert a valid event first
+	baseTime := time.Now().UTC()
+	event := components.Event{
+		Time:      metav1.Time{Time: baseTime},
+		Name:      "test",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"key": "value"},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"test action"},
+		},
+	}
+	err = store.Insert(ctx, event)
+	assert.NoError(t, err)
+
+	// Manually insert invalid JSON into the database
+	_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (timestamp, name, type, extra_info, suggested_actions)
+		VALUES (?, ?, ?, ?, ?)`,
+		testTableName),
+		baseTime.Add(time.Second).Unix(),
+		"test",
+		common.EventTypeWarning,
+		"{invalid_json", // Invalid JSON for ExtraInfo
+		"{invalid_json", // Invalid JSON for SuggestedActions
+	)
+	assert.NoError(t, err)
+
+	// Try to retrieve the events - should get error for invalid JSON
+	_, err = store.Get(ctx, baseTime.Add(-time.Hour))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to unmarshal")
+}
+
+func TestEmptyTableName(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// Test with empty table name
+	store, err := NewStore(ctx, dbRW, dbRO, "")
+	assert.Error(t, err)
+	assert.Nil(t, store)
+}
+
+func TestLongEventFields(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	assert.NoError(t, err)
+
+	// Create very long strings for various fields
+	longString := strings.Repeat("a", 10000)
+	longMap := make(map[string]string)
+	for i := 0; i < 100; i++ {
+		longMap[fmt.Sprintf("key_%d", i)] = longString
+	}
+
+	event := components.Event{
+		Time:      metav1.Time{Time: time.Now().UTC()},
+		Name:      longString,
+		Type:      common.EventTypeWarning,
+		Message:   longString,
+		ExtraInfo: longMap,
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{longString},
+		},
+	}
+
+	// Test insert and retrieval of event with very long fields
+	err = store.Insert(ctx, event)
+	assert.NoError(t, err)
+
+	found, err := store.Find(ctx, event)
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, event.Name, found.Name)
+	assert.Equal(t, event.Message, found.Message)
+	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+	assert.Equal(t, event.SuggestedActions.Descriptions[0], found.SuggestedActions.Descriptions[0])
+}
+
+func TestConcurrentTableCreation(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// Try to create multiple stores with the same table name concurrently
+	tableName := "concurrent_table"
+	concurrency := 10
+	var wg sync.WaitGroup
+	stores := make([]*storeImpl, concurrency)
+	errors := make([]error, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			store, err := NewStore(ctx, dbRW, dbRO, tableName)
+			stores[index] = store
+			errors[index] = err
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify that all attempts either succeeded or failed gracefully
+	successCount := 0
+	for i := 0; i < concurrency; i++ {
+		if errors[i] == nil {
+			successCount++
+			assert.NotNil(t, stores[i])
+		}
+	}
+	assert.Greater(t, successCount, 0)
+}
+
+func TestEventTypeValidation(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	assert.NoError(t, err)
+
+	// Test all valid event types
+	validTypes := []common.EventType{
+		common.EventTypeWarning,
+		common.EventTypeInfo,
+		common.EventTypeCritical,
+		common.EventTypeFatal,
+		common.EventTypeUnknown,
+	}
+
+	baseTime := time.Now().UTC()
+	for i, eventType := range validTypes {
+		event := components.Event{
+			Time:    metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
+			Name:    "test",
+			Type:    eventType,
+			Message: fmt.Sprintf("Test message for %s", eventType),
+		}
+
+		err = store.Insert(ctx, event)
+		assert.NoError(t, err)
+
+		found, err := store.Find(ctx, event)
+		assert.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.Equal(t, eventType, found.Type)
+	}
+
+	// Verify all events can be retrieved
+	events, err := store.Get(ctx, baseTime.Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Equal(t, len(validTypes), len(events))
 }

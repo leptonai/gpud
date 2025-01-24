@@ -3,15 +3,25 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Creates the default table name for the component.
+// The table name is in the format of "components_{component_name}_events_v0_4_0".
+func CreateDefaultTableName(componentName string) string {
+	return fmt.Sprintf("components_%s_events_v0_4_0", componentName)
+}
 
 const (
 	// Event timestamp in unix seconds.
@@ -40,34 +50,6 @@ const (
 	// e.g., "reboot"
 	ColumnSuggestedActions = "suggested_actions"
 )
-
-type Event struct {
-	// Event timestamp in unix seconds.
-	Timestamp int64 `json:"timestamp"`
-
-	// event name
-	// e.g., "memory_oom", "memory_oom_kill_constraint", "memory_oom_cgroup", "memory_edac_correctable_errors".
-	Name string `json:"name"`
-
-	// event type
-	// e.g., "Unknown", "Info", "Warning", "Critical", "Fatal".
-	Type string `json:"type"`
-
-	// event message
-	// e.g., "VFS file-max limit reached"
-	Message string `json:"message"`
-
-	// event extra info
-	// e.g.,
-	// data source: "dmesg", "nvml", "nvidia-smi".
-	// event target: "gpu_id", "gpu_uuid".
-	// log detail: "oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0".
-	ExtraInfo string `json:"extra_info"`
-
-	// event suggested actions
-	// e.g., "reboot"
-	SuggestedActions string `json:"suggested_actions"`
-}
 
 type storeImpl struct {
 	table string
@@ -101,16 +83,16 @@ func NewStore(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, tableName string)
 	}, nil
 }
 
-func (s *storeImpl) Insert(ctx context.Context, ev Event) error {
+func (s *storeImpl) Insert(ctx context.Context, ev components.Event) error {
 	return insertEvent(ctx, s.dbRW, s.table, ev)
 }
 
-func (s *storeImpl) Find(ctx context.Context, ev Event) (*Event, error) {
+func (s *storeImpl) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
 	return findEvent(ctx, s.dbRO, s.table, ev)
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func (s *storeImpl) Get(ctx context.Context, since time.Time) ([]Event, error) {
+func (s *storeImpl) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return getEvents(ctx, s.dbRO, s.table, since)
 }
 
@@ -145,9 +127,22 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 		return err
 	}
 
-	// create index on timestamp column
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
 		tableName, ColumnTimestamp, tableName, ColumnTimestamp))
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
+		tableName, ColumnName, tableName, ColumnName))
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
+		tableName, ColumnType, tableName, ColumnType))
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -156,9 +151,18 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	return tx.Commit()
 }
 
-func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) error {
+func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) error {
 	start := time.Now()
-	_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
+	extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
+	if err != nil {
+		return fmt.Errorf("failed to marshal extra info: %w", err)
+	}
+	suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
+	if err != nil {
+		return fmt.Errorf("failed to marshal suggested actions: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
 		tableName,
 		ColumnTimestamp,
 		ColumnName,
@@ -167,19 +171,19 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) er
 		ColumnExtraInfo,
 		ColumnSuggestedActions,
 	),
-		ev.Timestamp,
+		ev.Time.Unix(),
 		ev.Name,
 		ev.Type,
 		ev.Message,
-		ev.ExtraInfo,
-		ev.SuggestedActions,
+		string(extraInfoJSON),
+		string(suggestedActionsJSON),
 	)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
 }
 
-func findEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) (*Event, error) {
+func findEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) (*components.Event, error) {
 	selectStatement := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 		ColumnTimestamp,
@@ -196,22 +200,30 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	if ev.Message != "" {
 		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnMessage)
 	}
-	if ev.ExtraInfo != "" {
+	if len(ev.ExtraInfo) > 0 {
 		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnExtraInfo)
 	}
-	if ev.SuggestedActions != "" {
+	if ev.SuggestedActions != nil {
 		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnSuggestedActions)
 	}
 
-	params := []any{ev.Timestamp, ev.Name, ev.Type}
+	params := []any{ev.Time.Unix(), ev.Name, ev.Type}
 	if ev.Message != "" {
 		params = append(params, ev.Message)
 	}
-	if ev.ExtraInfo != "" {
-		params = append(params, ev.ExtraInfo)
+	if len(ev.ExtraInfo) > 0 {
+		extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal extra info: %w", err)
+		}
+		params = append(params, string(extraInfoJSON))
 	}
-	if ev.SuggestedActions != "" {
-		params = append(params, ev.SuggestedActions)
+	if ev.SuggestedActions != nil {
+		suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal suggested actions: %w", err)
+		}
+		params = append(params, string(suggestedActionsJSON))
 	}
 
 	row := db.QueryRowContext(ctx, selectStatement, params...)
@@ -228,7 +240,7 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) ([]Event, error) {
+func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) ([]components.Event, error) {
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s > ?
@@ -252,7 +264,7 @@ ORDER BY %s DESC`,
 	}
 	defer rows.Close()
 
-	events := []Event{}
+	events := []components.Event{}
 	for rows.Next() {
 		event, err := scanRows(rows)
 		if err != nil {
@@ -266,58 +278,82 @@ ORDER BY %s DESC`,
 	return events, nil
 }
 
-func scanRow(row *sql.Row) (Event, error) {
-	var event Event
+func scanRow(row *sql.Row) (components.Event, error) {
+	var event components.Event
+	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
 	var suggestedActions sql.NullString
 	err := row.Scan(
-		&event.Timestamp,
+		&timestamp,
 		&event.Name,
 		&event.Type,
 		&msg,
 		&extraInfo,
 		&suggestedActions,
 	)
-	if err == nil {
-		if msg.Valid {
-			event.Message = msg.String
-		}
-		if extraInfo.Valid {
-			event.ExtraInfo = extraInfo.String
-		}
-		if suggestedActions.Valid {
-			event.SuggestedActions = suggestedActions.String
-		}
+	if err != nil {
+		return event, err
 	}
-	return event, err
+
+	event.Time = metav1.Time{Time: time.Unix(timestamp, 0)}
+	if msg.Valid {
+		event.Message = msg.String
+	}
+	if extraInfo.Valid {
+		var extraInfoMap map[string]string
+		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+		}
+		event.ExtraInfo = extraInfoMap
+	}
+	if suggestedActions.Valid {
+		var suggestedActionsObj common.SuggestedActions
+		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
+			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+		}
+		event.SuggestedActions = &suggestedActionsObj
+	}
+	return event, nil
 }
 
-func scanRows(rows *sql.Rows) (Event, error) {
-	var event Event
+func scanRows(rows *sql.Rows) (components.Event, error) {
+	var event components.Event
+	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
 	var suggestedActions sql.NullString
 	err := rows.Scan(
-		&event.Timestamp,
+		&timestamp,
 		&event.Name,
 		&event.Type,
 		&msg,
 		&extraInfo,
 		&suggestedActions,
 	)
-	if err == nil {
-		if msg.Valid {
-			event.Message = msg.String
-		}
-		if extraInfo.Valid {
-			event.ExtraInfo = extraInfo.String
-		}
-		if suggestedActions.Valid {
-			event.SuggestedActions = suggestedActions.String
-		}
+	if err != nil {
+		return event, err
 	}
-	return event, err
+
+	event.Time = metav1.Time{Time: time.Unix(timestamp, 0)}
+	if msg.Valid {
+		event.Message = msg.String
+	}
+	if extraInfo.Valid {
+		var extraInfoMap map[string]string
+		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+		}
+		event.ExtraInfo = extraInfoMap
+	}
+	if suggestedActions.Valid {
+		var suggestedActionsObj common.SuggestedActions
+		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
+			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+		}
+		event.SuggestedActions = &suggestedActionsObj
+	}
+	return event, nil
 }
 
 func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimestamp int64) (int, error) {
