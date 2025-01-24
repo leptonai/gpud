@@ -13,6 +13,8 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/reboot"
@@ -23,12 +25,13 @@ import (
 const DefaultQuerySince = 30 * time.Minute
 
 type Request struct {
-	Method        string        `json:"method,omitempty"`
-	Components    []string      `json:"components,omitempty"`
-	StartTime     time.Time     `json:"start_time"`
-	EndTime       time.Time     `json:"end_time"`
-	Since         time.Duration `json:"since"`
-	UpdateVersion string        `json:"update_version,omitempty"`
+	Method        string            `json:"method,omitempty"`
+	Components    []string          `json:"components,omitempty"`
+	StartTime     time.Time         `json:"start_time"`
+	EndTime       time.Time         `json:"end_time"`
+	Since         time.Duration     `json:"since"`
+	UpdateVersion string            `json:"update_version,omitempty"`
+	UpdateConfig  map[string]string `json:"update_config,omitempty"`
 }
 
 type Response struct {
@@ -76,6 +79,7 @@ func (s *Session) serve() {
 			events, err := s.getEvents(ctx, payload)
 			response.Error = err
 			response.Events = events
+
 		case "delete":
 			go s.deleteMachine(ctx, payload)
 
@@ -113,6 +117,25 @@ func (s *Session) serve() {
 					response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
 					if response.Error == nil {
 						needExit = s.autoUpdateExitCode
+					}
+				}
+			}
+
+		case "updateConfig":
+			if payload.UpdateConfig != nil {
+				for componentName, value := range payload.UpdateConfig {
+					log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
+
+					switch componentName {
+					case nvidia_infiniband_id.Name:
+						var updateCfg nvidia_infiniband.ExpectedPortStates
+						if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+							log.Logger.Warnw("failed to unmarshal update config", "error", err)
+						} else {
+							nvidia_infiniband.SetDefaultExpectedPortStates(updateCfg)
+						}
+					default:
+						log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
 					}
 				}
 			}
