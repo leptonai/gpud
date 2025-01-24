@@ -147,6 +147,14 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			Name:    StateKeyHWSlowdown,
 			Healthy: false,
 			Reason:  fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, len(eventsByMinute), c.stateHWSlowdownEventsThresholdFrequencyPerMinute, c.stateHWSlowdownEvaluationWindow),
+			SuggestedActions: &common.SuggestedActions{
+				RepairActions: []common.RepairActionType{
+					common.RepairActionTypeHardwareInspection,
+				},
+				Descriptions: []string{
+					"Check the GPU hardware status",
+				},
+			},
 		},
 	}, nil
 }
