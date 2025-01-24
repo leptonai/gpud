@@ -75,10 +75,20 @@ var (
 	ErrNoDBROSet = errors.New("no read-only db set")
 )
 
+type Store interface {
+	Insert(ctx context.Context, ev components.Event) error
+	Find(ctx context.Context, ev components.Event) (*components.Event, error)
+	Get(ctx context.Context, since time.Time) ([]components.Event, error)
+	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
+	Close()
+}
+
+var _ Store = (*storeImpl)(nil)
+
 // Creates a new DB instance with the table created.
 // Requires write-only and read-only instances for minimize conflicting writes/reads.
 // ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
-func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (*storeImpl, error) {
+func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (Store, error) {
 	if dbRW == nil {
 		return nil, ErrNoDBRWSet
 	}
