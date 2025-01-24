@@ -13,7 +13,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
-	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/file"
@@ -126,7 +125,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		dbSizeHumanized string
 	)
 	if c.dbRO != nil {
-		dbSize, err = state.ReadDBSize(ctx, c.dbRO)
+		dbSize, err = sqlite.ReadDBSize(ctx, c.dbRO)
 		if err != nil {
 			return nil, err
 		}
