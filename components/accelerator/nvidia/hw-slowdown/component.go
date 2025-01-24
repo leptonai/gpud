@@ -152,7 +152,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 					common.RepairActionTypeHardwareInspection,
 				},
 				Descriptions: []string{
-					"Check the GPU hardware status",
+					"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
 				},
 			},
 		},
