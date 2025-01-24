@@ -19,6 +19,7 @@ import (
 
 // Creates the default table name for the component.
 // The table name is in the format of "components_{component_name}_events_v0_4_0".
+// Suffix with the version, in case we change the table schema.
 func CreateDefaultTableName(componentName string) string {
 	return fmt.Sprintf("components_%s_events_v0_4_0", componentName)
 }
@@ -52,9 +53,13 @@ const (
 )
 
 type storeImpl struct {
-	table string
-	dbRW  *sql.DB
-	dbRO  *sql.DB
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
+
+	table     string
+	dbRW      *sql.DB
+	dbRO      *sql.DB
+	retention time.Duration
 }
 
 var (
@@ -65,7 +70,7 @@ var (
 // Creates a new DB instance with the table created.
 // Requires write-only and read-only instances for minimize conflicting writes/reads.
 // ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
-func NewStore(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, tableName string) (*storeImpl, error) {
+func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (*storeImpl, error) {
 	if dbRW == nil {
 		return nil, ErrNoDBRWSet
 	}
@@ -73,14 +78,62 @@ func NewStore(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, tableName string)
 		return nil, ErrNoDBROSet
 	}
 
-	if err := createTable(ctx, dbRW, tableName); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err := createTable(ctx, dbRW, tableName)
+	cancel()
+	if err != nil {
 		return nil, err
 	}
-	return &storeImpl{
-		table: tableName,
-		dbRW:  dbRW,
-		dbRO:  dbRO,
-	}, nil
+
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	s := &storeImpl{
+		rootCtx:    rootCtx,
+		rootCancel: rootCancel,
+		table:      tableName,
+		dbRW:       dbRW,
+		dbRO:       dbRO,
+		retention:  retention,
+	}
+	go s.runPurge()
+
+	return s, nil
+}
+
+func (s *storeImpl) runPurge() {
+	if s.retention < time.Second {
+		return
+	}
+
+	// actual check interval should be lower than the retention period
+	// in case of GPUd restarts
+	checkInterval := s.retention / 10
+	if checkInterval < time.Second {
+		checkInterval = time.Second
+	}
+
+	log.Logger.Infow("start purging", "table", s.table, "retention", s.retention)
+	for {
+		select {
+		case <-s.rootCtx.Done():
+			return
+		case <-time.After(checkInterval):
+		}
+
+		now := time.Now().UTC()
+		purged, err := s.Purge(s.rootCtx, now.Add(-s.retention).Unix())
+		if err != nil {
+			log.Logger.Errorw("failed to purge data", "table", s.table, "retention", s.retention, "error", err)
+		} else {
+			log.Logger.Infow("purged data", "table", s.table, "retention", s.retention, "purged", purged)
+		}
+	}
+}
+
+func (s *storeImpl) Close() {
+	log.Logger.Infow("closing the store", "table", s.table)
+	if s.rootCancel != nil {
+		s.rootCancel()
+	}
 }
 
 func (s *storeImpl) Insert(ctx context.Context, ev components.Event) error {
@@ -227,7 +280,6 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	}
 
 	row := db.QueryRowContext(ctx, selectStatement, params...)
-
 	foundEvent, err := scanRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -300,14 +352,14 @@ func scanRow(row *sql.Row) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid {
+	if extraInfo.Valid && len(extraInfo.String) > 0 && extraInfo.String != "null" {
 		var extraInfoMap map[string]string
 		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
 			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 		}
 		event.ExtraInfo = extraInfoMap
 	}
-	if suggestedActions.Valid {
+	if suggestedActions.Valid && len(suggestedActions.String) > 0 && suggestedActions.String != "null" {
 		var suggestedActionsObj common.SuggestedActions
 		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
 			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
@@ -346,7 +398,7 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 		}
 		event.ExtraInfo = extraInfoMap
 	}
-	if suggestedActions.Valid {
+	if suggestedActions.Valid && suggestedActions.String != "" {
 		var suggestedActionsObj common.SuggestedActions
 		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
 			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
@@ -357,7 +409,6 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 }
 
 func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimestamp int64) (int, error) {
-	log.Logger.Debugw("purging events")
 	deleteStatement := fmt.Sprintf(`DELETE FROM %s WHERE %s < ?`,
 		tableName,
 		ColumnTimestamp,

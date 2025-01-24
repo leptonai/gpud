@@ -28,8 +28,9 @@ func TestTableInsertsReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	first := time.Now().UTC()
 
@@ -80,7 +81,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	db, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
@@ -138,8 +139,9 @@ func TestEmptyResults(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	// Test getting events from empty table
 	events, err := store.Get(ctx, time.Now().Add(-1*time.Hour))
@@ -163,8 +165,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -220,8 +223,9 @@ func TestPurgePartial(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -285,8 +289,9 @@ func TestFindEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
@@ -328,8 +333,9 @@ func TestFindEventPartialMatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
@@ -371,8 +377,9 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -435,8 +442,9 @@ func TestEventWithIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -500,8 +508,9 @@ func TestNullEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -535,7 +544,7 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	db, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
@@ -596,11 +605,8 @@ func TestInvalidTableName(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
 	// Test with invalid table name
-	_, err := NewStore(ctx, dbRW, dbRO, "invalid;table;name")
+	_, err := NewStore(dbRW, dbRO, "invalid;table;name", 0)
 	assert.Error(t, err)
 }
 
@@ -612,11 +618,9 @@ func TestContextCancellation(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	// Test with canceled context
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -652,7 +656,7 @@ func TestConcurrentAccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	db, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
 
 	baseTime := time.Now().UTC()
@@ -705,8 +709,9 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	events := []components.Event{
 		{
@@ -758,7 +763,7 @@ func TestLargeEventDetails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	db, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
 
 	// Create a large event detail string (100KB)
@@ -796,8 +801,9 @@ func TestTimestampBoundaries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	timestamps := []int64{
 		0,                  // Unix epoch
@@ -849,8 +855,9 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	eventCount := 100
@@ -912,25 +919,24 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 func TestNewStoreErrors(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	testTableName := "test_table"
 
 	// Test case: nil write DB
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	store, err := NewStore(ctx, nil, dbRO, testTableName)
+	store, err := NewStore(nil, dbRO, testTableName, 0)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoDBRWSet)
 	assert.Nil(t, store)
 
 	// Test case: nil read DB
-	store, err = NewStore(ctx, dbRW, nil, testTableName)
+	store, err = NewStore(dbRW, nil, testTableName, 0)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoDBROSet)
 	assert.Nil(t, store)
 
 	// Test case: both DBs nil
-	store, err = NewStore(ctx, nil, nil, testTableName)
+	store, err = NewStore(nil, nil, testTableName, 0)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoDBRWSet)
 	assert.Nil(t, store)
@@ -947,8 +953,9 @@ func TestEventMessage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -1047,8 +1054,9 @@ func TestNilSuggestedActions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -1081,8 +1089,9 @@ func TestInvalidJSONHandling(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	// Insert a valid event first
 	baseTime := time.Now().UTC()
@@ -1123,11 +1132,8 @@ func TestEmptyTableName(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
 	// Test with empty table name
-	store, err := NewStore(ctx, dbRW, dbRO, "")
+	store, err := NewStore(dbRW, dbRO, "", 0)
 	assert.Error(t, err)
 	assert.Nil(t, store)
 }
@@ -1143,8 +1149,9 @@ func TestLongEventFields(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	// Create very long strings for various fields
 	longString := strings.Repeat("a", 10000)
@@ -1183,9 +1190,6 @@ func TestConcurrentTableCreation(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
 	// Try to create multiple stores with the same table name concurrently
 	tableName := "concurrent_table"
 	concurrency := 10
@@ -1197,7 +1201,9 @@ func TestConcurrentTableCreation(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			store, err := NewStore(ctx, dbRW, dbRO, tableName)
+			store, err := NewStore(dbRW, dbRO, tableName, 0)
+			defer store.Close()
+
 			stores[index] = store
 			errors[index] = err
 		}(i)
@@ -1227,8 +1233,9 @@ func TestEventTypeValidation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(ctx, dbRW, dbRO, testTableName)
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
 	assert.NoError(t, err)
+	defer store.Close()
 
 	// Test all valid event types
 	validTypes := []common.EventType{

@@ -31,9 +31,9 @@ func TestSimulatedEvents(t *testing.T) {
 	defer cancel()
 
 	tableName := CreateDefaultTableName("hello")
-	store, err := NewStore(ctx, dbRW, dbRO, tableName)
+	store, err := NewStore(dbRW, dbRO, tableName, 0)
 	assert.NoError(t, err)
-
+	defer store.Close()
 	daysToIngest := 3
 	eventsN := daysToIngest * 24 * 60 * 60
 
