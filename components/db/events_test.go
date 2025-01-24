@@ -1249,7 +1249,7 @@ func TestConcurrentTableCreation(t *testing.T) {
 	tableName := "concurrent_table"
 	concurrency := 10
 	var wg sync.WaitGroup
-	stores := make([]*storeImpl, concurrency)
+	stores := make([]Store, concurrency)
 	errors := make([]error, concurrency)
 
 	for i := 0; i < concurrency; i++ {
