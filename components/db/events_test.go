@@ -1202,6 +1202,7 @@ func TestConcurrentTableCreation(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			store, err := NewStore(dbRW, dbRO, tableName, 0)
+			assert.NoError(t, err)
 			defer store.Close()
 
 			stores[index] = store
