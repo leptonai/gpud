@@ -788,7 +788,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg, dbRW))
+			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg, dbRW, dbRO))
 
 		case nvidia_component_error_sxid_id.Name:
 			// db object to read sxid events (read-only, writes are done in poller)

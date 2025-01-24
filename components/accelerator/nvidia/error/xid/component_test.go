@@ -75,7 +75,7 @@ func TestMergeEvents(t *testing.T) {
 			assert.Equal(t, tt.expected, len(result))
 			if len(result) > 1 {
 				for i := 1; i < len(result); i++ {
-					assert.True(t, result[i-1].Time.Time.Before(result[i].Time.Time) ||
+					assert.True(t, result[i-1].Time.Time.After(result[i].Time.Time) ||
 						result[i-1].Time.Time.Equal(result[i].Time.Time),
 						"events should be sorted by timestamp")
 				}
@@ -95,10 +95,10 @@ func TestMergeEvents(t *testing.T) {
 		result := mergeEvents(a, b)
 		assert.Len(t, result, 4)
 		expectedTimes := []time.Time{
-			now.Add(-2 * time.Hour),
-			now.Add(-1 * time.Hour),
-			now,
 			now.Add(2 * time.Hour),
+			now,
+			now.Add(-1 * time.Hour),
+			now.Add(-2 * time.Hour),
 		}
 		for i, expectedTime := range expectedTimes {
 			assert.Equal(t, expectedTime.Unix(), result[i].Time.Unix(),

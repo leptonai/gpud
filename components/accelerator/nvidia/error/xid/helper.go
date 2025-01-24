@@ -21,22 +21,27 @@ const rebootThreshold = 2
 
 // EvolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in ascending order
-func EvolveHealthyState(events []components.Event) components.State {
+func EvolveHealthyState(events []components.Event) (ret components.State) {
+	defer func() {
+		log.Logger.Debugf("EvolveHealthyState: %v", ret)
+	}()
 	var lastSuggestedAction *common.SuggestedActions
 	var lastXidErr *XidError
 	lastHealth := StateHealthy
 	xidRebootMap := make(map[uint64]int)
-	for _, event := range events {
+	for i := len(events) - 1; i >= 0; i-- {
+		event := events[i]
+		log.Logger.Debugf("EvolveHealthyState: event: %v %v", event.Time, event.Name)
 		if event.Name == EventNameErroXid {
-			event = resolveXIDEvent(event)
+			resolvedEvent := resolveXIDEvent(event)
 			var currXidErr XidError
-			if err := json.Unmarshal([]byte(event.ExtraInfo[EventKeyErroXidData]), &currXidErr); err != nil {
-				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", event.Name, event.Message, err)
+			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErroXidData]), &currXidErr); err != nil {
+				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
 
 			currEvent := StateHealthy
-			switch event.Type {
+			switch resolvedEvent.Type {
 			case common.EventTypeCritical:
 				currEvent = StateDegraded
 			case common.EventTypeFatal:
@@ -58,7 +63,7 @@ func EvolveHealthyState(events []components.Event) components.State {
 				lastSuggestedAction = currXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
-			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && lastSuggestedAction.RepairActions[0] == common.RepairActionTypeRebootSystem {
+			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == common.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == common.RepairActionTypeCheckUserAppAndGPU) {
 				lastHealth = StateHealthy
 				lastSuggestedAction = nil
 				lastXidErr = nil
@@ -114,7 +119,7 @@ func resolveXIDEvent(event components.Event) components.Event {
 				return ret
 			}
 			ret.Type = detail.EventType
-			ret.Message = detail.Description
+			ret.Message = fmt.Sprintf("XID %d detected on %s", currXid, event.ExtraInfo[EventKeyDeviceUUID])
 			ret.SuggestedActions = detail.SuggestedActionsByGPUd
 			raw, _ := json.Marshal(&XidError{
 				Time:                      event.Time,

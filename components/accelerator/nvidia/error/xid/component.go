@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"sort"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,15 +17,18 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/store"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config, db *sql.DB) components.Component {
+const DefaultRetentionPeriod = 3 * 24 * time.Hour
+const DefaultStateUpdatePeriod = 30 * time.Second
+
+func New(ctx context.Context, cfg nvidia_common.Config, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
@@ -31,14 +36,14 @@ func New(ctx context.Context, cfg nvidia_common.Config, db *sql.DB) components.C
 	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
 	setHealthyCh := make(chan struct{})
-	localStore, err := store.New(ctx, db, "components_accelerator_nvidia_error_xid_events")
+	localStore, err := db.NewStore(dbRW, dbRO, "components_accelerator_nvidia_error_xid_events", DefaultRetentionPeriod)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()
 		return nil
 	}
 	return &XIDComponent{
-		rootCtx:      ctx,
+		rootCtx:      cctx,
 		cancel:       ccancel,
 		poller:       getDefaultPoller(),
 		setHealthyCh: setHealthyCh,
@@ -47,6 +52,7 @@ func New(ctx context.Context, cfg nvidia_common.Config, db *sql.DB) components.C
 }
 
 func (c *XIDComponent) SetHealthy() error {
+	log.Logger.Debugw("set healthy event received")
 	c.setHealthyCh <- struct{}{}
 	return nil
 }
@@ -59,7 +65,8 @@ type XIDComponent struct {
 	poller       query.Poller
 	currState    components.State
 	setHealthyCh chan struct{}
-	store        *store.Store
+	store        db.Store
+	sync.RWMutex
 }
 
 func (c *XIDComponent) Name() string { return nvidia_component_error_xid_id.Name }
@@ -71,58 +78,81 @@ func (c *XIDComponent) Start() error {
 		return nil
 	}
 	for {
+		backoffTime := 1 * time.Second
 		osComponent, err := components.GetComponent(os_id.Name)
 		if err != nil {
 			log.Logger.Errorw("failed to get os component", "error", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(backoffTime)
 			continue
 		}
 		osEvents, err := osComponent.Events(c.rootCtx, time.Now().Add(-3*24*time.Hour))
 		if err != nil {
+			if strings.Contains(err.Error(), context.Canceled.Error()) {
+				log.Logger.Infow("context canceled, exiting")
+				return nil
+			}
 			log.Logger.Errorw("failed to get os states", "error", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(backoffTime)
 			continue
 		}
 		if len(osEvents) < 1 {
 			log.Logger.Debugw("no os states found")
-			time.Sleep(1 * time.Second)
+			time.Sleep(backoffTime)
 			continue
 		}
-		if !osEvents[0].Time.After(time.Now().Add(-3 * 24 * time.Hour)) {
-			log.Logger.Debugw("newest reboot event not caught")
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		localEvents, err := c.store.GetAllEvents(c.rootCtx)
+		localEvents, err := c.store.Get(c.rootCtx, time.Time{})
 		if err != nil {
 			log.Logger.Errorw("failed to get all events", "error", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(backoffTime)
 			continue
 		}
 		events := mergeEvents(osEvents, localEvents)
+		c.Lock()
 		c.currState = EvolveHealthyState(events)
+		c.Unlock()
 		break
 	}
 	go func() {
+		ticker := time.NewTicker(DefaultStateUpdatePeriod)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-c.rootCtx.Done():
 				return
-			case <-c.setHealthyCh:
-				count, err := c.store.CreateEvent(c.rootCtx, components.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"})
+			case <-ticker.C:
+				osComponent, err := components.GetComponent(os_id.Name)
 				if err != nil {
-					log.Logger.Errorw("failed to create event", "error", err)
-					continue
-				} else if count == 0 {
-					log.Logger.Debugw("no new events created")
-					continue
+					log.Logger.Errorw("failed to get os component", "error", err)
 				}
-				events, err := c.store.GetAllEvents(c.rootCtx)
+				osEvents, err := osComponent.Events(c.rootCtx, time.Now().Add(-3*24*time.Hour))
+				if err != nil {
+					log.Logger.Errorw("failed to get os states", "error", err)
+				}
+				if len(osEvents) < 1 {
+					log.Logger.Debugw("no os states found")
+				}
+				localEvents, err := c.store.Get(c.rootCtx, time.Time{})
 				if err != nil {
 					log.Logger.Errorw("failed to get all events", "error", err)
 					continue
 				}
+				events := mergeEvents(osEvents, localEvents)
+				c.Lock()
 				c.currState = EvolveHealthyState(events)
+				c.Unlock()
+			case <-c.setHealthyCh:
+				if err = c.store.Insert(c.rootCtx, components.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}); err != nil {
+					log.Logger.Errorw("failed to create event", "error", err)
+					continue
+				}
+				events, err := c.store.Get(c.rootCtx, time.Time{})
+				if err != nil {
+					log.Logger.Errorw("failed to get all events", "error", err)
+					continue
+				}
+				c.Lock()
+				c.currState = EvolveHealthyState(events)
+				c.Unlock()
 			case dmesgLine := <-watcher.Watch():
 				log.Logger.Debugw("dmesg line", "line", dmesgLine)
 				ev, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: dmesgLine.Timestamp}, dmesgLine.Content)
@@ -142,20 +172,27 @@ func (c *XIDComponent) Start() error {
 						EventKeyDeviceUUID:  ev.DeviceUUID,
 					},
 				}
-				count, err := c.store.CreateEvent(c.rootCtx, event)
+				currEvent, err := c.store.Find(c.rootCtx, event)
 				if err != nil {
 					log.Logger.Errorw("failed to create event", "error", err)
 					continue
-				} else if count == 0 {
+				}
+				if currEvent != nil {
 					log.Logger.Debugw("no new events created")
 					continue
 				}
-				events, err := c.store.GetAllEvents(c.rootCtx)
+				if err = c.store.Insert(c.rootCtx, event); err != nil {
+					log.Logger.Errorw("failed to create event", "error", err)
+					continue
+				}
+				events, err := c.store.Get(c.rootCtx, time.Time{})
 				if err != nil {
 					log.Logger.Errorw("failed to get all events", "error", err)
 					continue
 				}
+				c.Lock()
 				c.currState = EvolveHealthyState(events)
+				c.Unlock()
 			}
 		}
 	}()
@@ -163,12 +200,14 @@ func (c *XIDComponent) Start() error {
 }
 
 func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
+	c.RLock()
+	defer c.RUnlock()
 	return []components.State{c.currState}, nil
 }
 
 func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	var ret []components.Event
-	events, err := c.store.GetEvents(ctx, since)
+	events, err := c.store.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +231,7 @@ func (c *XIDComponent) Close() error {
 	return nil
 }
 
-// mergeEvents merges two event slices and returns a time ascending sorted new slice
+// mergeEvents merges two event slices and returns a time descending sorted new slice
 func mergeEvents(a, b []components.Event) []components.Event {
 	totalLen := len(a) + len(b)
 	if totalLen == 0 {
@@ -203,7 +242,7 @@ func mergeEvents(a, b []components.Event) []components.Event {
 	result = append(result, b...)
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Time.Time.Before(result[j].Time.Time)
+		return result[i].Time.Time.After(result[j].Time.Time)
 	})
 
 	return result

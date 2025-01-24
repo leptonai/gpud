@@ -4,8 +4,9 @@ package metrics
 import (
 	"context"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/leptonai/gpud/components"
 )
 
 var (
@@ -185,20 +186,20 @@ func ReadGetFailedTotal(gatherer prometheus.Gatherer) (int64, error) {
 }
 
 func NewWatchableComponent(c components.Component) components.WatchableComponent {
-	return &watchableComponent{
+	return &WatchableComponentStruct{
 		Component: c,
 	}
 }
 
-func (w *watchableComponent) Unwrap() interface{} {
+func (w *WatchableComponentStruct) Unwrap() interface{} {
 	return w.Component
 }
 
-type watchableComponent struct {
+type WatchableComponentStruct struct {
 	components.Component
 }
 
-func (w *watchableComponent) States(ctx context.Context) ([]components.State, error) {
+func (w *WatchableComponentStruct) States(ctx context.Context) ([]components.State, error) {
 	states, err := w.Component.States(ctx)
 	if err != nil {
 		SetUnhealthy(w.Component.Name())

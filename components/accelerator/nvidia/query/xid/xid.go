@@ -2467,11 +2467,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			Descriptions: []string{
 				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
-				"System reboot is recommended when convenient, but not required immediately.",
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeCheckUserAppAndGPU,
 				common.RepairActionTypeRebootSystem,
 			},
 		},

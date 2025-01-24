@@ -12,7 +12,6 @@ import (
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_component_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
@@ -276,7 +275,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		if _, ok := cfg.Components[dmesg.Name]; ok {
 			cfg.Components[nvidia_component_error_xid_id.Name] = nil
 			cfg.Components[nvidia_component_error_sxid_id.Name] = nil
-			cfg.Components[nvidia_component_error_xid_sxid_id.Name] = nil
 		}
 		cfg.Components[nvidia_info.Name] = nil
 

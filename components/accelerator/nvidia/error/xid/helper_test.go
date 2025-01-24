@@ -56,8 +56,8 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("reboot recover", func(t *testing.T) {
 		events := []components.Event{
-			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
+			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
@@ -79,8 +79,8 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("SetHealthy", func(t *testing.T) {
 		events := []components.Event{
-			createXidEvent(789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 			{Name: "SetHealthy"},
+			createXidEvent(789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)

@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
+	"github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/reboot"
@@ -84,13 +85,26 @@ func (s *Session) serve() {
 		case "delete":
 			go s.deleteMachine(ctx, payload)
 		case "sethealthy":
-			rawComponent, err := components.GetComponent("accelerator-nvidia-error-xid")
-			if err != nil {
-				break
-			}
-			if component, ok := rawComponent.(*xid.XIDComponent); ok {
-				if err = component.SetHealthy(); err != nil {
-					log.Logger.Errorw("failed to set xid healthy", "error", err)
+			log.Logger.Infow("sethealthy received", "components", payload.Components)
+			for _, componentName := range payload.Components {
+				if componentName != "accelerator-nvidia-error-xid" {
+					continue
+				}
+				rawComponent, err := components.GetComponent("accelerator-nvidia-error-xid")
+				if err != nil {
+					log.Logger.Errorw("failed to get component", "error", err)
+					continue
+				}
+				if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
+					if component, ok := watchable.Component.(*xid.XIDComponent); ok {
+						if err = component.SetHealthy(); err != nil {
+							log.Logger.Errorw("failed to set xid healthy", "error", err)
+						}
+					} else {
+						log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
+					}
+				} else {
+					log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
 				}
 			}
 		case "update":
