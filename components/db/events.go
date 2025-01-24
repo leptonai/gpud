@@ -106,7 +106,7 @@ func (s *storeImpl) runPurge() {
 
 	// actual check interval should be lower than the retention period
 	// in case of GPUd restarts
-	checkInterval := s.retention / 10
+	checkInterval := s.retention / 5
 	if checkInterval < time.Second {
 		checkInterval = time.Second
 	}
