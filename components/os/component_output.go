@@ -11,10 +11,11 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/host"
 	procs "github.com/shirou/gopsutil/v4/process"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Output struct {
@@ -418,12 +420,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
+func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			os_id.Name,
 			cfg.Query,
-			CreateGet(cfg),
+			CreateGet(cfg, eventsStore),
 			nil,
 		)
 	})
@@ -433,7 +435,7 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
+func CreateGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -467,10 +469,14 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		o.MachineMetadata = currentMachineMetadata
 
 		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-		lastBootID, err := state.GetLastBootID(cctx, cfg.Query.State.DBRW)
+		lastEvent, err := eventsStore.Latest(cctx)
 		ccancel()
 		if err != nil {
 			return nil, err
+		}
+		lastBootID := ""
+		if lastEvent != nil && lastEvent.Name == "reboot" && len(lastEvent.ExtraInfo) > 0 {
+			lastBootID = lastEvent.ExtraInfo["boot_id"]
 		}
 
 		// boot id must be non-empty to correctly evaluate if the machine rebooted
@@ -480,12 +486,19 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
 		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
 			cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-			err := state.InsertBootID(cctx, cfg.Query.State.DBRW, currentMachineMetadata.BootID, time.Now().UTC())
+			err := eventsStore.Insert(cctx, components.Event{
+				Time:    metav1.Time{Time: time.Now().UTC()},
+				Name:    "reboot",
+				Type:    common.EventTypeWarning,
+				Message: fmt.Sprintf("system reboot detected (%s)", currentMachineMetadata.BootID),
+				ExtraInfo: map[string]string{
+					"boot_id": currentMachineMetadata.BootID,
+				},
+			})
 			ccancel()
 			if err != nil {
 				return nil, err
 			}
-			// next os poll will set the rebooted to false
 		}
 
 		hostID, err := host.HostID()

@@ -194,9 +194,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err := state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
-	if err := state.CreateTableBootIDs(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create boot ids table: %w", err)
-	}
 	if err := state.CreateTableAPIVersion(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
@@ -460,7 +457,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os_id.Name]; !ok {
-		allComponents = append(allComponents, os.New(ctx, os.Config{Query: defaultQueryCfg}))
+		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
+		}
+		allComponents = append(allComponents, c)
 	}
 
 	for k, configValue := range config.Components {
@@ -683,7 +684,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, os.New(ctx, cfg))
+			c, err := os.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case power_supply_id.Name:
 			cfg := power_supply.Config{Query: defaultQueryCfg}
