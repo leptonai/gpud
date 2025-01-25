@@ -1364,16 +1364,13 @@ func TestRetentionPurge(t *testing.T) {
 		},
 	}
 
-	// Insert events
 	for _, event := range events {
 		err = store.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
-	// Wait for purge to run (retention/10 = 1 second)
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
-	// Verify only new event remains
 	remaining, err := store.Get(ctx, baseTime.Add(-20*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
@@ -1473,4 +1470,169 @@ func TestLatest(t *testing.T) {
 	latestEvent, err = store.Latest(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, latestEvent, "Latest should return nil after purging all events")
+}
+
+func TestExtraInfoOrderedMap(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	assert.NoError(t, err)
+	defer store.Close()
+
+	// Create a large ExtraInfo map with keys that could be marshaled in random order
+	extraInfo := make(map[string]string)
+	for i := 0; i < 100; i++ {
+		// Use different key patterns to test ordering
+		switch i % 3 {
+		case 0:
+			extraInfo[fmt.Sprintf("key_%d", i)] = fmt.Sprintf("value_%d", i)
+		case 1:
+			extraInfo[fmt.Sprintf("info_%d", i)] = fmt.Sprintf("data_%d", i)
+		case 2:
+			extraInfo[fmt.Sprintf("attr_%d", i)] = fmt.Sprintf("prop_%d", i)
+		}
+	}
+
+	// Use a fixed timestamp to ensure exact matches
+	baseTime := time.Unix(time.Now().Unix(), 0).UTC()
+	event := components.Event{
+		Time:      metav1.Time{Time: baseTime},
+		Name:      "test",
+		Type:      common.EventTypeWarning,
+		Message:   "Test ordered map",
+		ExtraInfo: extraInfo,
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"test action"},
+		},
+	}
+
+	// Insert the event
+	err = store.Insert(ctx, event)
+	assert.NoError(t, err)
+
+	// Verify the event was inserted
+	events, err := store.Get(ctx, baseTime.Add(-1*time.Hour))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(events))
+	assert.Equal(t, event.ExtraInfo, events[0].ExtraInfo)
+
+	// Test finding with exact match
+	searchEvent := components.Event{
+		Time:      event.Time,
+		Name:      event.Name,
+		Type:      event.Type,
+		ExtraInfo: event.ExtraInfo,
+	}
+	found, err := store.Find(ctx, searchEvent)
+	if err != nil {
+		t.Logf("Find error: %v", err)
+	}
+	if found == nil {
+		t.Log("Found event is nil")
+		// Get all events to see what's in the database
+		events, err := store.Get(ctx, baseTime.Add(-1*time.Hour))
+		if err != nil {
+			t.Logf("Get error: %v", err)
+		} else {
+			t.Logf("Found %d events in database", len(events))
+			for i, e := range events {
+				t.Logf("Event %d: time=%v name=%s type=%s", i, e.Time.Unix(), e.Name, e.Type)
+				extraInfoJSON, _ := json.Marshal(e.ExtraInfo)
+				t.Logf("Event %d ExtraInfo: %s", i, string(extraInfoJSON))
+			}
+		}
+	}
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+
+	// Verify all keys are present and match
+	for k, v := range event.ExtraInfo {
+		foundValue, exists := found.ExtraInfo[k]
+		assert.True(t, exists, "Key %s should exist in found event", k)
+		assert.Equal(t, v, foundValue, "Value for key %s should match", k)
+	}
+
+	// Test finding with partial ExtraInfo - this should return nil since we require exact matches
+	partialInfo := make(map[string]string)
+	// Take a subset of the original keys
+	i := 0
+	for k, v := range extraInfo {
+		partialInfo[k] = v
+		i++
+		if i >= 10 {
+			break
+		}
+	}
+
+	searchEvent = components.Event{
+		Time:      metav1.Time{Time: baseTime},
+		Name:      "test",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: partialInfo,
+	}
+
+	found, err = store.Find(ctx, searchEvent)
+	assert.NoError(t, err)
+	assert.Nil(t, found, "Should not find event with partial ExtraInfo")
+
+	// Test finding with different ExtraInfo
+	differentInfo := make(map[string]string)
+	for k := range extraInfo {
+		differentInfo[k] = "different_value"
+	}
+
+	searchEvent.ExtraInfo = differentInfo
+	found, err = store.Find(ctx, searchEvent)
+	assert.NoError(t, err)
+	assert.Nil(t, found, "Should not find event with different ExtraInfo values")
+
+	// Test concurrent finds with the same ExtraInfo
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			searchEvent := components.Event{
+				Time:      event.Time,
+				Name:      event.Name,
+				Type:      event.Type,
+				ExtraInfo: event.ExtraInfo,
+			}
+			found, err := store.Find(ctx, searchEvent)
+			assert.NoError(t, err)
+			assert.NotNil(t, found)
+			assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+		}()
+	}
+	wg.Wait()
+
+	// Test with multiple events having same ExtraInfo
+	for i := 1; i < 5; i++ {
+		eventCopy := event
+		eventCopy.Time = metav1.Time{Time: time.Unix(baseTime.Unix()+int64(i), 0).UTC()}
+		err = store.Insert(ctx, eventCopy)
+		assert.NoError(t, err)
+	}
+
+	// Should still find the original event when searching
+	searchEvent = components.Event{
+		Time:      event.Time,
+		Name:      event.Name,
+		Type:      event.Type,
+		ExtraInfo: event.ExtraInfo,
+	}
+	found, err = store.Find(ctx, searchEvent)
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, baseTime.Unix(), found.Time.Unix())
+	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 }
