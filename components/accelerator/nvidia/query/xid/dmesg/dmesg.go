@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	EventXid = "error_xid"
-
 	// e.g.,
 	// [...] NVRM: Xid (0000:03:00): 14, Channel 00000001
 	// [...] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.
