@@ -236,17 +236,26 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 }
 
 func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) error {
-	start := time.Now()
-	extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
-	if err != nil {
-		return fmt.Errorf("failed to marshal extra info: %w", err)
-	}
-	suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
-	if err != nil {
-		return fmt.Errorf("failed to marshal suggested actions: %w", err)
+	extraInfoJSON := ""
+	if len(ev.ExtraInfo) > 0 {
+		b, err := newOrderedMap(ev.ExtraInfo).marshalJSON()
+		if err != nil {
+			return fmt.Errorf("failed to marshal extra info: %w", err)
+		}
+		extraInfoJSON = string(b)
 	}
 
-	_, err = db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
+	suggestedActionsJSON := ""
+	if ev.SuggestedActions != nil {
+		b, err := json.Marshal(ev.SuggestedActions)
+		if err != nil {
+			return fmt.Errorf("failed to marshal suggested actions: %w", err)
+		}
+		suggestedActionsJSON = string(b)
+	}
+
+	start := time.Now()
+	_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
 		tableName,
 		ColumnTimestamp,
 		ColumnName,
@@ -296,7 +305,7 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 		params = append(params, ev.Message)
 	}
 	if len(ev.ExtraInfo) > 0 {
-		extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
+		extraInfoJSON, err := newOrderedMap(ev.ExtraInfo).marshalJSON()
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal extra info: %w", err)
 		}
@@ -403,8 +412,8 @@ func scanRow(row *sql.Row) (components.Event, error) {
 		event.Message = msg.String
 	}
 	if extraInfo.Valid && len(extraInfo.String) > 0 && extraInfo.String != "null" {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+		extraInfoMap, err := decodeOrderedMap([]byte(extraInfo.String))
+		if err != nil {
 			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 		}
 		event.ExtraInfo = extraInfoMap
@@ -441,14 +450,14 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+	if extraInfo.Valid && len(extraInfo.String) > 0 && extraInfo.String != "null" {
+		extraInfoMap, err := decodeOrderedMap([]byte(extraInfo.String))
+		if err != nil {
 			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 		}
 		event.ExtraInfo = extraInfoMap
 	}
-	if suggestedActions.Valid && suggestedActions.String != "" {
+	if suggestedActions.Valid && len(suggestedActions.String) > 0 && suggestedActions.String != "null" {
 		var suggestedActionsObj common.SuggestedActions
 		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
 			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
