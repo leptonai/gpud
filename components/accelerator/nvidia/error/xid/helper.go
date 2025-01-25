@@ -20,7 +20,7 @@ const (
 const rebootThreshold = 2
 
 // EvolveHealthyState resolves the state of the XID error component.
-// note: assume events are sorted by time in ascending order
+// note: assume events are sorted by time in descending order
 func EvolveHealthyState(events []components.Event) (ret components.State) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
