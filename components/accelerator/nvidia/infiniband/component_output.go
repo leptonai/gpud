@@ -10,7 +10,6 @@ import (
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/log"
 )
 
 // ToOutput converts nvidia_query.Output to Output.
@@ -136,13 +135,15 @@ func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 func (o *Output) States(cfg Config) ([]components.State, error) {
 	// TODO: remove this once we have dynamic expected port states updates
 	// we only keep this for backwards compatibility
-	atLeastPorts := infiniband.CountInfinibandClassBySubDir(cfg.InfinibandClassDirectory)
-	atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductName)
-	log.Logger.Infow("setting default expected port states", "at_least_ports", atLeastPorts, "at_least_rate", atLeastRate, "gpu_product_name", o.GPUProductName)
-	SetDefaultExpectedPortStates(ExpectedPortStates{
-		AtLeastPorts: atLeastPorts,
-		AtLeastRate:  atLeastRate,
-	})
+	defaultExpectedPortStates := GetDefaultExpectedPortStates()
+	if defaultExpectedPortStates.AtLeastPorts == 0 && defaultExpectedPortStates.AtLeastRate == 0 {
+		atLeastPorts := infiniband.CountInfinibandClassBySubDir(cfg.InfinibandClassDirectory)
+		atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductName)
+		SetDefaultExpectedPortStates(ExpectedPortStates{
+			AtLeastPorts: atLeastPorts,
+			AtLeastRate:  atLeastRate,
+		})
+	}
 
 	outputReasons, healthy, err := o.Evaluate(GetDefaultExpectedPortStates())
 	if err != nil {
