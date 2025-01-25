@@ -2,13 +2,15 @@ package dmesg
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestWatch(t *testing.T) {
-	w, err := newWatcher([][]string{{"echo 123"}})
+	w, err := NewWatcherWithCommands([][]string{{"echo 123"}})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -24,7 +26,7 @@ func TestWatch(t *testing.T) {
 
 func TestWatchDmesgLogs(t *testing.T) {
 	// sleep 5 seconds to stream the whole file before command exit
-	w, err := newWatcher([][]string{
+	w, err := NewWatcherWithCommands([][]string{
 		{"cat testdata/dmesg.decode.iso.log.0"},
 		{"cat testdata/dmesg.decode.iso.log.1"},
 		{"sleep 7"},
@@ -131,7 +133,7 @@ func TestParseDmesgLine(t *testing.T) {
 }
 
 func TestWatcherClose(t *testing.T) {
-	w, err := newWatcher([][]string{
+	w, err := NewWatcherWithCommands([][]string{
 		{"sleep 10"},
 	})
 	if err != nil {
@@ -179,7 +181,7 @@ func TestWatcherError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := newWatcher(tt.cmds)
+			_, err := NewWatcherWithCommands(tt.cmds)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("newWatcher() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -213,8 +215,38 @@ func TestFindISOTimestampIndex(t *testing.T) {
 		want  int
 	}{
 		{
+			name:  "invalid month/hour",
+			input: "2023-13-01T25:00:00 invalid date",
+			want:  -1,
+		},
+		{
 			name:  "valid timestamp",
+			input: "kern  :info  : 2025-01-17T15:36:17,173085+00:00",
+			want:  15,
+		},
+		{
+			name:  "invalid timestamp with message",
+			input: "  2024-02-29T15:30:00 some message",
+			want:  -1,
+		},
+		{
+			name:  "no timestamp",
+			input: "no timestamp here",
+			want:  -1,
+		},
+		{
+			name:  "shorter timestamp",
+			input: "kern  :info  : 2025-01-17T15:36:11",
+			want:  -1,
+		},
+		{
+			name:  "valid timestamp but shorter",
 			input: "prefix 2024-01-21T04:41:44 suffix",
+			want:  -1,
+		},
+		{
+			name:  "valid timestamp",
+			input: "prefix 2025-01-17T15:36:17,173085+00:00 suffix",
 			want:  7,
 		},
 		{
@@ -233,14 +265,14 @@ func TestFindISOTimestampIndex(t *testing.T) {
 			want:  -1,
 		},
 		{
-			name:  "timestamp at start",
+			name:  "timestamp at start but shorter",
 			input: "2024-01-21T04:41:44 message",
-			want:  0,
+			want:  -1,
 		},
 		{
-			name:  "multiple timestamps",
+			name:  "multiple timestamps but shorter",
 			input: "2024-01-21T04:41:44 and 2024-01-21T04:41:45",
-			want:  0,
+			want:  -1,
 		},
 	}
 
@@ -254,10 +286,47 @@ func TestFindISOTimestampIndex(t *testing.T) {
 	}
 }
 
+func TestFindTimestampIndexFromFiles(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.ReadDir("testdata")
+	if err != nil {
+		t.Fatalf("failed to read testdata dir: %v", err)
+	}
+
+	for _, entry := range dir {
+		if entry.IsDir() {
+			continue
+		}
+
+		b, err := os.ReadFile(filepath.Join("testdata", entry.Name()))
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		lines := strings.Split(string(b), "\n")
+		for _, line := range lines {
+			if len(line) == 0 {
+				continue
+			}
+
+			idx := findISOTimestampIndex(line)
+			if idx == -1 {
+				t.Logf("file %s: %d %q", entry.Name(), idx, line)
+			}
+
+			// should never happen
+			if idx != -1 && len(line) < len(isoFormat) {
+				t.Errorf("file %s: %d %q", entry.Name(), len(line), line)
+			}
+		}
+	}
+
+}
+
 func TestWatchMultipleCommands(t *testing.T) {
 	// wait for some time to be read
 	// slow CI
-	w, err := newWatcher(
+	w, err := NewWatcherWithCommands(
 		[][]string{
 			{"echo 'first command'"},
 			{"echo 'second command'"},
@@ -286,7 +355,7 @@ func TestWatchMultipleCommands(t *testing.T) {
 }
 
 func TestWatchWithError(t *testing.T) {
-	w, err := newWatcher([][]string{
+	w, err := NewWatcherWithCommands([][]string{
 		{"cat nonexistentfile"},
 	})
 	if err != nil {
@@ -305,50 +374,5 @@ func TestWatchWithError(t *testing.T) {
 
 	if !errorSeen {
 		t.Error("expected to see an error line")
-	}
-}
-
-func TestFindTimestampIndex(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		input    string
-		expected int
-	}{
-		{
-			input:    "2025-01-21T04:41:44 some message",
-			expected: 0,
-		},
-		{
-			input:    "prefix 2023-12-31T23:59:59 some message",
-			expected: 7,
-		},
-		{
-			input:    "  2024-02-29T15:30:00 some message",
-			expected: 2,
-		},
-		{
-			input:    "no timestamp here",
-			expected: -1,
-		},
-		{
-			input:    "",
-			expected: -1,
-		},
-		{
-			input:    "2023-13-01T25:00:00 invalid date", // invalid month/hour
-			expected: -1,
-		},
-		{
-			input:    "partial 2023-01-01 timestamp", // missing time part
-			expected: -1,
-		},
-	}
-
-	for _, tc := range testCases {
-		idx := findISOTimestampIndex(tc.input)
-		if idx != tc.expected {
-			t.Errorf("Expected index %d for input %q, got %d", tc.expected, tc.input, idx)
-		}
 	}
 }

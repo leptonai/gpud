@@ -1,0 +1,24 @@
+kern  :warn  : 2025-01-21T04:41:44,283302+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 8, TPC 5, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,283390+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x546fb0=0x11f000e 0x546fb4=0x24 0x546fa8=0xf81eb60 0x546fac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,283575+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,283671+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,283758+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54cfb0=0x11f000e 0x54cfb4=0x24 0x54cfa8=0xf81eb60 0x54cfac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,283937+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 2, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284042+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54d730=0x11c000e 0x54d734=0x20 0x54d728=0xf81eb60 0x54d72c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284250+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 9, TPC 5, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284345+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 5, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,284433+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x54ef30=0x117000e 0x54ef34=0x24 0x54ef28=0xf81eb60 0x54ef2c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284616+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 1, SM 1): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,284705+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 1, SM 1): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,284792+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x554fb0=0x119000e 0x554fb4=0x24 0x554fa8=0xf81eb60 0x554fac=0x1174
+kern  :warn  : 2025-01-21T04:41:44,284971+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Warp Exception on (GPC 10, TPC 4, SM 0): Out Of Range Address
+kern  :warn  : 2025-01-21T04:41:44,285060+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 10, TPC 4, SM 0): Multiple Warp Errors
+kern  :warn  : 2025-01-21T04:41:44,285147+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics Exception: ESR 0x556730=0x117000e 0x556734=0x24 0x556728=0xf81eb60 0x55672c=0x1174
+kern  :warn  : 2025-01-21T04:41:44,287197+00:00 NVRM: Xid (PCI:0000:38:00): 43, pid=2924364, name=pt_main_thread, Ch 00000008
+kern  :warn  : 2025-01-21T08:41:30,287197+00:00 oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0
+kern  :warn  : 2025-01-21T08:42:30,287197+00:00 oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
+kern  :warn  : 2025-01-21T08:43:30,287197+00:00 Out of memory: Killed process 123, UID 48, (httpd)
+kern  :warn  : 2025-01-21T08:44:30,287197+00:00 Out of memory: Kill process 456 (python) score 50 or sacrifice child
+kern  :warn  : 2025-01-21T08:45:30,287197+00:00 Out of memory: Killed process 123, UID 48, (httpd).
+kern  :warn  : 2025-01-21T08:46:30,287197+00:00 oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,mems_allowed=0-1,oom_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice,task_memcg=/lxc.payload.ny2g2r5hh3-lxc/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda8697f49_441d_4d4f_90d2_6d8e1fa3bbe7.slice/cri-containerd-3fc28fa1c647ceede9f6b340d0b16c9f1f663698972d22a52e296f291638e014.scope,task=node,pid=863987,uid=0
+kern  :warn  : 2025-01-21T08:47:30,287197+00:00 oom-kill:constraint=OTHER_CONSTRAINT

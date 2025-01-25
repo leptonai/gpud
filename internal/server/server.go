@@ -670,7 +670,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, memory.New(ctx, cfg))
+			c, err := memory.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case os_id.Name:
 			cfg := os.Config{Query: defaultQueryCfg}

@@ -8,8 +8,7 @@ import (
 )
 
 func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
-	defaultFilters := DefaultDmesgFiltersForMemory()
-	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForCPU()...)
+	defaultFilters := DefaultDmesgFiltersForCPU()
 	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForFileDescriptor()...)
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)

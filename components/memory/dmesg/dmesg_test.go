@@ -2,6 +2,8 @@ package dmesg
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHasOOM(t *testing.T) {
@@ -220,6 +222,84 @@ func TestHasEDACCorrectableErrors(t *testing.T) {
 			if got := HasEDACCorrectableErrors(tt.input); got != tt.expected {
 				t.Errorf("HasEDACCorrectableErrors() = %v, want %v", got, tt.expected)
 			}
+		})
+	}
+}
+
+func TestMatch(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedName string
+		expectedMsg  string
+	}{
+		{
+			name:         "OOM basic case",
+			input:        "Out of memory: Killed process 123, UID 48, (httpd).",
+			expectedName: EventOOM,
+			expectedMsg:  "oom detected",
+		},
+		{
+			name:         "OOM with timestamp",
+			input:        "[Sun Dec 8 09:23:39 2024] Out of memory: Killed process 123, UID 48, (httpd).",
+			expectedName: EventOOM,
+			expectedMsg:  "oom detected",
+		},
+		{
+			name:         "OOM kill constraint",
+			input:        "oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),",
+			expectedName: EventOOMKillConstraint,
+			expectedMsg:  "oom kill constraint detected",
+		},
+		{
+			name:         "OOM killer invoked",
+			input:        "postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0",
+			expectedName: EventOOMKiller,
+			expectedMsg:  "oom killer detected",
+		},
+		{
+			name:         "OOM killer triggered",
+			input:        "process triggered oom-killer: gfp_mask=0x201d2",
+			expectedName: EventOOMKiller,
+			expectedMsg:  "oom killer detected",
+		},
+		{
+			name:         "OOM cgroup",
+			input:        "Memory cgroup out of memory: Killed process 123, UID 48, (httpd).",
+			expectedName: EventOOMCgroup,
+			expectedMsg:  "oom cgroup detected",
+		},
+		{
+			name:         "EDAC correctable error",
+			input:        "EDAC MC0: 1 CE memory read error",
+			expectedName: EventEDACCorrectableErrors,
+			expectedMsg:  "edac correctable errors detected",
+		},
+		{
+			name:         "EDAC correctable error with DIMM info",
+			input:        "EDAC MC1: 128 CE memory read error on CPU_SrcID#1_Ha#0_Chan#1_DIMM#1",
+			expectedName: EventEDACCorrectableErrors,
+			expectedMsg:  "edac correctable errors detected",
+		},
+		{
+			name:         "non-matching line",
+			input:        "some random log line that doesn't match any patterns",
+			expectedName: "",
+			expectedMsg:  "",
+		},
+		{
+			name:         "empty line",
+			input:        "",
+			expectedName: "",
+			expectedMsg:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, msg := Match(tt.input)
+			assert.Equal(t, tt.expectedName, name)
+			assert.Equal(t, tt.expectedMsg, msg)
 		})
 	}
 }
