@@ -51,9 +51,9 @@ func ExtractNVRMXidDeviceUUID(line string) string {
 }
 
 type XidError struct {
-	Xid        int
-	DeviceUUID string
-	Detail     *xid.Detail
+	Xid        int         `json:"xid"`
+	DeviceUUID string      `json:"device_uuid"`
+	Detail     *xid.Detail `json:"detail,omitempty"`
 }
 
 // Returns a matching xid error object if found.
