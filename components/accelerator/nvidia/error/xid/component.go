@@ -18,7 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/xid/dmesg"
 	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
@@ -155,12 +155,8 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher) {
 			c.mu.Unlock()
 		case dmesgLine := <-watcher.Watch():
 			log.Logger.Debugw("dmesg line", "line", dmesgLine)
-			ev, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: dmesgLine.Timestamp}, dmesgLine.Content)
-			if err != nil {
-				log.Logger.Errorw("failed to parse dmesg line", "error", err)
-				continue
-			}
-			if ev.Detail == nil {
+			xidErr := dmesg.Match(dmesgLine.Content)
+			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip")
 				continue
 			}
@@ -168,15 +164,16 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher) {
 				Time: metav1.Time{Time: dmesgLine.Timestamp},
 				Name: EventNameErroXid,
 				ExtraInfo: map[string]string{
-					EventKeyErroXidData: strconv.FormatInt(int64(ev.Detail.Xid), 10),
-					EventKeyDeviceUUID:  ev.DeviceUUID,
+					EventKeyErroXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
+					EventKeyDeviceUUID:  xidErr.DeviceUUID,
 				},
 			}
 			currEvent, err := c.store.Find(c.rootCtx, event)
 			if err != nil {
-				log.Logger.Errorw("failed to create event", "error", err)
+				log.Logger.Errorw("failed to check event existence", "error", err)
 				continue
 			}
+
 			if currEvent != nil {
 				log.Logger.Debugw("no new events created")
 				continue
