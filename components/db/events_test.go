@@ -1379,3 +1379,98 @@ func TestRetentionPurge(t *testing.T) {
 	assert.Equal(t, 1, len(remaining))
 	assert.Equal(t, "new_event", remaining[0].ExtraInfo["id"])
 }
+
+func TestLatest(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	assert.NoError(t, err)
+	defer store.Close()
+
+	// Test with empty store
+	latestEvent, err := store.Latest(ctx)
+	assert.NoError(t, err)
+	assert.Nil(t, latestEvent, "Latest should return nil for empty store")
+
+	// Insert events with different timestamps
+	baseTime := time.Now().UTC()
+	events := []components.Event{
+		{
+			Time:    metav1.Time{Time: baseTime.Add(-10 * time.Second)},
+			Name:    "test",
+			Type:    common.EventTypeWarning,
+			Message: "old event",
+			ExtraInfo: map[string]string{
+				"id": "event1",
+			},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"old event action"},
+			},
+		},
+		{
+			Time:    metav1.Time{Time: baseTime},
+			Name:    "test",
+			Type:    common.EventTypeInfo,
+			Message: "latest event",
+			ExtraInfo: map[string]string{
+				"id": "event2",
+			},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"latest event action"},
+			},
+		},
+		{
+			Time:    metav1.Time{Time: baseTime.Add(-5 * time.Second)},
+			Name:    "test",
+			Type:    common.EventTypeCritical,
+			Message: "middle event",
+			ExtraInfo: map[string]string{
+				"id": "event3",
+			},
+			SuggestedActions: &common.SuggestedActions{
+				Descriptions: []string{"middle event action"},
+			},
+		},
+	}
+
+	// Insert events in random order
+	for _, event := range events {
+		err = store.Insert(ctx, event)
+		assert.NoError(t, err)
+	}
+
+	// Get latest event
+	latestEvent, err = store.Latest(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, latestEvent)
+
+	// Verify it's the event with the most recent timestamp
+	assert.Equal(t, baseTime.Unix(), latestEvent.Time.Unix())
+	assert.Equal(t, "latest event", latestEvent.Message)
+	assert.Equal(t, common.EventTypeInfo, latestEvent.Type)
+	assert.Equal(t, "event2", latestEvent.ExtraInfo["id"])
+	assert.Equal(t, "latest event action", latestEvent.SuggestedActions.Descriptions[0])
+
+	// Test with canceled context
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+	_, err = store.Latest(canceledCtx)
+	assert.Error(t, err)
+
+	// Test after purging all events
+	deleted, err := store.Purge(ctx, baseTime.Add(time.Hour).Unix())
+	assert.NoError(t, err)
+	assert.Equal(t, 3, deleted)
+
+	latestEvent, err = store.Latest(ctx)
+	assert.NoError(t, err)
+	assert.Nil(t, latestEvent, "Latest should return nil after purging all events")
+}

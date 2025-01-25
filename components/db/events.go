@@ -78,7 +78,14 @@ var (
 type Store interface {
 	Insert(ctx context.Context, ev components.Event) error
 	Find(ctx context.Context, ev components.Event) (*components.Event, error)
+
+	// Returns the event in the descending order of timestamp (latest event first).
 	Get(ctx context.Context, since time.Time) ([]components.Event, error)
+
+	// Returns the latest event.
+	// Returns nil if no event found.
+	Latest(ctx context.Context) (*components.Event, error)
+
 	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
 	Close()
 }
@@ -165,6 +172,12 @@ func (s *storeImpl) Find(ctx context.Context, ev components.Event) (*components.
 // Returns the event in the descending order of timestamp (latest event first).
 func (s *storeImpl) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return getEvents(ctx, s.dbRO, s.table, since)
+}
+
+// Returns the latest event.
+// Returns nil if no event found.
+func (s *storeImpl) Latest(ctx context.Context) (*components.Event, error) {
+	return lastEvent(ctx, s.dbRO, s.table)
 }
 
 func (s *storeImpl) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -346,6 +359,25 @@ ORDER BY %s DESC`,
 		return nil, nil
 	}
 	return events, nil
+}
+
+func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*components.Event, error) {
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s FROM %s ORDER BY %s DESC LIMIT 1`,
+		ColumnTimestamp, ColumnName, ColumnType, ColumnMessage, ColumnExtraInfo, ColumnSuggestedActions, tableName, ColumnTimestamp)
+
+	start := time.Now()
+	row := db.QueryRowContext(ctx, query)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
+	foundEvent, err := scanRow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &foundEvent, nil
 }
 
 func scanRow(row *sql.Row) (components.Event, error) {

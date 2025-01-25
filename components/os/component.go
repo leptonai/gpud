@@ -7,38 +7,46 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/log"
-
-	"github.com/dustin/go-humanize"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg Config) (components.Component, error) {
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(os_id.Name),
+		3*24*time.Hour,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
+	setDefaultPoller(cfg, eventsStore)
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, os_id.Name)
 
 	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
-		cfg:     cfg,
-	}
+		rootCtx:     ctx,
+		cancel:      ccancel,
+		poller:      getDefaultPoller(),
+		eventsStore: eventsStore,
+		cfg:         cfg,
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
-	cfg     Config
+	rootCtx     context.Context
+	cancel      context.CancelFunc
+	poller      query.Poller
+	eventsStore events_db.Store
+	cfg         Config
 }
 
 func (c *component) Name() string { return os_id.Name }
@@ -85,29 +93,9 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
+// Returns the event in the descending order of timestamp (latest event first).
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	rebootEvents, err := state.GetRebootEvents(ctx, c.cfg.Query.State.DBRW, since)
-	if err != nil {
-		return nil, err
-	}
-	if len(rebootEvents) == 0 {
-		return nil, nil
-	}
-
-	now := time.Now().UTC()
-	evs := make([]components.Event, 0, len(rebootEvents))
-	for _, event := range rebootEvents {
-		rebootedAt := time.Unix(event.UnixSeconds, 0)
-		rebootedAtHumanized := humanize.RelTime(rebootedAt, now, "ago", "from now")
-
-		evs = append(evs, components.Event{
-			Time:    metav1.Time{Time: rebootedAt},
-			Name:    "reboot",
-			Type:    common.EventTypeWarning,
-			Message: fmt.Sprintf("system reboot detected (%s)", rebootedAtHumanized),
-		})
-	}
-	return evs, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -121,6 +109,8 @@ func (c *component) Close() error {
 
 	// safe to call stop multiple times
 	c.poller.Stop(os_id.Name)
+
+	c.eventsStore.Close()
 
 	return nil
 }
