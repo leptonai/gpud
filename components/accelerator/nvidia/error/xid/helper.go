@@ -31,7 +31,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	xidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
-		log.Logger.Debugf("EvolveHealthyState: event: %v %v", event.Time, event.Name)
+		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, xidRebootMap, lastXidErr)
 		if event.Name == EventNameErroXid {
 			resolvedEvent := resolveXIDEvent(event)
 			var currXidErr XidError
@@ -47,7 +47,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 			case common.EventTypeFatal:
 				currEvent = StateUnhealthy
 			}
-			if currEvent <= lastHealth {
+			if currEvent < lastHealth {
 				continue
 			}
 			lastHealth = currEvent

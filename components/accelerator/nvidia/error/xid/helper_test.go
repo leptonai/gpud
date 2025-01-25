@@ -3,30 +3,36 @@ package xid
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/common"
 )
 
-func TestStateUpdateBasedOnEvents(t *testing.T) {
-	createXidEvent := func(xid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
-		xidErr := XidError{
-			Xid:        xid,
-			DataSource: "test",
-			SuggestedActionsByGPUd: &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{suggestedAction},
-			},
-		}
-		xidData, _ := json.Marshal(xidErr)
-		return components.Event{
-			Name:      EventNameErroXid,
-			Type:      eventType,
-			ExtraInfo: map[string]string{EventKeyErroXidData: string(xidData)},
-		}
+func createXidEvent(eventTime time.Time, xid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
+	xidErr := XidError{
+		Xid:        xid,
+		DataSource: "test",
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{suggestedAction},
+		},
 	}
+	xidData, _ := json.Marshal(xidErr)
+	ret := components.Event{
+		Name:      EventNameErroXid,
+		Type:      eventType,
+		ExtraInfo: map[string]string{EventKeyErroXidData: string(xidData)},
+	}
+	if !eventTime.IsZero() {
+		ret.Time = metav1.Time{Time: eventTime}
+	}
+	return ret
+}
 
+func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
 		state := EvolveHealthyState([]components.Event{})
 		assert.True(t, state.Healthy)
@@ -36,7 +42,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("critical xid", func(t *testing.T) {
 		events := []components.Event{
-			createXidEvent(123, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 123, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
@@ -46,7 +52,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("fatal xid", func(t *testing.T) {
 		events := []components.Event{
-			createXidEvent(456, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 456, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
@@ -57,7 +63,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("reboot recover", func(t *testing.T) {
 		events := []components.Event{
 			{Name: "reboot"},
-			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
@@ -66,11 +72,12 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
 		events := []components.Event{
-			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createXidEvent(789, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 31, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
@@ -80,7 +87,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("SetHealthy", func(t *testing.T) {
 		events := []components.Event{
 			{Name: "SetHealthy"},
-			createXidEvent(789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)

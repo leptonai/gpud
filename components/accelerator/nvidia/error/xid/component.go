@@ -49,7 +49,7 @@ func New(ctx context.Context, cfg nvidia_common.Config, dbRW *sql.DB, dbRO *sql.
 	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
 	extraEventCh := make(chan *components.Event, 256)
-	localStore, err := db.NewStore(dbRW, dbRO, "components_accelerator_nvidia_error_xid_events", DefaultRetentionPeriod)
+	localStore, err := db.NewStore(dbRW, dbRO, db.CreateDefaultTableName(nvidia_component_error_xid_id.Name), DefaultRetentionPeriod)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()
@@ -88,7 +88,7 @@ func (c *XIDComponent) Start() error {
 		return nil
 	}
 
-	go c.start(watcher)
+	go c.start(watcher, DefaultStateUpdatePeriod)
 
 	return nil
 }
@@ -125,8 +125,8 @@ func (c *XIDComponent) Close() error {
 	return nil
 }
 
-func (c *XIDComponent) start(watcher pkg_dmesg.Watcher) {
-	ticker := time.NewTicker(DefaultStateUpdatePeriod)
+func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Duration) {
+	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
 		select {
@@ -134,7 +134,7 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher) {
 			return
 		case <-ticker.C:
 			if err := c.updateCurrentState(); err != nil {
-				log.Logger.Errorw("failed to fetch current events", "error", err)
+				log.Logger.Debugw("failed to fetch current events", "error", err)
 				continue
 			}
 		case newEvent := <-c.extraEventCh:
