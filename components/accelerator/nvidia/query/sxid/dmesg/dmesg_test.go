@@ -40,6 +40,11 @@ func TestExtractNVSwitchSXid(t *testing.T) {
 			input:    "[131453.740758] nvidia-nvswitch0: SXid (PCI:0000:a9:00.0): 20034, Data {0x50610002, 0x10100030}",
 			expected: 20034,
 		},
+		{
+			name:     "NVSwitch SXid with unknown code",
+			input:    "[131453.740758] nvidia-nvswitch0: SXid (PCI:0000:a9:00.0): 11111, Data {0x50610002, 0x10100030}",
+			expected: 11111,
+		},
 	}
 
 	for _, tt := range tests {
@@ -124,6 +129,11 @@ func TestMatch(t *testing.T) {
 		{
 			name:      "invalid SXid number",
 			input:     "nvidia-nvswitch0: SXid (PCI:0000:00:00.0): xyz, Fatal error",
+			expectNil: true,
+		},
+		{
+			name:      "unknown SXid code",
+			input:     "[131453.740758] nvidia-nvswitch0: SXid (PCI:0000:a9:00.0): 11111, Data {0x50610002, 0x10100030}",
 			expectNil: true,
 		},
 	}
