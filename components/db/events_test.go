@@ -1552,7 +1552,10 @@ func TestExtraInfoOrderedMap(t *testing.T) {
 	}
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+	assert.NotNil(t, found.ExtraInfo)
+	if found.ExtraInfo != nil {
+		assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+	}
 
 	// Verify all keys are present and match
 	for k, v := range event.ExtraInfo {

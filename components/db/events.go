@@ -268,8 +268,8 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev component
 		ev.Name,
 		ev.Type,
 		ev.Message,
-		string(extraInfoJSON),
-		string(suggestedActionsJSON),
+		extraInfoJSON,
+		suggestedActionsJSON,
 	)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
