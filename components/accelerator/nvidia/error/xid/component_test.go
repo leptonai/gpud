@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	"github.com/leptonai/gpud/components/common"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -117,7 +116,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, nvidia_common.Config{}, dbRW, dbRO)
+	component := New(ctx, dbRW, dbRO)
 	assert.NotNil(t, component)
 	err := component.SetHealthy()
 	assert.NoError(t, err)
@@ -136,7 +135,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, nvidia_common.Config{}, dbRW, dbRO)
+	component := New(ctx, dbRW, dbRO)
 	assert.NotNil(t, component)
 	watcher, err := pkg_dmesg.NewWatcher()
 	assert.NoError(t, err)
@@ -182,7 +181,7 @@ func TestXIDComponent_States(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, nvidia_common.Config{}, dbRW, dbRO)
+	component := New(ctx, dbRW, dbRO)
 	assert.NotNil(t, component)
 	watcher, err := pkg_dmesg.NewWatcher()
 	assert.NoError(t, err)

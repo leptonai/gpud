@@ -16,17 +16,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/xid/dmesg"
 	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 
 const (
+	StateNameErrorXid = "error_xid"
+
+	EventNameErroXid    = "error_xid"
+	EventKeyErroXidData = "data"
+	EventKeyDeviceUUID  = "device_uuid"
+
 	DefaultRetentionPeriod   = 3 * 24 * time.Hour
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
@@ -34,19 +38,14 @@ const (
 type XIDComponent struct {
 	rootCtx      context.Context
 	cancel       context.CancelFunc
-	poller       query.Poller
 	currState    components.State
 	extraEventCh chan *components.Event
 	store        db.Store
 	mu           sync.RWMutex
 }
 
-func New(ctx context.Context, cfg nvidia_common.Config, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
-
+func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
 	extraEventCh := make(chan *components.Event, 256)
 	localStore, err := db.NewStore(dbRW, dbRO, db.CreateDefaultTableName(nvidia_component_error_xid_id.Name), DefaultRetentionPeriod)
@@ -58,7 +57,6 @@ func New(ctx context.Context, cfg nvidia_common.Config, dbRW *sql.DB, dbRO *sql.
 	return &XIDComponent{
 		rootCtx:      cctx,
 		cancel:       ccancel,
-		poller:       getDefaultPoller(),
 		extraEventCh: extraEventCh,
 		store:        localStore,
 	}
@@ -120,7 +118,6 @@ func (c *XIDComponent) Metrics(ctx context.Context, since time.Time) ([]componen
 func (c *XIDComponent) Close() error {
 	log.Logger.Debugw("closing XIDComponent")
 	// safe to call stop multiple times
-	c.poller.Stop(nvidia_component_error_xid_id.Name)
 	c.cancel()
 	return nil
 }
