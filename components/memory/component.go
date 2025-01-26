@@ -41,7 +41,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	}
 
 	return &component{
-		rootCtx:     ctx,
+		ctx:         cctx,
 		cancel:      ccancel,
 		poller:      getDefaultPoller(),
 		cfg:         cfg,
@@ -53,7 +53,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx     context.Context
+	ctx         context.Context
 	cancel      context.CancelFunc
 	poller      query.Poller
 	cfg         Config
@@ -142,6 +142,7 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
 	// safe to call stop multiple times
 	c.poller.Stop(memory_id.Name)
