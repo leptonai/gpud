@@ -5,42 +5,61 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/dmesg"
+	events_db "github.com/leptonai/gpud/components/db"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg Config) (components.Component, error) {
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(memory_id.Name),
+		3*24*time.Hour,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, memory_id.Name)
 
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
+	w, err := newWatcher(cctx, eventsStore)
+	if err != nil {
+		ccancel()
+		return nil, err
 	}
+
+	return &component{
+		ctx:         cctx,
+		cancel:      ccancel,
+		poller:      getDefaultPoller(),
+		cfg:         cfg,
+		watcher:     w,
+		eventsStore: eventsStore,
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	ctx         context.Context
+	cancel      context.CancelFunc
+	poller      query.Poller
+	cfg         Config
+	watcher     *watcher
+	eventsStore events_db.Store
+	gatherer    prometheus.Gatherer
 }
 
 func (c *component) Name() string { return memory_id.Name }
@@ -87,67 +106,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
-const (
-	EventKeyUnixSeconds = "unix_seconds"
-	EventKeyLogLine     = "log_line"
-)
-
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgEvents, err := dmesgComponent.Events(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]components.Event, 0)
-	for _, ev := range dmesgEvents {
-		v, ok := ev.ExtraInfo[dmesg.EventKeyDmesgMatchedLogItem]
-		if !ok {
-			continue
-		}
-		item, err := query_log.ParseItemJSON([]byte(v))
-		if err != nil || item.Matched == nil {
-			log.Logger.Errorw("failed to parse log item or none matched", "error", err)
-			continue
-		}
-
-		name := ""
-		included := false
-		for _, owner := range item.Matched.OwnerReferences {
-			if owner != memory_id.Name {
-				continue
-			}
-			name = item.Matched.Name
-			included = true
-		}
-		if !included {
-			continue
-		}
-
-		events = append(events, components.Event{
-			Time: ev.Time,
-			Name: name,
-			Type: common.EventTypeWarning,
-			ExtraInfo: map[string]string{
-				EventKeyUnixSeconds: strconv.FormatInt(ev.Time.Unix(), 10),
-				EventKeyLogLine:     item.Line,
-			},
-		})
-	}
-
-	return events, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -182,9 +142,13 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
 	// safe to call stop multiple times
 	c.poller.Stop(memory_id.Name)
+
+	c.watcher.close()
+	c.eventsStore.Close()
 
 	return nil
 }

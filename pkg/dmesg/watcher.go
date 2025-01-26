@@ -32,6 +32,10 @@ type LogLine struct {
 	Error string
 }
 
+func (l LogLine) IsEmpty() bool {
+	return l.Timestamp.IsZero() && l.Facility == "" && l.Level == "" && l.Content == "" && l.Error == ""
+}
+
 type Watcher interface {
 	// Watch returns a channel that emits log lines.
 	// The channel is closed on (1) process exit, (2) on calling "Close" method
@@ -42,10 +46,10 @@ type Watcher interface {
 }
 
 func NewWatcher() (Watcher, error) {
-	return newWatcher(DefaultWatchCommands)
+	return NewWatcherWithCommands(DefaultWatchCommands)
 }
 
-func newWatcher(cmds [][]string) (Watcher, error) {
+func NewWatcherWithCommands(cmds [][]string) (Watcher, error) {
 	if len(cmds) == 0 {
 		return nil, errors.New("no commands provided")
 	}
@@ -145,8 +149,6 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 	}
 }
 
-const isoFormat = "2006-01-02T15:04:05,999999-07:00"
-
 // parses the timestamp from "dmesg --time-format=iso" output lines.
 // "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
 func parseDmesgLine(line string) LogLine {
@@ -195,7 +197,11 @@ func parseDmesgLine(line string) LogLine {
 	return logLine
 }
 
-var isoTsRegex = regexp.MustCompile(`\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)`)
+const isoFormat = "2006-01-02T15:04:05,999999-07:00"
+
+// shorter "2025-01-17T15:36:11" should not match
+// only "2025-01-17T15:36:17,304997+00:00" should match
+var isoTsRegex = regexp.MustCompile(`\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):([0-5]\d):([0-5]\d),\d{6}[+-]\d{2}:\d{2}`)
 
 func findISOTimestampIndex(s string) int {
 	loc := isoTsRegex.FindStringIndex(s)
