@@ -13,7 +13,10 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/components/metrics"
@@ -87,24 +90,43 @@ func (s *Session) serve() {
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
-				if componentName != "accelerator-nvidia-error-xid" {
-					continue
-				}
-				rawComponent, err := components.GetComponent("accelerator-nvidia-error-xid")
-				if err != nil {
-					log.Logger.Errorw("failed to get component", "error", err)
-					continue
-				}
-				if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
-					if component, ok := watchable.Component.(*xid.XIDComponent); ok {
-						if err = component.SetHealthy(); err != nil {
-							log.Logger.Errorw("failed to set xid healthy", "error", err)
+				switch componentName {
+				case nvidia_component_error_xid_id.Name:
+					rawComponent, err := components.GetComponent(nvidia_component_error_xid_id.Name)
+					if err != nil {
+						log.Logger.Errorw("failed to get component", "error", err)
+						continue
+					}
+					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
+						if component, ok := watchable.Component.(*xid.XIDComponent); ok {
+							if err = component.SetHealthy(); err != nil {
+								log.Logger.Errorw("failed to set xid healthy", "error", err)
+							}
+						} else {
+							log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
 						}
 					} else {
-						log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
+						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
 					}
-				} else {
-					log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+				case nvidia_component_error_sxid_id.Name:
+					rawComponent, err := components.GetComponent(nvidia_component_error_sxid_id.Name)
+					if err != nil {
+						log.Logger.Errorw("failed to get component", "error", err)
+						continue
+					}
+					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
+						if component, ok := watchable.Component.(*sxid.SXIDComponent); ok {
+							if err = component.SetHealthy(); err != nil {
+								log.Logger.Errorw("failed to set sxid healthy", "error", err)
+							}
+						} else {
+							log.Logger.Errorf("failed to cast component to sxid component: %T", watchable)
+						}
+					} else {
+						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+					}
+				default:
+					log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
 				}
 			}
 		case "update":
