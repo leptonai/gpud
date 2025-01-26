@@ -7,6 +7,7 @@ import (
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	query_config "github.com/leptonai/gpud/components/query/config"
+	"github.com/leptonai/gpud/log"
 )
 
 type Config struct {
@@ -30,6 +31,8 @@ func GetDefaultExpectedPortStates() ExpectedPortStates {
 }
 
 func SetDefaultExpectedPortStates(states ExpectedPortStates) {
+	log.Logger.Infow("setting default expected port states", "at_least_ports", states.AtLeastPorts, "at_least_rate", states.AtLeastRate)
+
 	defaultExpectedPortStatesMu.Lock()
 	defer defaultExpectedPortStatesMu.Unlock()
 	defaultExpectedPortStates = states
