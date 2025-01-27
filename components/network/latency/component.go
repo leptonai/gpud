@@ -43,6 +43,8 @@ type component struct {
 
 func (c *component) Name() string { return network_latency_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err != nil {

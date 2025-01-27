@@ -26,6 +26,8 @@ type component struct {
 
 func (c *component) Name() string { return kernel_module_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	b, err := os.ReadFile(DefaultEtcModulesPath)
 	if err != nil {

@@ -50,6 +50,8 @@ type component struct {
 
 func (c *component) Name() string { return library_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	reasons := []string{}
 	for lib := range c.libraries {

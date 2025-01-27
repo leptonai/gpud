@@ -24,6 +24,8 @@ type component struct {
 
 func (c *component) Name() string { return file_id.Name }
 
+func (c *component) Start() error { return nil }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	unhealthy := []components.State{}
 	for _, file := range c.filesToCheck {

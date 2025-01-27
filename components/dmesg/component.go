@@ -50,6 +50,8 @@ type Component struct {
 
 func (c *Component) Name() string { return Name }
 
+func (c *Component) Start() error { return nil }
+
 func (c *Component) TailScan() (*State, error) {
 	s := &State{
 		File:         c.logPoller.File(),
@@ -94,12 +96,7 @@ func (c *Component) States(ctx context.Context) ([]components.State, error) {
 // The dmesg component events returns the realtime events from the dmesg log poller.
 // Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
 func (c *Component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	items, err := c.logPoller.Find(since)
-	if err != nil {
-		return nil, err
-	}
-	ev := &Event{Matched: items}
-	return ev.Events(), nil
+	return nil, nil
 }
 
 func (c *Component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

@@ -5,150 +5,236 @@ package xid
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/xid/dmesg"
+	"github.com/leptonai/gpud/components/db"
+	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/log"
+	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
+const (
+	StateNameErrorXid = "error_xid"
 
+	EventNameErroXid    = "error_xid"
+	EventKeyErroXidData = "data"
+	EventKeyDeviceUUID  = "device_uuid"
+
+	DefaultRetentionPeriod   = 3 * 24 * time.Hour
+	DefaultStateUpdatePeriod = 30 * time.Second
+)
+
+type XIDComponent struct {
+	rootCtx      context.Context
+	cancel       context.CancelFunc
+	currState    components.State
+	extraEventCh chan *components.Event
+	store        db.Store
+	mu           sync.RWMutex
+}
+
+func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, nvidia_component_error_xid_id.Name)
 
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
-	}
-}
-
-var _ components.Component = (*component)(nil)
-
-type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
-}
-
-func (c *component) Name() string { return nvidia_component_error_xid_id.Name }
-
-// Just checks if the xid poller is working.
-func (c *component) States(_ context.Context) ([]components.State, error) {
-	return []components.State{
-		{
-			Name:    StateNameErrorXid,
-			Healthy: true,
-			Reason:  "xid event polling is working",
-		},
-	}, nil
-}
-
-// tailScan fetches the latest output from the dmesg and the NVML poller
-// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-// 2) NVML poller "Last" costs nothing, since we simply read the last state in the queue (no NVML call involved)
-func (c *component) tailScan() (*Output, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
+	extraEventCh := make(chan *components.Event, 256)
+	localStore, err := db.NewStore(dbRW, dbRO, db.CreateDefaultTableName(nvidia_component_error_xid_id.Name), DefaultRetentionPeriod)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorw("failed to create store", "error", err)
+		ccancel()
+		return nil
 	}
+	return &XIDComponent{
+		rootCtx:      cctx,
+		cancel:       ccancel,
+		extraEventCh: extraEventCh,
+		store:        localStore,
+	}
+}
 
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
+var _ components.Component = (*XIDComponent)(nil)
 
-	o := &Output{}
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
+func (c *XIDComponent) Name() string { return nvidia_component_error_xid_id.Name }
+
+func (c *XIDComponent) Start() error {
+	initializeBackoff := 1 * time.Second
+	for {
+		if err := c.updateCurrentState(); err != nil {
+			if strings.Contains(err.Error(), context.Canceled.Error()) {
+				log.Logger.Infow("context canceled, exiting")
+				return nil
+			}
+			log.Logger.Errorw("failed to fetch current events", "error", err)
+			time.Sleep(initializeBackoff)
 			continue
 		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNVRMXid {
-			continue
-		}
-
-		ev, err := nvidia_query_xid.ParseDmesgLogLine(logItem.Time, logItem.Line)
-		if err != nil {
-			return nil, err
-		}
-		o.DmesgErrors = append(o.DmesgErrors, ev)
+		break
+	}
+	watcher, err := pkg_dmesg.NewWatcher()
+	if err != nil {
+		log.Logger.Errorw("failed to create dmesg watcher", "error", err)
+		return nil
 	}
 
-	last, err := c.poller.LastSuccess()
+	go c.start(watcher, DefaultStateUpdatePeriod)
 
-	// no data yet from realtime xid poller
-	// just return whatever we got from dmesg
-	if err == query.ErrNoData {
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_component_error_xid_id.Name)
-		return o, nil
-	}
+	return nil
+}
 
-	// something went wrong in the poller
-	// just return an error to surface the issue
+func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return []components.State{c.currState}, nil
+}
+
+func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+	var ret []components.Event
+	events, err := c.store.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
-
-	ev, ok := last.Output.(*nvidia_query_nvml.XidEvent)
-	if !ok { // shoild never happen
-		return nil, fmt.Errorf("invalid output type: %T, expected nvidia_query_nvml.XidEvent", last.Output)
+	for _, event := range events {
+		ret = append(ret, resolveXIDEvent(event))
 	}
-	if ev != nil && ev.Xid > 0 {
-		o.NVMLXidEvent = ev
-
-		if lerr := c.poller.LastError(); lerr != nil {
-			log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-		}
-
-		lastSuccessPollElapsed := time.Now().UTC().Sub(ev.Time.Time)
-		if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-			log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-		}
-	}
-
-	return o, nil
+	return ret, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	o, err := c.tailScan()
-	if err != nil {
-		return nil, err
-	}
-	return o.getEvents(since), nil
-}
-
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
+func (c *XIDComponent) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
 	return nil, nil
 }
 
-func (c *component) Close() error {
-	log.Logger.Debugw("closing component")
-
+func (c *XIDComponent) Close() error {
+	log.Logger.Debugw("closing XIDComponent")
 	// safe to call stop multiple times
-	c.poller.Stop(nvidia_component_error_xid_id.Name)
-
+	c.cancel()
 	return nil
+}
+
+func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Duration) {
+	ticker := time.NewTicker(updatePeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.rootCtx.Done():
+			return
+		case <-ticker.C:
+			if err := c.updateCurrentState(); err != nil {
+				log.Logger.Debugw("failed to fetch current events", "error", err)
+				continue
+			}
+		case newEvent := <-c.extraEventCh:
+			if newEvent == nil {
+				continue
+			}
+			if err := c.store.Insert(c.rootCtx, *newEvent); err != nil {
+				log.Logger.Errorw("failed to create event", "error", err)
+				continue
+			}
+			events, err := c.store.Get(c.rootCtx, time.Time{})
+			if err != nil {
+				log.Logger.Errorw("failed to get all events", "error", err)
+				continue
+			}
+			c.mu.Lock()
+			c.currState = EvolveHealthyState(events)
+			c.mu.Unlock()
+		case dmesgLine := <-watcher.Watch():
+			log.Logger.Debugw("dmesg line", "line", dmesgLine)
+			xidErr := dmesg.Match(dmesgLine.Content)
+			if xidErr == nil {
+				log.Logger.Debugw("not xid event, skip")
+				continue
+			}
+			event := components.Event{
+				Time: metav1.Time{Time: dmesgLine.Timestamp},
+				Name: EventNameErroXid,
+				ExtraInfo: map[string]string{
+					EventKeyErroXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
+					EventKeyDeviceUUID:  xidErr.DeviceUUID,
+				},
+			}
+			currEvent, err := c.store.Find(c.rootCtx, event)
+			if err != nil {
+				log.Logger.Errorw("failed to check event existence", "error", err)
+				continue
+			}
+
+			if currEvent != nil {
+				log.Logger.Debugw("no new events created")
+				continue
+			}
+			if err = c.store.Insert(c.rootCtx, event); err != nil {
+				log.Logger.Errorw("failed to create event", "error", err)
+				continue
+			}
+			events, err := c.store.Get(c.rootCtx, time.Time{})
+			if err != nil {
+				log.Logger.Errorw("failed to get all events", "error", err)
+				continue
+			}
+			c.mu.Lock()
+			c.currState = EvolveHealthyState(events)
+			c.mu.Unlock()
+		}
+	}
+}
+
+func (c *XIDComponent) SetHealthy() error {
+	log.Logger.Debugw("set healthy event received")
+	newEvent := &components.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
+	select {
+	case c.extraEventCh <- newEvent:
+	default:
+		log.Logger.Debugw("channel full, set healthy event skipped")
+	}
+	return nil
+}
+
+func (c *XIDComponent) updateCurrentState() error {
+	osComponent, err := components.GetComponent(os_id.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get os component: %w", err)
+	}
+	osEvents, err := osComponent.Events(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+	if err != nil {
+		return fmt.Errorf("failed to get os events: %w", err)
+	}
+	localEvents, err := c.store.Get(c.rootCtx, time.Time{})
+	if err != nil {
+		return fmt.Errorf("failed to get all events: %w", err)
+	}
+	events := mergeEvents(osEvents, localEvents)
+	c.mu.Lock()
+	c.currState = EvolveHealthyState(events)
+	c.mu.Unlock()
+	return nil
+}
+
+// mergeEvents merges two event slices and returns a time descending sorted new slice
+func mergeEvents(a, b []components.Event) []components.Event {
+	totalLen := len(a) + len(b)
+	if totalLen == 0 {
+		return nil
+	}
+	result := make([]components.Event, 0, totalLen)
+	result = append(result, a...)
+	result = append(result, b...)
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Time.Time.After(result[j].Time.Time)
+	})
+
+	return result
 }

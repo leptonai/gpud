@@ -780,19 +780,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_error.New(ctx, cfg))
 
 		case nvidia_component_error_xid_id.Name:
-			// "defaultQueryCfg" here has the db object to read xid events (read-only, writes are done in poller)
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, nvidia_error_xid.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_error_xid.New(ctx, dbRW, dbRO))
 
 		case nvidia_component_error_sxid_id.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
@@ -1253,6 +1241,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 		} else {
 			log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
+		}
+	}
+
+	for _, c := range allComponents {
+		if err = c.Start(); err != nil {
+			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
+			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
 	}
 

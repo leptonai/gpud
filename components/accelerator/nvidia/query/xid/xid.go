@@ -1650,7 +1650,7 @@ var details = map[int]Detail{
 			},
 
 			Descriptions: []string{
-				"Xid 45, marked as critical in GPUd, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.",
+				"Xid 45, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.",
 			},
 
 			RepairActions: []common.RepairActionType{
@@ -2467,11 +2467,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			Descriptions: []string{
 				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
-				"System reboot is recommended when convenient, but not required immediately.",
 			},
 
 			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeCheckUserAppAndGPU,
 				common.RepairActionTypeRebootSystem,
 			},
 		},
@@ -3376,7 +3374,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 			},
 
 			Descriptions: []string{
-				"Xid 92, marked as critical in GPUd, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.",
+				"Xid 92, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.",
 			},
 
 			RepairActions: []common.RepairActionType{

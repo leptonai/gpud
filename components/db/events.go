@@ -237,11 +237,17 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 
 func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) error {
 	start := time.Now()
-	extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
-	if err != nil {
-		return fmt.Errorf("failed to marshal extra info: %w", err)
+	var extraInfoJSON, suggestedActionsJSON []byte
+	var err error
+	if ev.ExtraInfo != nil {
+		extraInfoJSON, err = json.Marshal(ev.ExtraInfo)
+		if err != nil {
+			return fmt.Errorf("failed to marshal extra info: %w", err)
+		}
 	}
-	suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
+	if ev.SuggestedActions != nil {
+		suggestedActionsJSON, err = json.Marshal(ev.SuggestedActions)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to marshal suggested actions: %w", err)
 	}
@@ -284,9 +290,6 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	if ev.Message != "" {
 		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnMessage)
 	}
-	if len(ev.ExtraInfo) > 0 {
-		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnExtraInfo)
-	}
 	if ev.SuggestedActions != nil {
 		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnSuggestedActions)
 	}
@@ -294,13 +297,6 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	params := []any{ev.Time.Unix(), ev.Name, ev.Type}
 	if ev.Message != "" {
 		params = append(params, ev.Message)
-	}
-	if len(ev.ExtraInfo) > 0 {
-		extraInfoJSON, err := json.Marshal(ev.ExtraInfo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal extra info: %w", err)
-		}
-		params = append(params, string(extraInfoJSON))
 	}
 	if ev.SuggestedActions != nil {
 		suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
@@ -310,16 +306,28 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 		params = append(params, string(suggestedActionsJSON))
 	}
 
-	row := db.QueryRowContext(ctx, selectStatement, params...)
-	foundEvent, err := scanRow(row)
+	start := time.Now()
+	rows, err := db.QueryContext(ctx, selectStatement, params...)
+	sqlite.RecordSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	defer rows.Close()
 
-	return &foundEvent, nil
+	for rows.Next() {
+		event, err := scanRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		if compareEvent(event, ev) {
+			return &event, nil
+		}
+	}
+	return nil, nil
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
@@ -476,4 +484,16 @@ func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimest
 		return 0, err
 	}
 	return int(affected), nil
+}
+
+func compareEvent(eventA, eventB components.Event) bool {
+	if len(eventA.ExtraInfo) != len(eventB.ExtraInfo) {
+		return false
+	}
+	for key, value := range eventA.ExtraInfo {
+		if val, ok := eventB.ExtraInfo[key]; !ok || val != value {
+			return false
+		}
+	}
+	return true
 }

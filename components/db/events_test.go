@@ -442,7 +442,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "dmesg",
 			Type:      common.EventTypeWarning,
-			ExtraInfo: map[string]string{"a": "b"},
+			ExtraInfo: map[string]string{"a": "b", "c": "d"},
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"first event"},
 			},
@@ -533,8 +533,7 @@ func TestEventWithIDs(t *testing.T) {
 
 	found, err = store.Find(ctx, partialEvent)
 	assert.NoError(t, err)
-	assert.NotNil(t, found)
-	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
+	assert.Nil(t, found, "Should not find event with different ExtraInfo")
 
 	// Test find with different ExtraInfo
 	differentEvent := components.Event{
@@ -1473,4 +1472,105 @@ func TestLatest(t *testing.T) {
 	latestEvent, err = store.Latest(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, latestEvent, "Latest should return nil after purging all events")
+}
+
+func TestCompareEvent(t *testing.T) {
+	tests := []struct {
+		name     string
+		eventA   components.Event
+		eventB   components.Event
+		expected bool
+	}{
+		{
+			name: "same events",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different key-value pairs",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "different_value",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "eventB missing key",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "eventA missing key",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+				},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "empty events",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{},
+			},
+			expected: true,
+		},
+		{
+			name: "one empty event",
+			eventA: components.Event{
+				ExtraInfo: map[string]string{},
+			},
+			eventB: components.Event{
+				ExtraInfo: map[string]string{
+					"key1": "value1",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareEvent(tt.eventA, tt.eventB)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_error_xid_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error-xid-sxid/id"
@@ -53,6 +54,8 @@ type component struct {
 }
 
 func (c *component) Name() string { return nvidia_error_xid_sxid_id.Name }
+
+func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return nil, nil
