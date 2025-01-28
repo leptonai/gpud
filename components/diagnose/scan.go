@@ -240,7 +240,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			query_log_tail.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
 			query_log_tail.WithLinesToTail(op.lines),
 			query_log_tail.WithSelectFilter(dmesg.DefaultDmesgFiltersForNvidia()...),
-			query_log_tail.WithExtractTime(pkg_dmesg.ParseISOtimeWithError),
+			query_log_tail.WithExtractTime(func(l []byte) (time.Time, []byte, error) {
+				dm := pkg_dmesg.ParseDmesgLine(string(l))
+				return dm.Timestamp, l, nil
+			}),
 			query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
 				log.Logger.Debugw("matched", "line", string(line))
 				fmt.Println("line", string(line))

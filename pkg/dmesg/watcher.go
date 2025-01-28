@@ -131,7 +131,7 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 				return
 			}
 
-			logLine := parseDmesgLine(line)
+			logLine := ParseDmesgLine(line)
 			select {
 			case <-ctx.Done():
 				return
@@ -155,7 +155,7 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 
 // parses the timestamp from "dmesg --time-format=iso" output lines.
 // "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
-func parseDmesgLine(line string) LogLine {
+func ParseDmesgLine(line string) LogLine {
 	logLine := LogLine{Timestamp: time.Now().UTC(), Content: line}
 
 	// grep the first numeric characters to truncate the decodePfx
