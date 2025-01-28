@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
@@ -107,21 +106,21 @@ func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 		return msgMustSetPortsOrRate, true, nil
 	}
 
-	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
-		return fmt.Sprintf("%q GPUs do not support infiniband while configured to check ibstat", o.GPUProductName), true, nil
-	}
+	// if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
+	// 	return fmt.Sprintf("%q GPUs do not support infiniband while configured to check ibstat", o.GPUProductName), true, nil
+	// }
 
-	if len(o.Ibstat.Errors) > 0 {
-		return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
-	}
+	// if len(o.Ibstat.Errors) > 0 {
+	// 	return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
+	// }
 
-	if !o.IbstatExists {
-		return msgNoIbstatExists, false, nil
-	}
+	// if !o.IbstatExists {
+	// 	return msgNoIbstatExists, false, nil
+	// }
 
-	if len(o.Ibstat.Parsed) == 0 {
-		return msgNoIbstatDataFound, false, nil
-	}
+	// if len(o.Ibstat.Parsed) == 0 {
+	// 	return msgNoIbstatDataFound, false, nil
+	// }
 
 	atLeastPorts := cfg.AtLeastPorts
 	atLeastRate := cfg.AtLeastRate
