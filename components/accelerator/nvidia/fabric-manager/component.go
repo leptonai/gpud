@@ -22,15 +22,9 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(cfg.Log.Query.State.DBRW),
-		nvidia_query.WithDBRO(cfg.Log.Query.State.DBRO),
-		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
-		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
-		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
-		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
-	)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	if nvidia_query.GetDefaultPoller() != nil {
+		nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
+	}
 
 	if err := cfg.Log.Validate(); err != nil {
 		ccancel()

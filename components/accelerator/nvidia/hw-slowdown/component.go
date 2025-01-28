@@ -5,22 +5,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
 	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -33,18 +31,10 @@ const (
 	DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute = 0.6
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config, eventsStore events_db.Store) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
-		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
-		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
-		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
-		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
-		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
-	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_hw_slowdown_id.Name)
 
 	return &component{
@@ -55,21 +45,7 @@ func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
 
-		readEvents: func(ctx context.Context, since time.Time) ([]nvidia_hw_slowdown_state.Event, error) {
-			// the default nvidia poller persists the events to the storage
-			// so we can just read from the storage
-			return nvidia_hw_slowdown_state.ReadEvents(
-				ctx,
-				cfg.Query.State.DBRO,
-
-				nvidia_hw_slowdown_state.WithSince(since),
-
-				// in order to dedup nvidia-smi events and prioritize nvml events
-				// otherwise, we have deduplicate objects from nvml and nvidia-smi
-				// deprecate this once we removed nvidia-smi dependency
-				nvidia_hw_slowdown_state.WithDedupDataSource(true),
-			)
-		},
+		eventsStore: eventsStore,
 	}
 }
 
@@ -84,7 +60,7 @@ type component struct {
 	poller   query.Poller
 	gatherer prometheus.Gatherer
 
-	readEvents func(ctx context.Context, since time.Time) ([]nvidia_hw_slowdown_state.Event, error)
+	eventsStore events_db.Store
 }
 
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
@@ -108,7 +84,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	since := time.Now().UTC().Add(-c.stateHWSlowdownEvaluationWindow)
 
-	events, err := c.readEvents(ctx, since)
+	events, err := c.eventsStore.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +101,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	eventsByMinute := make(map[int]struct{})
 	for _, event := range events {
-		min := int(event.Timestamp / 60) // unix seconds to minutes
+		min := int(event.Time.Unix() / 60) // unix seconds to minutes
 		eventsByMinute[min] = struct{}{}
 	}
 
@@ -167,30 +143,7 @@ const (
 )
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := c.readEvents(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(events) == 0 {
-		log.Logger.Debugw("no event found for /events", "component", c.Name(), "since", humanize.Time(since))
-		return nil, nil
-	}
-
-	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
-	convertedEvents := make([]components.Event, 0, len(events))
-	for _, event := range events {
-		convertedEvents = append(convertedEvents, components.Event{
-			Time:    metav1.Time{Time: time.Unix(event.Timestamp, 0).UTC()},
-			Name:    EventNameHWSlowdown,
-			Type:    common.EventTypeWarning,
-			Message: strings.Join(event.Reasons, ", "),
-			ExtraInfo: map[string]string{
-				EventKeyGPUUUID: event.GPUUUID,
-			},
-		})
-	}
-	return convertedEvents, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {

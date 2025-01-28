@@ -17,6 +17,7 @@ import (
 	"net/http/pprof"
 	goOS "os"
 	"path"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -50,7 +51,6 @@ import (
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -77,6 +77,7 @@ import (
 	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	"github.com/leptonai/gpud/components/cpu"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
+	events_db "github.com/leptonai/gpud/components/db"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/dmesg"
@@ -88,7 +89,6 @@ import (
 	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/fuse"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
-	fuse_state "github.com/leptonai/gpud/components/fuse/state"
 	"github.com/leptonai/gpud/components/info"
 	info_id "github.com/leptonai/gpud/components/info/id"
 	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
@@ -232,29 +232,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := fuse_state.CreateTableFUSEConnectionsEventHistory(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create fuse connections state table: %w", err)
-	}
-	go func() {
-		dur := fuse_state.DefaultRetentionPeriod
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-
-				purged, err := fuse_state.Purge(ctx, dbRW, fuse_state.WithBefore(before))
-				if err != nil {
-					log.Logger.Warnw("failed to delete FUSE connections events", "error", err)
-				} else {
-					log.Logger.Debugw("deleted FUSE connections events", "before", before, "purged", purged)
-				}
-			}
-		}
-	}()
-
 	// create nvidia-specific table regardless of whether nvidia components are enabled
 	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create nvidia xid/sxid state table: %w", err)
@@ -279,28 +256,43 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := nvidia_hw_slowdown_state.CreateTable(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create nvidia clock events table: %w", err)
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		return nil, err
 	}
-	go func() {
-		dur := nvidia_hw_slowdown_state.DefaultRetentionPeriod
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
 
-				purged, err := nvidia_hw_slowdown_state.Purge(ctx, dbRW, nvidia_hw_slowdown_state.WithBefore(before))
-				if err != nil {
-					log.Logger.Warnw("failed to delete nvidia clock events", "error", err)
-				} else {
-					log.Logger.Debugw("deleted nvidia clock events", "before", before, "purged", purged)
-				}
-			}
+	var eventsStoreNvidiaErrorXid events_db.Store
+	var eventsStoreNvidiaHWSlowdown events_db.Store
+	if runtime.GOOS == "linux" && nvidiaInstalled {
+		eventsStoreNvidiaErrorXid, err = events_db.NewStore(
+			dbRW,
+			dbRO,
+			events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			return nil, err
 		}
-	}()
+
+		eventsStoreNvidiaHWSlowdown, err = events_db.NewStore(
+			dbRW,
+			dbRO,
+			events_db.CreateDefaultTableName(nvidia_hw_slowdown_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		nvidia_query.SetDefaultPoller(
+			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
+			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
+			nvidia_query.WithNvidiaSMICommand(options.NvidiaSMICommand),
+			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
+			nvidia_query.WithIbstatCommand(options.IbstatCommand),
+			nvidia_query.WithInfinibandClassDirectory(options.InfinibandClassDirectory),
+		)
+	}
 
 	if err := pci_state.CreateTable(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create pci state table: %w", err)
@@ -510,7 +502,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, fuse.New(ctx, cfg))
+			c, err := fuse.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case pci_id.Name:
 			cfg := pci.Config{Query: defaultQueryCfg}
@@ -812,7 +808,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, cfg, eventsStoreNvidiaHWSlowdown))
 
 		case nvidia_clock_speed_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
