@@ -89,8 +89,10 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithDBRW(op.dbRW),
-		nvml.WithDBRO(op.dbRO),
+		nvml.WithDBRW(op.dbRW), // to deprecate
+		nvml.WithDBRO(op.dbRO), // to deprecate
+		nvml.WithXidEventsStore(op.xidEventsStore),
+		nvml.WithHWSlowdownEventsStore(op.hwslowdownEventsStore),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,

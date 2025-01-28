@@ -18,14 +18,6 @@ func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
-		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
-		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
-		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
-		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
-		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
-	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_gsp_firmware_mode_id.Name)
 
 	return &component{
