@@ -12,6 +12,10 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
+var DefaultDmesgScanCommands = [][]string{
+	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920"},
+}
+
 var DefaultWatchCommands = [][]string{
 	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -w || true"},
 
