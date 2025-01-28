@@ -2,6 +2,7 @@
 package fuse
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -49,6 +50,10 @@ type ConnectionInfo struct {
 	// no filesystem activity and 'waiting' is non-zero, then the
 	// filesystem is hung or deadlocked.
 	Waiting int `json:"waiting"`
+}
+
+func (info ConnectionInfo) JSON() ([]byte, error) {
+	return json.Marshal(info)
 }
 
 type ConnectionInfos []ConnectionInfo
