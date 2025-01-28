@@ -10,12 +10,15 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -461,8 +464,8 @@ func (o *SMIOutput) FindHWSlowdownErrs() []string {
 	return errs
 }
 
-func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []nvidia_hw_slowdown_state.Event {
-	var events []nvidia_hw_slowdown_state.Event
+func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []components.Event {
+	var events []components.Event
 	for _, g := range o.GPUs {
 		if g.ClockEventReasons == nil {
 			continue
@@ -474,11 +477,15 @@ func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []nvidia_hw_slowdown_sta
 		}
 		sort.Strings(hwSlowdownErrs)
 
-		events = append(events, nvidia_hw_slowdown_state.Event{
-			Timestamp:  unixSeconds,
-			DataSource: "nvidia-smi",
-			GPUUUID:    g.ID,
-			Reasons:    hwSlowdownErrs,
+		events = append(events, components.Event{
+			Time:    metav1.Time{Time: time.Unix(unixSeconds, 0).UTC()},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: strings.Join(hwSlowdownErrs, ", "),
+			ExtraInfo: map[string]string{
+				"data_source": "nvidia-smi",
+				"gpu_uuid":    g.ID,
+			},
 		})
 	}
 	return events
