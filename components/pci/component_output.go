@@ -3,16 +3,20 @@ package pci
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/pci/id"
-	"github.com/leptonai/gpud/components/pci/state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/dustin/go-humanize"
 )
@@ -35,12 +39,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
+func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			id.Name,
 			cfg.Query,
-			CreateGet(cfg),
+			CreateGet(eventsStore),
 			nil,
 		)
 	})
@@ -50,7 +54,7 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
+func CreateGet(eventsStore events_db.Store) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -60,26 +64,28 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 			}
 		}()
 
-		devices, err := pci.List(ctx)
+		// Virtual machines
+		// Virtual machines require ACS to function, hence disabling ACS is not an option.
+		//
+		// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
+		if currentVirtEnv.IsKVM {
+			return nil, nil
+		}
+		// unknown virtualization environment
+		if currentVirtEnv.Type == "" {
+			return nil, nil
+		}
+
+		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+		lastEvent, err := eventsStore.Latest(cctx)
+		ccancel()
 		if err != nil {
 			return nil, err
 		}
 
 		nowUTC := time.Now().UTC()
-		since := nowUTC.Add(-24 * time.Hour)
-
-		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		evs, err := state.ReadEvents(
-			cctx,
-			cfg.Query.State.DBRO,
-			state.WithSince(since),
-		)
-		cancel()
-		if err != nil {
-			return nil, err
-		}
-		if len(evs) > 0 {
-			log.Logger.Debugw("found events thus skipping", "since", humanize.Time(since))
+		if lastEvent != nil && nowUTC.Sub(lastEvent.Time.Time) < 24*time.Hour {
+			log.Logger.Debugw("found events thus skipping -- we only check once per day", "since", humanize.Time(nowUTC))
 			return nil, nil
 		}
 
@@ -95,16 +101,19 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 		// Virtual machines require ACS to function, hence disabling ACS is not an option.
 		//
 		// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
+		devices, err := pci.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+
 		uuids := make([]string, 0)
-		if currentVirtEnv.Type != "" && !currentVirtEnv.IsKVM {
-			for _, dev := range devices {
-				// check whether ACS is enabled on PCI bridges
-				if dev.AccessControlService == nil {
-					continue
-				}
-				if dev.AccessControlService.ACSCtl.SrcValid {
-					uuids = append(uuids, dev.ID)
-				}
+		for _, dev := range devices {
+			// check whether ACS is enabled on PCI bridges
+			if dev.AccessControlService == nil {
+				continue
+			}
+			if dev.AccessControlService.ACSCtl.SrcValid {
+				uuids = append(uuids, dev.ID)
 			}
 		}
 
@@ -112,14 +121,18 @@ func CreateGet(cfg Config) func(ctx context.Context) (_ any, e error) {
 			return nil, nil
 		}
 
-		acsReasons := append([]string{fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices", currentVirtEnv.Type)}, uuids...)
-		cctx, cancel = context.WithTimeout(ctx, 10*time.Second)
-		err = state.InsertEvent(cctx, cfg.Query.State.DBRW, state.Event{
-			UnixSeconds: nowUTC.Unix(),
-			DataSource:  id.Name,
-			EventType:   "acs_enabled",
-			Reasons:     acsReasons,
-		})
+		ev := components.Event{
+			Time:    metav1.Time{Time: nowUTC},
+			Name:    "acs_enabled",
+			Type:    common.EventTypeWarning,
+			Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", currentVirtEnv.Type, strings.Join(uuids, ", ")),
+		}
+
+		// no need to check duplicates
+		// since we check once above
+
+		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		err = eventsStore.Insert(cctx, ev)
 		cancel()
 		if err != nil {
 			return nil, err
