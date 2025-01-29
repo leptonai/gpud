@@ -4,6 +4,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -57,6 +58,8 @@ func SetDefaultPoller(opts ...OpOption) {
 		)
 	})
 }
+
+var ErrDefaultPollerNotSet = errors.New("default nvidia poller is not set")
 
 func GetDefaultPoller() query.Poller {
 	return defaultPoller
