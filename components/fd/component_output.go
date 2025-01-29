@@ -96,6 +96,20 @@ const (
 	StateKeyFileHandlesSupported = "file_handles_supported"
 	// Set to true if the file descriptor limit is supported.
 	StateKeyFDLimitSupported = "fd_limit_supported"
+
+	// Threshold values for health checks
+	CriticalFileHandlesAllocationPercent = 95.0
+	WarningFileHandlesAllocationPercent  = 80.0
+	CriticalFileDescriptorUsagePercent   = 95.0
+	WarningRunningPIDsThresholdPercent   = 80.0
+
+	// Error messages for health checks
+	ErrFileHandlesAllocationExceedsCritical = "file handles allocation exceeds 95%"
+	ErrFileHandlesAllocationExceedsWarning  = "file handles allocation exceeds its threshold (80%)"
+	ErrFileDescriptorUsageExceedsCritical   = "file descriptor usage exceeds 95%"
+	ErrRunningPIDsExceedsWarning            = "running PIDs exceeds its threshold (80%)"
+	ErrTooManyRunningPIDs                   = "too many running PIDs (exceeds threshold %d)"
+	ErrTooManyFileHandlesAllocated          = "too many file handles allocated (exceeds threshold %d)"
 )
 
 func ParseStateFileDescriptors(m map[string]string) (*Output, error) {
@@ -183,31 +197,31 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
-	if allocatedPercent, err := o.GetAllocatedFileHandlesPercent(); err == nil && allocatedPercent > 95.0 {
+	if allocatedPercent, err := o.GetAllocatedFileHandlesPercent(); err == nil && allocatedPercent > CriticalFileHandlesAllocationPercent {
 		state.Healthy = false
-		state.Reason += "; allocated_file_handles_percent is greater than 95"
+		state.Reason += "; " + ErrFileHandlesAllocationExceedsCritical
 	}
-	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > 80.0 {
+	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
 		state.Healthy = false
-		state.Reason += "; threshold_allocated_file_handles_percent is greater than 80"
+		state.Reason += "; " + ErrFileHandlesAllocationExceedsWarning
 	}
 
-	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > 95.0 {
+	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > CriticalFileDescriptorUsagePercent {
 		state.Healthy = false
-		state.Reason += "; used_percent is greater than 95"
+		state.Reason += "; " + ErrFileDescriptorUsageExceedsCritical
 	}
-	if thresholdRunningPIDsPercent, err := o.GetThresholdRunningPIDsPercent(); err == nil && thresholdRunningPIDsPercent > 80.0 {
+	if thresholdRunningPIDsPercent, err := o.GetThresholdRunningPIDsPercent(); err == nil && thresholdRunningPIDsPercent > WarningRunningPIDsThresholdPercent {
 		state.Healthy = false
-		state.Reason += "; threshold_running_pids_percent is greater than 80"
+		state.Reason += "; " + ErrRunningPIDsExceedsWarning
 	}
 
 	if o.FDLimitSupported && o.ThresholdRunningPIDs > 0 && o.RunningPIDs > o.ThresholdRunningPIDs {
 		state.Healthy = false
-		state.Reason += "; running_pids is greater than threshold_running_pids"
+		state.Reason += fmt.Sprintf("; "+ErrTooManyRunningPIDs, o.ThresholdRunningPIDs)
 	}
 	if o.FileHandlesSupported && o.ThresholdAllocatedFileHandles > 0 && o.AllocatedFileHandles > o.ThresholdAllocatedFileHandles {
 		state.Healthy = false
-		state.Reason += "; allocated_file_handles is greater than threshold_allocated_file_handles"
+		state.Reason += fmt.Sprintf("; "+ErrTooManyFileHandlesAllocated, o.ThresholdAllocatedFileHandles)
 	}
 
 	// may fail on Mac OS
