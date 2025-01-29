@@ -111,7 +111,7 @@ func TestParseDmesgLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseDmesgLine(tt.input)
+			got := ParseDmesgLine(tt.input)
 
 			if tt.wantTime && !got.Timestamp.Equal(tt.want.Timestamp) {
 				t.Errorf("Timestamp = %v, want %v", got.Timestamp, tt.want.Timestamp)
@@ -205,6 +205,66 @@ func TestContextCancellation(t *testing.T) {
 	// Wait for channel to close
 	for range ch {
 		// Drain the channel
+	}
+}
+
+func TestContextCancellationWithTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ch, err := watch(ctx, [][]string{
+		{"sleep 10"},
+	})
+	if err != nil {
+		t.Fatalf("failed to create watch: %v", err)
+	}
+
+	// Wait for channel to close due to timeout
+	start := time.Now()
+	for range ch {
+		// Drain the channel
+	}
+	duration := time.Since(start)
+
+	// Should complete around the timeout duration
+	if duration > 200*time.Millisecond {
+		t.Errorf("watch took too long to cancel: %v", duration)
+	}
+}
+
+func TestContextCancellationWithMultipleCommands(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch, err := watch(ctx, [][]string{
+		{"echo 'first'"},
+		{"sleep 1"},
+		{"echo 'second'"},
+		{"sleep 10"},
+	})
+	if err != nil {
+		t.Fatalf("failed to create watch: %v", err)
+	}
+
+	var lines []string
+	timer := time.NewTimer(200 * time.Millisecond)
+	go func() {
+		<-timer.C
+		cancel()
+	}()
+
+	for line := range ch {
+		lines = append(lines, line.Content)
+	}
+
+	// Should see 'first' but might not see 'second' due to cancellation
+	found := false
+	for _, line := range lines {
+		if line == "first" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to see 'first' in output before cancellation")
 	}
 }
 

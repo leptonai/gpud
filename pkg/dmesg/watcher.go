@@ -12,6 +12,10 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
+var DefaultDmesgScanCommands = [][]string{
+	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920"},
+}
+
 var DefaultWatchCommands = [][]string{
 	{"dmesg --decode --time-format=iso --nopager --buffer-size 163920 -w || true"},
 
@@ -127,11 +131,10 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 				return
 			}
 
-			logLine := parseDmesgLine(line)
 			select {
 			case <-ctx.Done():
 				return
-			case ch <- logLine:
+			case ch <- ParseDmesgLine(line):
 			default:
 				log.Logger.Warnw("failed to send event -- dropped")
 			}
@@ -151,7 +154,7 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 
 // parses the timestamp from "dmesg --time-format=iso" output lines.
 // "The definition of the iso timestamp is: YYYY-MM-DD<T>HH:MM:SS,<microseconds>←+><timezone offset from UTC>."
-func parseDmesgLine(line string) LogLine {
+func ParseDmesgLine(line string) LogLine {
 	logLine := LogLine{Timestamp: time.Now().UTC(), Content: line}
 
 	// grep the first numeric characters to truncate the decodePfx
