@@ -19,25 +19,21 @@ import (
 
 const Name = "accelerator-nvidia-processes"
 
-func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
+	if nvidia_query.GetDefaultPoller() == nil {
+		return nil, nvidia_query.ErrDefaultPollerNotSet
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
 
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
-		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
-		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
-		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
-		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
-		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
-	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	return &component{
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
-	}
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)

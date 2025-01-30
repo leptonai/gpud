@@ -6,12 +6,30 @@ import (
 	"testing"
 	"time"
 
+	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	query_config "github.com/leptonai/gpud/components/query/config"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestComponentWithNoPoller(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defaultPoller := nvidia_query.GetDefaultPoller()
+	_, err := New(ctx, Config{})
+
+	if defaultPoller != nil {
+		// expects no error
+		assert.NoError(t, err)
+	} else {
+		// expects error
+		assert.Equal(t, err, nvidia_query.ErrDefaultPollerNotSet)
+	}
+}
 
 func TestComponentLog(t *testing.T) {
 	t.Parallel()
@@ -29,17 +47,13 @@ func TestComponentLog(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbRW, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer dbRW.Close()
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
 
-	dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer dbRO.Close()
+	nvidia_query.SetDefaultPoller(
+		nvidia_query.WithDBRW(dbRW),
+		nvidia_query.WithDBRO(dbRO),
+	)
 
 	pollInterval := 3 * time.Second
 	component, err := New(

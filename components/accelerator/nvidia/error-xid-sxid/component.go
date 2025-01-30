@@ -21,19 +21,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
+func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
+	if nvidia_query.GetDefaultPoller() == nil {
+		return nil, nvidia_query.ErrDefaultPollerNotSet
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
 
 	// this starts the Xid poller via "nvml.StartDefaultInstance"
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(cfg.Query.State.DBRW),
-		nvidia_query.WithDBRO(cfg.Query.State.DBRO),
-		nvidia_query.WithNvidiaSMICommand(cfg.NvidiaSMICommand),
-		nvidia_query.WithNvidiaSMIQueryCommand(cfg.NvidiaSMIQueryCommand),
-		nvidia_query.WithIbstatCommand(cfg.IbstatCommand),
-		nvidia_query.WithInfinibandClassDirectory(cfg.InfinibandClassDirectory),
-	)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_error_xid_sxid_id.Name)
 
 	return &component{
@@ -41,7 +37,7 @@ func New(ctx context.Context, cfg nvidia_common.Config) components.Component {
 		rootCtx: ctx,
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
-	}
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)
