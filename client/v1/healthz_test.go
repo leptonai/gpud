@@ -45,6 +45,34 @@ func TestCheckHealthz(t *testing.T) {
 	}
 }
 
+func TestCheckHealthzInvalidURL(t *testing.T) {
+	err := CheckHealthz(context.Background(), "invalid-url")
+	if err == nil {
+		t.Error("CheckHealthz() with invalid URL should return error")
+	}
+}
+
+func TestCheckHealthzContextCancellation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		json, _ := server.DefaultHealthz.JSON()
+		_, err := w.Write(json)
+		if err != nil {
+			t.Errorf("Error writing response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := CheckHealthz(ctx, srv.URL)
+	if err == nil {
+		t.Error("CheckHealthz() with canceled context should return error")
+	}
+}
+
 func TestCheckHealthzWithCustomClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/healthz" {
@@ -60,10 +88,29 @@ func TestCheckHealthzWithCustomClient(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	customClient := &http.Client{}
+	customClient := &http.Client{Timeout: 1 * time.Second}
 	err := CheckHealthz(context.Background(), srv.URL, WithHTTPClient(customClient))
 	if err != nil {
 		t.Errorf("CheckHealthz() with custom client error = %v, want nil", err)
+	}
+}
+
+func TestCheckHealthzTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		json, _ := server.DefaultHealthz.JSON()
+		_, err := w.Write(json)
+		if err != nil {
+			t.Errorf("Error writing response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 100 * time.Millisecond}
+	err := CheckHealthz(context.Background(), srv.URL, WithHTTPClient(client))
+	if err == nil {
+		t.Error("CheckHealthz() with timeout should return error")
 	}
 }
 
@@ -118,5 +165,52 @@ func TestBlockUntilServerReady(t *testing.T) {
 				t.Errorf("BlockUntilServerReady() error = %v, expectedError %v", err, tt.expectedError)
 			}
 		})
+	}
+}
+
+func TestBlockUntilServerReadyInvalidURL(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := BlockUntilServerReady(ctx, "invalid-url")
+	if err == nil {
+		t.Error("BlockUntilServerReady() with invalid URL should return error")
+	}
+}
+
+func TestBlockUntilServerReadyWithCustomInterval(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json, _ := server.DefaultHealthz.JSON()
+		_, err := w.Write(json)
+		if err != nil {
+			t.Errorf("Error writing response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+	err := BlockUntilServerReady(ctx, srv.URL, WithCheckInterval(10*time.Millisecond))
+	if err != nil {
+		t.Errorf("BlockUntilServerReady() with custom interval error = %v, want nil", err)
+	}
+}
+
+func TestBlockUntilServerReadyWithInvalidResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(`{"invalid":"json"}`))
+		if err != nil {
+			t.Errorf("Error writing response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	err := BlockUntilServerReady(ctx, srv.URL, WithCheckInterval(50*time.Millisecond))
+	if err == nil {
+		t.Error("BlockUntilServerReady() with invalid response should return error")
 	}
 }

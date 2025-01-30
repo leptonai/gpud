@@ -193,6 +193,8 @@ func (o *SMIOutput) YAML() ([]byte, error) {
 	return yaml.Marshal(o)
 }
 
+var ErrNoGPUFoundFromSMIQuery = errors.New("no GPU found from nvidia-smi --query")
+
 // Decodes the "nvidia-smi --query" output.
 // ref. https://developer.nvidia.com/system-management-interface
 func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
@@ -366,6 +368,10 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 		if gpu != nil {
 			out.GPUs = append(out.GPUs, *gpu)
 		}
+	}
+
+	if len(out.GPUs) == 0 {
+		return nil, ErrNoGPUFoundFromSMIQuery
 	}
 
 	for i := range out.GPUs {

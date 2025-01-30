@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -36,6 +37,20 @@ func TestGetSMIOutput(t *testing.T) {
 		o.Summary = ""
 
 		t.Logf("%q:\n%+v", queryFile, o)
+	}
+}
+
+func TestGetSMIOutputError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := GetSMIOutput(
+		ctx,
+		[]string{"echo", "invalid-output-is-here-should-fail"},
+		[]string{"echo", "invalid-output-is-here-should-fail"},
+	)
+	if !errors.Is(err, ErrNoGPUFoundFromSMIQuery) {
+		t.Errorf("GetSMIOutput() should return %v, got %v", ErrNoGPUFoundFromSMIQuery, err)
 	}
 }
 
