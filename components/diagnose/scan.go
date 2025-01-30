@@ -8,13 +8,15 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/dustin/go-humanize"
+	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
+	events_db "github.com/leptonai/gpud/components/db"
 	"github.com/leptonai/gpud/components/dmesg"
 	query_log_common "github.com/leptonai/gpud/components/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
@@ -28,6 +30,7 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
+	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -125,6 +128,26 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 		defer db.Close()
 
+		eventsStoreNvidiaErrorXid, err := events_db.NewStore(
+			db,
+			db,
+			events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			log.Logger.Fatalw("failed to create events store", "error", err)
+		}
+
+		eventsStoreNvidiaHWSlowdown, err := events_db.NewStore(
+			db,
+			db,
+			events_db.CreateDefaultTableName(nvidia_hw_slowdown_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			log.Logger.Fatalw("failed to create events store", "error", err)
+		}
+
 		// "nvidia_query.Get" assumes that the "clock-events-state" table exists
 		// pre-create since this is a one-off operation
 		// TODO: move these into a single place
@@ -134,8 +157,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 		outputRaw, err := nvidia_query.Get(
 			ctx,
-			nvidia_query.WithDBRW(db),
-			nvidia_query.WithDBRO(db),
+			nvidia_query.WithDBRW(db), // to deprecate in favor of events store
+			nvidia_query.WithDBRO(db), // to deprecate in favor of events store
+			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
+			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
 			nvidia_query.WithNvidiaSMICommand(op.nvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
