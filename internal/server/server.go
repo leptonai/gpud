@@ -78,6 +78,7 @@ import (
 	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	"github.com/leptonai/gpud/components/cpu"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
+	events_db "github.com/leptonai/gpud/components/db"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/dmesg"
@@ -196,10 +197,32 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, err
 	}
+	var eventsStoreNvidiaErrorXid events_db.Store
+	var eventsStoreNvidiaHWSlowdown events_db.Store
 	if runtime.GOOS == "linux" && nvidiaInstalled {
+		eventsStoreNvidiaErrorXid, err = events_db.NewStore(
+			dbRW,
+			dbRO,
+			events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			return nil, err
+		}
+		eventsStoreNvidiaHWSlowdown, err = events_db.NewStore(
+			dbRW,
+			dbRO,
+			events_db.CreateDefaultTableName(nvidia_hw_slowdown_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			return nil, err
+		}
 		nvidia_query.SetDefaultPoller(
 			nvidia_query.WithDBRW(dbRW), // to deprecate in favor of events store
 			nvidia_query.WithDBRO(dbRO), // to deprecate in favor of events store
+			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
+			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
 			nvidia_query.WithNvidiaSMICommand(options.NvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(options.IbstatCommand),
