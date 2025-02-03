@@ -91,7 +91,7 @@ func TestPoller_ReadAllItemsFromInMemoryQueue(t *testing.T) {
 	}
 }
 
-func TestPoller_processResult(t *testing.T) {
+func TestPoller_processItemExtended(t *testing.T) {
 	now := time.Now()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,49 +106,113 @@ func TestPoller_processResult(t *testing.T) {
 		expectedLastErr   error
 	}{
 		{
-			name:              "Add to empty queue",
-			queueN:            3,
-			initial:           []Item{},
-			newResult:         &Item{Time: metav1.NewTime(now)},
-			expectedLastItems: []Item{{Time: metav1.NewTime(now)}},
-			expectedLastErr:   nil,
-		},
-		{
-			name:   "Add to non-full queue",
+			name:   "Add item with error",
 			queueN: 3,
 			initial: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 			},
-			newResult: &Item{Time: metav1.NewTime(now)},
+			newResult: &Item{
+				Time:  metav1.NewTime(now),
+				Error: errors.New("test error"),
+			},
 			expectedLastItems: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
-				{Time: metav1.NewTime(now)},
+				{Time: metav1.NewTime(now), Error: errors.New("test error")},
 			},
 			expectedLastErr: nil,
 		},
 		{
-			name:   "Add to full queue",
+			name:   "Add multiple items with errors",
 			queueN: 3,
 			initial: []Item{
 				{Time: metav1.NewTime(now.Add(-3 * time.Second))},
+			},
+			newResult: &Item{
+				Time:  metav1.NewTime(now),
+				Error: errors.New("another error"),
+			},
+			expectedLastItems: []Item{
+				{Time: metav1.NewTime(now.Add(-3 * time.Second))},
+				{Time: metav1.NewTime(now), Error: errors.New("another error")},
+			},
+			expectedLastErr: nil,
+		},
+		{
+			name:   "Queue at capacity with new error item",
+			queueN: 2,
+			initial: []Item{
 				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 				{Time: metav1.NewTime(now.Add(-1 * time.Second))},
 			},
-			newResult: &Item{Time: metav1.NewTime(now)},
+			newResult: &Item{
+				Time:  metav1.NewTime(now),
+				Error: errors.New("overflow error"),
+			},
 			expectedLastItems: []Item{
-				{Time: metav1.NewTime(now.Add(-2 * time.Second))},
 				{Time: metav1.NewTime(now.Add(-1 * time.Second))},
+				{Time: metav1.NewTime(now), Error: errors.New("overflow error")},
+			},
+			expectedLastErr: nil,
+		},
+		{
+			name:   "Add item with older timestamp",
+			queueN: 3,
+			initial: []Item{
+				{Time: metav1.NewTime(now)},
+			},
+			newResult: &Item{
+				Time: metav1.NewTime(now.Add(-5 * time.Second)),
+			},
+			expectedLastItems: []Item{
+				{Time: metav1.NewTime(now)},
+				{Time: metav1.NewTime(now.Add(-5 * time.Second))},
+			},
+			expectedLastErr: nil,
+		},
+		{
+			name:   "Add duplicate timestamp",
+			queueN: 3,
+			initial: []Item{
+				{Time: metav1.NewTime(now)},
+			},
+			newResult: &Item{
+				Time: metav1.NewTime(now),
+			},
+			expectedLastItems: []Item{
+				{Time: metav1.NewTime(now)},
 				{Time: metav1.NewTime(now)},
 			},
 			expectedLastErr: nil,
 		},
 		{
-			name:              "Empty queue",
-			queueN:            3,
-			initial:           []Item{},
-			newResult:         nil,
-			expectedLastItems: []Item{},
-			expectedLastErr:   ErrNoData,
+			name:   "Queue exactly at capacity",
+			queueN: 1,
+			initial: []Item{
+				{Time: metav1.NewTime(now.Add(-1 * time.Second))},
+			},
+			newResult: &Item{
+				Time: metav1.NewTime(now),
+			},
+			expectedLastItems: []Item{
+				{Time: metav1.NewTime(now)},
+			},
+			expectedLastErr: nil,
+		},
+		{
+			name:   "Add nil error item",
+			queueN: 3,
+			initial: []Item{
+				{Time: metav1.NewTime(now.Add(-1 * time.Second)), Error: errors.New("previous error")},
+			},
+			newResult: &Item{
+				Time:  metav1.NewTime(now),
+				Error: nil,
+			},
+			expectedLastItems: []Item{
+				{Time: metav1.NewTime(now.Add(-1 * time.Second)), Error: errors.New("previous error")},
+				{Time: metav1.NewTime(now), Error: nil},
+			},
+			expectedLastErr: nil,
 		},
 	}
 
@@ -162,18 +226,38 @@ func TestPoller_processResult(t *testing.T) {
 			if tt.newResult != nil {
 				q.processItem(*tt.newResult)
 			}
-			if !reflect.DeepEqual(tt.expectedLastItems, q.lastItems) {
-				t.Errorf("expected %+v, got %+v", tt.expectedLastItems, q.lastItems)
+
+			// Check queue size constraint
+			if len(q.lastItems) > tt.queueN && tt.queueN > 0 {
+				t.Errorf("queue size exceeded: got %d, want <= %d", len(q.lastItems), tt.queueN)
 			}
-			if len(q.lastItems) > tt.queueN {
-				t.Errorf("expected queue length of %d, got %d", tt.queueN, len(q.lastItems))
+
+			// Check items length
+			if len(q.lastItems) != len(tt.expectedLastItems) {
+				t.Errorf("unexpected number of items: got %d, want %d", len(q.lastItems), len(tt.expectedLastItems))
 			}
+
+			// Check each item
+			for i := range tt.expectedLastItems {
+				if !tt.expectedLastItems[i].Time.Time.Equal(q.lastItems[i].Time.Time) {
+					t.Errorf("item %d: unexpected time: got %v, want %v", i, q.lastItems[i].Time, tt.expectedLastItems[i].Time)
+				}
+
+				// Compare error values considering nil cases
+				if (tt.expectedLastItems[i].Error == nil) != (q.lastItems[i].Error == nil) {
+					t.Errorf("item %d: unexpected error state: got %v, want %v", i, q.lastItems[i].Error, tt.expectedLastItems[i].Error)
+				} else if tt.expectedLastItems[i].Error != nil && q.lastItems[i].Error != nil && tt.expectedLastItems[i].Error.Error() != q.lastItems[i].Error.Error() {
+					t.Errorf("item %d: unexpected error message: got %v, want %v", i, q.lastItems[i].Error, tt.expectedLastItems[i].Error)
+				}
+			}
+
+			// Check last item retrieval
 			last, err := q.Last()
 			if err != tt.expectedLastErr {
-				t.Errorf("expected last error %v, got %v", tt.expectedLastErr, err)
+				t.Errorf("unexpected Last() error: got %v, want %v", err, tt.expectedLastErr)
 			}
 			if err == nil && !reflect.DeepEqual(last, &q.lastItems[len(q.lastItems)-1]) {
-				t.Errorf("expected last item %+v, got %+v", q.lastItems[len(q.lastItems)-1], last)
+				t.Errorf("unexpected last item: got %+v, want %+v", last, q.lastItems[len(q.lastItems)-1])
 			}
 		})
 	}

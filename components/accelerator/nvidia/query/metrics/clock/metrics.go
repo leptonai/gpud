@@ -4,6 +4,7 @@ package clock
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"time"
 
 	components_metrics "github.com/leptonai/gpud/components/metrics"
@@ -15,6 +16,8 @@ import (
 const SubSystem = "accelerator_nvidia_clock"
 
 var (
+	initOnce sync.Once
+
 	lastUpdateUnixSeconds = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "",
@@ -59,9 +62,11 @@ var (
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
-	hwSlowdownAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown")
-	hwSlowdownThermalAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_thermal")
-	hwSlowdownPowerBrakeAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_power_brake")
+	initOnce.Do(func() {
+		hwSlowdownAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown")
+		hwSlowdownThermalAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_thermal")
+		hwSlowdownPowerBrakeAverager = components_metrics.NewAverager(dbRW, dbRO, tableName, SubSystem+"_hw_slowdown_power_brake")
+	})
 }
 
 func ReadHWSlowdown(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
