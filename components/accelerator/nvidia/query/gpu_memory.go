@@ -8,14 +8,10 @@ import "strings"
 func GetMemoryErrorManagementCapabilities(gpuProductName string) MemoryErrorManagementCapabilities {
 	p := strings.ToLower(gpuProductName)
 	switch {
-	case strings.Contains(p, "h100"):
-		return MemoryErrorManagementCapabilities{
-			ErrorContainment:     true,
-			DynamicPageOfflining: true,
-			RowRemapping:         true,
-		}
-
-	case strings.Contains(p, "a100"):
+	case strings.Contains(p, "a100"),
+		strings.Contains(p, "h100"),
+		strings.Contains(p, "b100"),
+		strings.Contains(p, "b200"):
 		return MemoryErrorManagementCapabilities{
 			ErrorContainment:     true,
 			DynamicPageOfflining: true,
