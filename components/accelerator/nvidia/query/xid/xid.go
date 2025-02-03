@@ -1036,7 +1036,9 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU but HARDWARE_INSPECTION when the issue persists
-		EventType: common.EventTypeCritical,
+		// event type warning and external components monitoring this Xid 31 data points should
+		// evaluate if the issue persists with some threshold
+		EventType: common.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
