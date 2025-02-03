@@ -2,15 +2,20 @@ package fuse
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
-	"github.com/leptonai/gpud/components/fuse/state"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/fuse"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Output struct {
@@ -23,12 +28,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
+func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			fuse_id.Name,
 			cfg.Query,
-			CreateGet(cfg),
+			CreateGet(cfg, eventsStore),
 			nil,
 		)
 	})
@@ -38,7 +43,7 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config) query.GetFunc {
+func CreateGet(cfg Config, eventsStore events_db.Store) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -64,27 +69,47 @@ func CreateGet(cfg Config) query.GetFunc {
 				continue
 			}
 
-			prev, err := state.FindEvent(ctx, cfg.Query.State.DBRO, now.Unix(), info.DeviceName)
-			if err != nil {
-				return nil, err
-			}
-			if prev == nil {
-				continue
-			}
-
-			if err := state.InsertEvent(ctx, cfg.Query.State.DBRW, state.Event{
-				UnixSeconds:                          now.Unix(),
-				DeviceName:                           info.DeviceName,
-				CongestedPercentAgainstThreshold:     info.CongestedPercent,
-				MaxBackgroundPercentAgainstThreshold: info.MaxBackgroundPercent,
-			}); err != nil {
-				return nil, err
-			}
-
 			if err := metrics.SetConnectionsCongestedPercent(ctx, info.DeviceName, info.CongestedPercent, now); err != nil {
 				return nil, err
 			}
 			if err := metrics.SetConnectionsMaxBackgroundPercent(ctx, info.DeviceName, info.MaxBackgroundPercent, now); err != nil {
+				return nil, err
+			}
+
+			msgs := []string{}
+			if info.CongestedPercent > cfg.CongestedPercentAgainstThreshold {
+				msgs = append(msgs, fmt.Sprintf("congested percent against threshold %.2f exceeds threshold %.2f", info.CongestedPercent, cfg.CongestedPercentAgainstThreshold))
+			}
+			if info.MaxBackgroundPercent > cfg.MaxBackgroundPercentAgainstThreshold {
+				msgs = append(msgs, fmt.Sprintf("max background percent against threshold %.2f exceeds threshold %.2f", info.MaxBackgroundPercent, cfg.MaxBackgroundPercentAgainstThreshold))
+			}
+			if len(msgs) == 0 {
+				continue
+			}
+
+			ib, err := info.JSON()
+			if err != nil {
+				continue
+			}
+			ev := components.Event{
+				Time:    metav1.Time{Time: now.UTC()},
+				Name:    "fuse_connections",
+				Type:    common.EventTypeCritical,
+				Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
+				ExtraInfo: map[string]string{
+					"data":     string(ib),
+					"encoding": "json",
+				},
+			}
+
+			found, err := eventsStore.Find(ctx, ev)
+			if err != nil {
+				return nil, err
+			}
+			if found == nil {
+				continue
+			}
+			if err := eventsStore.Insert(ctx, ev); err != nil {
 				return nil, err
 			}
 

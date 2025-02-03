@@ -5,46 +5,53 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
+	events_db "github.com/leptonai/gpud/components/db"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
-	"github.com/leptonai/gpud/components/fuse/state"
 	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/log"
-
-	"github.com/dustin/go-humanize"
-	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
+func New(ctx context.Context, cfg Config) (components.Component, error) {
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(fuse_id.Name),
+		events_db.DefaultRetention,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
+	setDefaultPoller(cfg, eventsStore)
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, fuse_id.Name)
 
 	return &component{
-		cfg:     cfg,
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
-	}
+		cfg:         cfg,
+		ctx:         cctx,
+		cancel:      ccancel,
+		poller:      getDefaultPoller(),
+		eventsStore: eventsStore,
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	cfg      Config
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	cfg         Config
+	ctx         context.Context
+	cancel      context.CancelFunc
+	poller      query.Poller
+	eventsStore events_db.Store
+	gatherer    prometheus.Gatherer
 }
 
 func (c *component) Name() string { return fuse_id.Name }
@@ -86,61 +93,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-const (
-	EventNameFuseConnections = "fuse_connections"
-
-	EventKeyUnixSeconds    = "unix_seconds"
-	EventKeyData           = "data"
-	EventKeyEncoding       = "encoding"
-	EventValueEncodingJSON = "json"
-)
-
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := state.ReadEvents(ctx, c.cfg.Query.State.DBRO, state.WithSince(since))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(events) == 0 {
-		log.Logger.Debugw("no event found", "component", c.Name(), "since", humanize.Time(since))
-		return nil, nil
-	}
-
-	log.Logger.Debugw("found events", "component", c.Name(), "since", humanize.Time(since), "count", len(events))
-	convertedEvents := make([]components.Event, 0, len(events))
-	for _, event := range events {
-		msgs := []string{}
-		if event.CongestedPercentAgainstThreshold > c.cfg.CongestedPercentAgainstThreshold {
-			msgs = append(msgs, fmt.Sprintf("congested percent against threshold %.2f exceeds threshold %.2f", event.CongestedPercentAgainstThreshold, c.cfg.CongestedPercentAgainstThreshold))
-		}
-		if event.MaxBackgroundPercentAgainstThreshold > c.cfg.MaxBackgroundPercentAgainstThreshold {
-			msgs = append(msgs, fmt.Sprintf("max background percent against threshold %.2f exceeds threshold %.2f", event.MaxBackgroundPercentAgainstThreshold, c.cfg.MaxBackgroundPercentAgainstThreshold))
-		}
-		if len(msgs) == 0 {
-			continue
-		}
-
-		eb, err := event.JSON()
-		if err != nil {
-			continue
-		}
-
-		convertedEvents = append(convertedEvents, components.Event{
-			Time:    metav1.Time{Time: time.Unix(event.UnixSeconds, 0).UTC()},
-			Name:    EventNameFuseConnections,
-			Type:    common.EventTypeCritical,
-			Message: strings.Join(msgs, ", "),
-			ExtraInfo: map[string]string{
-				EventKeyUnixSeconds: strconv.FormatInt(event.UnixSeconds, 10),
-				EventKeyData:        string(eb),
-				EventKeyEncoding:    EventValueEncodingJSON,
-			},
-		})
-	}
-	if len(convertedEvents) == 0 {
-		return nil, nil
-	}
-	return convertedEvents, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -168,8 +122,12 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
+	c.cancel()
+
 	// safe to call stop multiple times
 	c.poller.Stop(fuse_id.Name)
+
+	c.eventsStore.Close()
 
 	return nil
 }
