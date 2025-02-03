@@ -109,7 +109,6 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
-	pci_state "github.com/leptonai/gpud/components/pci/state"
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	query_config "github.com/leptonai/gpud/components/query/config"
@@ -341,29 +340,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	if err := pci_state.CreateTable(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create pci state table: %w", err)
-	}
-	go func() {
-		dur := pci_state.DefaultRetentionPeriod
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-
-				purged, err := pci_state.Purge(ctx, dbRW, pci_state.WithBefore(before))
-				if err != nil {
-					log.Logger.Warnw("failed to delete pci events", "error", err)
-				} else {
-					log.Logger.Debugw("deleted pci events", "before", before, "purged", purged)
-				}
-			}
-		}
-	}()
-
 	xidSxidEventDeduper := nvidia_xid_sxid_state.NewEventDeduper(
 		nvidia_xid_sxid_state.DefaultCacheSizeInBytes,
 		nvidia_xid_sxid_state.DefaultCacheTTLInSeconds,
@@ -560,7 +536,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 				cfg = *parsed
 			}
-			allComponents = append(allComponents, pci.New(ctx, cfg))
+			c, err := pci.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case dmesg.Name:
 			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
