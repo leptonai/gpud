@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/leptonai/gpud/components"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -132,10 +133,10 @@ func (inst *instance) pollXidEvents() {
 			continue
 		}
 
-		msg := "received event with a known xid"
+		msg := fmt.Sprintf("received event with a known xid: %d", xid)
 		xidDetail, ok := nvidia_query_xid.GetDetail(int(xid))
 		if !ok {
-			msg = "received event but xid unknown"
+			msg = fmt.Sprintf("received event but xid unknown: %d", xid)
 		}
 		log.Logger.Warnw("detected xid event", "xid", xid, "message", msg)
 
@@ -148,8 +149,21 @@ func (inst *instance) pollXidEvents() {
 			deviceUUIDErr = fmt.Errorf("failed to get device UUID: %v", nvml.ErrorString(ret))
 		}
 
-		event := &XidEvent{
-			Time:           metav1.Time{Time: time.Now().UTC()},
+		now := time.Now().UTC()
+
+		event := components.Event{
+			Time:    metav1.Time{Time: now},
+			Name:    "error_xid",
+			Type:    common.EventTypeUnknown,
+			Message: msg,
+		}
+		if xidDetail != nil {
+			event.Type = xidDetail.EventType
+			event.SuggestedActions = xidDetail.SuggestedActionsByGPUd
+		}
+
+		xidEvent := &XidEvent{
+			Time:           metav1.Time{Time: now},
 			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
 
 			DeviceUUID: deviceUUID,
@@ -170,31 +184,27 @@ func (inst *instance) pollXidEvents() {
 
 			Error: deviceUUIDErr,
 		}
-		eb, err := event.JSON()
+		eb, err := xidEvent.JSON()
 		if err != nil {
 			log.Logger.Errorw("failed to marshal xid event", "error", err)
 			continue
 		}
+		event.ExtraInfo = map[string]string{
+			"xid_event": string(eb),
+		}
 
 		// no need to check duplicate entries, assuming nvml event poller does not return old events
 		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-		werr := nvidia_xid_sxid_state.InsertEvent(ctx, inst.dbRW, nvidia_xid_sxid_state.Event{
-			UnixSeconds:  event.Time.Unix(),
-			DataSource:   "nvml",
-			EventType:    "xid",
-			EventID:      int64(event.Xid),
-			DeviceID:     event.DeviceUUID,
-			EventDetails: string(eb),
-		})
+		werr := inst.xidEventsStore.Insert(ctx, event)
 		cancel()
 		if werr != nil {
-			log.Logger.Errorw("failed to insert xid event into database", "error", werr)
+			log.Logger.Errorw("failed to insert xid event into events store", "error", werr)
 		}
 
 		select {
 		case <-inst.rootCtx.Done():
 			return
-		case inst.xidEventCh <- event:
+		case inst.xidEventCh <- xidEvent:
 			log.Logger.Warnw("notified xid event", "event", event)
 		default:
 			log.Logger.Warnw("xid event channel is full, skipping event")
