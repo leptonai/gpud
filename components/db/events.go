@@ -90,6 +90,8 @@ type Store interface {
 	Close()
 }
 
+const DefaultRetention = 3 * 24 * time.Hour // 3 days
+
 var _ Store = (*storeImpl)(nil)
 
 // Creates a new DB instance with the table created.

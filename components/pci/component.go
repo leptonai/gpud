@@ -17,7 +17,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		cfg.Query.State.DBRW,
 		cfg.Query.State.DBRO,
 		events_db.CreateDefaultTableName(id.Name),
-		3*24*time.Hour,
+		events_db.DefaultRetention,
 	)
 	if err != nil {
 		return nil, err
