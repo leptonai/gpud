@@ -160,53 +160,50 @@ func (o *Output) Evaluate() (string, bool, error) {
 	healthy := true
 	reasons := []string{}
 
-	for _, r := range o.RemappedRowsSMI {
-		rma, err := r.QualifiesForRMA()
-		if err != nil {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it qualifies for RMA: %s", r.ID, err.Error()))
-			continue
-		}
-		if rma {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", r.ID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
-		}
-
-		needsReset, err := r.RequiresReset()
-		if err != nil {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it needs reset: %s", r.ID, err.Error()))
-			continue
-		}
-		if needsReset {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s needs reset (pending remapping %v)", r.ID, needsReset))
-		}
-	}
-
-	for _, r := range o.RemappedRowsNVML {
-		if r.QualifiesForRMA() {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvml GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
-		}
-		if r.RequiresReset() {
-			healthy = false
-			reasons = append(reasons, fmt.Sprintf("nvml GPU %s needs reset (pending remapping %v)", r.UUID, r.RemappingPending))
-		}
-	}
-
-	if len(reasons) == 0 {
-		reasons = append(reasons, "no issue detected")
-	}
-
-	// regardless of the healthy-ness, we want to log the product name
-	// so that we can identify which product name does not support row remapping
 	if !o.MemoryErrorManagementCapabilities.RowRemapping {
 		reasons = append(reasons, fmt.Sprintf("GPU product name %q does not support row remapping (message: %q)", o.GPUProductName, o.MemoryErrorManagementCapabilities.Message))
+	} else {
+		for _, r := range o.RemappedRowsSMI {
+			rma, err := r.QualifiesForRMA()
+			if err != nil {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it qualifies for RMA: %s", r.ID, err.Error()))
+				continue
+			}
+			if rma {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", r.ID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
+			}
+
+			needsReset, err := r.RequiresReset()
+			if err != nil {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it needs reset: %s", r.ID, err.Error()))
+				continue
+			}
+			if needsReset {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s needs reset (pending remapping %v)", r.ID, needsReset))
+			}
+		}
+
+		for _, r := range o.RemappedRowsNVML {
+			if r.QualifiesForRMA() {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvml GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
+			}
+			if r.RequiresReset() {
+				healthy = false
+				reasons = append(reasons, fmt.Sprintf("nvml GPU %s needs reset (pending remapping %v)", r.UUID, r.RemappingPending))
+			}
+		}
+
+		if len(reasons) == 0 {
+			reasons = append(reasons, "no issue detected")
+		}
 	}
 
 	reason := strings.Join(reasons, ", ")
-
 	return reason, healthy, nil
 }
 
