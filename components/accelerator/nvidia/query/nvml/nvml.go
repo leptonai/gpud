@@ -92,7 +92,12 @@ type instance struct {
 
 	clockEventsSupported bool
 
-	xidErrorSupported   bool
+	xidErrorSupported bool
+
+	// official nvidia device plugin uses this https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
+	// for now, we disable to exclusively use dmesg for Xid events
+	xidWatchWithNVML bool
+
 	xidEventMask        uint64
 	xidEventSet         nvml.EventSet
 	xidEventCh          chan *XidEvent
@@ -263,7 +268,12 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		clockEventsSupported: clockEventsSupported,
 
-		xidErrorSupported:   false,
+		xidErrorSupported: false,
+
+		// official nvidia device plugin uses this https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
+		// for now, we disable to exclusively use dmesg for Xid events
+		xidWatchWithNVML: false,
+
 		xidEventSet:         xidEventSet,
 		xidEventMask:        defaultXidEventMask,
 		xidEventCh:          make(chan *XidEvent, 100),
@@ -382,7 +392,7 @@ func (inst *instance) Start() error {
 		}
 	}
 
-	if inst.xidErrorSupported {
+	if inst.xidErrorSupported && inst.xidWatchWithNVML {
 		go inst.pollXidEvents()
 	} else {
 		inst.xidEventChCloseOnce.Do(func() {
