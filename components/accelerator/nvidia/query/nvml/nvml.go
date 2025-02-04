@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
-	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
+	events_db "github.com/leptonai/gpud/components/db"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/log"
 )
@@ -87,6 +87,8 @@ type instance struct {
 	dbRW *sql.DB
 	// read-only database instance
 	dbRO *sql.DB
+
+	xidEventsStore events_db.Store
 
 	clockEventsSupported bool
 
@@ -257,6 +259,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
 
+		xidEventsStore: op.xidEventsStore,
+
 		clockEventsSupported: clockEventsSupported,
 
 		xidErrorSupported:   false,
@@ -286,13 +290,6 @@ func (inst *instance) Start() error {
 
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
-
-	log.Logger.Debugw("creating xid sxid event history table")
-	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-	defer cancel()
-	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.dbRW); err != nil {
-		return err
-	}
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
