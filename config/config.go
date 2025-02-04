@@ -4,12 +4,9 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 )
 
 // Config provides gpud configuration data for the server
@@ -102,38 +99,4 @@ func (config *Config) Validate() error {
 		return ErrInvalidAutoUpdateExitCode
 	}
 	return nil
-}
-
-func (config *Config) YAML() ([]byte, error) {
-	return yaml.Marshal(config)
-}
-
-func (config *Config) SyncYAML(file string) error {
-	if _, err := os.Stat(filepath.Dir(file)); os.IsNotExist(err) {
-		if err = os.MkdirAll(filepath.Dir(file), 0755); err != nil {
-			return err
-		}
-	}
-	data, err := config.YAML()
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(file, data, 0644)
-}
-
-func LoadConfigYAML(file string) (*Config, error) {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-	return ParseConfigYAML(data)
-}
-
-func ParseConfigYAML(data []byte) (*Config, error) {
-	config := new(Config)
-	err := yaml.Unmarshal(data, config)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
 }
