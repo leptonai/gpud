@@ -20,7 +20,6 @@ func TestOpOptions(t *testing.T) {
 		// Check that default in-memory databases are created
 		assert.NotNil(t, op.dbRW)
 		assert.NotNil(t, op.dbRO)
-		assert.Nil(t, op.xidEventsStore)
 		assert.Nil(t, op.hwslowdownEventsStore)
 		assert.Nil(t, op.gpmMetricsIDs)
 	})
@@ -37,7 +36,6 @@ func TestOpOptions(t *testing.T) {
 		err := op.applyOpts([]OpOption{
 			WithDBRW(mockDB),
 			WithDBRO(mockDB),
-			WithXidEventsStore(mockStore),
 			WithHWSlowdownEventsStore(mockStore),
 			WithGPMMetricsID(testMetrics...),
 		})
@@ -46,7 +44,6 @@ func TestOpOptions(t *testing.T) {
 		// Check custom values
 		assert.Equal(t, mockDB, op.dbRW)
 		assert.Equal(t, mockDB, op.dbRO)
-		assert.Equal(t, mockStore, op.xidEventsStore)
 		assert.Equal(t, mockStore, op.hwslowdownEventsStore)
 
 		// Check GPM metrics
@@ -72,7 +69,6 @@ func TestOpOptions(t *testing.T) {
 		// Check mixed custom and default values
 		assert.Equal(t, mockDB, op.dbRW)
 		assert.NotNil(t, op.dbRO) // Should create default read-only DB
-		assert.Nil(t, op.xidEventsStore)
 		assert.Nil(t, op.hwslowdownEventsStore)
 
 		// Check GPM metrics

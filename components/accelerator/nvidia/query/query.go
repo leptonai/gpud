@@ -94,7 +94,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		ctx,
 		nvml.WithDBRW(op.dbRW), // to deprecate in favor of events store
 		nvml.WithDBRO(op.dbRO), // to deprecate in favor of events store
-		nvml.WithXidEventsStore(op.xidEventsStore),
 		nvml.WithHWSlowdownEventsStore(op.hwslowdownEventsStore),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
