@@ -195,8 +195,8 @@ func (prev Metrics) QPS(cur Metrics) (insertUpdateAvgQPS float64, deleteAvgQPS f
 	deleteAvgQPS = float64(0)
 	selectAvgQPS = float64(0)
 
-	if !prev.IsZero() && !cur.IsZero() {
-		elapsedSeconds := cur.Time.Sub(prev.Time).Seconds()
+	elapsedSeconds := cur.Time.Sub(prev.Time).Seconds()
+	if !prev.IsZero() && !cur.IsZero() && elapsedSeconds > 0 {
 		insertUpdateAvgQPS = float64(cur.InsertUpdateTotal-prev.InsertUpdateTotal) / elapsedSeconds
 		deleteAvgQPS = float64(cur.DeleteTotal-prev.DeleteTotal) / elapsedSeconds
 		selectAvgQPS = float64(cur.SelectTotal-prev.SelectTotal) / elapsedSeconds

@@ -260,6 +260,24 @@ func TestCalculateQPS(t *testing.T) {
 			wantDeleteQPS:       2,  // (70-50)/10
 			wantSelectQPS:       20, // (400-200)/10
 		},
+		{
+			name: "zero elapsed time - identical timestamps",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1000, 0), // same timestamp
+				InsertUpdateTotal: 150,
+				DeleteTotal:       75,
+				SelectTotal:       300,
+			},
+			wantInsertUpdateQPS: 0, // should return 0 when elapsed time is 0
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
 	}
 
 	for _, tt := range tests {
