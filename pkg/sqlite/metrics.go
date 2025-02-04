@@ -102,14 +102,17 @@ func RecordSelect(tookSeconds float64) {
 type Metrics struct {
 	Time time.Time
 
+	// The total number of inserts and updates in cumulative count.
 	InsertUpdateTotal        int64
 	InsertUpdateSecondsTotal float64
 	InsertUpdateSecondsAvg   float64
 
+	// The total number of deletes in cumulative count.
 	DeleteTotal        int64
 	DeleteSecondsTotal float64
 	DeleteSecondsAvg   float64
 
+	// The total number of selects in cumulative count.
 	SelectTotal        int64
 	SelectSecondsTotal float64
 	SelectSecondsAvg   float64
@@ -184,4 +187,20 @@ func ReadMetrics(gatherer prometheus.Gatherer) (Metrics, error) {
 	}
 
 	return mtr, nil
+}
+
+// Computes the QPS for insert/updates, deletes, and selects, based on the previous and current metrics time.
+func (prev Metrics) QPS(cur Metrics) (insertUpdateAvgQPS float64, deleteAvgQPS float64, selectAvgQPS float64) {
+	insertUpdateAvgQPS = float64(0)
+	deleteAvgQPS = float64(0)
+	selectAvgQPS = float64(0)
+
+	elapsedSeconds := cur.Time.Sub(prev.Time).Seconds()
+	if !prev.IsZero() && !cur.IsZero() && elapsedSeconds > 0 {
+		insertUpdateAvgQPS = float64(cur.InsertUpdateTotal-prev.InsertUpdateTotal) / elapsedSeconds
+		deleteAvgQPS = float64(cur.DeleteTotal-prev.DeleteTotal) / elapsedSeconds
+		selectAvgQPS = float64(cur.SelectTotal-prev.SelectTotal) / elapsedSeconds
+	}
+
+	return insertUpdateAvgQPS, deleteAvgQPS, selectAvgQPS
 }

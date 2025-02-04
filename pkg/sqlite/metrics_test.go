@@ -3,6 +3,7 @@ package sqlite
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -122,4 +123,178 @@ func TestMetrics(t *testing.T) {
 
 func floatEquals(a, b float64) bool {
 	return math.Abs(a-b) < 0.0005
+}
+
+func TestCalculateQPS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		lastMetrics         Metrics
+		currMetrics         Metrics
+		wantInsertUpdateQPS float64
+		wantDeleteQPS       float64
+		wantSelectQPS       float64
+	}{
+		{
+			name:                "both metrics zero",
+			lastMetrics:         Metrics{},
+			currMetrics:         Metrics{},
+			wantInsertUpdateQPS: 0,
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
+		{
+			name: "normal case with 10 second interval",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1010, 0),
+				InsertUpdateTotal: 200,
+				DeleteTotal:       70,
+				SelectTotal:       400,
+			},
+			wantInsertUpdateQPS: 10, // (200-100)/10
+			wantDeleteQPS:       2,  // (70-50)/10
+			wantSelectQPS:       20, // (400-200)/10
+		},
+		{
+			name:        "last metrics zero",
+			lastMetrics: Metrics{},
+			currMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			wantInsertUpdateQPS: 0,
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
+		{
+			name: "current metrics zero",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics:         Metrics{},
+			wantInsertUpdateQPS: 0,
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
+		{
+			name: "sub-second interval",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1000, 500000000), // 500ms later
+				InsertUpdateTotal: 150,
+				DeleteTotal:       75,
+				SelectTotal:       300,
+			},
+			wantInsertUpdateQPS: 100, // (150-100)/0.5
+			wantDeleteQPS:       50,  // (75-50)/0.5
+			wantSelectQPS:       200, // (300-200)/0.5
+		},
+		{
+			name: "no changes in counts",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1010, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			wantInsertUpdateQPS: 0,
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
+		{
+			name: "very short time interval",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1000, 1000000), // 1ms later
+				InsertUpdateTotal: 101,
+				DeleteTotal:       51,
+				SelectTotal:       201,
+			},
+			wantInsertUpdateQPS: 1000, // (101-100)/0.001
+			wantDeleteQPS:       1000, // (51-50)/0.001
+			wantSelectQPS:       1000, // (201-200)/0.001
+		},
+		{
+			name: "mixed activity - some metrics changing, others not",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1010, 0),
+				InsertUpdateTotal: 100, // no change
+				DeleteTotal:       70,  // changed
+				SelectTotal:       400, // changed
+			},
+			wantInsertUpdateQPS: 0,  // (100-100)/10
+			wantDeleteQPS:       2,  // (70-50)/10
+			wantSelectQPS:       20, // (400-200)/10
+		},
+		{
+			name: "zero elapsed time - identical timestamps",
+			lastMetrics: Metrics{
+				Time:              time.Unix(1000, 0),
+				InsertUpdateTotal: 100,
+				DeleteTotal:       50,
+				SelectTotal:       200,
+			},
+			currMetrics: Metrics{
+				Time:              time.Unix(1000, 0), // same timestamp
+				InsertUpdateTotal: 150,
+				DeleteTotal:       75,
+				SelectTotal:       300,
+			},
+			wantInsertUpdateQPS: 0, // should return 0 when elapsed time is 0
+			wantDeleteQPS:       0,
+			wantSelectQPS:       0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotInsertUpdateQPS, gotDeleteQPS, gotSelectQPS := tt.lastMetrics.QPS(tt.currMetrics)
+
+			if gotInsertUpdateQPS != tt.wantInsertUpdateQPS {
+				t.Errorf("calculateMetrics() gotInsertUpdateQPS = %v, want %v", gotInsertUpdateQPS, tt.wantInsertUpdateQPS)
+			}
+			if gotDeleteQPS != tt.wantDeleteQPS {
+				t.Errorf("calculateMetrics() gotDeleteQPS = %v, want %v", gotDeleteQPS, tt.wantDeleteQPS)
+			}
+			if gotSelectQPS != tt.wantSelectQPS {
+				t.Errorf("calculateMetrics() gotSelectQPS = %v, want %v", gotSelectQPS, tt.wantSelectQPS)
+			}
+		})
+	}
 }
