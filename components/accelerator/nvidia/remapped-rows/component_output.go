@@ -151,6 +151,15 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 	return nil, errors.New("no state found")
 }
 
+func (o *Output) isRowRemappingSupported() bool {
+	for _, r := range o.RemappedRowsNVML {
+		if !r.Supported {
+			return false
+		}
+	}
+	return true
+}
+
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {
 	if o == nil {
@@ -160,7 +169,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 	healthy := true
 	reasons := []string{}
 
-	if !o.MemoryErrorManagementCapabilities.RowRemapping {
+	if !o.isRowRemappingSupported() {
 		reasons = append(reasons, fmt.Sprintf("GPU product name %q does not support row remapping (message: %q)", o.GPUProductName, o.MemoryErrorManagementCapabilities.Message))
 	} else {
 		for _, r := range o.RemappedRowsSMI {

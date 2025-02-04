@@ -537,6 +537,18 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 				}
 			}
 
+			if dev.RemappedRows.Supported {
+				fmt.Printf("%s NVML remapped rows supported\n", checkMark)
+				if dev.RemappedRows.RequiresReset() {
+					fmt.Printf("%s NVML found that the GPU needs a reset\n", warningSign)
+				}
+				if dev.RemappedRows.QualifiesForRMA() {
+					fmt.Printf("%s NVML found that the GPU qualifies for RMA\n", warningSign)
+				}
+			} else {
+				fmt.Printf("%s NVML remapped rows are not supported\n", warningSign)
+			}
+
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
 			if len(uncorrectedErrs) > 0 {
 				fmt.Printf("%s NVML found %d ecc volatile uncorrected error(s)\n", warningSign, len(uncorrectedErrs))
