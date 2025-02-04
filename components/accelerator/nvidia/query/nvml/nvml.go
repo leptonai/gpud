@@ -17,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
-	events_db "github.com/leptonai/gpud/components/db"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/log"
 )
@@ -87,8 +86,6 @@ type instance struct {
 	dbRW *sql.DB
 	// read-only database instance
 	dbRO *sql.DB
-
-	xidEventsStore events_db.Store
 
 	clockEventsSupported bool
 
@@ -263,8 +260,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
-
-		xidEventsStore: op.xidEventsStore,
 
 		clockEventsSupported: clockEventsSupported,
 

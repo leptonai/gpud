@@ -1,7 +1,6 @@
 package nvml
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -194,12 +193,7 @@ func (inst *instance) pollXidEvents() {
 		}
 
 		// no need to check duplicate entries, assuming nvml event poller does not return old events
-		ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-		werr := inst.xidEventsStore.Insert(ctx, event)
-		cancel()
-		if werr != nil {
-			log.Logger.Errorw("failed to insert xid event into events store", "error", werr)
-		}
+		// no need to store in events db, assuming the /events will be served based in dmesg
 
 		select {
 		case <-inst.rootCtx.Done():
