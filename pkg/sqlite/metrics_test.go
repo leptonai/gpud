@@ -121,6 +121,113 @@ func TestMetrics(t *testing.T) {
 	}
 }
 
+func TestMetricsIsZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		metrics  Metrics
+		expected bool
+	}{
+		{
+			name:     "zero metrics",
+			metrics:  Metrics{},
+			expected: true,
+		},
+		{
+			name: "non-zero insert update",
+			metrics: Metrics{
+				InsertUpdateTotal: 1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero insert update seconds",
+			metrics: Metrics{
+				InsertUpdateSecondsTotal: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero insert update seconds avg",
+			metrics: Metrics{
+				InsertUpdateSecondsAvg: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero delete total",
+			metrics: Metrics{
+				DeleteTotal: 1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero delete seconds",
+			metrics: Metrics{
+				DeleteSecondsTotal: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero delete seconds avg",
+			metrics: Metrics{
+				DeleteSecondsAvg: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero select total",
+			metrics: Metrics{
+				SelectTotal: 1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero select seconds",
+			metrics: Metrics{
+				SelectSecondsTotal: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "non-zero select seconds avg",
+			metrics: Metrics{
+				SelectSecondsAvg: 0.1,
+			},
+			expected: false,
+		},
+		{
+			name: "only time set",
+			metrics: Metrics{
+				Time: time.Now(),
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.metrics.IsZero(); got != tt.expected {
+				t.Errorf("IsZero() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRegisterDuplicate(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// First registration should succeed
+	if err := Register(reg); err != nil {
+		t.Fatalf("first registration failed: %v", err)
+	}
+
+	// Second registration should fail with "already exists" error
+	err := Register(reg)
+	if err == nil {
+		t.Error("expected error on duplicate registration, got nil")
+	}
+}
+
 func floatEquals(a, b float64) bool {
 	return math.Abs(a-b) < 0.0005
 }
