@@ -10,7 +10,6 @@ import (
 
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
@@ -146,13 +145,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		)
 		if err != nil {
 			log.Logger.Fatalw("failed to create events store", "error", err)
-		}
-
-		// "nvidia_query.Get" assumes that the "clock-events-state" table exists
-		// pre-create since this is a one-off operation
-		// TODO: move these into a single place
-		if err := nvidia_hw_slowdown_state.CreateTable(ctx, db); err != nil {
-			log.Logger.Fatalw("failed to create clock events state table", "error", err)
 		}
 
 		outputRaw, err := nvidia_query.Get(

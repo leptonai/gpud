@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
-
-	"github.com/leptonai/gpud/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/log"
 )
 
 // Returns true if clock events is supported by all devices.
@@ -261,4 +264,23 @@ func (inst *instance) ClockEventsSupported() bool {
 	defer inst.mu.RUnlock()
 
 	return inst.clockEventsSupported
+}
+
+// createEventFromClockEvents creates a components.Event from ClockEvents if there are hardware slowdown reasons.
+// Returns nil if there are no hardware slowdown reasons.
+func createEventFromClockEvents(clockEvents ClockEvents) *components.Event {
+	if len(clockEvents.HWSlowdownReasons) == 0 {
+		return nil
+	}
+
+	return &components.Event{
+		Time:    clockEvents.Time,
+		Name:    "hw_slowdown",
+		Type:    common.EventTypeWarning,
+		Message: strings.Join(clockEvents.HWSlowdownReasons, ", "),
+		ExtraInfo: map[string]string{
+			"data_source": "nvml",
+			"gpu_uuid":    clockEvents.UUID,
+		},
+	}
 }

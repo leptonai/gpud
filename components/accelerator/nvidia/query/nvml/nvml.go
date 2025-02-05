@@ -16,7 +16,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
+	events_db "github.com/leptonai/gpud/components/db"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/log"
 )
@@ -83,6 +83,8 @@ type instance struct {
 	dbRW *sql.DB
 	// read-only database instance
 	dbRO *sql.DB
+
+	hwslowdownEventsStore events_db.Store
 
 	clockEventsSupported bool
 
@@ -237,6 +239,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
+
+		hwslowdownEventsStore: op.hwslowdownEventsStore,
 
 		clockEventsSupported: clockEventsSupported,
 
@@ -442,28 +446,21 @@ func (inst *instance) Get() (*Output, error) {
 
 					latestInfo.ClockEvents = &clockEvents
 
-					ev := nvidia_hw_slowdown_state.Event{
-						Timestamp:  clockEvents.Time.Unix(),
-						DataSource: "nvml",
-						GPUUUID:    devInfo.UUID,
-						Reasons:    clockEvents.HWSlowdownReasons,
-					}
-
-					cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
-					found, err := nvidia_hw_slowdown_state.FindEvent(cctx, inst.dbRO, ev)
-					ccancel()
-					if err != nil {
-						log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
-						joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-					} else if !found {
-						log.Logger.Warnw("detected hw slowdown clock events", "hwSlowdownReasons", clockEvents.HWSlowdownReasons)
-
-						cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
-						err = nvidia_hw_slowdown_state.InsertEvent(cctx, inst.dbRW, ev)
+					ev := createEventFromClockEvents(clockEvents)
+					if ev != nil {
+						cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
+						found, err := inst.hwslowdownEventsStore.Find(cctx, *ev)
 						ccancel()
 						if err != nil {
-							log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
-							joinedErrs = append(joinedErrs, fmt.Errorf("failed to insert clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+							log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
+							joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+						} else if found != nil {
+							cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
+							err = inst.hwslowdownEventsStore.Insert(cctx, *ev)
+							ccancel()
+							if err != nil {
+								log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
+							}
 						}
 					}
 				}

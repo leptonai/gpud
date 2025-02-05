@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 func TestWatch(t *testing.T) {
@@ -434,5 +436,44 @@ func TestWatchWithError(t *testing.T) {
 
 	if !errorSeen {
 		t.Error("expected to see an error line")
+	}
+}
+
+func TestReadContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan LogLine, 1000)
+
+	// Create a command that will run for a while
+	p, err := process.New(process.WithCommand("sleep", "10"))
+	if err != nil {
+		t.Fatalf("failed to create process: %v", err)
+	}
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("failed to start process: %v", err)
+	}
+
+	// Start reading in a goroutine
+	go read(ctx, p, ch)
+
+	// Give it a moment to start
+	time.Sleep(time.Second)
+
+	// Cancel the context
+	cancel()
+
+	// Wait for the channel to close
+	timer := time.NewTimer(1 * time.Second)
+	select {
+	case _, ok := <-ch:
+		if !ok {
+			// Channel closed as expected
+			return
+		}
+
+		// just log for slow CI
+		t.Log("channel should have been closed after context cancellation")
+
+	case <-timer.C:
+		t.Error("timeout waiting for channel to close after context cancellation")
 	}
 }

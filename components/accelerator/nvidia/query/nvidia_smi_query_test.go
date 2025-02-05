@@ -8,6 +8,11 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 )
 
 func TestGetSMIOutput(t *testing.T) {
@@ -498,5 +503,153 @@ func TestParseWithAddressingModeError(t *testing.T) {
 		if g.AddressingMode != "Unknown Error" {
 			t.Errorf("AddressingMode mismatch: %+v", g.AddressingMode)
 		}
+	}
+}
+
+func TestCreateHWSlowdownEventFromNvidiaSMI(t *testing.T) {
+	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name            string
+		eventTime       time.Time
+		gpuUUID         string
+		slowdownReasons []string
+		want            *components.Event
+	}{
+		{
+			name:            "no slowdown reasons",
+			eventTime:       testTime,
+			gpuUUID:         "GPU-123",
+			slowdownReasons: []string{},
+			want:            nil,
+		},
+		{
+			name:            "nil slowdown reasons",
+			eventTime:       testTime,
+			gpuUUID:         "GPU-123",
+			slowdownReasons: nil,
+			want:            nil,
+		},
+		{
+			name:      "single slowdown reason",
+			eventTime: testTime,
+			gpuUUID:   "GPU-5678",
+			slowdownReasons: []string{
+				"HW Slowdown is engaged",
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: testTime},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "HW Slowdown is engaged",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "GPU-5678",
+				},
+			},
+		},
+		{
+			name:      "multiple slowdown reasons",
+			eventTime: testTime,
+			gpuUUID:   "GPU-ABCD",
+			slowdownReasons: []string{
+				"HW Power Brake Slowdown",
+				"HW Slowdown is engaged",
+				"HW Thermal Slowdown",
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: testTime},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "HW Power Brake Slowdown, HW Slowdown is engaged, HW Thermal Slowdown",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "GPU-ABCD",
+				},
+			},
+		},
+		{
+			name:      "empty gpu uuid",
+			eventTime: testTime,
+			gpuUUID:   "",
+			slowdownReasons: []string{
+				"HW Slowdown is engaged",
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: testTime},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "HW Slowdown is engaged",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "",
+				},
+			},
+		},
+		{
+			name:      "zero time",
+			eventTime: time.Time{},
+			gpuUUID:   "GPU-ZERO",
+			slowdownReasons: []string{
+				"HW Slowdown is engaged",
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: time.Time{}},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "HW Slowdown is engaged",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "GPU-ZERO",
+				},
+			},
+		},
+		{
+			name:      "real nvidia-smi output format",
+			eventTime: testTime,
+			gpuUUID:   "GPU-00000000:01:00.0",
+			slowdownReasons: []string{
+				"GPU-00000000:01:00.0: ClockEventReasons.HWSlowdown.ThermalSlowdown Active",
+				"GPU-00000000:01:00.0: ClockEventReasons.HWSlowdown.PowerBrakeSlowdown Active",
+			},
+			want: &components.Event{
+				Time: metav1.Time{Time: testTime},
+				Name: "hw_slowdown",
+				Type: common.EventTypeWarning,
+				Message: "GPU-00000000:01:00.0: ClockEventReasons.HWSlowdown.ThermalSlowdown Active, " +
+					"GPU-00000000:01:00.0: ClockEventReasons.HWSlowdown.PowerBrakeSlowdown Active",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "GPU-00000000:01:00.0",
+				},
+			},
+		},
+		{
+			name:      "slowdown reason with special characters",
+			eventTime: testTime,
+			gpuUUID:   "GPU-SPECIAL",
+			slowdownReasons: []string{
+				"HW Slowdown (temp: 95°C, power: 350W)",
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: testTime},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "HW Slowdown (temp: 95°C, power: 350W)",
+				ExtraInfo: map[string]string{
+					"data_source": "nvidia-smi",
+					"gpu_uuid":    "GPU-SPECIAL",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := createHWSlowdownEventFromNvidiaSMI(tt.eventTime, tt.gpuUUID, tt.slowdownReasons)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("createHWSlowdownEventFromNvidiaSMI() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
