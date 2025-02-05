@@ -38,7 +38,6 @@ var (
 	tailLines     int
 	createArchive bool
 
-	pollXidEvents bool
 	pollGPMEvents bool
 	netcheck      bool
 	diskcheck     bool
@@ -539,11 +538,6 @@ cat summary.txt
 					Usage:       "set the number of lines to tail log files (e.g., /var/log/dmesg)",
 					Destination: &tailLines,
 					Value:       5000,
-				},
-				&cli.BoolFlag{
-					Name:        "poll-xid-events",
-					Usage:       "enable polling xid events (default: false)",
-					Destination: &pollXidEvents,
 				},
 				&cli.BoolFlag{
 					Name:        "poll-gpm-events",

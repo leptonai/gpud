@@ -17,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
-	nvidia_xid_sxid_state "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid-sxid-state"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/log"
 )
@@ -53,9 +52,6 @@ type Instance interface {
 
 	ClockEventsSupported() bool
 
-	XidErrorSupported() bool
-	RecvXidEvents() <-chan *XidEvent
-
 	GPMMetricsSupported() bool
 	RecvGPMEvents() <-chan *GPMEvent
 
@@ -90,12 +86,6 @@ type instance struct {
 
 	clockEventsSupported bool
 
-	xidErrorSupported   bool
-	xidEventMask        uint64
-	xidEventSet         nvml.EventSet
-	xidEventCh          chan *XidEvent
-	xidEventChCloseOnce sync.Once
-
 	gpmPollInterval time.Duration
 
 	gpmMetricsSupported bool
@@ -129,8 +119,6 @@ type DeviceInfo struct {
 	GPUCores        int    `json:"gpu_cores"`
 	SupportedEvents uint64 `json:"supported_events"`
 
-	// Set true if the device supports NVML error checks (health checks).
-	XidErrorSupported bool `json:"xid_error_supported"`
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
@@ -233,13 +221,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
 	}
 
-	// it is ok to create and register the same/shared event set across multiple devices
-	// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/main/internal/rm/health.go
-	xidEventSet, ret := nvmlLib.EventSetCreate()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to create event set: %v", nvml.ErrorString(ret))
-	}
-
 	rootCtx, rootCancel := context.WithCancel(ctx)
 	return &instance{
 		rootCtx:    rootCtx,
@@ -258,12 +239,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		dbRO: op.dbRO,
 
 		clockEventsSupported: clockEventsSupported,
-
-		xidErrorSupported:   false,
-		xidEventSet:         xidEventSet,
-		xidEventMask:        defaultXidEventMask,
-		xidEventCh:          make(chan *XidEvent, 100),
-		xidEventChCloseOnce: sync.Once{},
 
 		gpmPollInterval: time.Minute,
 
@@ -287,13 +262,6 @@ func (inst *instance) Start() error {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	log.Logger.Debugw("creating xid sxid event history table")
-	ctx, cancel := context.WithTimeout(inst.rootCtx, 10*time.Second)
-	defer cancel()
-	if err := nvidia_xid_sxid_state.CreateTableXidSXidEventHistory(ctx, inst.dbRW); err != nil {
-		return err
-	}
-
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
 	log.Logger.Debugw("getting devices from device library")
@@ -302,7 +270,6 @@ func (inst *instance) Start() error {
 		return err
 	}
 
-	inst.xidErrorSupported = true
 	inst.gpmMetricsSupported = true
 
 	inst.devices = make(map[string]*DeviceInfo)
@@ -347,16 +314,6 @@ func (inst *instance) Start() error {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
-		log.Logger.Debugw("registering events")
-		ret = d.RegisterEvents(inst.xidEventMask&supportedEvents, inst.xidEventSet)
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to register events: %v", nvml.ErrorString(ret))
-		}
-		xidErrorSupported := ret != nvml.ERROR_NOT_SUPPORTED
-		if !xidErrorSupported {
-			inst.xidErrorSupported = false
-		}
-
 		log.Logger.Debugw("checking if gpm metrics are supported")
 		gpmMetricsSpported, err := GPMSupportedByDevice(d)
 		if err != nil {
@@ -378,20 +335,10 @@ func (inst *instance) Start() error {
 
 			SupportedEvents: supportedEvents,
 
-			XidErrorSupported:   xidErrorSupported,
 			GPMMetricsSupported: gpmMetricsSpported,
 
 			device: d,
 		}
-	}
-
-	if inst.xidErrorSupported {
-		go inst.pollXidEvents()
-	} else {
-		inst.xidEventChCloseOnce.Do(func() {
-			log.Logger.Warnw("xid error not supported")
-			close(inst.xidEventCh)
-		})
 	}
 
 	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
@@ -423,14 +370,6 @@ func (inst *instance) Shutdown() error {
 
 	log.Logger.Debugw("shutting down NVML")
 	inst.rootCancel()
-
-	if inst.xidEventSet != nil {
-		ret := inst.xidEventSet.Free()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to free event set: %v", nvml.ErrorString(ret))
-		}
-	}
-	inst.xidEventSet = nil
 
 	ret := inst.nvmlLib.Shutdown()
 	if ret != nvml.SUCCESS {
@@ -475,7 +414,6 @@ func (inst *instance) Get() (*Output, error) {
 			GPUCores:        devInfo.GPUCores,
 			SupportedEvents: devInfo.SupportedEvents,
 
-			XidErrorSupported:   devInfo.XidErrorSupported,
 			GPMMetricsSupported: devInfo.GPMMetricsSupported,
 
 			device: devInfo.device,

@@ -12,7 +12,6 @@ import (
 type Op struct {
 	dbRW                  *sql.DB
 	dbRO                  *sql.DB
-	xidEventsStore        events_db.Store
 	hwslowdownEventsStore events_db.Store
 	gpmMetricsIDs         map[nvml.GpmMetricId]struct{}
 }
@@ -54,12 +53,6 @@ func WithDBRW(db *sql.DB) OpOption {
 func WithDBRO(db *sql.DB) OpOption {
 	return func(op *Op) {
 		op.dbRO = db
-	}
-}
-
-func WithXidEventsStore(store events_db.Store) OpOption {
-	return func(op *Op) {
-		op.xidEventsStore = store
 	}
 }
 

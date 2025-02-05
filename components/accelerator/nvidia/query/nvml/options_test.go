@@ -6,100 +6,212 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	events_db "github.com/leptonai/gpud/components/db"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func TestOpOptions(t *testing.T) {
-	t.Run("default values", func(t *testing.T) {
-		op := &Op{}
-		err := op.applyOpts([]OpOption{})
-		require.NoError(t, err)
+type mockEventsStore struct {
+	events_db.Store
+}
 
-		// Check that default in-memory databases are created
+func TestOpApplyOpts(t *testing.T) {
+	t.Run("default options", func(t *testing.T) {
+		op := &Op{}
+		err := op.applyOpts(nil)
+		assert.NoError(t, err)
+
+		// Check default databases are created as in-memory
 		assert.NotNil(t, op.dbRW)
 		assert.NotNil(t, op.dbRO)
-		assert.Nil(t, op.xidEventsStore)
-		assert.Nil(t, op.hwslowdownEventsStore)
-		assert.Nil(t, op.gpmMetricsIDs)
 	})
 
-	t.Run("custom values", func(t *testing.T) {
-		mockDB := &sql.DB{}
-		mockStore := &mockEventsStore{}
-		testMetrics := []nvml.GpmMetricId{
+	t.Run("with custom databases", func(t *testing.T) {
+		dbRW, err := sqlite.Open(":memory:")
+		assert.NoError(t, err)
+		defer dbRW.Close()
+
+		dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
+		assert.NoError(t, err)
+		defer dbRO.Close()
+
+		op := &Op{}
+		err = op.applyOpts([]OpOption{
+			WithDBRW(dbRW),
+			WithDBRO(dbRO),
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, dbRW, op.dbRW)
+		assert.Equal(t, dbRO, op.dbRO)
+	})
+
+	t.Run("with events store", func(t *testing.T) {
+		store := &mockEventsStore{}
+		op := &Op{}
+		err := op.applyOpts([]OpOption{
+			WithHWSlowdownEventsStore(store),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, store, op.hwslowdownEventsStore)
+	})
+
+	t.Run("with GPM metrics", func(t *testing.T) {
+		metrics := []nvml.GpmMetricId{
 			nvml.GPM_METRIC_SM_OCCUPANCY,
 			nvml.GPM_METRIC_FP32_UTIL,
 		}
-
 		op := &Op{}
 		err := op.applyOpts([]OpOption{
-			WithDBRW(mockDB),
-			WithDBRO(mockDB),
-			WithXidEventsStore(mockStore),
-			WithHWSlowdownEventsStore(mockStore),
-			WithGPMMetricsID(testMetrics...),
+			WithGPMMetricsID(metrics...),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		// Check custom values
-		assert.Equal(t, mockDB, op.dbRW)
-		assert.Equal(t, mockDB, op.dbRO)
-		assert.Equal(t, mockStore, op.xidEventsStore)
-		assert.Equal(t, mockStore, op.hwslowdownEventsStore)
-
-		// Check GPM metrics
-		assert.NotNil(t, op.gpmMetricsIDs)
-		assert.Len(t, op.gpmMetricsIDs, len(testMetrics))
-		for _, metric := range testMetrics {
-			_, exists := op.gpmMetricsIDs[metric]
-			assert.True(t, exists, "Metric %v should exist in gpmMetricsIDs", metric)
+		// Verify all metrics are in the map
+		assert.Len(t, op.gpmMetricsIDs, len(metrics))
+		for _, id := range metrics {
+			_, exists := op.gpmMetricsIDs[id]
+			assert.True(t, exists, "metric %v should exist in map", id)
 		}
 	})
 
-	t.Run("partial options", func(t *testing.T) {
-		mockDB := &sql.DB{}
-		testMetrics := []nvml.GpmMetricId{nvml.GPM_METRIC_SM_OCCUPANCY}
-
+	t.Run("with multiple GPM metrics calls", func(t *testing.T) {
 		op := &Op{}
-		err := op.applyOpts([]OpOption{
-			WithDBRW(mockDB),
-			WithGPMMetricsID(testMetrics...),
-		})
-		require.NoError(t, err)
-
-		// Check mixed custom and default values
-		assert.Equal(t, mockDB, op.dbRW)
-		assert.NotNil(t, op.dbRO) // Should create default read-only DB
-		assert.Nil(t, op.xidEventsStore)
-		assert.Nil(t, op.hwslowdownEventsStore)
-
-		// Check GPM metrics
-		assert.NotNil(t, op.gpmMetricsIDs)
-		assert.Len(t, op.gpmMetricsIDs, 1)
-		_, exists := op.gpmMetricsIDs[nvml.GPM_METRIC_SM_OCCUPANCY]
-		assert.True(t, exists)
-	})
-
-	t.Run("multiple GPM metrics", func(t *testing.T) {
-		op := &Op{}
-		// Add metrics in multiple calls to test accumulation
 		err := op.applyOpts([]OpOption{
 			WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY),
 			WithGPMMetricsID(nvml.GPM_METRIC_FP32_UTIL),
 		})
-		require.NoError(t, err)
-
+		assert.NoError(t, err)
 		assert.Len(t, op.gpmMetricsIDs, 2)
-		_, exists := op.gpmMetricsIDs[nvml.GPM_METRIC_SM_OCCUPANCY]
-		assert.True(t, exists)
-		_, exists = op.gpmMetricsIDs[nvml.GPM_METRIC_FP32_UTIL]
-		assert.True(t, exists)
+	})
+
+	t.Run("with all options combined", func(t *testing.T) {
+		dbRW, err := sqlite.Open(":memory:")
+		assert.NoError(t, err)
+		defer dbRW.Close()
+
+		dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
+		assert.NoError(t, err)
+		defer dbRO.Close()
+
+		store := &mockEventsStore{}
+		metrics := []nvml.GpmMetricId{nvml.GPM_METRIC_SM_OCCUPANCY}
+
+		op := &Op{}
+		err = op.applyOpts([]OpOption{
+			WithDBRW(dbRW),
+			WithDBRO(dbRO),
+			WithHWSlowdownEventsStore(store),
+			WithGPMMetricsID(metrics...),
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, dbRW, op.dbRW)
+		assert.Equal(t, dbRO, op.dbRO)
+		assert.Equal(t, store, op.hwslowdownEventsStore)
+		assert.Len(t, op.gpmMetricsIDs, len(metrics))
 	})
 }
 
-// mockEventsStore implements events_db.Store interface for testing
-type mockEventsStore struct {
-	events_db.Store
+func TestWithDBRW(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	assert.NoError(t, err)
+	defer db.Close()
+
+	op := &Op{}
+	opt := WithDBRW(db)
+	opt(op)
+	assert.Equal(t, db, op.dbRW)
+}
+
+func TestWithDBRO(t *testing.T) {
+	db, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
+	assert.NoError(t, err)
+	defer db.Close()
+
+	op := &Op{}
+	opt := WithDBRO(db)
+	opt(op)
+	assert.Equal(t, db, op.dbRO)
+}
+
+func TestWithHWSlowdownEventsStore(t *testing.T) {
+	store := &mockEventsStore{}
+	op := &Op{}
+	opt := WithHWSlowdownEventsStore(store)
+	opt(op)
+	assert.Equal(t, store, op.hwslowdownEventsStore)
+}
+
+func TestWithGPMMetricsID(t *testing.T) {
+	t.Run("single metric", func(t *testing.T) {
+		op := &Op{}
+		metric := nvml.GPM_METRIC_SM_OCCUPANCY
+		opt := WithGPMMetricsID(metric)
+		opt(op)
+		assert.Len(t, op.gpmMetricsIDs, 1)
+		_, exists := op.gpmMetricsIDs[metric]
+		assert.True(t, exists)
+	})
+
+	t.Run("multiple metrics", func(t *testing.T) {
+		op := &Op{}
+		metrics := []nvml.GpmMetricId{
+			nvml.GPM_METRIC_SM_OCCUPANCY,
+			nvml.GPM_METRIC_FP32_UTIL,
+		}
+		opt := WithGPMMetricsID(metrics...)
+		opt(op)
+		assert.Len(t, op.gpmMetricsIDs, len(metrics))
+		for _, id := range metrics {
+			_, exists := op.gpmMetricsIDs[id]
+			assert.True(t, exists)
+		}
+	})
+
+	t.Run("duplicate metrics", func(t *testing.T) {
+		op := &Op{}
+		metric := nvml.GPM_METRIC_SM_OCCUPANCY
+		opt1 := WithGPMMetricsID(metric)
+		opt2 := WithGPMMetricsID(metric)
+		opt1(op)
+		opt2(op)
+		assert.Len(t, op.gpmMetricsIDs, 1)
+	})
+}
+
+func TestOpOptionsErrorHandling(t *testing.T) {
+	t.Run("invalid database connection", func(t *testing.T) {
+		// Create an invalid database connection
+		invalidDB, err := sql.Open("sqlite3", "/nonexistent/path")
+		assert.NoError(t, err) // Open doesn't actually connect
+		defer invalidDB.Close()
+
+		op := &Op{}
+		err = op.applyOpts([]OpOption{
+			WithDBRW(invalidDB),
+		})
+		// The error will come from the default database creation since we don't use the invalid one
+		assert.NoError(t, err)
+	})
+
+	t.Run("nil database connections", func(t *testing.T) {
+		op := &Op{}
+		err := op.applyOpts([]OpOption{
+			WithDBRW(nil),
+			WithDBRO(nil),
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, op.dbRW) // Should create default in-memory DB
+		assert.NotNil(t, op.dbRO) // Should create default in-memory DB
+	})
+
+	t.Run("nil events store", func(t *testing.T) {
+		op := &Op{}
+		err := op.applyOpts([]OpOption{
+			WithHWSlowdownEventsStore(nil),
+		})
+		assert.NoError(t, err)
+		assert.Nil(t, op.hwslowdownEventsStore)
+	})
 }

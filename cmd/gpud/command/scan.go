@@ -26,7 +26,6 @@ func cmdScan(cliContext *cli.Context) error {
 
 	diagnoseOpts := []diagnose.OpOption{
 		diagnose.WithLines(tailLines),
-		diagnose.WithPollXidEvents(pollXidEvents),
 		diagnose.WithPollGPMEvents(pollGPMEvents),
 		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),

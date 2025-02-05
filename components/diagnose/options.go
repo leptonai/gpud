@@ -10,7 +10,6 @@ type Op struct {
 	debug         bool
 	createArchive bool
 
-	pollXidEvents bool
 	pollGPMEvents bool
 
 	netcheck  bool
@@ -86,12 +85,6 @@ func WithDebug(b bool) OpOption {
 func WithCreateArchive(b bool) OpOption {
 	return func(op *Op) {
 		op.createArchive = b
-	}
-}
-
-func WithPollXidEvents(b bool) OpOption {
-	return func(op *Op) {
-		op.pollXidEvents = b
 	}
 }
 
