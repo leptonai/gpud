@@ -106,6 +106,7 @@ import (
 	power_supply "github.com/leptonai/gpud/components/power-supply"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	query_config "github.com/leptonai/gpud/components/query/config"
+	"github.com/leptonai/gpud/components/query/log/common"
 	query_log_config "github.com/leptonai/gpud/components/query/log/config"
 	query_log_state "github.com/leptonai/gpud/components/query/log/state"
 	"github.com/leptonai/gpud/components/state"
@@ -430,7 +431,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 			}
 
-			c, err := dmesg.New(ctx, cfg, nil)
+			c, err := dmesg.New(ctx, cfg, func(parsedTime time.Time, line []byte, filter *common.Filter) { return })
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

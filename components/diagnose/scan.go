@@ -182,33 +182,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			} else {
 				output.PrintInfo(query.WithDebug(op.debug), query.WithInfinibandClassDirectory(op.infinibandClassDirectory))
 
-				if op.pollXidEvents {
-					fmt.Printf("\n%s checking nvidia xid errors\n", inProgress)
-
-					select {
-					case <-ctx.Done():
-						log.Logger.Warnw("context done")
-
-					case <-time.After(7 * time.Second):
-						fmt.Printf("%s no xid events found after 7 seconds\n", checkMark)
-
-					case event := <-nvidia_query_nvml.DefaultInstance().RecvXidEvents():
-						if event.Error != nil {
-							fmt.Printf("%s received the xid event with an error %v\n", checkMark, event.Error)
-						} else {
-							if nvidia_query_nvml.DefaultInstance().XidErrorSupported() {
-								fmt.Printf("%s successfully received the xid event with no error\n", warningSign)
-							} else {
-								fmt.Printf("%s xid error not supported\n", warningSign)
-							}
-						}
-
-						yb, _ := event.YAML()
-						fmt.Println(string(yb))
-						println()
-					}
-				}
-
 				if op.pollGPMEvents {
 					fmt.Printf("\n%s checking nvidia GPM events\n", inProgress)
 
