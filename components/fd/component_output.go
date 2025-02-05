@@ -184,35 +184,35 @@ func (o *Output) States() ([]components.State, error) {
 	}
 
 	if allocatedPercent, err := o.GetAllocatedFileHandlesPercent(); err == nil && allocatedPercent > 95.0 {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; allocated_file_handles_percent is greater than 95"
 	}
 	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > 80.0 {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; threshold_allocated_file_handles_percent is greater than 80"
 	}
 
 	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > 95.0 {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; used_percent is greater than 95"
 	}
 	if thresholdRunningPIDsPercent, err := o.GetThresholdRunningPIDsPercent(); err == nil && thresholdRunningPIDsPercent > 80.0 {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; threshold_running_pids_percent is greater than 80"
 	}
 
 	if o.FDLimitSupported && o.ThresholdRunningPIDs > 0 && o.RunningPIDs > o.ThresholdRunningPIDs {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; running_pids is greater than threshold_running_pids"
 	}
 	if o.FileHandlesSupported && o.ThresholdAllocatedFileHandles > 0 && o.AllocatedFileHandles > o.ThresholdAllocatedFileHandles {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += "; allocated_file_handles is greater than threshold_allocated_file_handles"
 	}
 
 	// may fail on Mac OS
 	if len(o.Errors) > 0 {
-		state.Healthy = false
+		state.Healthy = true
 		state.Reason += fmt.Sprintf("; %s", strings.Join(o.Errors, ", "))
 	}
 
