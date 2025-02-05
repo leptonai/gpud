@@ -431,7 +431,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 			}
 
-			c, err := dmesg.New(ctx, cfg, func(parsedTime time.Time, line []byte, filter *common.Filter) { return })
+			c, err := dmesg.New(ctx, cfg, func(parsedTime time.Time, line []byte, filter *common.Filter) {})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
