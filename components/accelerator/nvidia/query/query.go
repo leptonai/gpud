@@ -252,7 +252,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	productName := o.GPUProductName()
 	if productName != "" {
-		o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
+		o.MemoryErrorManagementCapabilities = SupportedMemoryMgmtCapsByGPUProduct(o.GPUProductName())
 	} else {
 		log.Logger.Warnw("no gpu product name found -- skipping evaluating memory error management capabilities")
 	}
@@ -535,6 +535,18 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 				} else {
 					fmt.Printf("%s NVML found no hw slowdown error\n", checkMark)
 				}
+			}
+
+			if dev.RemappedRows.Supported {
+				fmt.Printf("%s NVML remapped rows supported\n", checkMark)
+				if dev.RemappedRows.RequiresReset() {
+					fmt.Printf("%s NVML found that the GPU needs a reset\n", warningSign)
+				}
+				if dev.RemappedRows.QualifiesForRMA() {
+					fmt.Printf("%s NVML found that the GPU qualifies for RMA\n", warningSign)
+				}
+			} else {
+				fmt.Printf("%s NVML remapped rows are not supported\n", warningSign)
 			}
 
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
