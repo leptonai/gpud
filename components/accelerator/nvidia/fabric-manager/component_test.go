@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
+	query_log_config "github.com/leptonai/gpud/internal/query/log/config"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/stretchr/testify/assert"

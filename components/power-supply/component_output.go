@@ -12,7 +12,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 )
 
 type Output struct {

@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
+	"github.com/leptonai/gpud/internal/query"
+	query_log "github.com/leptonai/gpud/internal/query/log"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	fabric_manager_log "github.com/leptonai/gpud/nvidia-query/fabric-manager-log"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"

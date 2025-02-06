@@ -8,7 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 )
 

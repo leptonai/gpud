@@ -9,9 +9,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {

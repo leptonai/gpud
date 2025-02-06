@@ -3,7 +3,7 @@ package infiniband
 import (
 	"testing"
 
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	"github.com/leptonai/gpud/nvidia-query/infiniband"
 )
 
 func TestOutputEvaluateEmptyConfig(t *testing.T) {

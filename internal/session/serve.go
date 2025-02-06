@@ -20,7 +20,7 @@ import (
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/internal/manager"
 	lepServer "github.com/leptonai/gpud/internal/server"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/manager"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 

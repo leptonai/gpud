@@ -8,8 +8,8 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	lep_components "github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/errdefs"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/gin-gonic/gin"

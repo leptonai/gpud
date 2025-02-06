@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	events_db "github.com/leptonai/gpud/internal/db"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/pkg/fuse"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

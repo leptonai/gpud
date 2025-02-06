@@ -5,11 +5,11 @@ import (
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
-	nvidia_query_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/query/nccl"
-	nvidia_query_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
-	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
+	nvidia_query_nccl "github.com/leptonai/gpud/nvidia-query/nccl"
+	nvidia_query_peermem "github.com/leptonai/gpud/nvidia-query/peermem"
+	nvidia_query_sxid "github.com/leptonai/gpud/nvidia-query/sxid"
+	nvidia_query_xid "github.com/leptonai/gpud/nvidia-query/xid"
 
 	"k8s.io/utils/ptr"
 )

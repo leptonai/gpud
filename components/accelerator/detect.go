@@ -3,7 +3,7 @@ package accelerator
 import (
 	"context"
 
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 	"github.com/leptonai/gpud/pkg/file"
 )
 

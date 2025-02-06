@@ -12,7 +12,7 @@ import (
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/mem"

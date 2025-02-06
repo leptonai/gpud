@@ -10,10 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	events_db "github.com/leptonai/gpud/components/db"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
-	"github.com/leptonai/gpud/components/query"
+	events_db "github.com/leptonai/gpud/internal/db"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 )
 

@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	"github.com/leptonai/gpud/components/common"
+	query "github.com/leptonai/gpud/nvidia-query"
+	"github.com/leptonai/gpud/nvidia-query/nvml"
 )
 
 func TestOutput_isRowRemappingSupported(t *testing.T) {

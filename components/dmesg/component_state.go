@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log "github.com/leptonai/gpud/internal/query/log"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
 
 	"github.com/nxadm/tail"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

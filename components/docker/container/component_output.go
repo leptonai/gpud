@@ -11,7 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/pkg/process"
 
 	docker_types "github.com/docker/docker/api/types"

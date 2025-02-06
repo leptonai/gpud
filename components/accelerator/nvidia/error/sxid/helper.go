@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
+	nvidia_query_sxid "github.com/leptonai/gpud/nvidia-query/sxid"
 )
 
 const (

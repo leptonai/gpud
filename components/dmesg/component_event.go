@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	query_log "github.com/leptonai/gpud/components/query/log"
+	query_log "github.com/leptonai/gpud/internal/query/log"
 	"github.com/leptonai/gpud/log"
 )
 

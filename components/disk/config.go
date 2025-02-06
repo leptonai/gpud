@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 )
 
 type Config struct {

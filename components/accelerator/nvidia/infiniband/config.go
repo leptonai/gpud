@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 	"github.com/leptonai/gpud/log"
 )
 

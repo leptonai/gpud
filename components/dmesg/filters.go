@@ -3,8 +3,8 @@ package dmesg
 import (
 	"context"
 
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 )
 
 func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {

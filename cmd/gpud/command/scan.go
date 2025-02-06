@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leptonai/gpud/components/diagnose"
+	"github.com/leptonai/gpud/internal/diagnose"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/urfave/cli"

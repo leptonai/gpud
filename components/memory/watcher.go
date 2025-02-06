@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
 	memory_dmesg "github.com/leptonai/gpud/components/memory/dmesg"
+	events_db "github.com/leptonai/gpud/internal/db"
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 

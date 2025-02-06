@@ -3,7 +3,7 @@ package dmesg
 import (
 	fd_dmesg "github.com/leptonai/gpud/components/fd/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
 
 	"k8s.io/utils/ptr"
 )

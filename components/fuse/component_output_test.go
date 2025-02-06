@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
+	"github.com/leptonai/gpud/common"
+	events_db "github.com/leptonai/gpud/internal/db"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

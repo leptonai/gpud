@@ -10,15 +10,15 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
-	"github.com/leptonai/gpud/components/query"
+	events_db "github.com/leptonai/gpud/internal/db"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	nvidia_query_metrics_clock "github.com/leptonai/gpud/nvidia-query/metrics/clock"
 )
 
 const (

@@ -10,10 +10,10 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_metrics_power "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/power"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	nvidia_query_metrics_power "github.com/leptonai/gpud/nvidia-query/metrics/power"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

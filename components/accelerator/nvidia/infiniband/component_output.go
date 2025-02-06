@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
-	"github.com/leptonai/gpud/components/common"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	"github.com/leptonai/gpud/nvidia-query/infiniband"
 )
 
 // ToOutput converts nvidia_query.Output to Output.

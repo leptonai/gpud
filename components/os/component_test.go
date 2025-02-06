@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

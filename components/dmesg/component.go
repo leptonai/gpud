@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
+	query_log "github.com/leptonai/gpud/internal/query/log"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
+	query_log_tail "github.com/leptonai/gpud/internal/query/log/tail"
 	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )

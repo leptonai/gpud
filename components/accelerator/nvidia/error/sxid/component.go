@@ -16,10 +16,10 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid/dmesg"
-	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
+	"github.com/leptonai/gpud/internal/db"
 	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/nvidia-query/sxid/dmesg"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/common"
 	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
 	"github.com/leptonai/gpud/errdefs"
 

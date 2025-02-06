@@ -8,7 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 )
 

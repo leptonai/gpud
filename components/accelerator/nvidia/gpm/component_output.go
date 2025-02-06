@@ -9,9 +9,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
+	nvidia_query_nvml "github.com/leptonai/gpud/nvidia-query/nvml"
 
 	"sigs.k8s.io/yaml"
 )

@@ -13,8 +13,8 @@ import (
 	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/errdefs"
+	"github.com/leptonai/gpud/internal/manager/packages"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/manager/packages"
 	"github.com/leptonai/gpud/pkg/systemd"
 
 	"github.com/urfave/cli"

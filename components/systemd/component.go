@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/query"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 )
 

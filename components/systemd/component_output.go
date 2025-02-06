@@ -10,8 +10,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 

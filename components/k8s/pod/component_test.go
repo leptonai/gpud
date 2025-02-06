@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 
 	corev1 "k8s.io/api/core/v1"
 )

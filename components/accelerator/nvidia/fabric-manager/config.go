@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
+	query_log_config "github.com/leptonai/gpud/internal/query/log/config"
+	fabric_manager_log "github.com/leptonai/gpud/nvidia-query/fabric-manager-log"
 
 	"k8s.io/utils/ptr"
 )

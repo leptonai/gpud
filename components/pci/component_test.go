@@ -10,7 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/pci/id"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

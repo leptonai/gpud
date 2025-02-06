@@ -17,7 +17,6 @@ import (
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
@@ -28,6 +27,7 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/dustin/go-humanize"

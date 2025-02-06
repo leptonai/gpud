@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
-	query_log_config "github.com/leptonai/gpud/components/query/log/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
+	query_log_config "github.com/leptonai/gpud/internal/query/log/config"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/process"

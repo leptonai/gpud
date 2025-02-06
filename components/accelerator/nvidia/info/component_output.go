@@ -6,7 +6,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 )
 
 // ToOutput converts nvidia_query.Output to Output.

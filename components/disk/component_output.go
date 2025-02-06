@@ -14,7 +14,7 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/disk/metrics"
 	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/disk"
 )

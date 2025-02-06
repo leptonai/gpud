@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	events_db "github.com/leptonai/gpud/internal/db"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
 	"github.com/leptonai/gpud/pkg/sqlite"

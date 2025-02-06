@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 
 	"github.com/urfave/cli"
 )

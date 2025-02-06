@@ -9,9 +9,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	bad_envs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {

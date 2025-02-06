@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log "github.com/leptonai/gpud/internal/query/log"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 )
 

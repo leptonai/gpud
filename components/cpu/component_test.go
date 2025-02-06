@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/internal/query/config"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	events_db "github.com/leptonai/gpud/components/db"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
-	"github.com/leptonai/gpud/components/query"
+	events_db "github.com/leptonai/gpud/internal/db"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"

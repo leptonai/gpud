@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/db"
-	events_db "github.com/leptonai/gpud/components/db"
+	"github.com/leptonai/gpud/internal/db"
+	events_db "github.com/leptonai/gpud/internal/db"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 )
 

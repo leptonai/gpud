@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/peermem"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	"github.com/leptonai/gpud/nvidia-query/peermem"
 )
 
 // ToOutput converts nvidia_query.Output to Output.

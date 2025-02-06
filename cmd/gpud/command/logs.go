@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/leptonai/gpud/components/query/log/tail"
+	"github.com/leptonai/gpud/internal/query/log/tail"
 
 	"github.com/urfave/cli"
 )

@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/leptonai/gpud/common"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"

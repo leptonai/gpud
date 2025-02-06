@@ -13,7 +13,7 @@ import (
 
 	lep_components "github.com/leptonai/gpud/components"
 	lep_config "github.com/leptonai/gpud/config"
-	"github.com/leptonai/gpud/manager"
+	"github.com/leptonai/gpud/internal/manager"
 
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/yaml"

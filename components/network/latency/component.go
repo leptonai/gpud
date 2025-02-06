@@ -10,7 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/log"
 
 	"github.com/prometheus/client_golang/prometheus"

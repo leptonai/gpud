@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
+	nvidia_query_nvml "github.com/leptonai/gpud/nvidia-query/nvml"
 
 	"sigs.k8s.io/yaml"
 )

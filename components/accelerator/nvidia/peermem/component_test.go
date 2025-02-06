@@ -6,10 +6,10 @@ import (
 	"time"
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	"github.com/leptonai/gpud/components/dmesg"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
+	query_log "github.com/leptonai/gpud/internal/query/log"
+	query_log_common "github.com/leptonai/gpud/internal/query/log/common"
+	nvidia_query "github.com/leptonai/gpud/nvidia-query"
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

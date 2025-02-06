@@ -13,7 +13,7 @@ import (
 	components_metrics "github.com/leptonai/gpud/components/metrics"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/internal/query"
 	"github.com/leptonai/gpud/pkg/latency"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 )

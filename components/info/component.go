@@ -15,8 +15,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
+	"github.com/leptonai/gpud/internal/manager"
 	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/memory"
 	"github.com/leptonai/gpud/pkg/sqlite"

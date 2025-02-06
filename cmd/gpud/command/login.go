@@ -7,10 +7,10 @@ import (
 	"time"
 
 	client "github.com/leptonai/gpud/client/v1"
-	"github.com/leptonai/gpud/components/state"
 	"github.com/leptonai/gpud/config"
 	"github.com/leptonai/gpud/internal/login"
 	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/internal/state"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/urfave/cli"
