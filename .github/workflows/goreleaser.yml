@@ -25,30 +25,30 @@ jobs:
             target: linux_amd64
             goreleaser_suffix: _ubuntu20.04
 
-          - os: ubuntu-20.04
-            platform: linux
-            target: linux_arm64
-            goreleaser_suffix: _ubuntu20.04
+          # - os: ubuntu-20.04
+          #   platform: linux
+          #   target: linux_arm64
+          #   goreleaser_suffix: _ubuntu20.04
 
           - os: ubuntu-22.04
             platform: linux
             target: linux_amd64
             goreleaser_suffix: _ubuntu22.04
 
-          - os: ubuntu-22.04
-            platform: linux
-            target: linux_arm64
-            goreleaser_suffix: _ubuntu22.04
+          # - os: ubuntu-22.04
+          #   platform: linux
+          #   target: linux_arm64
+          #   goreleaser_suffix: _ubuntu22.04
 
           - os: ubuntu-24.04
             platform: linux
             target: linux_amd64
             goreleaser_suffix: _ubuntu24.04
 
-          - os: ubuntu-24.04
-            platform: linux
-            target: linux_arm64
-            goreleaser_suffix: _ubuntu24.04
+          # - os: ubuntu-24.04
+          #   platform: linux
+          #   target: linux_arm64
+          #   goreleaser_suffix: _ubuntu24.04
 
           - os: macos-latest
             platform: darwin
