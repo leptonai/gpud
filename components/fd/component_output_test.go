@@ -43,6 +43,7 @@ func TestOutputStates(t *testing.T) {
 				AllocatedFileHandles:                 50,
 				AllocatedFileHandlesPercent:          "50.00",
 				UsedPercent:                          "50.00",
+				Usage:                                50,
 				ThresholdAllocatedFileHandlesPercent: "50.00",
 				ThresholdRunningPIDsPercent:          "50.00",
 				RunningPIDs:                          50,
@@ -52,59 +53,15 @@ func TestOutputStates(t *testing.T) {
 				FDLimitSupported:                     true,
 			},
 			wantHealthy:    true,
-			wantReasonPart: "allocated_file_handles: 50",
-		},
-		{
-			name: "Unhealthy - allocated file handles > 95%",
-			output: Output{
-				AllocatedFileHandlesPercent: "96.00",
-			},
-			wantHealthy:    false,
-			wantReasonPart: ErrFileHandlesAllocationExceedsCritical,
+			wantReasonPart: "current file descriptors: 50",
 		},
 		{
 			name: "Unhealthy - threshold allocated file handles > 80%",
 			output: Output{
 				ThresholdAllocatedFileHandlesPercent: "81.00",
 			},
-			wantHealthy:    false,
+			wantHealthy:    true,
 			wantReasonPart: ErrFileHandlesAllocationExceedsWarning,
-		},
-		{
-			name: "Unhealthy - used percent > 95%",
-			output: Output{
-				UsedPercent: "96.00",
-			},
-			wantHealthy:    false,
-			wantReasonPart: ErrFileDescriptorUsageExceedsCritical,
-		},
-		{
-			name: "Unhealthy - threshold running PIDs percent > 80%",
-			output: Output{
-				ThresholdRunningPIDsPercent: "81.00",
-			},
-			wantHealthy:    false,
-			wantReasonPart: ErrRunningPIDsExceedsWarning,
-		},
-		{
-			name: "Unhealthy - running PIDs exceeds threshold",
-			output: Output{
-				RunningPIDs:          101,
-				ThresholdRunningPIDs: 100,
-				FDLimitSupported:     true,
-			},
-			wantHealthy:    false,
-			wantReasonPart: "too many running PIDs (exceeds threshold 100)",
-		},
-		{
-			name: "Unhealthy - allocated file handles exceeds threshold",
-			output: Output{
-				AllocatedFileHandles:          101,
-				ThresholdAllocatedFileHandles: 100,
-				FileHandlesSupported:          true,
-			},
-			wantHealthy:    false,
-			wantReasonPart: "too many file handles allocated (exceeds threshold 100)",
 		},
 		{
 			name: "Unhealthy - with errors",

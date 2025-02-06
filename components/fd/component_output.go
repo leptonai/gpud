@@ -171,11 +171,11 @@ func (o *Output) States() ([]components.State, error) {
 	state := components.State{
 		Name:    StateNameFileDescriptors,
 		Healthy: true,
-		Reason: fmt.Sprintf("allocated_file_handles: %d, allocated_percent: %s, running_pids: %d, used_percent: %s",
-			o.AllocatedFileHandles,
-			o.AllocatedFileHandlesPercent,
-			o.RunningPIDs,
-			o.UsedPercent,
+		Health:  components.StateHealthy,
+		Reason: fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
+			o.Usage,
+			o.ThresholdAllocatedFileHandles,
+			o.ThresholdAllocatedFileHandlesPercent,
 		),
 		ExtraInfo: map[string]string{
 			StateKeyAllocatedFileHandles: fmt.Sprintf("%d", o.AllocatedFileHandles),
@@ -197,36 +197,15 @@ func (o *Output) States() ([]components.State, error) {
 		},
 	}
 
-	if allocatedPercent, err := o.GetAllocatedFileHandlesPercent(); err == nil && allocatedPercent > CriticalFileHandlesAllocationPercent {
-		state.Healthy = false
-		state.Reason += "; " + ErrFileHandlesAllocationExceedsCritical
-	}
 	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
-		state.Healthy = false
+		state.Health = components.StateDegraded
 		state.Reason += "; " + ErrFileHandlesAllocationExceedsWarning
-	}
-
-	if usedPercent, err := o.GetUsedPercent(); err == nil && usedPercent > CriticalFileDescriptorUsagePercent {
-		state.Healthy = false
-		state.Reason += "; " + ErrFileDescriptorUsageExceedsCritical
-	}
-	if thresholdRunningPIDsPercent, err := o.GetThresholdRunningPIDsPercent(); err == nil && thresholdRunningPIDsPercent > WarningRunningPIDsThresholdPercent {
-		state.Healthy = false
-		state.Reason += "; " + ErrRunningPIDsExceedsWarning
-	}
-
-	if o.FDLimitSupported && o.ThresholdRunningPIDs > 0 && o.RunningPIDs > o.ThresholdRunningPIDs {
-		state.Healthy = false
-		state.Reason += fmt.Sprintf("; "+ErrTooManyRunningPIDs, o.ThresholdRunningPIDs)
-	}
-	if o.FileHandlesSupported && o.ThresholdAllocatedFileHandles > 0 && o.AllocatedFileHandles > o.ThresholdAllocatedFileHandles {
-		state.Healthy = false
-		state.Reason += fmt.Sprintf("; "+ErrTooManyFileHandlesAllocated, o.ThresholdAllocatedFileHandles)
 	}
 
 	// may fail on Mac OS
 	if len(o.Errors) > 0 {
 		state.Healthy = false
+		state.Health = components.StateUnhealthy
 		state.Reason += fmt.Sprintf("; %s", strings.Join(o.Errors, ", "))
 	}
 
@@ -318,8 +297,8 @@ func CreateGet(cfg Config) query.GetFunc {
 
 		fileHandlesSupported := file.CheckFileHandlesSupported()
 		var thresholdAllocatedFileHandlesPct float64
-		if fileHandlesSupported && cfg.ThresholdAllocatedFileHandles > 0 {
-			thresholdAllocatedFileHandlesPct = calcUsagePct(allocatedFileHandles, cfg.ThresholdAllocatedFileHandles)
+		if cfg.ThresholdAllocatedFileHandles > 0 {
+			thresholdAllocatedFileHandlesPct = calcUsagePct(usage, cfg.ThresholdAllocatedFileHandles)
 		}
 		if err := metrics.SetThresholdAllocatedFileHandles(ctx, float64(cfg.ThresholdAllocatedFileHandles)); err != nil {
 			return nil, err
