@@ -39,7 +39,7 @@ func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
 }
 
 // DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
-const DefaultThresholdAllocatedFileHandles = 900000
+const DefaultThresholdAllocatedFileHandles = 10000000
 
 // DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
 const DefaultThresholdRunningPIDs = 900000
