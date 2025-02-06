@@ -10,11 +10,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/process"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"sigs.k8s.io/yaml"
 )
@@ -467,8 +470,10 @@ func (o *SMIOutput) FindHWSlowdownErrs() []string {
 	return errs
 }
 
-func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []nvidia_hw_slowdown_state.Event {
-	var events []nvidia_hw_slowdown_state.Event
+func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []components.Event {
+	var resultEvents []components.Event
+	eventTime := time.Unix(unixSeconds, 0).UTC()
+
 	for _, g := range o.GPUs {
 		if g.ClockEventReasons == nil {
 			continue
@@ -480,12 +485,36 @@ func (o *SMIOutput) HWSlowdownEvents(unixSeconds int64) []nvidia_hw_slowdown_sta
 		}
 		sort.Strings(hwSlowdownErrs)
 
-		events = append(events, nvidia_hw_slowdown_state.Event{
-			Timestamp:  unixSeconds,
-			DataSource: "nvidia-smi",
-			GPUUUID:    g.ID,
-			Reasons:    hwSlowdownErrs,
-		})
+		if event := createHWSlowdownEventFromNvidiaSMI(
+			eventTime,
+			g.ID,
+			hwSlowdownErrs,
+		); event != nil {
+			resultEvents = append(resultEvents, *event)
+		}
 	}
-	return events
+	return resultEvents
+}
+
+// createHWSlowdownEventFromNvidiaSMI creates a components.Event from nvidia-smi hardware slowdown reasons.
+// Returns nil if there are no hardware slowdown reasons.
+func createHWSlowdownEventFromNvidiaSMI(
+	eventTime time.Time,
+	gpuUUID string,
+	slowdownReasons []string,
+) *components.Event {
+	if len(slowdownReasons) == 0 {
+		return nil
+	}
+
+	return &components.Event{
+		Time:    metav1.Time{Time: eventTime},
+		Name:    "hw_slowdown",
+		Type:    common.EventTypeWarning,
+		Message: strings.Join(slowdownReasons, ", "),
+		ExtraInfo: map[string]string{
+			"data_source": "nvidia-smi",
+			"gpu_uuid":    gpuUUID,
+		},
+	}
 }

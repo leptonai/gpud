@@ -1,11 +1,21 @@
 package nvml
 
 import (
+	"fmt"
+	"os"
+	"reflect"
 	"testing"
+	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/testutil"
+	"github.com/leptonai/gpud/components/common"
+	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetClockEventReasons(t *testing.T) {
@@ -227,6 +237,343 @@ func TestGetClockEvents(t *testing.T) {
 							i, reason, tc.expectedEvents.HWSlowdownReasons[i])
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestClockEventsSupported(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockDevices    []*mock.Device
+		mockDeviceErr  error
+		expectedResult bool
+		expectError    bool
+	}{
+		{
+			name: "all devices support clock events",
+			mockDevices: []*mock.Device{
+				{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+					GetNameFunc: func() (string, nvml.Return) {
+						return "Tesla V100", nvml.SUCCESS
+					},
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "GPU-1234", nvml.SUCCESS
+					},
+					GetMinorNumberFunc: func() (int, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+				},
+				{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+					GetNameFunc: func() (string, nvml.Return) {
+						return "Tesla V100", nvml.SUCCESS
+					},
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "GPU-5678", nvml.SUCCESS
+					},
+					GetMinorNumberFunc: func() (int, nvml.Return) {
+						return 1, nvml.SUCCESS
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+		},
+		{
+			name: "one device supports clock events",
+			mockDevices: []*mock.Device{
+				{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.ERROR_NOT_SUPPORTED
+					},
+					GetNameFunc: func() (string, nvml.Return) {
+						return "Tesla V100", nvml.SUCCESS
+					},
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "GPU-1234", nvml.SUCCESS
+					},
+					GetMinorNumberFunc: func() (int, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+				},
+				{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+					GetNameFunc: func() (string, nvml.Return) {
+						return "Tesla V100", nvml.SUCCESS
+					},
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "GPU-5678", nvml.SUCCESS
+					},
+					GetMinorNumberFunc: func() (int, nvml.Return) {
+						return 1, nvml.SUCCESS
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+		},
+		{
+			name: "no devices support clock events",
+			mockDevices: []*mock.Device{
+				{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.ERROR_NOT_SUPPORTED
+					},
+					GetNameFunc: func() (string, nvml.Return) {
+						return "Tesla V100", nvml.SUCCESS
+					},
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "GPU-1234", nvml.SUCCESS
+					},
+					GetMinorNumberFunc: func() (int, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
+				},
+			},
+			expectedResult: false,
+			expectError:    false,
+		},
+		{
+			name:          "error getting devices",
+			mockDeviceErr: fmt.Errorf("failed to get devices"),
+			expectError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock devices
+			mockDevices := make([]device.Device, len(tt.mockDevices))
+			for i, d := range tt.mockDevices {
+				mockDevices[i] = testutil.CreateDevice(d)
+			}
+
+			// Mock NVML
+			mockNVML := &mock.Interface{
+				InitFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
+				DeviceGetCountFunc: func() (int, nvml.Return) {
+					if tt.mockDeviceErr != nil {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return len(mockDevices), nvml.SUCCESS
+				},
+				DeviceGetHandleByIndexFunc: func(idx int) (nvml.Device, nvml.Return) {
+					if tt.mockDeviceErr != nil {
+						return nil, nvml.ERROR_UNKNOWN
+					}
+					if idx < 0 || idx >= len(tt.mockDevices) {
+						return nil, nvml.ERROR_INVALID_ARGUMENT
+					}
+					return tt.mockDevices[idx], nvml.SUCCESS
+				},
+			}
+
+			// Set up mock NVML environment
+			err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+			if err != nil {
+				t.Fatalf("failed to set mock NVML environment: %v", err)
+			}
+			defer os.Unsetenv(mocknvml.EnvNVMLMock)
+
+			// Replace the mock instance
+			originalMockInstance := mocknvml.MockInstance
+			mocknvml.MockInstance = mockNVML
+			defer func() { mocknvml.MockInstance = originalMockInstance }()
+
+			result, err := ClockEventsSupported()
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if result != tt.expectedResult {
+				t.Errorf("ClockEventsSupported() = %v, want %v", result, tt.expectedResult)
+			}
+		})
+	}
+}
+
+func TestClockEventsSupportedByDevice(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockDevice     *mock.Device
+		expectedResult bool
+		expectError    bool
+	}{
+		{
+			name: "device supports clock events",
+			mockDevice: &mock.Device{
+				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+					return 0, nvml.SUCCESS
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+		},
+		{
+			name: "device does not support clock events",
+			mockDevice: &mock.Device{
+				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				},
+			},
+			expectedResult: false,
+			expectError:    false,
+		},
+		{
+			name: "device returns error",
+			mockDevice: &mock.Device{
+				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_UNKNOWN
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ClockEventsSupportedByDevice(testutil.CreateDevice(tt.mockDevice))
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if result != tt.expectedResult {
+				t.Errorf("ClockEventsSupportedByDevice() = %v, want %v", result, tt.expectedResult)
+			}
+		})
+	}
+}
+
+func TestClockEventsJSONAndYAML(t *testing.T) {
+	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name        string
+		clockEvents *ClockEvents
+		wantJSON    string
+		wantYAML    string
+	}{
+		{
+			name: "valid clock events",
+			clockEvents: &ClockEvents{
+				Time:              metav1.Time{Time: testTime},
+				UUID:              "GPU-123",
+				ReasonsBitmask:    reasonHWSlowdown,
+				HWSlowdownReasons: []string{"test reason"},
+				HWSlowdown:        true,
+				Supported:         true,
+			},
+			wantJSON: `{"time":"2024-01-01T00:00:00Z","uuid":"GPU-123","reasons_bitmask":8,"hw_slowdown_reasons":["test reason"],"hw_slowdown":true,"hw_thermal_slowdown":false,"hw_slowdown_power_brake":false,"supported":true}`,
+			wantYAML: `hw_slowdown: true
+hw_slowdown_power_brake: false
+hw_slowdown_reasons:
+- test reason
+hw_thermal_slowdown: false
+reasons_bitmask: 8
+supported: true
+time: "2024-01-01T00:00:00Z"
+uuid: GPU-123
+`,
+		},
+		{
+			name:        "nil clock events",
+			clockEvents: nil,
+			wantJSON:    "",
+			wantYAML:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test JSON marshaling
+			gotJSON, err := tt.clockEvents.JSON()
+			if err != nil {
+				t.Errorf("ClockEvents.JSON() error = %v", err)
+				return
+			}
+			if string(gotJSON) != tt.wantJSON {
+				t.Errorf("ClockEvents.JSON() = %v, want %v", string(gotJSON), tt.wantJSON)
+			}
+
+			// Test YAML marshaling
+			gotYAML, err := tt.clockEvents.YAML()
+			if err != nil {
+				t.Errorf("ClockEvents.YAML() error = %v", err)
+				return
+			}
+			if string(gotYAML) != tt.wantYAML {
+				t.Errorf("ClockEvents.YAML() = %v, want %v", string(gotYAML), tt.wantYAML)
+			}
+		})
+	}
+}
+
+func TestCreateEventFromClockEvents(t *testing.T) {
+	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		clockEvents ClockEvents
+		want        *components.Event
+	}{
+		{
+			name: "no hardware slowdown reasons",
+			clockEvents: ClockEvents{
+				Time: metav1.Time{Time: testTime},
+				UUID: "GPU-123",
+			},
+			want: nil,
+		},
+		{
+			name: "with hardware slowdown reasons",
+			clockEvents: ClockEvents{
+				Time:              metav1.Time{Time: testTime},
+				UUID:              "GPU-123",
+				HWSlowdownReasons: []string{"reason1", "reason2"},
+			},
+			want: &components.Event{
+				Time:    metav1.Time{Time: testTime},
+				Name:    "hw_slowdown",
+				Type:    common.EventTypeWarning,
+				Message: "reason1, reason2",
+				ExtraInfo: map[string]string{
+					"data_source": "nvml",
+					"gpu_uuid":    "GPU-123",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := createEventFromClockEvents(tt.clockEvents)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("createEventFromClockEvents() = %v, want %v", got, tt.want)
 			}
 		})
 	}

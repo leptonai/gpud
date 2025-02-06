@@ -49,7 +49,6 @@ import (
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_hw_slowdown_state "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/state"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -257,29 +256,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {
 					log.Logger.Debugw("purged metrics", "purged", purged)
-				}
-			}
-		}
-	}()
-
-	if err := nvidia_hw_slowdown_state.CreateTable(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create nvidia clock events table: %w", err)
-	}
-	go func() {
-		dur := nvidia_hw_slowdown_state.DefaultRetentionPeriod
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-
-				purged, err := nvidia_hw_slowdown_state.Purge(ctx, dbRW, nvidia_hw_slowdown_state.WithBefore(before))
-				if err != nil {
-					log.Logger.Warnw("failed to delete nvidia clock events", "error", err)
-				} else {
-					log.Logger.Debugw("deleted nvidia clock events", "before", before, "purged", purged)
 				}
 			}
 		}
@@ -639,7 +615,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := nvidia_hw_slowdown.New(ctx, cfg)
+			c, err := nvidia_hw_slowdown.New(ctx, cfg, eventsStoreNvidiaHWSlowdown)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
