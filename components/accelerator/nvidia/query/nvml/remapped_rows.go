@@ -36,6 +36,8 @@ type RemappedRows struct {
 	RemappingFailed bool `json:"remapping_failed"`
 
 	// Supported is true if the remapped rows are supported by the device.
+	// Even for "NVIDIA GeForce RTX 4090", this "GetRemappedRows" returns no error,
+	// thus "Supported" is not a reliable way to check if row remapping is supported.
 	Supported bool `json:"supported"`
 }
 
@@ -48,6 +50,8 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g055e7c34f7f15b6ae9aac1dabd60870d
 	corrRows, uncRows, isPending, failureOccurred, ret := dev.GetRemappedRows()
 	if IsNotSupportError(ret) {
+		// even for "NVIDIA GeForce RTX 4090", this returns no error
+		// thus "Supported" is not a reliable way to check if row remapping is supported
 		remRws.Supported = false
 		return remRws, nil
 	}

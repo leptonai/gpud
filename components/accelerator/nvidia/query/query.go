@@ -252,7 +252,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	productName := o.GPUProductName()
 	if productName != "" {
-		o.MemoryErrorManagementCapabilities = GetMemoryErrorManagementCapabilities(o.GPUProductName())
+		o.MemoryErrorManagementCapabilities = SupportedMemoryMgmtCapsByGPUProduct(o.GPUProductName())
 	} else {
 		log.Logger.Warnw("no gpu product name found -- skipping evaluating memory error management capabilities")
 	}

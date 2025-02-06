@@ -152,12 +152,9 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 func (o *Output) isRowRemappingSupported() bool {
-	for _, r := range o.RemappedRowsNVML {
-		if !r.Supported {
-			return false
-		}
-	}
-	return true
+	// even for "NVIDIA GeForce RTX 4090", this returns no error
+	// thus "RemappedRowsNVML.Supported" is not a reliable way to check if row remapping is supported
+	return o.MemoryErrorManagementCapabilities.RowRemapping
 }
 
 // Returns the output evaluation reason and its healthy-ness.
@@ -186,7 +183,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 
 			needsReset, err := r.RequiresReset()
 			if err != nil {
-				healthy = false
 				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it needs reset: %s", r.ID, err.Error()))
 				continue
 			}

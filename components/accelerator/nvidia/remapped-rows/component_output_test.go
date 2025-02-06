@@ -18,31 +18,29 @@ func TestOutput_isRowRemappingSupported(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "all GPUs support remapping",
+			name: "row remapping supported",
 			output: &Output{
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: true},
-					{Supported: true},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
 				},
 			},
 			expected: true,
 		},
 		{
-			name: "one GPU doesn't support remapping",
+			name: "row remapping not supported",
 			output: &Output{
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: true},
-					{Supported: false},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: false,
 				},
 			},
 			expected: false,
 		},
 		{
-			name: "no GPUs",
+			name: "empty output",
 			output: &Output{
-				RemappedRowsNVML: []nvml.RemappedRows{},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{},
 			},
-			expected: true,
+			expected: false,
 		},
 	}
 
@@ -259,10 +257,8 @@ func TestOutput_Evaluate(t *testing.T) {
 			output: &Output{
 				GPUProductName: "Test GPU",
 				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
-					Message: "not supported",
-				},
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: false},
+					RowRemapping: false,
+					Message:      "not supported",
 				},
 			},
 			wantReason:  `GPU product name "Test GPU" does not support row remapping (message: "not supported")`,
@@ -273,8 +269,8 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "healthy state with supported remapping",
 			output: &Output{
 				GPUProductName: "Test GPU",
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: true},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
 				},
 			},
 			wantReason:  "no issue detected",
@@ -285,8 +281,8 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "SMI GPU needs RMA",
 			output: &Output{
 				GPUProductName: "Test GPU",
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: true},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
 				},
 				RemappedRowsSMI: []query.ParsedSMIRemappedRows{
 					{
@@ -305,8 +301,8 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "SMI GPU needs reset",
 			output: &Output{
 				GPUProductName: "Test GPU",
-				RemappedRowsNVML: []nvml.RemappedRows{
-					{Supported: true},
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
 				},
 				RemappedRowsSMI: []query.ParsedSMIRemappedRows{
 					{
@@ -325,9 +321,11 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "NVML GPU needs RMA",
 			output: &Output{
 				GPUProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
 				RemappedRowsNVML: []nvml.RemappedRows{
 					{
-						Supported:                        true,
 						UUID:                             "GPU-456",
 						RemappingFailed:                  true,
 						RemappedDueToUncorrectableErrors: 1,
@@ -342,9 +340,11 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "NVML GPU needs reset",
 			output: &Output{
 				GPUProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
 				RemappedRowsNVML: []nvml.RemappedRows{
 					{
-						Supported:        true,
 						UUID:             "GPU-456",
 						RemappingPending: true,
 					},
@@ -358,9 +358,11 @@ func TestOutput_Evaluate(t *testing.T) {
 			name: "multiple issues",
 			output: &Output{
 				GPUProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
 				RemappedRowsNVML: []nvml.RemappedRows{
 					{
-						Supported:        true,
 						UUID:             "GPU-456",
 						RemappingPending: true,
 					},

@@ -2,30 +2,42 @@ package query
 
 import "strings"
 
-// GetMemoryErrorManagementCapabilities returns the GPU memory error management capabilities
+var (
+	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#supported-gpus
+	memMgmtCapAllSupported = MemoryErrorManagementCapabilities{
+		ErrorContainment:     true,
+		DynamicPageOfflining: true,
+		RowRemapping:         true,
+	}
+	memMgmtCapOnlyRowRemappingSupported = MemoryErrorManagementCapabilities{
+		RowRemapping: true,
+	}
+	gpuProductToMemMgmtCaps = map[string]MemoryErrorManagementCapabilities{
+		"a100": memMgmtCapAllSupported,
+		"b100": memMgmtCapAllSupported,
+		"b200": memMgmtCapAllSupported,
+		"h100": memMgmtCapAllSupported,
+		"h200": memMgmtCapAllSupported,
+		"a10":  memMgmtCapOnlyRowRemappingSupported,
+	}
+)
+
+// SupportedMemoryMgmtCapsByGPUProduct returns the GPU memory error management capabilities
 // based on the GPU product name.
 // ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#supported-gpus
-func GetMemoryErrorManagementCapabilities(gpuProductName string) MemoryErrorManagementCapabilities {
+func SupportedMemoryMgmtCapsByGPUProduct(gpuProductName string) MemoryErrorManagementCapabilities {
 	p := strings.ToLower(gpuProductName)
-	switch {
-	case strings.Contains(p, "a100"),
-		strings.Contains(p, "h100"),
-		strings.Contains(p, "b100"),
-		strings.Contains(p, "b200"):
-		return MemoryErrorManagementCapabilities{
-			ErrorContainment:     true,
-			DynamicPageOfflining: true,
-			RowRemapping:         true,
+	longestName, memCaps := "", MemoryErrorManagementCapabilities{}
+	for k, v := range gpuProductToMemMgmtCaps {
+		if !strings.Contains(p, k) {
+			continue
 		}
-
-	case strings.Contains(p, "a10"):
-		return MemoryErrorManagementCapabilities{
-			RowRemapping: true,
+		if len(longestName) < len(k) {
+			longestName = k
+			memCaps = v
 		}
-
-	default:
-		return MemoryErrorManagementCapabilities{}
 	}
+	return memCaps
 }
 
 // Contains information about the GPU's memory error management capabilities.
