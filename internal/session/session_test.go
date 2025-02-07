@@ -3,8 +3,10 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -250,5 +252,310 @@ func TestReaderWriterServerError(t *testing.T) {
 	}
 	if _, ok := <-s.writer; ok {
 		t.Errorf("Writer channel should be closed")
+	}
+}
+
+func TestCreateHTTPClient(t *testing.T) {
+	client := createHTTPClient()
+	if client == nil {
+		t.Fatal("Expected non-nil HTTP client")
+	}
+
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("Expected *http.Transport")
+	}
+
+	if transport.DisableKeepAlives != true {
+		t.Error("Expected DisableKeepAlives to be true")
+	}
+
+	if transport.MaxIdleConns != 10 {
+		t.Errorf("Expected MaxIdleConns to be 10, got %d", transport.MaxIdleConns)
+	}
+}
+
+func TestCreateSessionRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		endpoint    string
+		machineID   string
+		sessionType string
+		body        io.Reader
+		wantErr     bool
+	}{
+		{
+			name:        "valid request with no body",
+			ctx:         context.Background(),
+			endpoint:    "http://test.com",
+			machineID:   "test-machine",
+			sessionType: "read",
+			body:        nil,
+			wantErr:     false,
+		},
+		{
+			name:        "valid request with body",
+			ctx:         context.Background(),
+			endpoint:    "http://test.com",
+			machineID:   "test-machine",
+			sessionType: "write",
+			body:        strings.NewReader("test-body"),
+			wantErr:     false,
+		},
+		{
+			name:        "invalid endpoint",
+			ctx:         context.Background(),
+			endpoint:    "://invalid-url",
+			machineID:   "test-machine",
+			sessionType: "read",
+			body:        nil,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := createSessionRequest(tt.ctx, tt.endpoint, tt.machineID, tt.sessionType, tt.body)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createSessionRequest() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if req.Header.Get("machine_id") != tt.machineID {
+					t.Errorf("Expected machine_id header %s, got %s", tt.machineID, req.Header.Get("machine_id"))
+				}
+				if req.Header.Get("session_type") != tt.sessionType {
+					t.Errorf("Expected session_type header %s, got %s", tt.sessionType, req.Header.Get("session_type"))
+				}
+			}
+		})
+	}
+}
+
+func TestWriteBodyToPipe(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    Body
+		wantErr bool
+	}{
+		{
+			name: "valid body",
+			body: Body{
+				ReqID: "test-req",
+				Data:  []byte("test-data"),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader, writer := io.Pipe()
+			s := &Session{}
+
+			// Start a goroutine to read from the pipe
+			done := make(chan struct{})
+			var readErr error
+			var readBody Body
+
+			go func() {
+				defer close(done)
+				decoder := json.NewDecoder(reader)
+				readErr = decoder.Decode(&readBody)
+			}()
+
+			err := s.writeBodyToPipe(writer, tt.body)
+			writer.Close()
+
+			<-done // Wait for reading to complete
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("writeBodyToPipe() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr {
+				if readErr != nil {
+					t.Errorf("Error reading from pipe: %v", readErr)
+				}
+				if readBody.ReqID != tt.body.ReqID {
+					t.Errorf("Expected ReqID %s, got %s", tt.body.ReqID, readBody.ReqID)
+				}
+			}
+		})
+	}
+}
+
+func TestTryWriteToReader(t *testing.T) {
+	tests := []struct {
+		name               string
+		setupCloser        bool
+		readerBufferSize   int
+		content            Body
+		preloadMessages    int
+		expectedResult     bool
+		expectTimestampSet bool
+	}{
+		{
+			name:             "successful write",
+			readerBufferSize: 1,
+			content: Body{
+				ReqID: "test",
+			},
+			expectedResult:     true,
+			expectTimestampSet: true,
+		},
+		{
+			name:             "full channel",
+			readerBufferSize: 1,
+			preloadMessages:  1,
+			content: Body{
+				ReqID: "test",
+			},
+			expectedResult:     true,
+			expectTimestampSet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Session{
+				reader: make(chan Body, tt.readerBufferSize),
+				closer: &closeOnce{closer: make(chan any)},
+			}
+
+			if tt.setupCloser {
+				s.closer.Close()
+			}
+
+			// Preload messages if needed
+			for i := 0; i < tt.preloadMessages; i++ {
+				s.reader <- Body{ReqID: "preload"}
+			}
+
+			timestamp := time.Now().Add(-time.Hour) // Old timestamp
+			result := s.tryWriteToReader(tt.content, &timestamp)
+
+			if result != tt.expectedResult {
+				t.Errorf("tryWriteToReader() = %v, want %v", result, tt.expectedResult)
+			}
+
+			if tt.expectTimestampSet && timestamp.Before(time.Now().Add(-time.Minute)) {
+				t.Error("Expected timestamp to be updated")
+			}
+		})
+	}
+}
+
+func TestHandleReaderPipe(t *testing.T) {
+	tests := []struct {
+		name              string
+		setupCloser       bool
+		timeoutDuration   time.Duration
+		expectedExitAfter time.Duration
+	}{
+		{
+			name:              "normal operation",
+			timeoutDuration:   5 * time.Second,
+			expectedExitAfter: 10 * time.Second,
+		},
+		{
+			name:              "timeout exceeded",
+			timeoutDuration:   100 * time.Millisecond,
+			expectedExitAfter: 3 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Session{
+				closer: &closeOnce{closer: make(chan any)},
+			}
+
+			if tt.setupCloser {
+				s.closer.Close()
+			}
+
+			reader, writer := io.Pipe()
+			closec := make(chan any)
+			finish := make(chan any)
+			lastPackageTimestamp := time.Now()
+
+			go s.handleReaderPipe(reader, &lastPackageTimestamp, closec, finish)
+
+			select {
+			case <-finish:
+				t.Error("Pipe handler exited too early")
+			case <-time.After(50 * time.Millisecond):
+				// Expected - handler should still be running
+			}
+
+			if tt.setupCloser {
+				select {
+				case <-finish:
+					// Expected - handler should exit when session is closed
+				case <-time.After(tt.expectedExitAfter):
+					t.Error("Pipe handler didn't exit after session close")
+				}
+			}
+
+			writer.Close()
+			reader.Close()
+		})
+	}
+}
+
+func TestCloseOnce(t *testing.T) {
+	c := &closeOnce{
+		closer: make(chan any),
+	}
+
+	// First close should succeed
+	c.Close()
+
+	// Second close should not panic
+	c.Close()
+
+	// Channel should be closed
+	select {
+	case <-c.Done():
+		// Expected
+	default:
+		t.Error("Channel should be closed")
+	}
+}
+
+func TestSessionKeepAlive(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Session{
+		ctx:          ctx,
+		cancel:       cancel,
+		endpoint:     server.URL,
+		machineID:    "test",
+		pipeInterval: 100 * time.Millisecond,
+		writer:       make(chan Body, 10),
+		reader:       make(chan Body, 10),
+		closer:       &closeOnce{closer: make(chan any)},
+	}
+
+	go s.keepAlive()
+
+	// Let it run for a bit
+	time.Sleep(300 * time.Millisecond)
+
+	// Should be able to stop cleanly
+	s.Stop()
+
+	// Channels should be closed
+	if _, ok := <-s.reader; ok {
+		t.Error("Reader channel should be closed")
+	}
+	if _, ok := <-s.writer; ok {
+		t.Error("Writer channel should be closed")
 	}
 }
