@@ -1,4 +1,5 @@
 # https://goreleaser.com/customization/builds/
+version: 2
 builds:
 
   - id: gpud
@@ -6,6 +7,7 @@ builds:
     main: ./cmd/gpud
     env:
       - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
     flags:
       - -v
 
