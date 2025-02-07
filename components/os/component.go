@@ -13,12 +13,16 @@ import (
 	"github.com/leptonai/gpud/log"
 )
 
+const (
+	DefaultRetentionPeriod = 3 * 24 * time.Hour
+)
+
 func New(ctx context.Context, cfg Config) (components.Component, error) {
 	eventsStore, err := events_db.NewStore(
 		cfg.Query.State.DBRW,
 		cfg.Query.State.DBRO,
 		events_db.CreateDefaultTableName(os_id.Name),
-		3*24*time.Hour,
+		DefaultRetentionPeriod,
 	)
 	if err != nil {
 		return nil, err

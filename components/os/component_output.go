@@ -10,6 +10,10 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/shirou/gopsutil/v4/host"
+	procs "github.com/shirou/gopsutil/v4/process"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/common"
 	events_db "github.com/leptonai/gpud/components/db"
@@ -20,10 +24,7 @@ import (
 	"github.com/leptonai/gpud/pkg/file"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
-
-	"github.com/shirou/gopsutil/v4/host"
-	procs "github.com/shirou/gopsutil/v4/process"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/leptonai/gpud/pkg/reboot"
 )
 
 type Output struct {
@@ -468,37 +469,8 @@ func CreateGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context
 
 		o.MachineMetadata = currentMachineMetadata
 
-		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-		lastEvent, err := eventsStore.Latest(cctx)
-		ccancel()
-		if err != nil {
-			return nil, err
-		}
-		lastBootID := ""
-		if lastEvent != nil && lastEvent.Name == "reboot" && len(lastEvent.ExtraInfo) > 0 {
-			lastBootID = lastEvent.ExtraInfo["boot_id"]
-		}
-
-		// boot id must be non-empty to correctly evaluate if the machine rebooted
-		o.MachineRebooted = lastBootID != "" && currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID
-
-		// 1. empty (new GPUd version without reboot, boot id never persisted)
-		// 2. different ID (rebooted and boot id changed, e.g., new GPUd version)
-		if currentMachineMetadata.BootID != "" && lastBootID != currentMachineMetadata.BootID {
-			cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-			err := eventsStore.Insert(cctx, components.Event{
-				Time:    metav1.Time{Time: time.Now().UTC()},
-				Name:    "reboot",
-				Type:    common.EventTypeWarning,
-				Message: fmt.Sprintf("system reboot detected (%s)", currentMachineMetadata.BootID),
-				ExtraInfo: map[string]string{
-					"boot_id": currentMachineMetadata.BootID,
-				},
-			})
-			ccancel()
-			if err != nil {
-				return nil, err
-			}
+		if err = createRebootEvent(ctx, eventsStore, reboot.LastReboot); err != nil {
+			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 
 		hostID, err := host.HostID()
@@ -561,4 +533,43 @@ func CreateGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context
 
 		return o, nil
 	}
+}
+
+func createRebootEvent(ctx context.Context, eventsStore events_db.Store, lastRebootTime func(ctx2 context.Context) (time.Time, error)) error {
+	// get uptime
+	bootTime, err := lastRebootTime(ctx)
+	if err != nil {
+		return err
+	}
+	// if now - event time > retention, then skip
+	if time.Since(bootTime) >= DefaultRetentionPeriod {
+		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(bootTime), "retention", DefaultRetentionPeriod)
+		return nil
+	}
+	// calculate event
+	rebootEvent := components.Event{
+		Time:    metav1.Time{Time: bootTime},
+		Name:    "reboot",
+		Type:    common.EventTypeWarning,
+		Message: fmt.Sprintf("system reboot detected %v", bootTime),
+	}
+	// get db latest
+	cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
+	lastEvent, err := eventsStore.Latest(cctx)
+	ccancel()
+	if err != nil {
+		return err
+	}
+	// if latest != "" and latest.timestamp == current event, skip
+	if lastEvent != nil && lastEvent.Time.Time.Sub(bootTime).Abs() < time.Minute {
+		return nil
+	}
+	// else insert event
+	cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+	if err = eventsStore.Insert(cctx, rebootEvent); err != nil {
+		ccancel()
+		return err
+	}
+	ccancel()
+	return nil
 }
