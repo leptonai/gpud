@@ -1379,6 +1379,44 @@ func TestRetentionPurge(t *testing.T) {
 	assert.Equal(t, "new_event", remaining[0].ExtraInfo["id"])
 }
 
+func TestRetentionPurgeDisabled(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// disable purge by passing <1 second retention period
+	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	assert.NoError(t, err)
+	defer store.Close()
+
+	baseTime := time.Now().UTC()
+
+	err = store.Insert(ctx, components.Event{
+		Time:      metav1.Time{Time: baseTime.Add(-1000 * time.Hour)},
+		Name:      "test",
+		Type:      common.EventTypeWarning,
+		ExtraInfo: map[string]string{"id": "old_event"},
+		SuggestedActions: &common.SuggestedActions{
+			Descriptions: []string{"very old event"},
+		},
+	})
+	assert.NoError(t, err)
+
+	time.Sleep(2 * time.Second)
+
+	remaining, err := store.Get(ctx, baseTime.Add(-2000*time.Hour))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(remaining))
+	assert.Equal(t, "old_event", remaining[0].ExtraInfo["id"])
+	assert.Equal(t, "very old event", remaining[0].SuggestedActions.Descriptions[0])
+}
+
 func TestLatest(t *testing.T) {
 	t.Parallel()
 

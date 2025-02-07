@@ -97,6 +97,9 @@ var _ Store = (*storeImpl)(nil)
 // Creates a new DB instance with the table created.
 // Requires write-only and read-only instances for minimize conflicting writes/reads.
 // ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
+//
+// If the retention is set to a duration less than 1 second, the purge is disabled,
+// meaning the old events will not be deleted.
 func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (Store, error) {
 	if dbRW == nil {
 		return nil, ErrNoDBRWSet
