@@ -93,18 +93,18 @@ func ParseStatesToOutput(states ...components.State) (*Output, error) {
 }
 
 var (
-	msgMustSetPortsOrRate = "must set ports or rate"
-	msgNoIbstatExists     = "no ibstat exists while configured to check ibstat"
-	msgNoIbstatDataFound  = "no ibstat data found while configured to check ibstat"
-	msgNoIbstatIssueFound = "no infiniband issue found in ibstat"
+	msgThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
+	msgNoIbstatExists         = "no ibstat exists while configured to check ibstat"
+	msgNoIbstatDataFound      = "no ibstat data found while configured to check ibstat"
+	msgNoIbstatIssueFound     = "no infiniband issue found in ibstat"
 )
 
 // Returns the output evaluation reason and its healthy-ness.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
 func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 	// nothing specified for this machine, gpud MUST skip the ib check
-	if cfg.AtLeastPorts == 0 && cfg.AtLeastRate == 0 {
-		return msgMustSetPortsOrRate, true, nil
+	if cfg.AtLeastPorts <= 0 && cfg.AtLeastRate <= 0 {
+		return msgThresholdNotSetSkipped, true, nil
 	}
 
 	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
@@ -133,18 +133,6 @@ func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
-	// TODO: remove this once we have dynamic expected port states updates
-	// we only keep this for backwards compatibility
-	defaultExpectedPortStates := GetDefaultExpectedPortStates()
-	if defaultExpectedPortStates.AtLeastPorts == -1 && defaultExpectedPortStates.AtLeastRate == -1 {
-		atLeastPorts := infiniband.CountInfinibandClassBySubDir(cfg.InfinibandClassDirectory)
-		atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductName)
-		SetDefaultExpectedPortStates(ExpectedPortStates{
-			AtLeastPorts: atLeastPorts,
-			AtLeastRate:  atLeastRate,
-		})
-	}
-
 	outputReasons, healthy, err := o.Evaluate(GetDefaultExpectedPortStates())
 	if err != nil {
 		return nil, err

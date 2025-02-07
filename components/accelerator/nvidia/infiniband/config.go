@@ -19,8 +19,8 @@ type Config struct {
 var (
 	defaultExpectedPortStatesMu sync.RWMutex
 	defaultExpectedPortStates   = ExpectedPortStates{
-		AtLeastPorts: -1,
-		AtLeastRate:  -1,
+		AtLeastPorts: 0,
+		AtLeastRate:  0,
 	}
 )
 

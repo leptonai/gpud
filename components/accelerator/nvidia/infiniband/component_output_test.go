@@ -18,8 +18,8 @@ func TestOutputEvaluateEmptyConfig(t *testing.T) {
 	if !healthy {
 		t.Errorf("Evaluate() healthy = false, reason = %s", reason)
 	}
-	if reason != msgMustSetPortsOrRate {
-		t.Errorf("Evaluate() reason = %s, want %s", reason, msgMustSetPortsOrRate)
+	if reason != msgThresholdNotSetSkipped {
+		t.Errorf("Evaluate() reason = %s, want %s", reason, msgThresholdNotSetSkipped)
 	}
 }
 
