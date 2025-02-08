@@ -274,3 +274,178 @@ func TestParseCtime(t *testing.T) {
 		})
 	}
 }
+
+func TestLogLineIsEmpty(t *testing.T) {
+	tests := []struct {
+		name string
+		line LogLine
+		want bool
+	}{
+		{
+			name: "completely empty",
+			line: LogLine{},
+			want: true,
+		},
+		{
+			name: "only timestamp",
+			line: LogLine{
+				Timestamp: time.Now(),
+			},
+			want: false,
+		},
+		{
+			name: "only facility",
+			line: LogLine{
+				Facility: "kern",
+			},
+			want: false,
+		},
+		{
+			name: "only level",
+			line: LogLine{
+				Level: "info",
+			},
+			want: false,
+		},
+		{
+			name: "only content",
+			line: LogLine{
+				Content: "test message",
+			},
+			want: false,
+		},
+		{
+			name: "only error",
+			line: LogLine{
+				Error: "test error",
+			},
+			want: false,
+		},
+		{
+			name: "all fields empty strings",
+			line: LogLine{
+				Facility: "",
+				Level:    "",
+				Content:  "",
+				Error:    "",
+			},
+			want: true,
+		},
+		{
+			name: "all fields populated",
+			line: LogLine{
+				Timestamp: time.Now(),
+				Facility:  "kern",
+				Level:     "info",
+				Content:   "test message",
+				Error:     "",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.line.IsEmpty(); got != tt.want {
+				t.Errorf("LogLine.IsEmpty() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseISOtimeWithErrorEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     []byte
+		want     time.Time
+		wantLine []byte
+		wantErr  bool
+	}{
+		{
+			name:     "microseconds overflow",
+			line:     []byte("2024-11-15T12:02:03,9999999+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid timezone offset",
+			line:     []byte("2024-11-15T12:02:03,561522+25:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid month",
+			line:     []byte("2024-13-15T12:02:03,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid day",
+			line:     []byte("2024-11-32T12:02:03,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid hour",
+			line:     []byte("2024-11-15T24:02:03,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid minute",
+			line:     []byte("2024-11-15T12:60:03,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "invalid second",
+			line:     []byte("2024-11-15T12:02:60,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "missing T separator",
+			line:     []byte("2024-11-15 12:02:03,561522+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "missing microseconds",
+			line:     []byte("2024-11-15T12:02:03+00:00 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "missing timezone",
+			line:     []byte("2024-11-15T12:02:03,561522 abc"),
+			want:     time.Time{},
+			wantLine: nil,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, line, err := ParseISOtimeWithError(tt.line)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseISOtimeWithError() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !got.Equal(tt.want) {
+				t.Errorf("ParseISOtimeWithError() got = %v, want %v", got, tt.want)
+			}
+			if !bytes.Equal(line, tt.wantLine) {
+				t.Errorf("ParseISOtimeWithError() line = %v, want %v", string(line), string(tt.wantLine))
+			}
+		})
+	}
+}

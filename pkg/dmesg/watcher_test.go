@@ -109,6 +109,57 @@ func TestParseDmesgLine(t *testing.T) {
 			},
 			wantTime: true,
 		},
+		{
+			name:  "nvidia xid error",
+			input: "kern  :warn  : 2025-01-21T04:26:49,803751+00:00 NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors",
+			want: LogLine{
+				Timestamp: time.Date(2025, time.January, 21, 4, 26, 49, 803751000, time.UTC),
+				Facility:  "kern",
+				Level:     "warn",
+				Content:   "NVRM: Xid (PCI:0000:38:00): 13, pid='<unknown>', name=<unknown>, Graphics SM Global Exception on (GPC 9, TPC 1, SM 1): Multiple Warp Errors",
+			},
+			wantTime: true,
+		},
+		{
+			name:  "multiple colons in message",
+			input: "kern  :info  : 2025-01-21T04:26:49,803751+00:00 systemd[1]: Starting: test:service:name",
+			want: LogLine{
+				Timestamp: time.Date(2025, time.January, 21, 4, 26, 49, 803751000, time.UTC),
+				Facility:  "kern",
+				Level:     "info",
+				Content:   "systemd[1]: Starting: test:service:name",
+			},
+			wantTime: true,
+		},
+		{
+			name:  "empty level with facility",
+			input: "kern  :  : 2025-01-21T04:26:49,803751+00:00 test message",
+			want: LogLine{
+				Timestamp: time.Date(2025, time.January, 21, 4, 26, 49, 803751000, time.UTC),
+				Facility:  "kern",
+				Content:   "test message",
+			},
+			wantTime: true,
+		},
+		{
+			name:  "invalid timestamp format but valid prefix",
+			input: "kern  :warn  : 2025-01-21T04:26:49 test message",
+			want: LogLine{
+				Timestamp: time.Time{},
+				Content:   "kern  :warn  : 2025-01-21T04:26:49 test message",
+			},
+			wantTime: false,
+		},
+		{
+			name:  "timestamp parse error",
+			input: "kern  :warn  : 2025-01-21T25:61:99,803751+00:00 test message",
+			want: LogLine{
+				Facility: "",
+				Level:    "",
+				Content:  "kern  :warn  : 2025-01-21T25:61:99,803751+00:00 test message",
+			},
+			wantTime: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -417,8 +468,105 @@ func TestWatchMultipleCommands(t *testing.T) {
 }
 
 func TestWatchWithError(t *testing.T) {
+	tests := []struct {
+		name        string
+		commands    [][]string
+		wantError   bool
+		wantContent string
+	}{
+		{
+			name:        "invalid command",
+			commands:    [][]string{{"invalidcommand"}},
+			wantError:   true,
+			wantContent: "not found",
+		},
+		{
+			name:        "command with no output",
+			commands:    [][]string{{"true"}},
+			wantError:   false,
+			wantContent: "",
+		},
+		{
+			name:        "command that fails",
+			commands:    [][]string{{"false"}},
+			wantError:   false,
+			wantContent: "",
+		},
+		{
+			name: "multiple failing commands",
+			commands: [][]string{
+				{"false"},
+				{"invalidcommand"},
+				{"cat", "nonexistentfile"},
+			},
+			wantError:   true,
+			wantContent: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w, err := NewWatcherWithCommands(tt.commands)
+			if err != nil {
+				if !tt.wantError {
+					t.Errorf("NewWatcherWithCommands() error = %v, wantError %v", err, tt.wantError)
+				}
+				return
+			}
+			defer w.Close()
+
+			ch := w.Watch()
+			var errorSeen bool
+			var lastError string
+
+			for line := range ch {
+				if line.Error != "" {
+					errorSeen = true
+					lastError = line.Error
+				}
+			}
+
+			if tt.wantError && !errorSeen {
+				t.Error("expected to see an error line but got none")
+			}
+			if tt.wantContent != "" && !strings.Contains(lastError, tt.wantContent) {
+				t.Errorf("expected error to contain %q, got %q", tt.wantContent, lastError)
+			}
+		})
+	}
+}
+
+func TestWatcherCloseMultipleTimes(t *testing.T) {
+	w, err := NewWatcherWithCommands([][]string{{"sleep", "10"}})
+	if err != nil {
+		t.Fatalf("failed to create watcher: %v", err)
+	}
+
+	ch := w.Watch()
+	// Give some time for goroutines to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Call Close multiple times to ensure it's safe
+	for i := 0; i < 3; i++ {
+		w.Close()
+	}
+
+	// Wait for channel to close
+	for range ch {
+		// Drain the channel
+	}
+
+	// Verify channel is closed by trying to read again
+	_, ok := <-ch
+	if ok {
+		t.Error("channel should be closed")
+	}
+}
+
+func TestWatchWithLongOutput(t *testing.T) {
+	// Generate a command that produces a lot of output
 	w, err := NewWatcherWithCommands([][]string{
-		{"cat nonexistentfile"},
+		{"bash", "-c", "for i in {1..1000}; do echo $i; done"},
 	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
@@ -426,16 +574,13 @@ func TestWatchWithError(t *testing.T) {
 	defer w.Close()
 
 	ch := w.Watch()
-
-	var errorSeen bool
-	for line := range ch {
-		if strings.Contains(line.Content, "No such file or directory") {
-			errorSeen = true
-		}
+	count := 0
+	for range ch {
+		count++
 	}
 
-	if !errorSeen {
-		t.Error("expected to see an error line")
+	if count == 0 {
+		t.Error("expected to receive some output")
 	}
 }
 
