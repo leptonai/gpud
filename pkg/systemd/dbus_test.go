@@ -2,10 +2,31 @@ package systemd
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// mockDbusConn implements dbusConn interface for testing
+type mockDbusConn struct {
+	connected bool
+	props     map[string]interface{}
+	err       error
+}
+
+func (m *mockDbusConn) Close() {}
+
+func (m *mockDbusConn) Connected() bool {
+	return m.connected
+}
+
+func (m *mockDbusConn) GetUnitPropertiesContext(_ context.Context, _ string) (map[string]interface{}, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.props, nil
+}
 
 func TestFormatUnitName(t *testing.T) {
 	tests := []struct {
@@ -42,7 +63,7 @@ func TestFormatUnitName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatUnitName(tt.input)
+			result := normalizeServiceUnitName(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -131,21 +152,97 @@ func TestCheckActiveState(t *testing.T) {
 func TestIsActive(t *testing.T) {
 	tests := []struct {
 		name        string
+		conn        *mockDbusConn
 		unitName    string
+		expected    bool
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name:        "nil connection",
+			conn:        nil,
 			unitName:    "test.service",
 			expectError: true,
 			errorMsg:    "connection not initialized",
+		},
+		{
+			name: "disconnected connection",
+			conn: &mockDbusConn{
+				connected: false,
+			},
+			unitName:    "test.service",
+			expectError: true,
+			errorMsg:    "connection disconnected",
+		},
+		{
+			name: "error getting properties",
+			conn: &mockDbusConn{
+				connected: true,
+				err:       fmt.Errorf("dbus error"),
+			},
+			unitName:    "test.service",
+			expectError: true,
+			errorMsg:    "unable to get unit properties for test.service: dbus error",
+		},
+		{
+			name: "active service",
+			conn: &mockDbusConn{
+				connected: true,
+				props: map[string]interface{}{
+					"ActiveState": "active",
+				},
+			},
+			unitName:    "test.service",
+			expected:    true,
+			expectError: false,
+		},
+		{
+			name: "inactive service",
+			conn: &mockDbusConn{
+				connected: true,
+				props: map[string]interface{}{
+					"ActiveState": "inactive",
+				},
+			},
+			unitName:    "test.service",
+			expected:    false,
+			expectError: false,
+		},
+		{
+			name: "service with target suffix",
+			conn: &mockDbusConn{
+				connected: true,
+				props: map[string]interface{}{
+					"ActiveState": "active",
+				},
+			},
+			unitName:    "test.target",
+			expected:    true,
+			expectError: false,
+		},
+		{
+			name: "service without suffix",
+			conn: &mockDbusConn{
+				connected: true,
+				props: map[string]interface{}{
+					"ActiveState": "active",
+				},
+			},
+			unitName:    "test",
+			expected:    true,
+			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn := &DbusConn{conn: nil}
+			var conn *DbusConn
+			if tt.conn != nil {
+				conn = &DbusConn{conn: tt.conn}
+			} else {
+				conn = &DbusConn{conn: nil}
+			}
+
 			result, err := conn.IsActive(context.Background(), tt.unitName)
 			if tt.expectError {
 				assert.Error(t, err)
@@ -153,6 +250,7 @@ func TestIsActive(t *testing.T) {
 				assert.False(t, result)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
 			}
 		})
 	}

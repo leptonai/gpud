@@ -9,8 +9,14 @@ import (
 	"github.com/coreos/go-systemd/v22/dbus"
 )
 
+type dbusConn interface {
+	Close()
+	Connected() bool
+	GetUnitPropertiesContext(ctx context.Context, unit string) (map[string]interface{}, error)
+}
+
 type DbusConn struct {
-	conn *dbus.Conn
+	conn dbusConn
 }
 
 // Caller should explicitly close the connection by calling Close() on returned connection object
@@ -38,7 +44,7 @@ func (c *DbusConn) IsActive(ctx context.Context, unitName string) (bool, error) 
 		return false, fmt.Errorf("connection disconnected")
 	}
 
-	formattedUnitName := formatUnitName(unitName)
+	formattedUnitName := normalizeServiceUnitName(unitName)
 	props, err := c.conn.GetUnitPropertiesContext(ctx, formattedUnitName)
 	if err != nil {
 		return false, fmt.Errorf("unable to get unit properties for %s: %w", formattedUnitName, err)
@@ -47,8 +53,8 @@ func (c *DbusConn) IsActive(ctx context.Context, unitName string) (bool, error) 
 	return checkActiveState(props, formattedUnitName)
 }
 
-// formatUnitName ensures the unit name has the correct suffix
-func formatUnitName(unitName string) string {
+// normalizeServiceUnitName ensures the unit name has the correct suffix
+func normalizeServiceUnitName(unitName string) string {
 	if !strings.HasSuffix(unitName, ".target") && !strings.HasSuffix(unitName, ".service") {
 		return fmt.Sprintf("%s.service", unitName)
 	}
