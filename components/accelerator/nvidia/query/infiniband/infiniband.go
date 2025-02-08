@@ -12,24 +12,26 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-// Returns true if the product supports infiniband.
-// e.g.,
-// "NVIDIA A100"
-// "NVIDIA H100"
-func SupportsInfinibandProduct(gpuProductName string) bool {
-	p := strings.ToLower(gpuProductName)
-	return strings.Contains(p, "a100") || strings.Contains(p, "h100")
-}
-
 // Returns the default non-zero per-port rate in GB/sec if the product supports infiniband.
 func SupportsInfinibandPortRate(gpuProductName string) int {
 	p := strings.ToLower(gpuProductName)
+
 	if strings.Contains(p, "a100") {
 		return 200
 	}
 	if strings.Contains(p, "h100") {
 		return 400
 	}
+	if strings.Contains(p, "b100") {
+		return 400
+	}
+	if strings.Contains(p, "h200") {
+		return 400
+	}
+	if strings.Contains(p, "b200") {
+		return 400
+	}
+
 	return 0
 }
 

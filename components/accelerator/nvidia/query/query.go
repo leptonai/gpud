@@ -475,9 +475,9 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 			atLeastPorts := infiniband.CountInfinibandClassBySubDir(options.infinibandClassDirectory)
 			atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductNameFromNVML())
 			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-				fmt.Printf("%s ibstat ports/rates check failed (%s)\n", warningSign, err)
+				fmt.Printf("%s ibstat ports/rates check failed with default thresholds (at least ports: %d, rate: %v) (%s)\n", warningSign, atLeastPorts, atLeastRate, err)
 			} else {
-				fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
+				fmt.Printf("%s ibstat ports/rates check passed with default thresholds (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
 			}
 		}
 	} else {

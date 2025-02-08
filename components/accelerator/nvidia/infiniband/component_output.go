@@ -107,10 +107,6 @@ func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 		return msgThresholdNotSetSkipped, true, nil
 	}
 
-	if !infiniband.SupportsInfinibandProduct(o.GPUProductName) {
-		return fmt.Sprintf("%q GPUs do not support infiniband while configured to check ibstat", o.GPUProductName), true, nil
-	}
-
 	if len(o.Ibstat.Errors) > 0 {
 		return fmt.Sprintf("ibstat errors found: %s", strings.Join(o.Ibstat.Errors, ", ")), false, nil
 	}
