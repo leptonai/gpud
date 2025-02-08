@@ -32,7 +32,76 @@ func TestParseDriverVersion(t *testing.T) {
 			wantErrNil: true,
 		},
 		{
-			version:    "invalid.version",
+			version:    "550.120",
+			wantMajor:  550,
+			wantMinor:  120,
+			wantPatch:  0,
+			wantErrNil: true,
+		},
+		{
+			// Empty string
+			version:    "",
+			wantErrNil: false,
+		},
+		{
+			// Single number
+			version:    "525",
+			wantErrNil: false,
+		},
+		{
+			// Too many parts
+			version:    "525.85.12.1",
+			wantErrNil: false,
+		},
+		{
+			// Non-numeric major
+			version:    "abc.85.12",
+			wantErrNil: false,
+		},
+		{
+			// Non-numeric minor
+			version:    "525.abc.12",
+			wantErrNil: false,
+		},
+		{
+			// Non-numeric patch
+			version:    "525.85.abc",
+			wantErrNil: false,
+		},
+		{
+			// Invalid separators
+			version:    "525-85-12",
+			wantErrNil: false,
+		},
+		{
+			// Leading zeros in patch
+			version:    "525.85.08",
+			wantMajor:  525,
+			wantMinor:  85,
+			wantPatch:  8,
+			wantErrNil: true,
+		},
+		{
+			// Leading zeros in minor
+			version:    "525.085.12",
+			wantMajor:  525,
+			wantMinor:  85,
+			wantPatch:  12,
+			wantErrNil: true,
+		},
+		{
+			// Invalid version with spaces
+			version:    "525. 85.12",
+			wantErrNil: false,
+		},
+		{
+			// Invalid version with trailing dot
+			version:    "525.85.",
+			wantErrNil: false,
+		},
+		{
+			// Invalid version with leading dot
+			version:    ".525.85",
 			wantErrNil: false,
 		},
 	}

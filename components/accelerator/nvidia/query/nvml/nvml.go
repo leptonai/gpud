@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -159,12 +161,30 @@ func GetDriverVersion() (string, error) {
 }
 
 func ParseDriverVersion(version string) (major, minor, patch int, err error) {
-	var parsed [3]int
-	if _, err = fmt.Sscanf(version, "%d.%d.%d", &parsed[0], &parsed[1], &parsed[2]); err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse driver version: %v", err)
+	splits := strings.Split(version, ".")
+	if len(splits) < 2 {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at least 2 parts): %v", version)
+	}
+	if len(splits) > 3 {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at most 3 parts): %v", version)
 	}
 
-	major, minor, patch = parsed[0], parsed[1], parsed[2]
+	major, err = strconv.Atoi(splits[0])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (major): %v", err)
+	}
+	minor, err = strconv.Atoi(splits[1])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (minor): %v", err)
+	}
+	patch = 0
+	if len(splits) > 2 {
+		patch, err = strconv.Atoi(splits[2])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("failed to parse driver version (patch): %v", err)
+		}
+	}
+
 	return major, minor, patch, nil
 }
 
