@@ -838,21 +838,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_infiniband_id.Name:
-			cfg := &nvidia_infiniband.Config{
-				Query:          defaultQueryCfg,
+			allComponents = append(allComponents, nvidia_infiniband.New(ctx, nvidia_infiniband.Config{
+				PollInterval:   defaultQueryCfg.Interval,
 				ToolOverwrites: options.ToolOverwrites,
-			}
-			if configValue != nil {
-				parsed, err := nvidia_infiniband.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				*cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, nvidia_infiniband.New(ctx, *cfg))
+			}))
 
 		case nvidia_peermem_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}

@@ -1,19 +1,20 @@
 package infiniband
 
 import (
-	"database/sql"
-	"encoding/json"
 	"sync"
 
 	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	query_config "github.com/leptonai/gpud/components/query/config"
 	"github.com/leptonai/gpud/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Config struct {
-	Query query_config.Config `json:"query"`
-
+	PollInterval metav1.Duration `json:"poll_interval"`
 	nvidia_common.ToolOverwrites
+}
+
+func (cfg *Config) Validate() error {
+	return nil
 }
 
 var (
@@ -47,25 +48,4 @@ type ExpectedPortStates struct {
 	// The expected rate in Gb/sec.
 	// If not set, it defaults to 200.
 	AtLeastRate int `json:"at_least_rate"`
-}
-
-func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {
-	raw, err := json.Marshal(b)
-	if err != nil {
-		return nil, err
-	}
-	cfg := new(Config)
-	err = json.Unmarshal(raw, cfg)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Query.State != nil {
-		cfg.Query.State.DBRW = dbRW
-		cfg.Query.State.DBRO = dbRO
-	}
-	return cfg, nil
-}
-
-func (cfg *Config) Validate() error {
-	return nil
 }

@@ -127,7 +127,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) pollIbstat() {
-	ticker := time.NewTicker(c.cfg.Query.Interval.Duration)
+	ticker := time.NewTicker(c.cfg.PollInterval.Duration)
 	defer ticker.Stop()
 
 	for {
