@@ -35,7 +35,7 @@ func TestGetIbstatOutput(t *testing.T) {
 		{
 			name:           "empty output",
 			ibstatCommand:  []string{"echo", ""},
-			expectedError:  false,
+			expectedError:  true,
 			expectedOutput: "",
 			wantParsed:     false,
 		},
@@ -597,4 +597,22 @@ func TestValidateIBPorts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseIBStatEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseIBStat("")
+	assert.ErrorIs(t, err, ErrIbstatOutputEmpty, "Expected ErrIbstatOutputEmpty for empty input")
+}
+
+func TestParseIBStatNoCardFound(t *testing.T) {
+	t.Parallel()
+
+	input := `
+	Some random text that doesn't contain any CA entries
+	More random text
+	`
+	_, err := ParseIBStat(input)
+	assert.ErrorIs(t, err, ErrIbstatOutputNoCardFound, "Expected ErrIbstatOutputNoCardFound when no cards found")
 }
