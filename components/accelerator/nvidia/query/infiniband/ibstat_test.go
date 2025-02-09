@@ -8,30 +8,88 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetIbstatOutput(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// iterate all files in "testdata/"
-	matches, err := filepath.Glob("testdata/ibstat.*")
-	if err != nil {
-		t.Fatalf("failed to glob: %v", err)
+	tests := []struct {
+		name           string
+		ibstatCommand  []string
+		expectedError  bool
+		expectedOutput string
+		wantParsed     bool
+	}{
+		{
+			name:          "default command",
+			ibstatCommand: nil,
+			expectedError: true,
+		},
+		{
+			name:           "valid output",
+			ibstatCommand:  []string{"cat", "testdata/ibstat.47.0.a100.all.active.0"},
+			expectedError:  false,
+			expectedOutput: "",
+			wantParsed:     true,
+		},
+		{
+			name:           "empty output",
+			ibstatCommand:  []string{"echo", ""},
+			expectedError:  false,
+			expectedOutput: "",
+			wantParsed:     false,
+		},
+		{
+			name:           "invalid command",
+			ibstatCommand:  []string{"nonexistentcommand"},
+			expectedError:  true,
+			expectedOutput: "",
+			wantParsed:     false,
+		},
+		{
+			name:           "parsing error",
+			ibstatCommand:  []string{"echo", "invalid ibstat output"},
+			expectedError:  true,
+			expectedOutput: "invalid ibstat output",
+			wantParsed:     false,
+		},
+		{
+			name:           "command with error exit code",
+			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 1"},
+			expectedError:  true,
+			expectedOutput: "",
+			wantParsed:     false,
+		},
 	}
 
-	for _, queryFile := range matches {
-		o, err := GetIbstatOutput(
-			ctx,
-			[]string{"cat", queryFile},
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
-		o.Raw = ""
+			output, err := GetIbstatOutput(ctx, tt.ibstatCommand)
 
-		t.Logf("%q:\n%+v", queryFile, o)
+			if tt.expectedError {
+				assert.Error(t, err)
+				if output != nil && tt.expectedOutput != "" {
+					assert.Equal(t, tt.expectedOutput, output.Raw, "output content should match exactly")
+				}
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, output, "expected non-nil output when no error")
+
+			if tt.expectedOutput != "" {
+				assert.Equal(t, tt.expectedOutput, output.Raw, "output content should match exactly")
+			}
+
+			if tt.wantParsed {
+				assert.NotNil(t, output.Parsed, "expected parsed output but got nil")
+			} else {
+				assert.Nil(t, output.Parsed, "expected nil parsed output but got parsed data")
+			}
+		})
 	}
 }
 
@@ -55,10 +113,21 @@ func TestParseIBStat(t *testing.T) {
 		Link layer: Ethernet`
 
 	parsed, err := ParseIBStat(input)
-	if err != nil {
-		t.Fatalf("Failed to parse ibstat output: %v", err)
+	assert.NoError(t, err)
+	assert.NotNil(t, parsed)
+
+	// Verify specific fields
+	assert.Len(t, parsed, 1)
+	if len(parsed) > 0 {
+		card := parsed[0]
+		assert.Equal(t, "mlx5_0", card.Name)
+		assert.Equal(t, "MT4129", card.Type)
+		assert.Equal(t, "28.39.1002", card.FirmwareVersion)
+		assert.Equal(t, "Active", card.Port1.State)
+		assert.Equal(t, "LinkUp", card.Port1.PhysicalState)
+		assert.Equal(t, 400, card.Port1.Rate)
+		assert.Equal(t, "Ethernet", card.Port1.LinkLayer)
 	}
-	t.Logf("parsed:\n%+v", parsed)
 }
 
 func TestParseIBStatFiles(t *testing.T) {

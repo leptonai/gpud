@@ -52,19 +52,18 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		Raw: strings.Join(lines, "\n"),
 	}
 
-	// TODO: once stable return error
-	o.Parsed, err = ParseIBStat(o.Raw)
-	if err != nil {
-		// TODO: once stable return error
-		log.Logger.Errorw("failed to parse ibstat output", "error", err)
-
-		// fallback to old ibstat checks
-		if err := ValidateIbstatOutput(o.Raw); err != nil {
-			o.Errors = append(o.Errors, err.Error())
+	if len(o.Raw) > 0 {
+		o.Parsed, err = ParseIBStat(o.Raw)
+		if err != nil {
+			log.Logger.Warnw("failed to parse ibstat output", "error", err)
+		} else {
+			log.Logger.Infow("ibstat parsed", "rawInputSize", len(o.Raw))
 		}
+	} else {
+		log.Logger.Warnw("ibstat returned empty output", "rawInputSize", len(o.Raw))
 	}
 
-	return o, nil
+	return o, err
 }
 
 var (
@@ -179,7 +178,10 @@ type IBStatPort struct {
 	LinkLayer     string `json:"Link layer"`
 }
 
-// ParseIBStat parses ibstat output and returns YAML representation
+var ErrIbstatOutputEmpty = errors.New("ibstat returned empty output")
+
+// ParseIBStat parses ibstat output and returns YAML representation.
+// Returns ErrIbstatOutputEmpty if the input is empty.
 func ParseIBStat(input string) (IBStatCards, error) {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
@@ -280,6 +282,9 @@ func ParseIBStat(input string) (IBStatCards, error) {
 	cards := IBStatCards{}
 	if err := yaml.Unmarshal([]byte(txt), &cards); err != nil {
 		return nil, err
+	}
+	if len(cards) == 0 {
+		return nil, ErrIbstatOutputEmpty
 	}
 	return cards, nil
 }
