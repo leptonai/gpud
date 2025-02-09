@@ -129,18 +129,6 @@ func (o *Output) Evaluate(cfg ExpectedPortStates) (string, bool, error) {
 }
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
-	// TODO: remove this once we have dynamic expected port states updates
-	// we only keep this for backwards compatibility
-	defaultExpectedPortStates := GetDefaultExpectedPortStates()
-	if defaultExpectedPortStates.AtLeastPorts == -1 && defaultExpectedPortStates.AtLeastRate == -1 {
-		atLeastPorts := infiniband.CountInfinibandClassBySubDir(cfg.InfinibandClassDirectory)
-		atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductName)
-		SetDefaultExpectedPortStates(ExpectedPortStates{
-			AtLeastPorts: atLeastPorts,
-			AtLeastRate:  atLeastRate,
-		})
-	}
-
 	outputReasons, healthy, err := o.Evaluate(GetDefaultExpectedPortStates())
 	if err != nil {
 		return nil, err

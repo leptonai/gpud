@@ -12,18 +12,6 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-// Returns the default non-zero per-port rate in GB/sec if the product supports infiniband.
-func SupportsInfinibandPortRate(gpuProductName string) int {
-	p := strings.ToLower(gpuProductName)
-	if strings.Contains(p, "a100") {
-		return 200
-	}
-	if strings.Contains(p, "h100") {
-		return 400
-	}
-	return 0
-}
-
 // lspci | grep -i infiniband
 // 1a:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
 // 3c:00.0 Infiniband controller: Mellanox Technologies MT2910 Family [ConnectX-7]
