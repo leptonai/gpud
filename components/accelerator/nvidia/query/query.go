@@ -461,29 +461,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 		fmt.Printf("%s successfully checked fabric manager\n", checkMark)
 	}
 
-	if o.InfinibandClassExists && o.IbstatExists {
-		if o.Ibstat != nil && len(o.Ibstat.Errors) > 0 {
-			fmt.Printf("%s ibstat check failed with %d error(s)\n", warningSign, len(o.Ibstat.Errors))
-			for _, err := range o.Ibstat.Errors {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s successfully checked ibstat\n", checkMark)
-		}
-
-		if o.Ibstat != nil {
-			atLeastPorts := infiniband.CountInfinibandClassBySubDir(options.infinibandClassDirectory)
-			atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductNameFromNVML())
-			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-				fmt.Printf("%s ibstat ports/rates check failed (%s)\n", warningSign, err)
-			} else {
-				fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
-			}
-		}
-	} else {
-		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
-	}
-
 	if len(o.LsmodPeermemErrors) > 0 {
 		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", warningSign, len(o.LsmodPeermemErrors))
 		for _, err := range o.LsmodPeermemErrors {
