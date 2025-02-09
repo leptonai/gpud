@@ -101,6 +101,11 @@ func watch(
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 	go wait(ctx, p)
 	go read(ctx, p, ch)
 	return ch, nil

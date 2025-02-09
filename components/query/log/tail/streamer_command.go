@@ -32,6 +32,11 @@ func NewFromCommand(ctx context.Context, commands [][]string, opts ...OpOption) 
 	if err := p.Start(ctx); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
 
 	select {
 	case <-ctx.Done():
