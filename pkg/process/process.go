@@ -36,6 +36,9 @@ type Process interface {
 	// If the command completes successfully, the error will be nil.
 	Wait() <-chan error
 
+	// Returns the exit code of the process.
+	ExitCode() int
+
 	// Returns the current pid of the process.
 	PID() int32
 
@@ -92,7 +95,9 @@ type process struct {
 	// error streaming channel, closed on command exit
 	errc chan error
 
-	pid         int32
+	pid      int32
+	exitCode int32
+
 	commandArgs []string
 	envs        []string
 	runBashFile *os.File
@@ -306,14 +311,17 @@ func (p *process) watchCmd() {
 			}
 
 			if exitErr, ok := err.(*exec.ExitError); ok {
-				if exitErr.ExitCode() == -1 {
+				exitCode := exitErr.ExitCode()
+				atomic.StoreInt32(&p.exitCode, int32(exitCode))
+
+				if exitCode == -1 {
 					if p.ctx.Err() != nil {
 						log.Logger.Debugw("command was terminated (exit code -1) by the root context cancellation", "cmd", p.cmd.String(), "contextError", p.ctx.Err())
 					} else {
 						log.Logger.Warnw("command was terminated (exit code -1) for unknown reasons", "cmd", p.cmd.String())
 					}
 				} else {
-					log.Logger.Debugw("command exited with non-zero status", "error", err, "cmd", p.cmd.String(), "exitCode", exitErr.ExitCode())
+					log.Logger.Debugw("command exited with non-zero status", "error", err, "cmd", p.cmd.String(), "exitCode", exitCode)
 				}
 			} else {
 				log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", p.cmd.String())
@@ -432,6 +440,10 @@ func (p *process) Closed() bool {
 	defer p.abortedMu.RUnlock()
 
 	return p.aborted
+}
+
+func (p *process) ExitCode() int {
+	return int(atomic.LoadInt32(&p.exitCode))
 }
 
 func (p *process) PID() int32 {

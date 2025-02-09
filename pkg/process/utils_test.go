@@ -25,6 +25,10 @@ func (p *testProcess) Labels() map[string]string {
 	return p.labels
 }
 
+func (p *testProcess) ExitCode() int {
+	return 0
+}
+
 func (p *testProcess) PID() int32 {
 	return 0
 }
@@ -241,6 +245,10 @@ func (p *nilReaderProcess) Labels() map[string]string {
 	return nil
 }
 
+func (p *nilReaderProcess) ExitCode() int {
+	return 0
+}
+
 func (p *nilReaderProcess) PID() int32 {
 	return 0
 }
@@ -289,6 +297,10 @@ type stateProcess struct {
 
 func (p *stateProcess) Labels() map[string]string {
 	return nil
+}
+
+func (p *stateProcess) ExitCode() int {
+	return 0
 }
 
 func (p *stateProcess) PID() int32 {

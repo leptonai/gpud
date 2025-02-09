@@ -52,19 +52,10 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		Raw: strings.Join(lines, "\n"),
 	}
 
-	// TODO: once stable return error
+	log.Logger.Infow("ibstat finished", "exitCode", p.ExitCode(), "size", len(o.Raw))
+
 	o.Parsed, err = ParseIBStat(o.Raw)
-	if err != nil {
-		// TODO: once stable return error
-		log.Logger.Errorw("failed to parse ibstat output", "error", err)
-
-		// fallback to old ibstat checks
-		if err := ValidateIbstatOutput(o.Raw); err != nil {
-			o.Errors = append(o.Errors, err.Error())
-		}
-	}
-
-	return o, nil
+	return o, err
 }
 
 var (

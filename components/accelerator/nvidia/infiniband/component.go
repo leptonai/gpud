@@ -4,78 +4,108 @@ package infiniband
 
 import (
 	"context"
-	"fmt"
+	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/log"
 )
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
+func New(ctx context.Context, cfg Config) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_infiniband_id.Name)
-
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
-		cfg:     cfg,
-	}, nil
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		cfg:    cfg,
+	}
+	go c.pollIbstat()
+	return c
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
-	cfg     Config
+	ctx    context.Context
+	cancel context.CancelFunc
+	cfg    Config
+
+	lastSuccessMu sync.RWMutex
+	lastSuccess   *infiniband.IbstatOutput
 }
 
 func (c *component) Name() string { return nvidia_infiniband_id.Name }
 
 func (c *component) Start() error { return nil }
 
+var (
+	msgThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
+	msgNoIbstatIssueFound     = "no infiniband issue found in ibstat"
+)
+
+// Returns the output evaluation reason and its healthy-ness.
+// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
+func evaluate(o *infiniband.IbstatOutput, cfg ExpectedPortStates) (string, bool, error) {
+	// nothing specified for this machine, gpud MUST skip the ib check
+	if cfg.AtLeastPorts <= 0 && cfg.AtLeastRate <= 0 {
+		return msgThresholdNotSetSkipped, true, nil
+	}
+
+	atLeastPorts := cfg.AtLeastPorts
+	atLeastRate := cfg.AtLeastRate
+	if err := o.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
+		return err.Error(), false, nil
+	}
+
+	return msgNoIbstatIssueFound, true, nil
+}
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_infiniband_id.Name)
+	c.lastSuccessMu.RLock()
+	lastSuccess := c.lastSuccess
+	c.lastSuccessMu.RUnlock()
+
+	if lastSuccess == nil {
 		return []components.State{
 			{
-				Name:    nvidia_infiniband_id.Name,
+				Name:    "ibstat",
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Health:  components.StateHealthy,
+				Reason:  "no data",
 			},
 		}, nil
 	}
+
+	reason, healthy, err := evaluate(lastSuccess, GetDefaultExpectedPortStates())
 	if err != nil {
 		return nil, err
 	}
 
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
+	var suggestedActions *common.SuggestedActions = nil
+	var health = components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+		suggestedActions = &common.SuggestedActions{
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeHardwareInspection,
+			},
+			Descriptions: []string{
+				"potential infiniband switch/hardware issue needs immediate attention",
+			},
+		}
 	}
 
-	output := ToOutput(allOutput)
-
-	return output.States(c.cfg)
+	return []components.State{
+		{
+			Name:             "ibstat",
+			Healthy:          healthy,
+			Health:           health,
+			Reason:           reason,
+			SuggestedActions: suggestedActions,
+		},
+	}, nil
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -91,8 +121,30 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_infiniband_id.Name)
+	c.cancel()
 
 	return nil
+}
+
+func (c *component) pollIbstat() {
+	ticker := time.NewTicker(c.cfg.Query.Interval.Duration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		cctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+		defer cancel()
+
+		o, err := infiniband.GetIbstatOutput(cctx, []string{c.cfg.IbstatCommand})
+		if err != nil {
+			log.Logger.Errorw("failed to poll ibstat", "error", err)
+			continue
+		}
+		c.lastSuccess = o
+	}
 }
