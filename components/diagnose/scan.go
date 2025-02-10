@@ -214,7 +214,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 					}
 				}
 
-				if op.checkIb {
+				if op.checkInfiniband {
 					fmt.Printf("\n%s checking nvidia infiniband ports/rates\n", inProgress)
 					threshold, err := infiniband.SupportsInfinibandPortRate(output.GPUProductName())
 					if err != nil {

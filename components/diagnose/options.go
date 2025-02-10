@@ -16,7 +16,7 @@ type Op struct {
 
 	dmesgCheck bool
 
-	checkIb bool
+	checkInfiniband bool
 }
 
 type OpOption func(*Op)
@@ -105,8 +105,8 @@ func WithDmesgCheck(b bool) OpOption {
 	}
 }
 
-func WithCheckIb(b bool) OpOption {
+func WithCheckInfiniband(b bool) OpOption {
 	return func(op *Op) {
-		op.checkIb = b
+		op.checkInfiniband = b
 	}
 }
