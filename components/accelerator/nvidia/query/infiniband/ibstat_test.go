@@ -10,55 +10,81 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetIbstatOutput(t *testing.T) {
 	tests := []struct {
 		name           string
 		ibstatCommand  []string
-		expectedError  bool
+		expectedError  error
 		expectedOutput string
 		wantParsed     bool
+		isDynamicError bool // true for errors with dynamic messages (e.g., command execution errors)
 	}{
 		{
-			name:          "default command",
-			ibstatCommand: nil,
-			expectedError: true,
+			name:           "no command provided",
+			ibstatCommand:  nil,
+			expectedError:  ErrNoIbstatCommand,
+			expectedOutput: "",
+			wantParsed:     false,
+			isDynamicError: false,
+		},
+		{
+			name:           "empty command provided",
+			ibstatCommand:  []string{" "},
+			expectedError:  ErrNoIbstatCommand,
+			expectedOutput: "",
+			wantParsed:     false,
+			isDynamicError: false,
+		},
+		{
+			name:           "command not found in PATH 1",
+			ibstatCommand:  []string{"nonexistentcommand"},
+			expectedError:  ErrNoIbstatCommand,
+			expectedOutput: "",
+			wantParsed:     false,
+			isDynamicError: false,
+		},
+		{
+			name:           "command not found in PATH 2",
+			ibstatCommand:  []string{"nonexistentcommand 123123123123123"},
+			expectedError:  ErrNoIbstatCommand,
+			expectedOutput: "",
+			wantParsed:     false,
+			isDynamicError: false,
 		},
 		{
 			name:           "valid output",
 			ibstatCommand:  []string{"cat", "testdata/ibstat.47.0.a100.all.active.0"},
-			expectedError:  false,
+			expectedError:  nil,
 			expectedOutput: "",
 			wantParsed:     true,
+			isDynamicError: false,
 		},
 		{
 			name:           "empty output",
 			ibstatCommand:  []string{"echo", ""},
-			expectedError:  true,
+			expectedError:  ErrIbstatOutputEmpty,
 			expectedOutput: "",
 			wantParsed:     false,
-		},
-		{
-			name:           "invalid command",
-			ibstatCommand:  []string{"nonexistentcommand"},
-			expectedError:  true,
-			expectedOutput: "",
-			wantParsed:     false,
+			isDynamicError: false,
 		},
 		{
 			name:           "parsing error",
 			ibstatCommand:  []string{"echo", "invalid ibstat output"},
-			expectedError:  true,
+			expectedError:  ErrIbstatOutputNoCardFound,
 			expectedOutput: "invalid ibstat output",
 			wantParsed:     false,
+			isDynamicError: false,
 		},
 		{
 			name:           "command with error exit code",
 			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 1"},
-			expectedError:  true,
+			expectedError:  errors.New("failed to read ibstat output (exitCode: 1):"),
 			expectedOutput: "",
 			wantParsed:     false,
+			isDynamicError: true,
 		},
 	}
 
@@ -69,8 +95,15 @@ func TestGetIbstatOutput(t *testing.T) {
 
 			output, err := GetIbstatOutput(ctx, tt.ibstatCommand)
 
-			if tt.expectedError {
-				assert.Error(t, err)
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				if tt.isDynamicError {
+					assert.Contains(t, err.Error(), tt.expectedError.Error(),
+						"error message should contain expected content")
+				} else {
+					assert.True(t, errors.Is(err, tt.expectedError),
+						"expected error %v, got %v", tt.expectedError, err)
+				}
 				if output != nil && tt.expectedOutput != "" {
 					assert.Equal(t, tt.expectedOutput, output.Raw, "output content should match exactly")
 				}
