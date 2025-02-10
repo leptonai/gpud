@@ -12,6 +12,7 @@ import (
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query"
 	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
 	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
 	nvidia_query_xid "github.com/leptonai/gpud/components/accelerator/nvidia/query/xid"
@@ -156,7 +157,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			nvidia_query.WithNvidiaSMICommand(op.nvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
-			nvidia_query.WithInfinibandClassDirectory(op.infinibandClassDirectory),
 		)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
@@ -172,7 +172,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			if !ok {
 				log.Logger.Warnf("expected *nvidia_query.Output, got %T", outputRaw)
 			} else {
-				output.PrintInfo(query.WithDebug(op.debug), query.WithInfinibandClassDirectory(op.infinibandClassDirectory))
+				output.PrintInfo(query.WithDebug(op.debug))
 
 				if op.pollGPMEvents {
 					fmt.Printf("\n%s checking nvidia GPM events\n", inProgress)
@@ -212,6 +212,24 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 							println()
 						}
 					}
+				}
+
+				if op.checkInfiniband {
+					fmt.Printf("\n%s checking nvidia infiniband ports/rates\n", inProgress)
+					threshold, err := infiniband.SupportsInfinibandPortRate(output.GPUProductName())
+					if err != nil {
+						log.Logger.Warnw("error getting infiniband port rate", "error", err)
+					} else {
+						atLeastPorts := threshold.AtLeastPorts
+						atLeastRate := threshold.AtLeastRate
+						if err := infiniband.CheckInfiniband(ctx, op.ibstatCommand, threshold); err != nil {
+							fmt.Printf("%s ibstat ports/rates check failed (at least ports: %d, rate: %v) (%s)\n", warningSign, atLeastPorts, atLeastRate, err)
+						} else {
+							fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
+						}
+					}
+				} else {
+					fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
 				}
 			}
 		}

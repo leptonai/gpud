@@ -54,7 +54,6 @@ func cmdRun(cliContext *cli.Context) error {
 		config.WithNvidiaSMICommand(nvidiaSMICommand),
 		config.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
 		config.WithIbstatCommand(ibstatCommand),
-		config.WithInfinibandClassDirectory(infinibandClassDirectory),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

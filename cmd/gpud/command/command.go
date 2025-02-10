@@ -52,10 +52,11 @@ var (
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
 
-	nvidiaSMICommand         string
-	nvidiaSMIQueryCommand    string
-	ibstatCommand            string
-	infinibandClassDirectory string
+	nvidiaSMICommand      string
+	nvidiaSMIQueryCommand string
+	ibstatCommand         string
+
+	checkInfiniBand bool
 )
 
 const (
@@ -277,12 +278,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
-					Hidden:      true,
-				},
-				cli.StringFlag{
-					Name:        "infiniband-class-directory",
-					Usage:       "sets the infiniband class directory (leave empty for default, useful for testing)",
-					Destination: &infinibandClassDirectory,
 					Hidden:      true,
 				},
 			},
@@ -559,6 +554,12 @@ cat summary.txt
 					Usage:       "enable dmesg checks (default: true)",
 					Destination: &dmesgCheck,
 				},
+				&cli.BoolFlag{
+					Name:        "check-ib",
+					Usage:       "enable infiniband checks (default: false)",
+					Destination: &checkInfiniBand,
+				},
+
 				// only for testing
 				cli.StringFlag{
 					Name:        "nvidia-smi-command",
@@ -576,12 +577,6 @@ cat summary.txt
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
-					Hidden:      true,
-				},
-				cli.StringFlag{
-					Name:        "infiniband-class-directory",
-					Usage:       "sets the infiniband class directory (leave empty for default, useful for testing)",
-					Destination: &infinibandClassDirectory,
 					Hidden:      true,
 				},
 			},

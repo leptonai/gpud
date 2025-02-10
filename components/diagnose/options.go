@@ -1,10 +1,9 @@
 package diagnose
 
 type Op struct {
-	nvidiaSMICommand         string
-	nvidiaSMIQueryCommand    string
-	ibstatCommand            string
-	infinibandClassDirectory string
+	nvidiaSMICommand      string
+	nvidiaSMIQueryCommand string
+	ibstatCommand         string
 
 	lines         int
 	debug         bool
@@ -16,6 +15,8 @@ type Op struct {
 	diskcheck bool
 
 	dmesgCheck bool
+
+	checkInfiniband bool
 }
 
 type OpOption func(*Op)
@@ -33,9 +34,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 	if op.ibstatCommand == "" {
 		op.ibstatCommand = "ibstat"
-	}
-	if op.infinibandClassDirectory == "" {
-		op.infinibandClassDirectory = "/sys/class/infiniband"
 	}
 
 	if op.lines == 0 {
@@ -61,12 +59,6 @@ func WithNvidiaSMIQueryCommand(p string) OpOption {
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {
 		op.ibstatCommand = p
-	}
-}
-
-func WithInfinibandClassDirectory(p string) OpOption {
-	return func(op *Op) {
-		op.infinibandClassDirectory = p
 	}
 }
 
@@ -110,5 +102,11 @@ func WithDiskcheck(b bool) OpOption {
 func WithDmesgCheck(b bool) OpOption {
 	return func(op *Op) {
 		op.dmesgCheck = b
+	}
+}
+
+func WithCheckInfiniband(b bool) OpOption {
+	return func(op *Op) {
+		op.checkInfiniband = b
 	}
 }

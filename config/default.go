@@ -156,10 +156,9 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 
 		ToolOverwriteOptions: ToolOverwriteOptions{
-			NvidiaSMICommand:         options.NvidiaSMICommand,
-			NvidiaSMIQueryCommand:    options.NvidiaSMIQueryCommand,
-			IbstatCommand:            options.IbstatCommand,
-			InfinibandClassDirectory: options.InfinibandClassDirectory,
+			NvidiaSMICommand:      options.NvidiaSMICommand,
+			NvidiaSMIQueryCommand: options.NvidiaSMIQueryCommand,
+			IbstatCommand:         options.IbstatCommand,
 		},
 
 		EnableAutoUpdate: true,

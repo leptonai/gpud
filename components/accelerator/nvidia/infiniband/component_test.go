@@ -19,7 +19,7 @@ func TestEvaluate(t *testing.T) {
 	tests := []struct {
 		name        string
 		output      *infiniband.IbstatOutput
-		config      ExpectedPortStates
+		config      infiniband.ExpectedPortStates
 		wantReason  string
 		wantHealthy bool
 		wantErr     bool
@@ -27,7 +27,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name:   "thresholds not set",
 			output: &infiniband.IbstatOutput{},
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 0,
 				AtLeastRate:  0,
 			},
@@ -58,7 +58,7 @@ func TestEvaluate(t *testing.T) {
 					},
 				},
 			},
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
@@ -81,7 +81,7 @@ func TestEvaluate(t *testing.T) {
 					},
 				},
 			},
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
@@ -112,7 +112,7 @@ func TestEvaluate(t *testing.T) {
 					},
 				},
 			},
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
@@ -143,7 +143,7 @@ func TestEvaluate(t *testing.T) {
 					},
 				},
 			},
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
@@ -174,7 +174,7 @@ func TestDefaultExpectedPortStates(t *testing.T) {
 	assert.Equal(t, 0, defaults.AtLeastRate)
 
 	// Test setting new values
-	newStates := ExpectedPortStates{
+	newStates := infiniband.ExpectedPortStates{
 		AtLeastPorts: 2,
 		AtLeastRate:  200,
 	}
@@ -202,14 +202,14 @@ func TestEvaluateWithTestData(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      ExpectedPortStates
+		config      infiniband.ExpectedPortStates
 		wantReason  string
 		wantHealthy bool
 		wantErr     bool
 	}{
 		{
 			name: "healthy state - all H100 ports active at 400Gb/s",
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
 				AtLeastRate:  400, // Expected rate for H100 cards
 			},
@@ -219,7 +219,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 		},
 		{
 			name: "healthy state - mixed rate ports",
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 12,  // Total number of ports in test data
 				AtLeastRate:  100, // Minimum rate that includes all ports
 			},
@@ -229,7 +229,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 		},
 		{
 			name: "unhealthy state - not enough high-rate ports",
-			config: ExpectedPortStates{
+			config: infiniband.ExpectedPortStates{
 				AtLeastPorts: 12,  // Total number of ports
 				AtLeastRate:  400, // Only 8 ports have this rate
 			},
@@ -263,7 +263,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	states, err := c.getStates(ctx, ExpectedPortStates{
+	states, err := c.getStates(ctx, infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
 		AtLeastRate:  400, // Expected rate for H100 cards
 	})

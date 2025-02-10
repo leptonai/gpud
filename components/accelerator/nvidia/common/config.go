@@ -14,10 +14,9 @@ type Config struct {
 }
 
 type ToolOverwrites struct {
-	NvidiaSMICommand         string `json:"nvidia_smi_command"`
-	NvidiaSMIQueryCommand    string `json:"nvidia_smi_query_command"`
-	IbstatCommand            string `json:"ibstat_command"`
-	InfinibandClassDirectory string `json:"infiniband_class_directory"`
+	NvidiaSMICommand      string `json:"nvidia_smi_command"`
+	NvidiaSMIQueryCommand string `json:"nvidia_smi_query_command"`
+	IbstatCommand         string `json:"ibstat_command"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {

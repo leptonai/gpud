@@ -216,7 +216,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			nvidia_query.WithNvidiaSMICommand(options.NvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(options.IbstatCommand),
-			nvidia_query.WithInfinibandClassDirectory(options.InfinibandClassDirectory),
 		)
 	}
 
