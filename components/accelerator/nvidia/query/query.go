@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
 	metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
 	metrics_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/ecc"
@@ -112,17 +111,10 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	p, err := file.LocateExecutable(strings.Split(op.nvidiaSMICommand, " ")[0])
 	smiExists := err == nil && p != ""
 
-	p, err = file.LocateExecutable(strings.Split(op.ibstatCommand, " ")[0])
-	ibstatExists := err == nil && p != ""
-
-	ibClassCount := infiniband.CountInfinibandClassBySubDir(op.infinibandClassDirectory)
-
 	o := &Output{
-		Time:                  time.Now().UTC(),
-		SMIExists:             smiExists,
-		FabricManagerExists:   FabricManagerExists(),
-		InfinibandClassExists: ibClassCount > 0,
-		IbstatExists:          ibstatExists,
+		Time:                time.Now().UTC(),
+		SMIExists:           smiExists,
+		FabricManagerExists: FabricManagerExists(),
 	}
 
 	log.Logger.Debugw("counting gpu devices")
@@ -188,19 +180,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 				Active:        active,
 				JournalOutput: journalOut,
 			}
-		}
-	}
-
-	if o.InfinibandClassExists && o.IbstatExists {
-		log.Logger.Debugw("running ibstat", "command", op.ibstatCommand)
-		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-		o.Ibstat, err = infiniband.GetIbstatOutput(cctx, []string{op.ibstatCommand})
-		ccancel()
-		if err != nil {
-			if o.Ibstat == nil {
-				o.Ibstat = &infiniband.IbstatOutput{}
-			}
-			o.Ibstat.Errors = append(o.Ibstat.Errors, err.Error())
 		}
 	}
 
@@ -340,10 +319,6 @@ type Output struct {
 	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
 	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
 
-	InfinibandClassExists bool                     `json:"infiniband_class_exists"`
-	IbstatExists          bool                     `json:"ibstat_exists"`
-	Ibstat                *infiniband.IbstatOutput `json:"ibstat,omitempty"`
-
 	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
 	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
 
@@ -461,29 +436,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 		fmt.Printf("%s successfully checked fabric manager\n", checkMark)
 	}
 
-	if o.InfinibandClassExists && o.IbstatExists {
-		if o.Ibstat != nil && len(o.Ibstat.Errors) > 0 {
-			fmt.Printf("%s ibstat check failed with %d error(s)\n", warningSign, len(o.Ibstat.Errors))
-			for _, err := range o.Ibstat.Errors {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s successfully checked ibstat\n", checkMark)
-		}
-
-		if o.Ibstat != nil {
-			atLeastPorts := infiniband.CountInfinibandClassBySubDir(options.infinibandClassDirectory)
-			atLeastRate := infiniband.SupportsInfinibandPortRate(o.GPUProductNameFromNVML())
-			if err := o.Ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-				fmt.Printf("%s ibstat ports/rates check failed (%s)\n", warningSign, err)
-			} else {
-				fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
-			}
-		}
-	} else {
-		fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
-	}
-
 	if len(o.LsmodPeermemErrors) > 0 {
 		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", warningSign, len(o.LsmodPeermemErrors))
 		for _, err := range o.LsmodPeermemErrors {
@@ -598,9 +550,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 
 	if options.debug {
 		copied := *o
-		if copied.Ibstat != nil {
-			copied.Ibstat.Raw = ""
-		}
 		if copied.SMI != nil {
 			copied.SMI.Summary = ""
 			copied.SMI.Raw = ""
