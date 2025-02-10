@@ -45,22 +45,22 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return nil, fmt.Errorf("failed to read ibstat output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
+		return nil, fmt.Errorf("failed to read ibstat output (exitCode: %d): %w\n\noutput:\n%s", p.ExitCode(), err, strings.Join(lines, "\n"))
 	}
 
 	o := &IbstatOutput{
 		Raw: strings.Join(lines, "\n"),
 	}
 	if len(o.Raw) == 0 {
-		log.Logger.Warnw("ibstat returned empty output", "rawInputSize", len(o.Raw))
+		log.Logger.Warnw("ibstat returned empty output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
 		return o, ErrIbstatOutputEmpty
 	}
 
 	o.Parsed, err = ParseIBStat(o.Raw)
 	if err != nil {
-		log.Logger.Warnw("failed to parse ibstat output", "rawInputSize", len(o.Raw), "error", err)
+		log.Logger.Warnw("failed to parse ibstat output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw), "error", err)
 	} else {
-		log.Logger.Infow("ibstat parsed", "rawInputSize", len(o.Raw))
+		log.Logger.Infow("ibstat parsed", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
 	}
 
 	return o, err
