@@ -10,7 +10,7 @@ func TestOutputEvaluateEmptyConfig(t *testing.T) {
 	o := &Output{
 		GPUProductName: "NVIDIA A100",
 	}
-	cfg := ExpectedPortStates{}
+	cfg := infiniband.ExpectedPortStates{}
 	reason, healthy, err := o.Evaluate(cfg)
 	if err != nil {
 		t.Errorf("Evaluate() error = %v", err)
@@ -56,7 +56,7 @@ func TestOutputEvaluateH100(t *testing.T) {
 			},
 		},
 	}
-	cfg := ExpectedPortStates{
+	cfg := infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	}
@@ -78,7 +78,7 @@ func TestOutputEvaluateNoIbstatExists(t *testing.T) {
 		GPUProductName: "NVIDIA H100",
 		IbstatExists:   false,
 	}
-	cfg := ExpectedPortStates{
+	cfg := infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	}
@@ -103,7 +103,7 @@ func TestOutputEvaluateNoIbstatDataFound(t *testing.T) {
 			Parsed: []infiniband.IBStatCard{},
 		},
 	}
-	cfg := ExpectedPortStates{
+	cfg := infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	}
@@ -150,7 +150,7 @@ func TestOutputEvaluateH100MissingPort(t *testing.T) {
 			},
 		},
 	}
-	cfg := ExpectedPortStates{
+	cfg := infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	}

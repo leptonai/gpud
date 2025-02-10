@@ -16,6 +16,8 @@ type Op struct {
 	diskcheck bool
 
 	dmesgCheck bool
+
+	checkIb bool
 }
 
 type OpOption func(*Op)
@@ -110,5 +112,11 @@ func WithDiskcheck(b bool) OpOption {
 func WithDmesgCheck(b bool) OpOption {
 	return func(op *Op) {
 		op.dmesgCheck = b
+	}
+}
+
+func WithCheckIb(b bool) OpOption {
+	return func(op *Op) {
+		op.checkIb = b
 	}
 }

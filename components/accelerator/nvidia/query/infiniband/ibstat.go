@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -65,6 +66,21 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 	}
 
 	return o, nil
+}
+
+func CheckInfiniband(ctx context.Context, ibstatCommand string, threshold ExpectedPortStates) error {
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ibstat, err := GetIbstatOutput(cctx, []string{ibstatCommand})
+	cancel()
+
+	if err != nil {
+		log.Logger.Warnw("error getting ibstat output", "error", err)
+		return err
+	}
+
+	atLeastPorts := threshold.AtLeastPorts
+	atLeastRate := threshold.AtLeastRate
+	return ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate)
 }
 
 var (

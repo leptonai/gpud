@@ -56,6 +56,8 @@ var (
 	nvidiaSMIQueryCommand    string
 	ibstatCommand            string
 	infinibandClassDirectory string
+
+	checkIb bool
 )
 
 const (
@@ -559,6 +561,12 @@ cat summary.txt
 					Usage:       "enable dmesg checks (default: true)",
 					Destination: &dmesgCheck,
 				},
+				&cli.BoolFlag{
+					Name:        "check-ib",
+					Usage:       "enable infiniband checks (default: false)",
+					Destination: &checkIb,
+				},
+
 				// only for testing
 				cli.StringFlag{
 					Name:        "nvidia-smi-command",
