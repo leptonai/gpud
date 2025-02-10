@@ -254,24 +254,19 @@ func TestEvaluateWithTestData(t *testing.T) {
 }
 
 func TestComponentStatesWithTestData(t *testing.T) {
-
-	// Create a mock component that will return our test data
 	c := &component{
 		toolOverwrites: nvidia_common.ToolOverwrites{
 			IbstatCommand: "cat " + filepath.Join("testdata", "ibstat.47.0.h100.all.active.1"),
 		},
 	}
 
-	// Set default port states for testing
-	SetDefaultExpectedPortStates(ExpectedPortStates{
-		AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
-		AtLeastRate:  400, // Expected rate for H100 cards
-	})
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	states, err := c.States(ctx)
+	states, err := c.getStates(ctx, ExpectedPortStates{
+		AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
+		AtLeastRate:  400, // Expected rate for H100 cards
+	})
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 

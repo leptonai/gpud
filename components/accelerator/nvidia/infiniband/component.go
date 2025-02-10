@@ -64,11 +64,15 @@ func (c *component) Name() string { return nvidia_infiniband_id.Name }
 func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
+	return c.getStates(ctx, GetDefaultExpectedPortStates())
+}
+
+func (c *component) getStates(ctx context.Context, thresholds ExpectedPortStates) ([]components.State, error) {
 	o, err := infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
 	if err != nil {
 		return nil, err
 	}
-	reason, healthy, err := evaluate(o, GetDefaultExpectedPortStates())
+	reason, healthy, err := evaluate(o, thresholds)
 	if err != nil {
 		return nil, err
 	}
