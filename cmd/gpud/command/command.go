@@ -56,7 +56,7 @@ var (
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 
-	checkIb bool
+	checkInfiniBand bool
 )
 
 const (
@@ -557,7 +557,7 @@ cat summary.txt
 				&cli.BoolFlag{
 					Name:        "check-ib",
 					Usage:       "enable infiniband checks (default: false)",
-					Destination: &checkIb,
+					Destination: &checkInfiniBand,
 				},
 
 				// only for testing
