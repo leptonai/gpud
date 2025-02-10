@@ -204,7 +204,7 @@ func TestSXIDComponent_States(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, s, states[0])
 
-	startTime := time.Now().Add(-100 * time.Hour)
+	startTime := time.Now().Add(-1 * time.Hour)
 
 	tests := []struct {
 		name      string
@@ -214,6 +214,7 @@ func TestSXIDComponent_States(t *testing.T) {
 		{
 			name: "critical sxid happened and reboot recovered",
 			events: []components.Event{
+				createSXidEvent(time.Now().Add(-5*24*time.Hour), 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime, 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime.Add(5*time.Minute), 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(10 * time.Minute)}},
@@ -222,6 +223,7 @@ func TestSXIDComponent_States(t *testing.T) {
 				createSXidEvent(startTime.Add(25*time.Minute), 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
 			},
 			wantState: []components.State{
+				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
 				{Healthy: false, Health: components.StateUnhealthy, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
 				{Healthy: false, Health: components.StateUnhealthy, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
 				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
