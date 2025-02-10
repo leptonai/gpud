@@ -142,7 +142,7 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.store.Get(c.rootCtx, time.Time{})
+			events, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 			if err != nil {
 				log.Logger.Errorw("failed to get all events", "error", err)
 				continue
@@ -179,7 +179,7 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.store.Get(c.rootCtx, time.Time{})
+			events, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 			if err != nil {
 				log.Logger.Errorw("failed to get all events", "error", err)
 				continue
@@ -211,7 +211,7 @@ func (c *XIDComponent) updateCurrentState() error {
 	if err != nil {
 		return fmt.Errorf("failed to get os events: %w", err)
 	}
-	localEvents, err := c.store.Get(c.rootCtx, time.Time{})
+	localEvents, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}
