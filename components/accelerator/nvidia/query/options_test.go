@@ -18,7 +18,6 @@ func TestOpOptions(t *testing.T) {
 		assert.Equal(t, "nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "nvidia-smi --query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
-		assert.Equal(t, "/sys/class/infiniband", op.infinibandClassDirectory)
 		assert.False(t, op.debug)
 	})
 
@@ -35,7 +34,6 @@ func TestOpOptions(t *testing.T) {
 			WithNvidiaSMICommand("/custom/nvidia-smi"),
 			WithNvidiaSMIQueryCommand("/custom/nvidia-smi-query"),
 			WithIbstatCommand("/custom/ibstat"),
-			WithInfinibandClassDirectory("/custom/infiniband"),
 			WithDebug(true),
 		})
 
@@ -49,7 +47,6 @@ func TestOpOptions(t *testing.T) {
 		assert.Equal(t, "/custom/nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "/custom/nvidia-smi-query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
-		assert.Equal(t, "/custom/infiniband", op.infinibandClassDirectory)
 		assert.True(t, op.debug)
 	})
 
@@ -66,7 +63,6 @@ func TestOpOptions(t *testing.T) {
 		assert.Equal(t, "/custom/nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "nvidia-smi --query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
-		assert.Equal(t, "/sys/class/infiniband", op.infinibandClassDirectory)
 		assert.True(t, op.debug)
 	})
 }

@@ -1,10 +1,9 @@
 package diagnose
 
 type Op struct {
-	nvidiaSMICommand         string
-	nvidiaSMIQueryCommand    string
-	ibstatCommand            string
-	infinibandClassDirectory string
+	nvidiaSMICommand      string
+	nvidiaSMIQueryCommand string
+	ibstatCommand         string
 
 	lines         int
 	debug         bool
@@ -36,9 +35,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	if op.ibstatCommand == "" {
 		op.ibstatCommand = "ibstat"
 	}
-	if op.infinibandClassDirectory == "" {
-		op.infinibandClassDirectory = "/sys/class/infiniband"
-	}
 
 	if op.lines == 0 {
 		op.lines = 100
@@ -63,12 +59,6 @@ func WithNvidiaSMIQueryCommand(p string) OpOption {
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {
 		op.ibstatCommand = p
-	}
-}
-
-func WithInfinibandClassDirectory(p string) OpOption {
-	return func(op *Op) {
-		op.infinibandClassDirectory = p
 	}
 }
 

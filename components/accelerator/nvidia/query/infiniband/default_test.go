@@ -19,14 +19,14 @@ func TestSupportsInfinibandPortRate(t *testing.T) {
 			name:           "GB200 GPU",
 			gpuProductName: "NVIDIA GB200 GPU",
 			wantPorts:      8,
-			wantRate:       1800,
+			wantRate:       800,
 			wantErr:        false,
 		},
 		{
 			name:           "GB200 lowercase",
 			gpuProductName: "nvidia gb200 gpu",
 			wantPorts:      8,
-			wantRate:       1800,
+			wantRate:       800,
 			wantErr:        false,
 		},
 		{

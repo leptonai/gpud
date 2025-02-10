@@ -74,6 +74,7 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 	return o, err
 }
 
+// CheckInfiniband checks if the infiniband ports are up and running with the expected thresholds.
 func CheckInfiniband(ctx context.Context, ibstatCommand string, threshold ExpectedPortStates) error {
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	ibstat, err := GetIbstatOutput(cctx, []string{ibstatCommand})

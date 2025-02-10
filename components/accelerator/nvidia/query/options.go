@@ -7,15 +7,14 @@ import (
 )
 
 type Op struct {
-	dbRW                     *sql.DB
-	dbRO                     *sql.DB
-	xidEventsStore           events_db.Store
-	hwslowdownEventsStore    events_db.Store
-	nvidiaSMICommand         string
-	nvidiaSMIQueryCommand    string
-	ibstatCommand            string
-	infinibandClassDirectory string
-	debug                    bool
+	dbRW                  *sql.DB
+	dbRO                  *sql.DB
+	xidEventsStore        events_db.Store
+	hwslowdownEventsStore events_db.Store
+	nvidiaSMICommand      string
+	nvidiaSMIQueryCommand string
+	ibstatCommand         string
+	debug                 bool
 }
 
 type OpOption func(*Op)
@@ -33,9 +32,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 	if op.ibstatCommand == "" {
 		op.ibstatCommand = "ibstat"
-	}
-	if op.infinibandClassDirectory == "" {
-		op.infinibandClassDirectory = "/sys/class/infiniband"
 	}
 
 	return nil
@@ -82,12 +78,6 @@ func WithNvidiaSMIQueryCommand(p string) OpOption {
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {
 		op.ibstatCommand = p
-	}
-}
-
-func WithInfinibandClassDirectory(p string) OpOption {
-	return func(op *Op) {
-		op.infinibandClassDirectory = p
 	}
 }
 

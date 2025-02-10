@@ -157,7 +157,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			nvidia_query.WithNvidiaSMICommand(op.nvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
-			nvidia_query.WithInfinibandClassDirectory(op.infinibandClassDirectory),
 		)
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
@@ -173,7 +172,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			if !ok {
 				log.Logger.Warnf("expected *nvidia_query.Output, got %T", outputRaw)
 			} else {
-				output.PrintInfo(query.WithDebug(op.debug), query.WithInfinibandClassDirectory(op.infinibandClassDirectory))
+				output.PrintInfo(query.WithDebug(op.debug))
 
 				if op.pollGPMEvents {
 					fmt.Printf("\n%s checking nvidia GPM events\n", inProgress)

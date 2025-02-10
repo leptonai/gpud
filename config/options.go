@@ -70,9 +70,3 @@ func WithIbstatCommand(p string) OpOption {
 		op.IbstatCommand = p
 	}
 }
-
-func WithInfinibandClassDirectory(p string) OpOption {
-	return func(op *Op) {
-		op.InfinibandClassDirectory = p
-	}
-}
