@@ -32,9 +32,12 @@ var gpuPortConfigs = map[string]ExpectedPortStates{
 	// ref. https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html
 	"b200": {AtLeastPorts: 8, AtLeastRate: 400},
 
-	// GB200 NVL2 supports "NVIDIA Quantum-X800 InfiniBand" of 800 GB/s
+	// "Multiple racks connect with NVIDIA Quantum InfiniBand to scale up to hundreds of thousands of GB200 Superchips."
+	// "NVIDIA Quantum-2 InfiniBand switches deliver 400Gb/s throughput,"
 	// ref. https://www.nvidia.com/en-us/data-center/gb200-nvl2/
-	"gb200": {AtLeastPorts: 8, AtLeastRate: 800},
+	// ref. https://www.nvidia.com/en-us/data-center/dgx-superpod-gb200/
+	// ref. https://www.nvidia.com/en-us/networking/infiniband-switching/
+	"gb200": {AtLeastPorts: 8, AtLeastRate: 400},
 }
 
 var ErrNoExpectedPortStates = errors.New("no expected port states found (not supported)")
