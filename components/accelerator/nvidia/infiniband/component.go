@@ -17,34 +17,24 @@ import (
 
 var (
 	defaultExpectedPortStatesMu sync.RWMutex
-	defaultExpectedPortStates   = ExpectedPortStates{
+	defaultExpectedPortStates   = infiniband.ExpectedPortStates{
 		AtLeastPorts: 0,
 		AtLeastRate:  0,
 	}
 )
 
-func GetDefaultExpectedPortStates() ExpectedPortStates {
+func GetDefaultExpectedPortStates() infiniband.ExpectedPortStates {
 	defaultExpectedPortStatesMu.RLock()
 	defer defaultExpectedPortStatesMu.RUnlock()
 	return defaultExpectedPortStates
 }
 
-func SetDefaultExpectedPortStates(states ExpectedPortStates) {
+func SetDefaultExpectedPortStates(states infiniband.ExpectedPortStates) {
 	log.Logger.Infow("setting default expected port states", "at_least_ports", states.AtLeastPorts, "at_least_rate", states.AtLeastRate)
 
 	defaultExpectedPortStatesMu.Lock()
 	defer defaultExpectedPortStatesMu.Unlock()
 	defaultExpectedPortStates = states
-}
-
-// Configures the expected state of the ports.
-type ExpectedPortStates struct {
-	// The minimum number of ports.
-	// If not set, it defaults to the number of GPUs.
-	AtLeastPorts int `json:"at_least_ports"`
-
-	// The expected rate in Gb/sec.
-	AtLeastRate int `json:"at_least_rate"`
 }
 
 func New(ctx context.Context, toolOverwrites nvidia_common.ToolOverwrites) components.Component {
@@ -67,7 +57,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return c.getStates(ctx, GetDefaultExpectedPortStates())
 }
 
-func (c *component) getStates(ctx context.Context, thresholds ExpectedPortStates) ([]components.State, error) {
+func (c *component) getStates(ctx context.Context, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
 	o, err := infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
 	if err != nil {
 		return nil, err
@@ -125,7 +115,7 @@ var (
 
 // Returns the output evaluation reason and its healthy-ness.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluate(o *infiniband.IbstatOutput, cfg ExpectedPortStates) (string, bool, error) {
+func evaluate(o *infiniband.IbstatOutput, cfg infiniband.ExpectedPortStates) (string, bool, error) {
 	// nothing specified for this machine, gpud MUST skip the ib check
 	if cfg.AtLeastPorts <= 0 && cfg.AtLeastRate <= 0 {
 		return msgThresholdNotSetSkipped, true, nil
