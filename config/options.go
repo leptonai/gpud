@@ -20,6 +20,10 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
+	if op.IbstatCommand == "" {
+		op.IbstatCommand = "ibstat"
+	}
+
 	return nil
 }
 

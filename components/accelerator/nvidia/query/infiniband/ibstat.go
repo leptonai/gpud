@@ -7,14 +7,21 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/pkg/process"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/log"
+	pkg_file "github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
+var ErrNoIbstatCommand = errors.New("ibstat not found. cannot check ib state")
+
 func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutput, error) {
-	if len(ibstatCommands) == 0 {
-		ibstatCommands = []string{"ibstat"}
+	if len(ibstatCommands) == 0 || strings.TrimSpace(ibstatCommands[0]) == "" {
+		return nil, ErrNoIbstatCommand
+	}
+	if _, err := pkg_file.LocateExecutable(strings.Split(ibstatCommands[0], " ")[0]); err != nil {
+		return nil, ErrNoIbstatCommand
 	}
 
 	p, err := process.New(
