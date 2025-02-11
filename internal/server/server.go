@@ -1164,17 +1164,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		Desc: URLPathHealthzDesc,
 	})
 
-	admin := router.Group("/admin")
+	admin := router.Group(urlPathAdmin)
 
 	admin.GET(URLPathConfig, createConfigHandler(config))
 	registeredPaths = append(registeredPaths, componentHandlerDescription{
 		Path: path.Join("/admin", URLPathConfig),
 		Desc: URLPathConfigDesc,
 	})
-	admin.GET(URLPathPackages, createPackageHandler(packageManager))
+	admin.GET(urlPathPackages, createPackageHandler(packageManager))
 	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: path.Join("/admin", URLPathPackages),
-		Desc: URLPathPackagesDesc,
+		Path: URLPathAdminPackages,
+		Desc: urlPathPackagesDesc,
 	})
 
 	if config.Pprof {

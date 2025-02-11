@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	client_v1 "github.com/leptonai/gpud/client/v1"
@@ -17,7 +16,7 @@ func main() {
 		defer cancel()
 		states, err := client_v1.GetStates(ctx, baseURL, client_v1.WithComponent(componentName))
 		if err != nil {
-			if errors.Is(err, errdefs.ErrNotFound) {
+			if errdefs.IsNotFound(err) {
 				log.Logger.Warnw("component not found", "component", componentName)
 				return
 			}

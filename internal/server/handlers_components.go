@@ -124,7 +124,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 	var states v1.LeptonStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
 			return
 		}
@@ -200,7 +200,7 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 	var events v1.LeptonEvents
 	components, err := g.getReqComponents(c)
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
 			return
 		}
@@ -287,7 +287,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 	var infos v1.LeptonInfo
 	components, err := g.getReqComponents(c)
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
 			return
 		}
@@ -404,7 +404,7 @@ const (
 func (g *globalHandler) getMetrics(c *gin.Context) {
 	components, err := g.getReqComponents(c)
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
 			return
 		}

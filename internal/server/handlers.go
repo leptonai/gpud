@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,8 +150,13 @@ func createConfigHandler(cfg *lep_config.Config) func(c *gin.Context) {
 }
 
 const (
-	URLPathPackages     = "/packages"
-	URLPathPackagesDesc = "Get the status of gpud managed packages"
+	urlPathAdmin        = "/admin"
+	urlPathPackages     = "/packages"
+	urlPathPackagesDesc = "Get the status of gpud managed packages"
+)
+
+var (
+	URLPathAdminPackages = path.Join(urlPathAdmin, urlPathPackages)
 )
 
 func createPackageHandler(m *manager.Manager) func(c *gin.Context) {
