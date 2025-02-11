@@ -79,6 +79,8 @@ func (c *component) getStates(ctx context.Context, thresholds infiniband.Expecte
 				"potential infiniband switch/hardware issue needs immediate attention",
 			},
 		}
+
+		log.Logger.Warnw("ibstat issue found", "reason", reason, "output", o.Raw)
 	}
 
 	return []components.State{
