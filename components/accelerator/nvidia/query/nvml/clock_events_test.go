@@ -10,12 +10,12 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml/testutil"
 	"github.com/leptonai/gpud/components/common"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetClockEventReasons(t *testing.T) {
@@ -191,12 +191,15 @@ func TestGetClockEvents(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockDevice := &mock.Device{
-				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-					return tc.mockReasons, tc.mockReturn
+			mockDevice := &testutil.MockDevice{
+				Device: &mock.Device{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return tc.mockReasons, tc.mockReturn
+					},
 				},
 			}
-			events, err := GetClockEvents(tc.uuid, testutil.CreateDevice(mockDevice))
+
+			events, err := GetClockEvents(tc.uuid, mockDevice)
 
 			if tc.expectedError {
 				if err == nil {
@@ -245,40 +248,44 @@ func TestGetClockEvents(t *testing.T) {
 func TestClockEventsSupported(t *testing.T) {
 	tests := []struct {
 		name           string
-		mockDevices    []*mock.Device
+		mockDevices    []*testutil.MockDevice
 		mockDeviceErr  error
 		expectedResult bool
 		expectError    bool
 	}{
 		{
 			name: "all devices support clock events",
-			mockDevices: []*mock.Device{
+			mockDevices: []*testutil.MockDevice{
 				{
-					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-						return 0, nvml.SUCCESS
-					},
-					GetNameFunc: func() (string, nvml.Return) {
-						return "Tesla V100", nvml.SUCCESS
-					},
-					GetUUIDFunc: func() (string, nvml.Return) {
-						return "GPU-1234", nvml.SUCCESS
-					},
-					GetMinorNumberFunc: func() (int, nvml.Return) {
-						return 0, nvml.SUCCESS
+					Device: &mock.Device{
+						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
+						GetNameFunc: func() (string, nvml.Return) {
+							return "Tesla V100", nvml.SUCCESS
+						},
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "GPU-1234", nvml.SUCCESS
+						},
+						GetMinorNumberFunc: func() (int, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
 					},
 				},
 				{
-					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-						return 0, nvml.SUCCESS
-					},
-					GetNameFunc: func() (string, nvml.Return) {
-						return "Tesla V100", nvml.SUCCESS
-					},
-					GetUUIDFunc: func() (string, nvml.Return) {
-						return "GPU-5678", nvml.SUCCESS
-					},
-					GetMinorNumberFunc: func() (int, nvml.Return) {
-						return 1, nvml.SUCCESS
+					Device: &mock.Device{
+						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
+						GetNameFunc: func() (string, nvml.Return) {
+							return "Tesla V100", nvml.SUCCESS
+						},
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "GPU-5678", nvml.SUCCESS
+						},
+						GetMinorNumberFunc: func() (int, nvml.Return) {
+							return 1, nvml.SUCCESS
+						},
 					},
 				},
 			},
@@ -287,33 +294,37 @@ func TestClockEventsSupported(t *testing.T) {
 		},
 		{
 			name: "one device supports clock events",
-			mockDevices: []*mock.Device{
+			mockDevices: []*testutil.MockDevice{
 				{
-					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-						return 0, nvml.ERROR_NOT_SUPPORTED
-					},
-					GetNameFunc: func() (string, nvml.Return) {
-						return "Tesla V100", nvml.SUCCESS
-					},
-					GetUUIDFunc: func() (string, nvml.Return) {
-						return "GPU-1234", nvml.SUCCESS
-					},
-					GetMinorNumberFunc: func() (int, nvml.Return) {
-						return 0, nvml.SUCCESS
+					Device: &mock.Device{
+						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+							return 0, nvml.ERROR_NOT_SUPPORTED
+						},
+						GetNameFunc: func() (string, nvml.Return) {
+							return "Tesla V100", nvml.SUCCESS
+						},
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "GPU-1234", nvml.SUCCESS
+						},
+						GetMinorNumberFunc: func() (int, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
 					},
 				},
 				{
-					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-						return 0, nvml.SUCCESS
-					},
-					GetNameFunc: func() (string, nvml.Return) {
-						return "Tesla V100", nvml.SUCCESS
-					},
-					GetUUIDFunc: func() (string, nvml.Return) {
-						return "GPU-5678", nvml.SUCCESS
-					},
-					GetMinorNumberFunc: func() (int, nvml.Return) {
-						return 1, nvml.SUCCESS
+					Device: &mock.Device{
+						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
+						GetNameFunc: func() (string, nvml.Return) {
+							return "Tesla V100", nvml.SUCCESS
+						},
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "GPU-5678", nvml.SUCCESS
+						},
+						GetMinorNumberFunc: func() (int, nvml.Return) {
+							return 1, nvml.SUCCESS
+						},
 					},
 				},
 			},
@@ -322,19 +333,21 @@ func TestClockEventsSupported(t *testing.T) {
 		},
 		{
 			name: "no devices support clock events",
-			mockDevices: []*mock.Device{
+			mockDevices: []*testutil.MockDevice{
 				{
-					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-						return 0, nvml.ERROR_NOT_SUPPORTED
-					},
-					GetNameFunc: func() (string, nvml.Return) {
-						return "Tesla V100", nvml.SUCCESS
-					},
-					GetUUIDFunc: func() (string, nvml.Return) {
-						return "GPU-1234", nvml.SUCCESS
-					},
-					GetMinorNumberFunc: func() (int, nvml.Return) {
-						return 0, nvml.SUCCESS
+					Device: &mock.Device{
+						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+							return 0, nvml.ERROR_NOT_SUPPORTED
+						},
+						GetNameFunc: func() (string, nvml.Return) {
+							return "Tesla V100", nvml.SUCCESS
+						},
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "GPU-1234", nvml.SUCCESS
+						},
+						GetMinorNumberFunc: func() (int, nvml.Return) {
+							return 0, nvml.SUCCESS
+						},
 					},
 				},
 			},
@@ -353,7 +366,7 @@ func TestClockEventsSupported(t *testing.T) {
 			// Create mock devices
 			mockDevices := make([]device.Device, len(tt.mockDevices))
 			for i, d := range tt.mockDevices {
-				mockDevices[i] = testutil.CreateDevice(d)
+				mockDevices[i] = d
 			}
 
 			// Mock NVML
@@ -374,7 +387,7 @@ func TestClockEventsSupported(t *testing.T) {
 					if idx < 0 || idx >= len(tt.mockDevices) {
 						return nil, nvml.ERROR_INVALID_ARGUMENT
 					}
-					return tt.mockDevices[idx], nvml.SUCCESS
+					return tt.mockDevices[idx].Device, nvml.SUCCESS
 				},
 			}
 
@@ -413,15 +426,17 @@ func TestClockEventsSupported(t *testing.T) {
 func TestClockEventsSupportedByDevice(t *testing.T) {
 	tests := []struct {
 		name           string
-		mockDevice     *mock.Device
+		mockDevice     *testutil.MockDevice
 		expectedResult bool
 		expectError    bool
 	}{
 		{
 			name: "device supports clock events",
-			mockDevice: &mock.Device{
-				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-					return 0, nvml.SUCCESS
+			mockDevice: &testutil.MockDevice{
+				Device: &mock.Device{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.SUCCESS
+					},
 				},
 			},
 			expectedResult: true,
@@ -429,9 +444,11 @@ func TestClockEventsSupportedByDevice(t *testing.T) {
 		},
 		{
 			name: "device does not support clock events",
-			mockDevice: &mock.Device{
-				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-					return 0, nvml.ERROR_NOT_SUPPORTED
+			mockDevice: &testutil.MockDevice{
+				Device: &mock.Device{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.ERROR_NOT_SUPPORTED
+					},
 				},
 			},
 			expectedResult: false,
@@ -439,9 +456,11 @@ func TestClockEventsSupportedByDevice(t *testing.T) {
 		},
 		{
 			name: "device returns error",
-			mockDevice: &mock.Device{
-				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-					return 0, nvml.ERROR_UNKNOWN
+			mockDevice: &testutil.MockDevice{
+				Device: &mock.Device{
+					GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+						return 0, nvml.ERROR_UNKNOWN
+					},
 				},
 			},
 			expectError: true,
@@ -450,7 +469,7 @@ func TestClockEventsSupportedByDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ClockEventsSupportedByDevice(testutil.CreateDevice(tt.mockDevice))
+			result, err := ClockEventsSupportedByDevice(tt.mockDevice)
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error but got none")
