@@ -16,6 +16,8 @@ type ReadOp struct {
 
 	processLine func(line string)
 	waitForCmd  bool
+
+	initialBufferSize int
 }
 
 func (op *ReadOp) applyOpts(opts []ReadOpOption) error {
@@ -62,6 +64,14 @@ func WithWaitForCmd() ReadOpOption {
 	}
 }
 
+// Sets the initial buffer size for the scanner.
+// Defaults to 4096 bytes.
+func WithInitialBufferSize(size int) ReadOpOption {
+	return func(op *ReadOp) {
+		op.initialBufferSize = size
+	}
+}
+
 var (
 	ErrProcessNotStarted = errors.New("process not started")
 	ErrProcessAborted    = errors.New("process aborted")
@@ -105,15 +115,21 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		return errors.New("scanner is nil")
 	}
 
+	if op.initialBufferSize > 0 {
+		// used for setting larger buffer than default (4096 bytes) to prevent output truncation
+		// in case the command times out in the middle of reading
+		// e.g., ibstat output is larger than 4KB
+		scanner.Buffer(make([]byte, op.initialBufferSize), bufio.MaxScanTokenSize)
+	}
+
 	for scanner.Scan() {
 		// helps with debugging if command times out in the middle of reading
 		op.processLine(scanner.Text())
 
+		// do not select on "p.Wait()" for process failures
+		// because that will early return the error before
+		// we read all the output from the buffer
 		select {
-		case err := <-p.Wait(): // command failed
-			if err != nil {
-				return err
-			}
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
