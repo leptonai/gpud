@@ -3,10 +3,15 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestApplyOpts(t *testing.T) {
@@ -251,4 +256,360 @@ func TestReaderWriterServerError(t *testing.T) {
 	if _, ok := <-s.writer; ok {
 		t.Errorf("Writer channel should be closed")
 	}
+}
+
+func TestCreateHTTPClient(t *testing.T) {
+	client := createHTTPClient()
+	if client == nil {
+		t.Fatal("Expected non-nil HTTP client")
+	}
+
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("Expected *http.Transport")
+	}
+
+	if transport.DisableKeepAlives != true {
+		t.Error("Expected DisableKeepAlives to be true")
+	}
+
+	if transport.MaxIdleConns != 10 {
+		t.Errorf("Expected MaxIdleConns to be 10, got %d", transport.MaxIdleConns)
+	}
+}
+
+func TestCreateSessionRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		endpoint    string
+		machineID   string
+		sessionType string
+		body        io.Reader
+		wantErr     bool
+	}{
+		{
+			name:        "valid request with no body",
+			ctx:         context.Background(),
+			endpoint:    "http://test.com",
+			machineID:   "test-machine",
+			sessionType: "read",
+			body:        nil,
+			wantErr:     false,
+		},
+		{
+			name:        "valid request with body",
+			ctx:         context.Background(),
+			endpoint:    "http://test.com",
+			machineID:   "test-machine",
+			sessionType: "write",
+			body:        strings.NewReader("test-body"),
+			wantErr:     false,
+		},
+		{
+			name:        "invalid endpoint",
+			ctx:         context.Background(),
+			endpoint:    "://invalid-url",
+			machineID:   "test-machine",
+			sessionType: "read",
+			body:        nil,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := createSessionRequest(tt.ctx, tt.endpoint, tt.machineID, tt.sessionType, tt.body)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createSessionRequest() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if req.Header.Get("machine_id") != tt.machineID {
+					t.Errorf("Expected machine_id header %s, got %s", tt.machineID, req.Header.Get("machine_id"))
+				}
+				if req.Header.Get("session_type") != tt.sessionType {
+					t.Errorf("Expected session_type header %s, got %s", tt.sessionType, req.Header.Get("session_type"))
+				}
+			}
+		})
+	}
+}
+
+func TestWriteBodyToPipe(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    Body
+		wantErr bool
+	}{
+		{
+			name: "valid body",
+			body: Body{
+				ReqID: "test-req",
+				Data:  []byte("test-data"),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader, writer := io.Pipe()
+			s := &Session{}
+
+			// Start a goroutine to read from the pipe
+			done := make(chan struct{})
+			var readErr error
+			var readBody Body
+
+			go func() {
+				defer close(done)
+				decoder := json.NewDecoder(reader)
+				readErr = decoder.Decode(&readBody)
+			}()
+
+			err := s.writeBodyToPipe(writer, tt.body)
+			writer.Close()
+
+			<-done // Wait for reading to complete
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("writeBodyToPipe() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr {
+				if readErr != nil {
+					t.Errorf("Error reading from pipe: %v", readErr)
+				}
+				if readBody.ReqID != tt.body.ReqID {
+					t.Errorf("Expected ReqID %s, got %s", tt.body.ReqID, readBody.ReqID)
+				}
+			}
+		})
+	}
+}
+
+func TestTryWriteToReader(t *testing.T) {
+	tests := []struct {
+		name             string
+		setupCloser      bool
+		readerBufferSize int
+		content          Body
+		preloadMessages  int
+		expectedResult   bool
+	}{
+		{
+			name:             "successful write",
+			readerBufferSize: 1,
+			content: Body{
+				ReqID: "test",
+			},
+			expectedResult: true,
+		},
+		{
+			name:        "closed session",
+			setupCloser: true,
+			content: Body{
+				ReqID: "test",
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			s := &Session{
+				reader: make(chan Body, tt.readerBufferSize),
+				closer: &closeOnce{closer: make(chan any)},
+			}
+
+			if tt.setupCloser {
+				s.closer.Close()
+			}
+
+			// Preload messages if needed
+			for i := 0; i < tt.preloadMessages; i++ {
+				s.reader <- Body{ReqID: "preload"}
+			}
+
+			beforeWrite := time.Now()
+			result := s.tryWriteToReader(tt.content)
+
+			assert.Equal(tt.expectedResult, result)
+
+			if result && !tt.setupCloser {
+				timestamp := s.getLastPackageTimestamp()
+				assert.False(timestamp.Before(beforeWrite), "Expected timestamp to be updated after successful write")
+			}
+		})
+	}
+}
+
+func TestHandleReaderPipe(t *testing.T) {
+	tests := []struct {
+		name              string
+		setupCloser       bool
+		timeoutDuration   time.Duration
+		expectedExitAfter time.Duration
+	}{
+		{
+			name:              "normal operation",
+			timeoutDuration:   5 * time.Second,
+			expectedExitAfter: 10 * time.Second,
+		},
+		{
+			name:              "timeout exceeded",
+			timeoutDuration:   100 * time.Millisecond,
+			expectedExitAfter: 3 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			s := &Session{
+				closer: &closeOnce{closer: make(chan any)},
+			}
+
+			if tt.setupCloser {
+				s.closer.Close()
+			}
+
+			reader, writer := io.Pipe()
+			closec := make(chan any)
+			finish := make(chan any)
+
+			// Set initial timestamp
+			s.setLastPackageTimestamp(time.Now())
+
+			go s.handleReaderPipe(reader, closec, finish)
+
+			select {
+			case <-finish:
+				assert.Fail("Pipe handler exited too early")
+			case <-time.After(50 * time.Millisecond):
+				// Expected - handler should still be running
+			}
+
+			if tt.setupCloser {
+				select {
+				case <-finish:
+					// Expected - handler should exit when session is closed
+				case <-time.After(tt.expectedExitAfter):
+					assert.Fail("Pipe handler didn't exit after session close")
+				}
+			}
+
+			writer.Close()
+			reader.Close()
+		})
+	}
+}
+
+func TestCloseOnce(t *testing.T) {
+	c := &closeOnce{
+		closer: make(chan any),
+	}
+
+	// First close should succeed
+	c.Close()
+
+	// Second close should not panic
+	c.Close()
+
+	// Channel should be closed
+	select {
+	case <-c.Done():
+		// Expected
+	default:
+		t.Error("Channel should be closed")
+	}
+}
+
+func TestSessionKeepAlive(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Session{
+		ctx:          ctx,
+		cancel:       cancel,
+		endpoint:     server.URL,
+		machineID:    "test",
+		pipeInterval: 100 * time.Millisecond,
+		writer:       make(chan Body, 10),
+		reader:       make(chan Body, 10),
+		closer:       &closeOnce{closer: make(chan any)},
+	}
+
+	go s.keepAlive()
+
+	// Let it run for a bit
+	time.Sleep(300 * time.Millisecond)
+
+	// Should be able to stop cleanly
+	s.Stop()
+
+	// Channels should be closed
+	if _, ok := <-s.reader; ok {
+		t.Error("Reader channel should be closed")
+	}
+	if _, ok := <-s.writer; ok {
+		t.Error("Writer channel should be closed")
+	}
+}
+
+func TestLastPackageTimestamp(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := &Session{
+		ctx:    ctx,
+		cancel: cancel,
+		closer: &closeOnce{closer: make(chan any)},
+	}
+
+	// Test initial state
+	initialTime := s.getLastPackageTimestamp()
+	assert.True(initialTime.IsZero(), "Expected initial timestamp to be zero")
+
+	// Test setting and getting timestamp
+	now := time.Now()
+	s.setLastPackageTimestamp(now)
+	gotTime := s.getLastPackageTimestamp()
+	assert.True(gotTime.Equal(now), "Expected timestamp to match set time")
+
+	// Test concurrent access
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 2) // For both readers and writers
+
+	// Launch multiple goroutines to test concurrent reads
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = s.getLastPackageTimestamp()
+		}()
+	}
+
+	// Launch multiple goroutines to test concurrent writes
+	for i := 0; i < numGoroutines; i++ {
+		go func(i int) {
+			defer wg.Done()
+			s.setLastPackageTimestamp(time.Now().Add(time.Duration(i) * time.Millisecond))
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify timestamp was updated during concurrent operations
+	finalTime := s.getLastPackageTimestamp()
+	assert.False(finalTime.Equal(now), "Expected timestamp to be updated during concurrent operations")
 }

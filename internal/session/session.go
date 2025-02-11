@@ -84,6 +84,9 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	lastPackageTimestampMu sync.RWMutex
+	lastPackageTimestamp   time.Time
 }
 
 type closeOnce struct {
@@ -169,27 +172,8 @@ func (s *Session) keepAlive() {
 	}
 }
 
-func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
-	pipeFinishCh := make(chan any)
-	goroutineCloseCh := make(chan any)
-	defer func() {
-		close(goroutineCloseCh)
-		s.closer.Close()
-		<-pipeFinishCh
-		close(writerExit)
-	}()
-	reader, writer := io.Pipe()
-	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, reader)
-	if err != nil {
-		log.Logger.Debugf("session writer: error creating request: %v", err)
-		return
-	}
-	req.Header.Set("machine_id", s.machineID)
-	req.Header.Set("session_type", "write")
-
-	client := &http.Client{
+func createHTTPClient() *http.Client {
+	return &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -204,6 +188,37 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
 			DisableKeepAlives:     true,
 		},
 	}
+}
+
+func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("machine_id", machineID)
+	req.Header.Set("session_type", sessionType)
+	return req, nil
+}
+
+func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
+	pipeFinishCh := make(chan any)
+	goroutineCloseCh := make(chan any)
+	defer func() {
+		close(goroutineCloseCh)
+		s.closer.Close()
+		<-pipeFinishCh
+		close(writerExit)
+	}()
+	reader, writer := io.Pipe()
+	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
+
+	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "write", reader)
+	if err != nil {
+		log.Logger.Debugf("session writer: error creating request: %v", err)
+		return
+	}
+
+	client := createHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session writer: error making request: %v", err)
@@ -221,26 +236,31 @@ func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan an
 		case <-s.closer.Done():
 			log.Logger.Debug("session writer: session closed, closing pipe handler")
 			return
-
 		case <-closec:
 			log.Logger.Debug("session writer: request finished, closing pipe handler")
 			return
-
 		case body := <-s.writer:
-			bytes, err := json.Marshal(body)
-			if err != nil {
-				log.Logger.Errorf("session writer: failed to marshal body: %v", err)
-				continue
-			}
-			if _, err := writer.Write(bytes); err != nil {
-				log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+			if err := s.writeBodyToPipe(writer, body); err != nil {
 				if errors.Is(err, io.ErrClosedPipe) {
 					return
 				}
 			}
-			log.Logger.Debug("session writer: body written to pipe")
 		}
 	}
+}
+
+func (s *Session) writeBodyToPipe(writer *io.PipeWriter, body Body) error {
+	bytes, err := json.Marshal(body)
+	if err != nil {
+		log.Logger.Errorf("session writer: failed to marshal body: %v", err)
+		return err
+	}
+	if _, err := writer.Write(bytes); err != nil {
+		log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+		return err
+	}
+	log.Logger.Debug("session writer: body written to pipe")
+	return nil
 }
 
 func (s *Session) startReader(ctx context.Context, readerExit chan any) {
@@ -252,30 +272,15 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 		<-pipeFinishCh
 		close(readerExit)
 	}()
-	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, nil)
+
+	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "read", nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
 		close(pipeFinishCh)
 		return
 	}
-	req.Header.Set("machine_id", s.machineID)
-	req.Header.Set("session_type", "read")
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:       30 * time.Second,
-				KeepAlive:     30 * time.Second,
-				FallbackDelay: 300 * time.Millisecond,
-			}).DialContext,
-			MaxIdleConns:          10,
-			IdleConnTimeout:       30 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 5 * time.Second,
-			DisableKeepAlives:     true,
-		},
-	}
+	client := createHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session reader: error making request: %v, retrying", err)
@@ -288,31 +293,55 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 		return
 	}
 
-	lastPackageTimestamp := &time.Time{}
-	*lastPackageTimestamp = time.Now()
+	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
+}
+
+func (s *Session) setLastPackageTimestamp(t time.Time) {
+	s.lastPackageTimestampMu.Lock()
+	defer s.lastPackageTimestampMu.Unlock()
+	s.lastPackageTimestamp = t
+}
+
+func (s *Session) getLastPackageTimestamp() time.Time {
+	s.lastPackageTimestampMu.RLock()
+	defer s.lastPackageTimestampMu.RUnlock()
+	return s.lastPackageTimestamp
+}
+
+func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, pipeFinishCh chan any) {
+	s.setLastPackageTimestamp(time.Now())
+
 	decoder := json.NewDecoder(resp.Body)
-	go s.handleReaderPipe(resp.Body, lastPackageTimestamp, goroutineCloseCh, pipeFinishCh)
+	go s.handleReaderPipe(resp.Body, goroutineCloseCh, pipeFinishCh)
+
 	for {
 		var content Body
-		err = decoder.Decode(&content)
-		if err != nil {
+		if err := decoder.Decode(&content); err != nil {
 			log.Logger.Errorf("session reader: error decoding response: %v", err)
 			break
 		}
-		select {
-		case <-s.closer.Done():
-			log.Logger.Debug("session reader: session closed, dropping message")
+		if !s.tryWriteToReader(content) {
 			return
-		case s.reader <- content:
-			*lastPackageTimestamp = time.Now()
-			log.Logger.Debug("session reader: request received and written to pipe")
-		default:
-			log.Logger.Errorw("session reader: reader channel full, dropping message")
 		}
 	}
 }
 
-func (s *Session) handleReaderPipe(respBody io.ReadCloser, lastPackageTimestamp *time.Time, closec, finish chan any) {
+func (s *Session) tryWriteToReader(content Body) bool {
+	select {
+	case <-s.closer.Done():
+		log.Logger.Debug("session reader: session closed, dropping message")
+		return false
+	case s.reader <- content:
+		s.setLastPackageTimestamp(time.Now())
+		log.Logger.Debug("session reader: request received and written to pipe")
+		return true
+	default:
+		log.Logger.Errorw("session reader: reader channel full, dropping message")
+		return true
+	}
+}
+
+func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan any) {
 	defer close(finish)
 	log.Logger.Debug("session reader: pipe handler started")
 	threshold := 2 * time.Minute
@@ -330,7 +359,7 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, lastPackageTimestamp 
 			log.Logger.Debug("session reader: request finished, closing read pipe handler")
 			return
 		case <-ticker.C:
-			if time.Since(*lastPackageTimestamp) > threshold {
+			if time.Since(s.getLastPackageTimestamp()) > threshold {
 				log.Logger.Debugf("session reader: exceed read wait timeout, closing read pipe handler")
 				return
 			}
