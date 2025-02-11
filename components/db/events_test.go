@@ -1336,8 +1336,15 @@ func TestRetentionPurge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	// Create store with 10 second retention
-	store, err := NewStore(dbRW, dbRO, testTableName, 10*time.Second)
+	store, err := newStore(
+		dbRW,
+		dbRO,
+		testTableName,
+		10*time.Second,
+		// much shorter than the retention period
+		// to make tests less flaky
+		50*time.Millisecond,
+	)
 	assert.NoError(t, err)
 	defer store.Close()
 
@@ -1363,16 +1370,13 @@ func TestRetentionPurge(t *testing.T) {
 		},
 	}
 
-	// Insert events
 	for _, event := range events {
 		err = store.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
-	// Wait for purge to run (retention/10 = 1 second)
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
 
-	// Verify only new event remains
 	remaining, err := store.Get(ctx, baseTime.Add(-20*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))

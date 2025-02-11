@@ -64,10 +64,12 @@ type storeImpl struct {
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
 
-	table     string
-	dbRW      *sql.DB
-	dbRO      *sql.DB
-	retention time.Duration
+	table string
+	dbRW  *sql.DB
+	dbRO  *sql.DB
+
+	retention     time.Duration
+	checkInterval time.Duration
 }
 
 var (
@@ -98,6 +100,16 @@ var _ Store = (*storeImpl)(nil)
 // Requires write-only and read-only instances for minimize conflicting writes/reads.
 // ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
 func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (Store, error) {
+	// actual check interval should be lower than the retention period
+	// in case of GPUd restarts
+	checkInterval := retention / 5
+	if checkInterval < time.Second {
+		checkInterval = time.Second
+	}
+	return newStore(dbRW, dbRO, tableName, retention, checkInterval)
+}
+
+func newStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration, checkInterval time.Duration) (Store, error) {
 	if dbRW == nil {
 		return nil, ErrNoDBRWSet
 	}
@@ -114,12 +126,13 @@ func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Durat
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	s := &storeImpl{
-		rootCtx:    rootCtx,
-		rootCancel: rootCancel,
-		table:      tableName,
-		dbRW:       dbRW,
-		dbRO:       dbRO,
-		retention:  retention,
+		rootCtx:       rootCtx,
+		rootCancel:    rootCancel,
+		table:         tableName,
+		dbRW:          dbRW,
+		dbRO:          dbRO,
+		retention:     retention,
+		checkInterval: checkInterval,
 	}
 	go s.runPurge()
 
@@ -131,12 +144,7 @@ func (s *storeImpl) runPurge() {
 		return
 	}
 
-	// actual check interval should be lower than the retention period
-	// in case of GPUd restarts
-	checkInterval := s.retention / 5
-	if checkInterval < time.Second {
-		checkInterval = time.Second
-	}
+	checkInterval := s.checkInterval
 
 	log.Logger.Infow("start purging", "table", s.table, "retention", s.retention)
 	for {
