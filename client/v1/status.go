@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,12 +11,13 @@ import (
 )
 
 // GetPackageStatus fetches the GPUd package status from the GPUd admin API.
-func GetPackageStatus(ctx context.Context, url string) ([]packages.PackageStatus, error) {
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
+func GetPackageStatus(ctx context.Context, url string, opts ...OpOption) ([]packages.PackageStatus, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
 	}
+
+	httpClient := op.httpClient
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
