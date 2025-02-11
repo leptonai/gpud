@@ -89,6 +89,64 @@ func newTestProcess(command string, args ...string) *testProcess {
 func TestReadAll(t *testing.T) {
 	// Test reading both stdout and stderr
 	t.Run("read stdout and stderr", func(t *testing.T) {
+		p := newTestProcess("sh", "-c", `echo "stdout line" && echo "stderr line" >&2`)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		output, err := ReadAll(ctx, p)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		expectedOutput := "stdout line\nstderr line\n"
+		if string(output) != expectedOutput {
+			t.Errorf("expected output %q, got %q", expectedOutput, string(output))
+		}
+	})
+
+	// Test empty output
+	t.Run("empty output", func(t *testing.T) {
+		p := newTestProcess("true")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		output, err := ReadAll(ctx, p)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+		if len(output) != 0 {
+			t.Errorf("expected empty output, got %q", string(output))
+		}
+	})
+
+	// Test not started process
+	t.Run("not started process", func(t *testing.T) {
+		p := &stateProcess{isStarted: false}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		_, err := ReadAll(ctx, p)
+		if err != ErrProcessNotStarted {
+			t.Errorf("expected ErrProcessNotStarted, got %v", err)
+		}
+	})
+
+	// Test aborted process
+	t.Run("aborted process", func(t *testing.T) {
+		p := &stateProcess{isStarted: true, isAborted: true}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		_, err := ReadAll(ctx, p)
+		if err != ErrProcessAborted {
+			t.Errorf("expected ErrProcessAborted, got %v", err)
+		}
+	})
+}
+
+func TestReadAllWithBufferedReaders(t *testing.T) {
+	// Test reading both stdout and stderr
+	t.Run("read stdout and stderr", func(t *testing.T) {
 		// This command outputs to both stdout and stderr
 		p := newTestProcess("sh", "-c", `echo "stdout line" && echo "stderr line" >&2`)
 		lines := make([]string, 0)

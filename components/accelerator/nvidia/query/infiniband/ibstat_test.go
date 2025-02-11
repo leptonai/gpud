@@ -74,7 +74,7 @@ func TestGetIbstatOutput(t *testing.T) {
 			name:           "parsing error",
 			ibstatCommand:  []string{"echo", "invalid ibstat output"},
 			expectedError:  ErrIbstatOutputNoCardFound,
-			expectedOutput: "invalid ibstat output",
+			expectedOutput: "invalid ibstat output\n",
 			wantParsed:     false,
 			isDynamicError: false,
 		},

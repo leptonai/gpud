@@ -67,6 +67,34 @@ var (
 	ErrProcessAborted    = errors.New("process aborted")
 )
 
+func ReadAll(ctx context.Context, p Process) ([]byte, error) {
+	if !p.Started() {
+		return nil, ErrProcessNotStarted
+	}
+	if p.Closed() {
+		return nil, ErrProcessAborted
+	}
+
+	rd := io.MultiReader(p.StdoutReader(), p.StderrReader())
+	b, err := io.ReadAll(rd)
+	if err != nil {
+		if !strings.Contains(err.Error(), "file already closed") {
+			return nil, err
+		}
+	}
+
+	select {
+	case err := <-p.Wait():
+		if err != nil {
+			return b, err
+		}
+	case <-ctx.Done():
+		return b, ctx.Err()
+	}
+
+	return b, nil
+}
+
 func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	if !p.Started() {
 		return ErrProcessNotStarted
