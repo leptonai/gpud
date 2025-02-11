@@ -17,13 +17,12 @@ func GetPackageStatus(ctx context.Context, url string, opts ...OpOption) ([]pack
 		return nil, err
 	}
 
-	httpClient := op.httpClient
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

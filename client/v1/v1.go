@@ -3,6 +3,7 @@ package v1
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,10 +12,11 @@ import (
 	"net/url"
 	"strings"
 
+	"sigs.k8s.io/yaml"
+
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/errdefs"
 	"github.com/leptonai/gpud/internal/server"
-	"sigs.k8s.io/yaml"
 )
 
 func GetComponents(ctx context.Context, addr string, opts ...OpOption) ([]string, error) {
@@ -34,7 +36,7 @@ func GetComponents(ctx context.Context, addr string, opts ...OpOption) ([]string
 		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
-	resp, err := op.httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -131,7 +133,7 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo,
 		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
-	resp, err := op.httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -229,7 +231,7 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
-	resp, err := op.httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -316,7 +318,7 @@ func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonEve
 		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
-	resp, err := op.httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -399,7 +401,7 @@ func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonMe
 		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
-	resp, err := op.httpClient.Do(req)
+	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
@@ -463,4 +465,12 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.LeptonMetrics, error) {
 	}
 
 	return metrics, nil
+}
+
+func createDefaultHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 }

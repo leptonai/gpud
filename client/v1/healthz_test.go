@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/internal/server"
 )
 
 func TestCheckHealthz(t *testing.T) {
@@ -164,46 +165,5 @@ func TestCheckHealthzContextCancellation(t *testing.T) {
 	err := CheckHealthz(ctx, srv.URL)
 	if err == nil {
 		t.Error("CheckHealthz() with canceled context should return error")
-	}
-}
-
-func TestCheckHealthzWithCustomClient(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/healthz" {
-			t.Errorf("Expected /healthz path, got %s", r.URL.Path)
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		json, _ := server.DefaultHealthz.JSON()
-		if _, err := w.Write(json); err != nil {
-			t.Errorf("Error writing response: %v", err)
-		}
-	}))
-	defer srv.Close()
-
-	customClient := &http.Client{Timeout: 1 * time.Second}
-	err := CheckHealthz(context.Background(), srv.URL, WithHTTPClient(customClient))
-	if err != nil {
-		t.Errorf("CheckHealthz() with custom client error = %v, want nil", err)
-	}
-}
-
-func TestCheckHealthzTimeout(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-		json, _ := server.DefaultHealthz.JSON()
-		_, err := w.Write(json)
-		if err != nil {
-			t.Errorf("Error writing response: %v", err)
-		}
-	}))
-	defer srv.Close()
-
-	client := &http.Client{Timeout: 100 * time.Millisecond}
-	err := CheckHealthz(context.Background(), srv.URL, WithHTTPClient(client))
-	if err == nil {
-		t.Error("CheckHealthz() with timeout should return error")
 	}
 }
