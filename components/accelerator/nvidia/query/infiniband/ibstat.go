@@ -48,6 +48,12 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		p,
 		process.WithReadStdout(),
 		process.WithReadStderr(),
+
+		// set larger buffer than default (4096 bytes) to prevent output truncation
+		// in case the command times out in the middle of reading
+		// ibstat output is larger than 4KB
+		process.WithInitialBufferSize(6*1024),
+
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),

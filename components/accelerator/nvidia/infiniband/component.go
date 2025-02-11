@@ -4,6 +4,7 @@ package infiniband
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -58,10 +59,28 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) getStates(ctx context.Context, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
-	o, err := infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
+	var o *infiniband.IbstatOutput
+	var err error
+	for i := 0; i < 3; i++ {
+		o, err = infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
+		if errors.Is(err, infiniband.ErrIbstatOutputEmpty) {
+			log.Logger.Warnw("ibstat output is empty, retrying", "attempt", i+1, "error", err)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(300 * time.Millisecond):
+			}
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
 	if err != nil {
 		return nil, err
 	}
+
 	reason, healthy, err := evaluate(o, thresholds)
 	if err != nil {
 		return nil, err

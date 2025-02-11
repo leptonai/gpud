@@ -153,6 +153,12 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 		p,
 		process.WithReadStdout(),
 		process.WithReadStderr(),
+
+		// set larger buffer than default (4096 bytes) to prevent output truncation
+		// in case the command times out in the middle of reading
+		// "lsblk" output is larger than 8KB
+		process.WithInitialBufferSize(12*1024),
+
 		process.WithProcessLine(func(line string) {
 			lines = append(lines, line)
 		}),
