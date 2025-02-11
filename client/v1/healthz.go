@@ -12,6 +12,8 @@ import (
 	"github.com/leptonai/gpud/internal/server"
 )
 
+var ErrServerNotReady = errors.New("server not ready, timeout waiting")
+
 func CheckHealthz(ctx context.Context, addr string, opts ...OpOption) error {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -82,5 +84,5 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 			return fmt.Errorf("context done: %w", ctx.Err())
 		}
 	}
-	return errors.New("server not ready, timeout waiting")
+	return ErrServerNotReady
 }

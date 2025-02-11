@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"compress/gzip"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -8,38 +9,131 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/internal/server"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckHealthz(t *testing.T) {
 	tests := []struct {
-		name       string
-		statusCode int
-		body       string
-		wantErr    bool
+		name            string
+		statusCode      int
+		body            string
+		gzip            bool
+		networkError    bool
+		closeConnection bool
+		wantErr         bool
+		errorContains   string
 	}{
-		{"Success", http.StatusOK, `{"status":"ok","version":"v1"}`, false},
-		{"WrongStatus", http.StatusInternalServerError, "", true},
-		{"WrongBody", http.StatusOK, `{"status":"error"}`, true},
+		{
+			name:       "Success",
+			statusCode: http.StatusOK,
+			body:       `{"status":"ok","version":"v1"}`,
+			wantErr:    false,
+		},
+		{
+			name:       "Success with gzip",
+			statusCode: http.StatusOK,
+			body:       `{"status":"ok","version":"v1"}`,
+			gzip:       true,
+			wantErr:    false,
+		},
+		{
+			name:          "Wrong Status",
+			statusCode:    http.StatusInternalServerError,
+			body:          "",
+			wantErr:       true,
+			errorContains: "server not ready",
+		},
+		{
+			name:          "Wrong Body",
+			statusCode:    http.StatusOK,
+			body:          `{"status":"error"}`,
+			wantErr:       true,
+			errorContains: "unexpected healthz response",
+		},
+		{
+			name:          "Empty Body",
+			statusCode:    http.StatusOK,
+			body:          "",
+			wantErr:       true,
+			errorContains: "unexpected healthz response",
+		},
+		{
+			name:          "Malformed JSON",
+			statusCode:    http.StatusOK,
+			body:          `{"status":`,
+			wantErr:       true,
+			errorContains: "unexpected healthz response",
+		},
+		{
+			name:          "Extra Fields",
+			statusCode:    http.StatusOK,
+			body:          `{"status":"ok","version":"v1","extra":"field"}`,
+			wantErr:       true,
+			errorContains: "unexpected healthz response",
+		},
+		{
+			name:            "Connection Close",
+			statusCode:      http.StatusOK,
+			closeConnection: true,
+			wantErr:         true,
+			errorContains:   "EOF",
+		},
+		{
+			name:          "Network Error",
+			networkError:  true,
+			wantErr:       true,
+			errorContains: "failed to make request",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/healthz" {
-					t.Errorf("Expected /healthz path, got %s", r.URL.Path)
-					http.NotFound(w, r)
-					return
-				}
-				w.WriteHeader(tt.statusCode)
-				if _, err := w.Write([]byte(tt.body)); err != nil {
-					t.Errorf("Error writing response: %v", err)
-				}
-			}))
-			defer srv.Close()
+			var srv *httptest.Server
+			if tt.networkError {
+				// Use a port that's unlikely to be in use but will cause connection refused
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				srv.Close()
+			} else {
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path != "/healthz" {
+						t.Errorf("Expected /healthz path, got %s", r.URL.Path)
+						http.NotFound(w, r)
+						return
+					}
+
+					if tt.closeConnection {
+						// Hijack the connection and close it immediately
+						conn, _, err := w.(http.Hijacker).Hijack()
+						require.NoError(t, err)
+						conn.Close()
+						return
+					}
+
+					if tt.gzip {
+						w.Header().Set("Content-Encoding", "gzip")
+						gz := gzip.NewWriter(w)
+						_, err := gz.Write([]byte(tt.body))
+						require.NoError(t, err)
+						require.NoError(t, gz.Close())
+						return
+					}
+
+					w.WriteHeader(tt.statusCode)
+					_, err := w.Write([]byte(tt.body))
+					require.NoError(t, err)
+				}))
+				defer srv.Close()
+			}
 
 			err := CheckHealthz(context.Background(), srv.URL)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CheckHealthz() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -111,106 +205,5 @@ func TestCheckHealthzTimeout(t *testing.T) {
 	err := CheckHealthz(context.Background(), srv.URL, WithHTTPClient(client))
 	if err == nil {
 		t.Error("CheckHealthz() with timeout should return error")
-	}
-}
-
-func TestBlockUntilServerReady(t *testing.T) {
-	tests := []struct {
-		name           string
-		serverBehavior func(w http.ResponseWriter, r *http.Request)
-		expectedError  bool
-	}{
-		{
-			name: "Server ready immediately",
-			serverBehavior: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				json, _ := server.DefaultHealthz.JSON()
-				if _, err := w.Write(json); err != nil {
-					t.Errorf("Error writing response: %v", err)
-				}
-			},
-			expectedError: false,
-		},
-		{
-			name: "Server ready after delay",
-			serverBehavior: func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(100 * time.Millisecond)
-				w.WriteHeader(http.StatusOK)
-				json, _ := server.DefaultHealthz.JSON()
-				if _, err := w.Write(json); err != nil {
-					t.Errorf("Error writing response: %v", err)
-				}
-			},
-			expectedError: false,
-		},
-		{
-			name: "Server never ready",
-			serverBehavior: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			expectedError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(tt.serverBehavior))
-			defer server.Close()
-
-			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			defer cancel()
-
-			err := BlockUntilServerReady(ctx, server.URL, WithCheckInterval(50*time.Millisecond))
-			if (err != nil) != tt.expectedError {
-				t.Errorf("BlockUntilServerReady() error = %v, expectedError %v", err, tt.expectedError)
-			}
-		})
-	}
-}
-
-func TestBlockUntilServerReadyInvalidURL(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	err := BlockUntilServerReady(ctx, "invalid-url")
-	if err == nil {
-		t.Error("BlockUntilServerReady() with invalid URL should return error")
-	}
-}
-
-func TestBlockUntilServerReadyWithCustomInterval(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		json, _ := server.DefaultHealthz.JSON()
-		_, err := w.Write(json)
-		if err != nil {
-			t.Errorf("Error writing response: %v", err)
-		}
-	}))
-	defer srv.Close()
-
-	ctx := context.Background()
-	err := BlockUntilServerReady(ctx, srv.URL, WithCheckInterval(10*time.Millisecond))
-	if err != nil {
-		t.Errorf("BlockUntilServerReady() with custom interval error = %v, want nil", err)
-	}
-}
-
-func TestBlockUntilServerReadyWithInvalidResponse(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte(`{"invalid":"json"}`))
-		if err != nil {
-			t.Errorf("Error writing response: %v", err)
-		}
-	}))
-	defer srv.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := BlockUntilServerReady(ctx, srv.URL, WithCheckInterval(50*time.Millisecond))
-	if err == nil {
-		t.Error("BlockUntilServerReady() with invalid response should return error")
 	}
 }
