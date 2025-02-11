@@ -2,10 +2,12 @@
 package reboot
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	stdos "os"
+	"os/exec"
 	"time"
 
 	"github.com/leptonai/gpud/log"
@@ -123,4 +125,31 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 		"command", cmd,
 	)
 	return nil
+}
+
+func LastReboot(ctx context.Context) (time.Time, error) {
+	cmd := exec.CommandContext(ctx, "uptime", "-s")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return time.Time{}, err
+	}
+	lines := bytes.Split(out.Bytes(), []byte{'\n'})
+	return LastRebootHelper(lines)
+}
+
+// LastRebootHelper parses the last reboot time from the output of "uptime -s".
+func LastRebootHelper(lines [][]byte) (time.Time, error) {
+	if len(lines) == 0 || len(lines[0]) == 0 {
+		return time.Time{}, errors.New("invalid output from uptime")
+	}
+
+	// Convert the first line to a string and parse it as a time.
+	rebootTimeStr := string(lines[0])
+	rebootTime, err := time.Parse("2006-01-02 15:04:05", rebootTimeStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return rebootTime, nil
 }

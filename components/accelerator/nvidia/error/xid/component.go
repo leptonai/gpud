@@ -203,23 +203,31 @@ func (c *XIDComponent) SetHealthy() error {
 }
 
 func (c *XIDComponent) updateCurrentState() error {
-	osComponent, err := components.GetComponent(os_id.Name)
+	rebootEvents, err := getRebootEvents(c.rootCtx)
 	if err != nil {
-		return fmt.Errorf("failed to get os component: %w", err)
-	}
-	osEvents, err := osComponent.Events(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
-	if err != nil {
-		return fmt.Errorf("failed to get os events: %w", err)
+		return fmt.Errorf("failed to get reboot events: %w", err)
 	}
 	localEvents, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}
-	events := mergeEvents(osEvents, localEvents)
+	events := mergeEvents(rebootEvents, localEvents)
 	c.mu.Lock()
 	c.currState = EvolveHealthyState(events)
 	c.mu.Unlock()
 	return nil
+}
+
+func getRebootEvents(ctx context.Context) ([]components.Event, error) {
+	osComponent, err := components.GetComponent(os_id.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get os component: %w", err)
+	}
+	osEvents, err := osComponent.Events(ctx, time.Now().Add(-DefaultRetentionPeriod))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get os events: %w", err)
+	}
+	return osEvents, nil
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice
