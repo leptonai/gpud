@@ -84,7 +84,9 @@ func watch(
 	ctx context.Context,
 	cmds [][]string,
 ) (<-chan LogLine, error) {
-	ch := make(chan LogLine, 1000)
+	// initial dmesg output may contain more than 1000 lines
+	// use 2000 as buffer size to avoid dropping any lines
+	ch := make(chan LogLine, 2000)
 
 	opts := []process.OpOption{}
 	for _, cmd := range cmds {
