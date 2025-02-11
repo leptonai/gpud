@@ -1341,11 +1341,9 @@ func TestRetentionPurge(t *testing.T) {
 		dbRO,
 		testTableName,
 		10*time.Second,
-		func() time.Duration {
-			// much shorter than the retention period
-			// to make tests less flaky
-			return 50 * time.Millisecond
-		},
+		// much shorter than the retention period
+		// to make tests less flaky
+		50*time.Millisecond,
 	)
 	assert.NoError(t, err)
 	defer store.Close()
