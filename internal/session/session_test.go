@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestApplyOpts(t *testing.T) {
@@ -388,13 +391,12 @@ func TestWriteBodyToPipe(t *testing.T) {
 
 func TestTryWriteToReader(t *testing.T) {
 	tests := []struct {
-		name               string
-		setupCloser        bool
-		readerBufferSize   int
-		content            Body
-		preloadMessages    int
-		expectedResult     bool
-		expectTimestampSet bool
+		name             string
+		setupCloser      bool
+		readerBufferSize int
+		content          Body
+		preloadMessages  int
+		expectedResult   bool
 	}{
 		{
 			name:             "successful write",
@@ -402,23 +404,22 @@ func TestTryWriteToReader(t *testing.T) {
 			content: Body{
 				ReqID: "test",
 			},
-			expectedResult:     true,
-			expectTimestampSet: true,
+			expectedResult: true,
 		},
 		{
-			name:             "full channel",
-			readerBufferSize: 1,
-			preloadMessages:  1,
+			name:        "closed session",
+			setupCloser: true,
 			content: Body{
 				ReqID: "test",
 			},
-			expectedResult:     true,
-			expectTimestampSet: false,
+			expectedResult: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
 			s := &Session{
 				reader: make(chan Body, tt.readerBufferSize),
 				closer: &closeOnce{closer: make(chan any)},
@@ -433,15 +434,14 @@ func TestTryWriteToReader(t *testing.T) {
 				s.reader <- Body{ReqID: "preload"}
 			}
 
-			timestamp := time.Now().Add(-time.Hour) // Old timestamp
-			result := s.tryWriteToReader(tt.content, &timestamp)
+			beforeWrite := time.Now()
+			result := s.tryWriteToReader(tt.content)
 
-			if result != tt.expectedResult {
-				t.Errorf("tryWriteToReader() = %v, want %v", result, tt.expectedResult)
-			}
+			assert.Equal(tt.expectedResult, result)
 
-			if tt.expectTimestampSet && timestamp.Before(time.Now().Add(-time.Minute)) {
-				t.Error("Expected timestamp to be updated")
+			if result && !tt.setupCloser {
+				timestamp := s.getLastPackageTimestamp()
+				assert.False(timestamp.Before(beforeWrite), "Expected timestamp to be updated after successful write")
 			}
 		})
 	}
@@ -468,6 +468,8 @@ func TestHandleReaderPipe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
 			s := &Session{
 				closer: &closeOnce{closer: make(chan any)},
 			}
@@ -479,13 +481,15 @@ func TestHandleReaderPipe(t *testing.T) {
 			reader, writer := io.Pipe()
 			closec := make(chan any)
 			finish := make(chan any)
-			lastPackageTimestamp := time.Now()
 
-			go s.handleReaderPipe(reader, &lastPackageTimestamp, closec, finish)
+			// Set initial timestamp
+			s.setLastPackageTimestamp(time.Now())
+
+			go s.handleReaderPipe(reader, closec, finish)
 
 			select {
 			case <-finish:
-				t.Error("Pipe handler exited too early")
+				assert.Fail("Pipe handler exited too early")
 			case <-time.After(50 * time.Millisecond):
 				// Expected - handler should still be running
 			}
@@ -495,7 +499,7 @@ func TestHandleReaderPipe(t *testing.T) {
 				case <-finish:
 					// Expected - handler should exit when session is closed
 				case <-time.After(tt.expectedExitAfter):
-					t.Error("Pipe handler didn't exit after session close")
+					assert.Fail("Pipe handler didn't exit after session close")
 				}
 			}
 
@@ -558,4 +562,54 @@ func TestSessionKeepAlive(t *testing.T) {
 	if _, ok := <-s.writer; ok {
 		t.Error("Writer channel should be closed")
 	}
+}
+
+func TestLastPackageTimestamp(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := &Session{
+		ctx:    ctx,
+		cancel: cancel,
+		closer: &closeOnce{closer: make(chan any)},
+	}
+
+	// Test initial state
+	initialTime := s.getLastPackageTimestamp()
+	assert.True(initialTime.IsZero(), "Expected initial timestamp to be zero")
+
+	// Test setting and getting timestamp
+	now := time.Now()
+	s.setLastPackageTimestamp(now)
+	gotTime := s.getLastPackageTimestamp()
+	assert.True(gotTime.Equal(now), "Expected timestamp to match set time")
+
+	// Test concurrent access
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 2) // For both readers and writers
+
+	// Launch multiple goroutines to test concurrent reads
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = s.getLastPackageTimestamp()
+		}()
+	}
+
+	// Launch multiple goroutines to test concurrent writes
+	for i := 0; i < numGoroutines; i++ {
+		go func(i int) {
+			defer wg.Done()
+			s.setLastPackageTimestamp(time.Now().Add(time.Duration(i) * time.Millisecond))
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify timestamp was updated during concurrent operations
+	finalTime := s.getLastPackageTimestamp()
+	assert.False(finalTime.Equal(now), "Expected timestamp to be updated during concurrent operations")
 }

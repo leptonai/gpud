@@ -84,6 +84,9 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	lastPackageTimestampMu sync.RWMutex
+	lastPackageTimestamp   time.Time
 }
 
 type closeOnce struct {
@@ -293,10 +296,23 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
 }
 
+func (s *Session) setLastPackageTimestamp(t time.Time) {
+	s.lastPackageTimestampMu.Lock()
+	defer s.lastPackageTimestampMu.Unlock()
+	s.lastPackageTimestamp = t
+}
+
+func (s *Session) getLastPackageTimestamp() time.Time {
+	s.lastPackageTimestampMu.RLock()
+	defer s.lastPackageTimestampMu.RUnlock()
+	return s.lastPackageTimestamp
+}
+
 func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, pipeFinishCh chan any) {
-	lastPackageTimestamp := time.Now()
+	s.setLastPackageTimestamp(time.Now())
+
 	decoder := json.NewDecoder(resp.Body)
-	go s.handleReaderPipe(resp.Body, &lastPackageTimestamp, goroutineCloseCh, pipeFinishCh)
+	go s.handleReaderPipe(resp.Body, goroutineCloseCh, pipeFinishCh)
 
 	for {
 		var content Body
@@ -304,19 +320,19 @@ func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, p
 			log.Logger.Errorf("session reader: error decoding response: %v", err)
 			break
 		}
-		if !s.tryWriteToReader(content, &lastPackageTimestamp) {
+		if !s.tryWriteToReader(content) {
 			return
 		}
 	}
 }
 
-func (s *Session) tryWriteToReader(content Body, lastPackageTimestamp *time.Time) bool {
+func (s *Session) tryWriteToReader(content Body) bool {
 	select {
 	case <-s.closer.Done():
 		log.Logger.Debug("session reader: session closed, dropping message")
 		return false
 	case s.reader <- content:
-		*lastPackageTimestamp = time.Now()
+		s.setLastPackageTimestamp(time.Now())
 		log.Logger.Debug("session reader: request received and written to pipe")
 		return true
 	default:
@@ -325,7 +341,7 @@ func (s *Session) tryWriteToReader(content Body, lastPackageTimestamp *time.Time
 	}
 }
 
-func (s *Session) handleReaderPipe(respBody io.ReadCloser, lastPackageTimestamp *time.Time, closec, finish chan any) {
+func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan any) {
 	defer close(finish)
 	log.Logger.Debug("session reader: pipe handler started")
 	threshold := 2 * time.Minute
@@ -343,7 +359,7 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, lastPackageTimestamp 
 			log.Logger.Debug("session reader: request finished, closing read pipe handler")
 			return
 		case <-ticker.C:
-			if time.Since(*lastPackageTimestamp) > threshold {
+			if time.Since(s.getLastPackageTimestamp()) > threshold {
 				log.Logger.Debugf("session reader: exceed read wait timeout, closing read pipe handler")
 				return
 			}
