@@ -5,34 +5,67 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
 
-var _ device.Device = (*mockDevice)(nil)
+var _ device.Device = (*MockDevice)(nil)
 
-type mockDevice struct {
+type MockDevice struct {
 	*mock.Device
+	Architecture          string
+	Brand                 string
+	CudaComputeCapability string
+	PCIBusID              string
 }
 
-func (d *mockDevice) GetArchitectureAsString() (string, error) {
-	return "", nil
+// NewMockDevice creates a new mock device with the given parameters
+func NewMockDevice(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID string) *MockDevice {
+	return &MockDevice{
+		Device:                device,
+		Architecture:          architecture,
+		Brand:                 brand,
+		CudaComputeCapability: cudaComputeCapability,
+		PCIBusID:              pciBusID,
+	}
 }
-func (d *mockDevice) GetBrandAsString() (string, error) {
-	return "", nil
-}
-func (d *mockDevice) GetCudaComputeCapabilityAsString() (string, error) {
-	return "", nil
-}
-func (d *mockDevice) GetMigDevices() ([]device.MigDevice, error) {
-	return nil, nil
-}
-func (d *mockDevice) GetMigProfiles() ([]device.MigProfile, error) {
-	return nil, nil
-}
-func (d *mockDevice) GetPCIBusID() (string, error)                                { return "", nil }
-func (d *mockDevice) IsFabricAttached() (bool, error)                             { return false, nil }
-func (d *mockDevice) IsMigCapable() (bool, error)                                 { return false, nil }
-func (d *mockDevice) IsMigEnabled() (bool, error)                                 { return false, nil }
-func (d *mockDevice) VisitMigDevices(func(j int, m device.MigDevice) error) error { return nil }
-func (d *mockDevice) VisitMigProfiles(func(p device.MigProfile) error) error      { return nil }
 
-func CreateDevice(m *mock.Device) device.Device {
-	return &mockDevice{Device: m}
+func (d *MockDevice) GetArchitectureAsString() (string, error) {
+	return d.Architecture, nil
+}
+
+func (d *MockDevice) GetBrandAsString() (string, error) {
+	return d.Brand, nil
+}
+
+func (d *MockDevice) GetCudaComputeCapabilityAsString() (string, error) {
+	return d.CudaComputeCapability, nil
+}
+
+func (d *MockDevice) GetMigDevices() ([]device.MigDevice, error) {
+	return nil, nil
+}
+
+func (d *MockDevice) GetMigProfiles() ([]device.MigProfile, error) {
+	return nil, nil
+}
+
+func (d *MockDevice) GetPCIBusID() (string, error) {
+	return d.PCIBusID, nil
+}
+
+func (d *MockDevice) IsFabricAttached() (bool, error) {
+	return false, nil
+}
+
+func (d *MockDevice) IsMigCapable() (bool, error) {
+	return false, nil
+}
+
+func (d *MockDevice) IsMigEnabled() (bool, error) {
+	return false, nil
+}
+
+func (d *MockDevice) VisitMigDevices(func(j int, m device.MigDevice) error) error {
+	return nil
+}
+
+func (d *MockDevice) VisitMigProfiles(func(p device.MigProfile) error) error {
+	return nil
 }
