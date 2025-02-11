@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/leptonai/gpud/rootkeys"
+	"github.com/leptonai/gpud/third_party/tailscale/distsign/rootkeys"
 )
 
 var roots = sync.OnceValue(func() []ed25519.PublicKey {
