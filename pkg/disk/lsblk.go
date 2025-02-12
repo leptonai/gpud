@@ -137,31 +137,18 @@ func GetBlockDevices(ctx context.Context, opts ...OpOption) (BlockDevices, error
 	if err != nil {
 		return nil, err
 	}
-
-	if err := p.Start(ctx); err != nil {
-		return nil, err
-	}
 	defer func() {
 		if err := p.Close(ctx); err != nil {
 			log.Logger.Warnw("failed to abort command", "err", err)
 		}
 	}()
 
-	lines := make([]string, 0)
-	if err := process.Read(
-		ctx,
-		p,
-		process.WithReadStdout(),
-		process.WithReadStderr(),
-		process.WithProcessLine(func(line string) {
-			lines = append(lines, line)
-		}),
-		process.WithWaitForCmd(),
-	); err != nil {
-		return nil, fmt.Errorf("failed to read lsblk output: %w\n\noutput:\n%s", err, strings.Join(lines, "\n"))
+	b, err := p.StartAndWaitForCombinedOutput(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run lsblk command: %w", err)
 	}
 
-	return parseFunc([]byte(strings.Join(lines, "\n")), opts...)
+	return parseFunc(b, opts...)
 }
 
 func ParseJSON(b []byte, opts ...OpOption) (BlockDevices, error) {

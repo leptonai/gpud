@@ -2,6 +2,7 @@
 package process
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -25,6 +26,10 @@ type Process interface {
 	Start(ctx context.Context) error
 	// Returns true if the process is started.
 	Started() bool
+
+	// StartAndWaitForCombinedOutput starts the process and returns the combined output of the command.
+	// Returns ErrProcessAlreadyStarted if the process is already started.
+	StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, error)
 
 	// Closes the process (aborts if still running) and waits for it to exit.
 	// Cleans up the process resources.
@@ -229,9 +234,13 @@ func (p *process) Started() bool {
 	return p.started
 }
 
+func (p *process) createCmd() *exec.Cmd {
+	return exec.CommandContext(p.ctx, p.commandArgs[0], p.commandArgs[1:]...)
+}
+
 func (p *process) startCommand() error {
 	log.Logger.Debugw("starting command", "command", p.commandArgs)
-	p.cmd = exec.CommandContext(p.ctx, p.commandArgs[0], p.commandArgs[1:]...)
+	p.cmd = p.createCmd()
 	p.cmd.Env = p.envs
 
 	switch {
@@ -264,6 +273,42 @@ func (p *process) startCommand() error {
 	p.startedMu.Unlock()
 
 	return nil
+}
+
+var ErrProcessAlreadyStarted = errors.New("process already started")
+
+func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, error) {
+	if p.Started() {
+		return nil, ErrProcessAlreadyStarted
+	}
+
+	cctx, ccancel := context.WithCancel(ctx)
+	p.ctx = cctx
+	p.cancel = ccancel
+
+	p.cmdMu.Lock()
+	defer p.cmdMu.Unlock()
+
+	p.cmd = p.createCmd()
+
+	// ref. "os/exec" "CombinedOutput"
+	var b bytes.Buffer
+	p.cmd.Stdout = &b
+	p.cmd.Stderr = &b
+	if err := p.cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
+
+	p.startedMu.Lock()
+	p.started = true
+	p.startedMu.Unlock()
+
+	if err := p.cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("command exited with error: %w", err)
+	}
+
+	return b.Bytes(), nil
 }
 
 // Returns a channel where the command watcher sends the error if any.
