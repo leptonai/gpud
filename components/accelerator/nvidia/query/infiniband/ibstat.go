@@ -25,10 +25,15 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		return nil, ErrNoIbstatCommand
 	}
 
-	p, err := process.New(
+	cmdOpts := []process.OpOption{
 		process.WithCommand(ibstatCommands...),
-		process.WithRunAsBashScript(),
-	)
+	}
+	if ibstatCommands[0] != "ibstat" {
+		// more complicated commands (like mocked ibstat custom commands)
+		cmdOpts = append(cmdOpts, process.WithRunAsBashScript())
+	}
+
+	p, err := process.New(cmdOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +42,6 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 			log.Logger.Warnw("failed to abort command", "err", err)
 		}
 	}()
-
 	b, err := p.StartAndWaitForCombinedOutput(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run ibstat command: %w", err)
