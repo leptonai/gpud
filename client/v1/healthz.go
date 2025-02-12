@@ -12,6 +12,8 @@ import (
 	"github.com/leptonai/gpud/internal/server"
 )
 
+var ErrServerNotReady = errors.New("server not ready, timeout waiting")
+
 func CheckHealthz(ctx context.Context, addr string, opts ...OpOption) error {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -28,7 +30,7 @@ func CheckHealthz(ctx context.Context, addr string, opts ...OpOption) error {
 		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
 	}
 
-	return checkHealthz(op.httpClient, req, exp)
+	return checkHealthz(createDefaultHTTPClient(), req, exp)
 }
 
 func checkHealthz(cli *http.Client, req *http.Request, exp []byte) error {
@@ -70,17 +72,20 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
 	}
 
-	ticker := time.NewTicker(op.checkInterval)
+	httpClient := createDefaultHTTPClient()
+
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+
 	for range 30 {
 		select {
 		case <-ticker.C:
-			if err := checkHealthz(op.httpClient, req, exp); err == nil {
+			if err := checkHealthz(httpClient, req, exp); err == nil {
 				return nil
 			}
 		case <-ctx.Done():
 			return fmt.Errorf("context done: %w", ctx.Err())
 		}
 	}
-	return errors.New("server not ready, timeout waiting")
+	return ErrServerNotReady
 }
