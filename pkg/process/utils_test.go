@@ -41,6 +41,10 @@ func (p *testProcess) Started() bool {
 	return true
 }
 
+func (p *testProcess) StartAndWaitForCombinedOutput(_ context.Context) ([]byte, error) {
+	return nil, nil
+}
+
 func (p *testProcess) StdoutReader() io.Reader {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -261,6 +265,10 @@ func (p *nilReaderProcess) Started() bool {
 	return true
 }
 
+func (p *nilReaderProcess) StartAndWaitForCombinedOutput(_ context.Context) ([]byte, error) {
+	return nil, nil
+}
+
 func (p *nilReaderProcess) StdoutReader() io.Reader {
 	if p.returnNilStdout {
 		return nil
@@ -313,6 +321,10 @@ func (p *stateProcess) Start(context.Context) error {
 
 func (p *stateProcess) Started() bool {
 	return p.isStarted
+}
+
+func (p *stateProcess) StartAndWaitForCombinedOutput(_ context.Context) ([]byte, error) {
+	return nil, nil
 }
 
 func (p *stateProcess) StdoutReader() io.Reader {

@@ -32,34 +32,21 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 	if err != nil {
 		return nil, err
 	}
-
-	if err := p.Start(ctx); err != nil {
-		return nil, err
-	}
 	defer func() {
 		if err := p.Close(ctx); err != nil {
 			log.Logger.Warnw("failed to abort command", "err", err)
 		}
 	}()
 
-	lines := make([]string, 0)
-	if err := process.Read(
-		ctx,
-		p,
-		process.WithReadStdout(),
-		process.WithReadStderr(),
-		process.WithProcessLine(func(line string) {
-			lines = append(lines, line)
-		}),
-		process.WithWaitForCmd(),
-	); err != nil {
-		return nil, fmt.Errorf("failed to read ibstat output (exitCode: %d): %w\n\noutput:\n%s", p.ExitCode(), err, strings.Join(lines, "\n"))
+	b, err := p.StartAndWaitForCombinedOutput(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run ibstat command: %w", err)
 	}
 
 	o := &IbstatOutput{
-		Raw: strings.Join(lines, "\n"),
+		Raw: string(b),
 	}
-	if len(o.Raw) == 0 {
+	if len(strings.TrimSpace(o.Raw)) == 0 {
 		log.Logger.Warnw("ibstat returned empty output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
 		return o, ErrIbstatOutputEmpty
 	}
