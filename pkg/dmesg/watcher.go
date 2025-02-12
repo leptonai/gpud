@@ -139,6 +139,14 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 				log.Logger.Warnw("failed to send event -- dropped")
 			}
 		}),
+
+		// default buffer size of "dmesg" is 16384 bytes
+		// set initial buffer size to 16384 bytes
+		// larger than default 4KB to avoid output truncation
+		// when dmesg command exits for some reason
+		// ref. https://linux.die.net/man/8/dmesg
+		process.WithInitialBufferSize(16384),
+
 		process.WithWaitForCmd(),
 	); err != nil {
 		select {
