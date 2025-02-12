@@ -5,14 +5,16 @@ package distsign
 
 import (
 	"crypto/ed25519"
+	"embed"
 	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
 	"sync"
-
-	"github.com/leptonai/gpud/rootkeys"
 )
+
+//go:embed keys
+var rootsFS embed.FS
 
 var roots = sync.OnceValue(func() []ed25519.PublicKey {
 	roots, err := parseRoots()
@@ -23,7 +25,7 @@ var roots = sync.OnceValue(func() []ed25519.PublicKey {
 })
 
 func parseRoots() ([]ed25519.PublicKey, error) {
-	files, err := rootkeys.RootsFS.ReadDir("keys")
+	files, err := rootsFS.ReadDir("keys")
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +37,7 @@ func parseRoots() ([]ed25519.PublicKey, error) {
 		if filepath.Ext(f.Name()) != ".pem" {
 			continue
 		}
-		raw, err := rootkeys.RootsFS.ReadFile(path.Join("keys", f.Name()))
+		raw, err := rootsFS.ReadFile(path.Join("keys", f.Name()))
 		if err != nil {
 			return nil, err
 		}
