@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_query_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query_sxid "github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 const (

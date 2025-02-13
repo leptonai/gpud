@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leptonai/gpud/errdefs"
+	"github.com/leptonai/gpud/pkg/errdefs"
 )
 
 func TestGetComponentErrors(t *testing.T) {

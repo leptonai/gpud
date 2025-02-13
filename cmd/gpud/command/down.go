@@ -5,7 +5,7 @@ import (
 	"os"
 
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
-	pkg_update "github.com/leptonai/gpud/update"
+	pkg_update "github.com/leptonai/gpud/pkg/update"
 
 	"github.com/urfave/cli"
 )

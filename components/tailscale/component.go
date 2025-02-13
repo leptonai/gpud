@@ -7,7 +7,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {

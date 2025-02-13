@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
-	"github.com/leptonai/gpud/systemd"
-	pkg_update "github.com/leptonai/gpud/update"
+	pkg_update "github.com/leptonai/gpud/pkg/update"
 
 	"github.com/urfave/cli"
 )

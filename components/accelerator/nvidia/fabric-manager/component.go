@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	fabric_manager_log "github.com/leptonai/gpud/components/accelerator/nvidia/query/fabric-manager-log"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	fabric_manager_log "github.com/leptonai/gpud/pkg/nvidia-query/fabric-manager-log"
+	"github.com/leptonai/gpud/pkg/query"
+	query_log "github.com/leptonai/gpud/pkg/query/log"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"
@@ -124,7 +124,7 @@ const (
 	EventKeyFabricManagerNVSwitchLogError       = "fabricmanager_nvswitch_log_error"
 )
 
-// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
+// Returns `github.com/leptonai/gpud/pkg/query.ErrNoData` if there is no event found.
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	items, err := c.logPoller.Find(since)
 	if err != nil {

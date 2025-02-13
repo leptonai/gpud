@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 
 	procs "github.com/shirou/gopsutil/v4/process"
 )

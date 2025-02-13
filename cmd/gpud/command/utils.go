@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/leptonai/gpud/components/state"
-	"github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/pkg/config"
+	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -24,5 +24,5 @@ func GetUID(ctx context.Context) (string, error) {
 	}
 	defer dbRO.Close()
 
-	return state.GetMachineID(ctx, dbRO)
+	return gpud_state.GetMachineID(ctx, dbRO)
 }

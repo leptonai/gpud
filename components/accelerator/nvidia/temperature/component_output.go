@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
 	"sigs.k8s.io/yaml"
 )

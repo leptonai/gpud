@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
 	memory_dmesg "github.com/leptonai/gpud/components/memory/dmesg"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/log"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

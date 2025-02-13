@@ -2,7 +2,7 @@
 package v1
 
 import (
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 type Op struct {

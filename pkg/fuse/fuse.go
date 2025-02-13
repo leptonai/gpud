@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/olekukonko/tablewriter"
 )
 

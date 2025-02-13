@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	query "github.com/leptonai/gpud/pkg/nvidia-query"
 )
 
 func TestMock(t *testing.T) {

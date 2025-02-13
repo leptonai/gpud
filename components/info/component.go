@@ -15,9 +15,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	info_id "github.com/leptonai/gpud/components/info/id"
-	"github.com/leptonai/gpud/log"
-	"github.com/leptonai/gpud/manager"
 	"github.com/leptonai/gpud/pkg/file"
+	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/memory"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/uptime"
@@ -102,8 +102,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	var managedPackages string
-	if manager.GlobalController != nil {
-		packageStatus, err := manager.GlobalController.Status(ctx)
+	if gpud_manager.GlobalController != nil {
+		packageStatus, err := gpud_manager.GlobalController.Status(ctx)
 		if err != nil {
 			return nil, err
 		}

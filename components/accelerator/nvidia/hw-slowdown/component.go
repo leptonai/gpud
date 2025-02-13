@@ -11,14 +11,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_metrics_clock "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidia_query_metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 const (

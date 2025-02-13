@@ -21,7 +21,7 @@ import (
 	clientcmd_api_v1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/randutil"
 )
 

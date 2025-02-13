@@ -3,7 +3,7 @@ package sxid
 import (
 	"encoding/json"
 
-	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/pkg/common"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

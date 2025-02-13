@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestCheckHealthz(t *testing.T) {

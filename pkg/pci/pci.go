@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 
 	"sigs.k8s.io/yaml"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leptonai/gpud/components/accelerator"
+	"github.com/leptonai/gpud/pkg/accelerator"
 
 	"github.com/urfave/cli"
 )

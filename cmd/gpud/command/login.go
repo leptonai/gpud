@@ -7,10 +7,10 @@ import (
 	"time"
 
 	client "github.com/leptonai/gpud/client/v1"
-	"github.com/leptonai/gpud/components/state"
-	"github.com/leptonai/gpud/config"
-	"github.com/leptonai/gpud/internal/login"
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/config"
+	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
+	"github.com/leptonai/gpud/pkg/login"
+	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/urfave/cli"
@@ -44,12 +44,12 @@ func cmdLogin(cliContext *cli.Context) error {
 	}
 	defer dbRO.Close()
 
-	uid, err := state.CreateMachineIDIfNotExist(rootCtx, dbRW, dbRO, "")
+	uid, err := gpud_state.CreateMachineIDIfNotExist(rootCtx, dbRW, dbRO, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machine uid: %w", err)
 	}
 
-	components, err := state.GetComponents(rootCtx, dbRO, uid)
+	components, err := gpud_state.GetComponents(rootCtx, dbRO, uid)
 	if err != nil {
 		return fmt.Errorf("failed to get components: %w", err)
 	}
@@ -57,7 +57,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	cliToken := cliContext.String("token")
 	endpoint := cliContext.String("endpoint")
 
-	dbToken, _ := state.GetLoginInfo(rootCtx, dbRO, uid)
+	dbToken, _ := gpud_state.GetLoginInfo(rootCtx, dbRO, uid)
 	token := dbToken
 	if cliToken != "" {
 		token = cliToken
@@ -95,7 +95,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	}
 
 	if token != dbToken {
-		if err = state.UpdateLoginInfo(rootCtx, dbRW, uid, token); err != nil {
+		if err = gpud_state.UpdateLoginInfo(rootCtx, dbRW, uid, token); err != nil {
 			fmt.Println("machine logged in but failed to update token:", err)
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/leptonai/gpud/manager/packages"
+	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 )
 
 // GetPackageStatus fetches the GPUd package status from the GPUd admin API.

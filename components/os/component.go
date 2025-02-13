@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	events_db "github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 const (

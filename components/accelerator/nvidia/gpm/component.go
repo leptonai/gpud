@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query_metrics_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/gpm"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query_metrics_gpm "github.com/leptonai/gpud/pkg/nvidia-query/metrics/gpm"
+	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

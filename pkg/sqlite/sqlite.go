@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 
 	_ "github.com/mattn/go-sqlite3"
 )

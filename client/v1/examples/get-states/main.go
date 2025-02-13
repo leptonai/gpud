@@ -5,8 +5,8 @@ import (
 	"time"
 
 	client_v1 "github.com/leptonai/gpud/client/v1"
-	"github.com/leptonai/gpud/errdefs"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func main() {

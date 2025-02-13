@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/third_party/tailscale/distsign"
-	pkgupdate "github.com/leptonai/gpud/update"
+	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
+	pkgupdate "github.com/leptonai/gpud/pkg/update"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/urfave/cli"

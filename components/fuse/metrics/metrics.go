@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"time"
 
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	components_metrics_state "github.com/leptonai/gpud/components/metrics/state"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

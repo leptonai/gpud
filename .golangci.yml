@@ -29,7 +29,7 @@ linters-settings:
       description: Static analysis tool to detect potential nil panics in Go code.
       settings:
         include-pkgs: "github.com/leptonai/gpud"
-        exclude-pkgs: "github.com/leptonai/gpud/third_party"
+        exclude-pkgs: "github.com/leptonai/gpud/pkg/third_party"
         experimental-anonymous-function: "true"
 
 linters:

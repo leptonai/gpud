@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 
 	"github.com/stretchr/testify/assert"
 )

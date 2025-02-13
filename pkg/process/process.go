@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 type Process interface {

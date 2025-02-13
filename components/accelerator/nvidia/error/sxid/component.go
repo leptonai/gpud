@@ -16,11 +16,11 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/sxid/dmesg"
-	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia-query/sxid/dmesg"
 )
 
 const (
@@ -39,7 +39,7 @@ type SXIDComponent struct {
 	cancel       context.CancelFunc
 	currState    components.State
 	extraEventCh chan *components.Event
-	store        db.Store
+	store        events_db.Store
 	mu           sync.RWMutex
 }
 
@@ -47,7 +47,7 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *SXIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
 
 	extraEventCh := make(chan *components.Event, 256)
-	localStore, err := db.NewStore(dbRW, dbRO, db.CreateDefaultTableName(nvidia_component_error_sxid_id.Name), DefaultRetentionPeriod)
+	localStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName(nvidia_component_error_sxid_id.Name), DefaultRetentionPeriod)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()

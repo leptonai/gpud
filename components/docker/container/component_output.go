@@ -10,9 +10,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/query"
 
 	docker_types "github.com/docker/docker/api/types"
 	docker_container "github.com/docker/docker/api/types/container"

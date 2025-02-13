@@ -19,11 +19,11 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/leptonai/gpud/components/accelerator"
-	"github.com/leptonai/gpud/internal/login"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/accelerator"
 	"github.com/leptonai/gpud/pkg/asn"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/login"
 	"github.com/leptonai/gpud/pkg/process"
 )
 

@@ -8,10 +8,10 @@ import (
 	"sync"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query_nvml "github.com/leptonai/gpud/components/accelerator/nvidia/query/nvml"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"sigs.k8s.io/yaml"
 )

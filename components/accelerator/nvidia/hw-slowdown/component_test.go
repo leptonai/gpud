@@ -10,12 +10,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/db"
-	events_db "github.com/leptonai/gpud/components/db"
+	"github.com/leptonai/gpud/pkg/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -350,7 +349,7 @@ func TestComponentStates(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := db.NewStore(dbRW, dbRO, "test_events", 0)
+			store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
 			assert.NoError(t, err)
 			defer store.Close()
 
@@ -471,7 +470,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := db.NewStore(dbRW, dbRO, "test_events", 0)
+			store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
 			assert.NoError(t, err)
 			defer store.Close()
 
@@ -520,7 +519,7 @@ func TestComponentEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := db.NewStore(dbRW, dbRO, "test_events", 0)
+	store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
 	assert.NoError(t, err)
 	defer store.Close()
 
