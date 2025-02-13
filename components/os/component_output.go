@@ -426,7 +426,7 @@ func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
 		defaultPoller = query.New(
 			os_id.Name,
 			cfg.Query,
-			CreateGet(cfg, eventsStore),
+			createGet(cfg, eventsStore, pkg_host.SystemdDetectVirt),
 			nil,
 		)
 	})
@@ -436,7 +436,9 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context) (_ any, e error) {
+type getSystemdDetectVirtFunc func(ctx context.Context) (pkg_host.VirtualizationEnvironment, error)
+
+func createGet(cfg Config, eventsStore events_db.Store, getSystemdDetectVirt getSystemdDetectVirtFunc) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -448,11 +450,11 @@ func CreateGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context
 
 		o := &Output{}
 
-		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
-		virtEnv, err := pkg_host.SystemdDetectVirt(cctx)
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		virtEnv, err := getSystemdDetectVirt(cctx)
 		ccancel()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get virtualization environment: %w", err)
 		}
 		o.VirtualizationEnvironment = virtEnv
 
