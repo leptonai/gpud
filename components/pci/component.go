@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	events_db "github.com/leptonai/gpud/components/db"
 	"github.com/leptonai/gpud/components/pci/id"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {

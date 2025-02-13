@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 )
 
 type Config struct {

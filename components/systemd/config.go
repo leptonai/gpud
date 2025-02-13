@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 )
 
 type Config struct {

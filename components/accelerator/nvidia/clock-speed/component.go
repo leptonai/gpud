@@ -9,11 +9,11 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	nvidia_query_metrics_clockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/query/metrics/clock-speed"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidia_query_metrics_clockspeed "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock-speed"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

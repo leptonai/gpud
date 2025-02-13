@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/manager/packages"
+	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 )
 
 func TestGetStatus(t *testing.T) {

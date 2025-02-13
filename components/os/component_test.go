@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/components/db"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	"github.com/leptonai/gpud/pkg/common"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestComponentStates(t *testing.T) {
@@ -121,7 +120,7 @@ func TestComponentEvents(t *testing.T) {
 func TestCreateRebootEvent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	eventStore, err := db.NewStore(dbRW, dbRO, db.CreateDefaultTableName(db.CreateDefaultTableName(os_id.Name)), DefaultRetentionPeriod)
+	eventStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName(events_db.CreateDefaultTableName(os_id.Name)), DefaultRetentionPeriod)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

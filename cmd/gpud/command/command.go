@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leptonai/gpud/config"
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/urfave/cli"

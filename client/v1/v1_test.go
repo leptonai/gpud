@@ -17,8 +17,8 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/errdefs"
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 func gzipContent(t *testing.T, data []byte) []byte {

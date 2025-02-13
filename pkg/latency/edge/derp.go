@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/latency"
 	"github.com/leptonai/gpud/pkg/latency/edge/derpmap"
+	"github.com/leptonai/gpud/pkg/log"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"tailscale.com/net/netcheck"

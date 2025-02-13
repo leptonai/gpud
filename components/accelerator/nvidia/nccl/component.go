@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
-	nvidia_query "github.com/leptonai/gpud/components/accelerator/nvidia/query"
-	"github.com/leptonai/gpud/components/common"
 	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {

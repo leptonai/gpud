@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/leptonai/gpud/components/diagnose"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/diagnose"
+	"github.com/leptonai/gpud/pkg/log"
 
 	"github.com/urfave/cli"
 	"go.uber.org/zap"

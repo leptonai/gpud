@@ -25,8 +25,8 @@ import (
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	mocknvidiasmi "github.com/leptonai/gpud/e2e/mock/nvidia-smi"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
-	"github.com/leptonai/gpud/errdefs"
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestE2E(t *testing.T) {

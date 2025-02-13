@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
 	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/components/query"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
+	query_log "github.com/leptonai/gpud/pkg/query/log"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	query_log "github.com/leptonai/gpud/components/query/log"
-	query_log_common "github.com/leptonai/gpud/components/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/components/query/log/tail"
-	"github.com/leptonai/gpud/log"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	"github.com/leptonai/gpud/pkg/log"
+	query_log "github.com/leptonai/gpud/pkg/query/log"
+	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
+	query_log_tail "github.com/leptonai/gpud/pkg/query/log/tail"
 )
 
 const Name = "dmesg"
@@ -94,7 +94,7 @@ func (c *Component) States(ctx context.Context) ([]components.State, error) {
 }
 
 // The dmesg component events returns the realtime events from the dmesg log poller.
-// Returns `github.com/leptonai/gpud/components/query.ErrNoData` if there is no event found.
+// Returns `github.com/leptonai/gpud/pkg/query.ErrNoData` if there is no event found.
 func (c *Component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
 }

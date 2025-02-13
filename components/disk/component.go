@@ -10,8 +10,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/disk/metrics"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

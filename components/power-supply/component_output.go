@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/leptonai/gpud/components"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
 	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
-	"github.com/leptonai/gpud/components/query"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 type Output struct {

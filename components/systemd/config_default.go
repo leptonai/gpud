@@ -1,7 +1,7 @@
 package systemd
 
 import (
-	query_config "github.com/leptonai/gpud/components/query/config"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 )
 
 func DefaultConfig() Config {

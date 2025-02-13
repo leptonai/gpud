@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/query"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {

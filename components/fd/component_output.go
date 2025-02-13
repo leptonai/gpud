@@ -12,10 +12,10 @@ import (
 	"github.com/leptonai/gpud/components"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
 	"github.com/leptonai/gpud/pkg/file"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 type Output struct {

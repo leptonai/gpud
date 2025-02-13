@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
+	"github.com/leptonai/gpud/pkg/common"
 )
 
 func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {

@@ -6,9 +6,9 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/aws"
 	"github.com/leptonai/gpud/pkg/aws/eks"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func cmdKubeConfig(cliContext *cli.Context) (retErr error) {

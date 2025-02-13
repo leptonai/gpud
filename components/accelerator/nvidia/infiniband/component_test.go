@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 func TestEvaluate(t *testing.T) {

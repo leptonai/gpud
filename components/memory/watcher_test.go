@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	events_db "github.com/leptonai/gpud/components/db"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

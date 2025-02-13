@@ -8,8 +8,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

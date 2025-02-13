@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
-	"github.com/leptonai/gpud/components/query"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/latency"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 type Output struct {

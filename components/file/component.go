@@ -9,7 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	file_id "github.com/leptonai/gpud/components/file/id"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func New(filesToCheck []string) components.Component {

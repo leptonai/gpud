@@ -13,10 +13,10 @@ import (
 	"github.com/leptonai/gpud/components"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/disk/metrics"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/disk"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 type Output struct {

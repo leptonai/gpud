@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	query_config "github.com/leptonai/gpud/components/query/config"
+	"github.com/leptonai/gpud/pkg/common"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/prometheus/client_golang/prometheus"

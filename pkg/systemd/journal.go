@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 

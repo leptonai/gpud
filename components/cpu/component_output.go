@@ -18,8 +18,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"

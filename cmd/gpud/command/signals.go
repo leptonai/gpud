@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/leptonai/gpud/internal/server"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/systemd"
 
 	sd "github.com/coreos/go-systemd/v22/daemon"

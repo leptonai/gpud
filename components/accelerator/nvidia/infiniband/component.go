@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/components/accelerator/nvidia/common"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/query/infiniband"
-	"github.com/leptonai/gpud/components/common"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 var (

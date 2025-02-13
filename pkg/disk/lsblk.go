@@ -29,8 +29,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/log"
 	"github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/dustin/go-humanize"

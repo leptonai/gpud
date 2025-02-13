@@ -12,10 +12,10 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/query"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -15,15 +15,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/common"
-	events_db "github.com/leptonai/gpud/components/db"
-	components_metrics "github.com/leptonai/gpud/components/metrics"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/common"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/file"
+	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/query"
 	"github.com/leptonai/gpud/pkg/reboot"
 )
 

@@ -8,8 +8,8 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
-	"github.com/leptonai/gpud/components/query"
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg Config) components.Component {

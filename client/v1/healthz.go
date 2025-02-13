@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/leptonai/gpud/internal/server"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 var ErrServerNotReady = errors.New("server not ready, timeout waiting")

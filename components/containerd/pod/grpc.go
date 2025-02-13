@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/leptonai/gpud/log"
+	"github.com/leptonai/gpud/pkg/log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
