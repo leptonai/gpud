@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -15,10 +14,8 @@ import (
 )
 
 type watcher struct {
-	ctx         context.Context
-	eventsStore events_db.Store
-
-	closeOnce    sync.Once
+	ctx          context.Context
+	eventsStore  events_db.Store
 	dmesgWatcher pkg_dmesg.Watcher
 }
 
@@ -95,7 +92,5 @@ func (w *watcher) watch() {
 }
 
 func (w *watcher) close() {
-	w.closeOnce.Do(func() {
-		w.dmesgWatcher.Close()
-	})
+	w.dmesgWatcher.Close()
 }

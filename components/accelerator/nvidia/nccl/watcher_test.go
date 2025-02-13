@@ -3,7 +3,6 @@ package nccl
 import (
 	"context"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -36,7 +35,6 @@ func TestWatcher(t *testing.T) {
 
 	w := &watcher{
 		ctx:          ctx,
-		closeOnce:    sync.Once{},
 		eventsStore:  eventsStore,
 		dmesgWatcher: dmesgWatcher,
 	}
