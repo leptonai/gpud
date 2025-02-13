@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -185,6 +187,48 @@ func TestParseDmesgLine(t *testing.T) {
 	}
 }
 
+func TestParseDmesgLineWhitespaceDedup(t *testing.T) {
+	// Create log lines with same content but different trailing whitespaces
+	logLines := []string{
+		"kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem error message",
+		"kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem error message  ",   // two spaces at end
+		"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem error message\t",   // tab at end
+		"kern  :err   : 2025-02-10T16:28:06,535389+00:00 nvidia-peermem error message \t ", // mixed whitespace at end
+	}
+
+	var parsedLines []LogLine
+	for _, line := range logLines {
+		parsedLines = append(parsedLines, ParseDmesgLine(line))
+	}
+
+	// Verify all lines have the same content after trimming whitespace
+	expectedContent := "nvidia-peermem error message"
+	for i, line := range parsedLines {
+		assert.Equal(t, expectedContent, strings.TrimSpace(line.Content),
+			"line %d should have same content after trimming whitespace", i)
+	}
+
+	// Verify all lines have the same cache key
+	firstKey := parsedLines[0].cacheKey()
+	for i, line := range parsedLines[1:] {
+		assert.Equal(t, firstKey, line.cacheKey(),
+			"line %d should have same cache key as first line", i+1)
+	}
+
+	// Verify facility and level are parsed correctly for all lines
+	for i, line := range parsedLines {
+		assert.Equal(t, "kern", line.Facility, "line %d should have correct facility", i)
+		assert.Equal(t, "err", line.Level, "line %d should have correct level", i)
+	}
+
+	// Verify timestamps are parsed correctly and all from the same second
+	expectedSecond := time.Date(2025, 2, 10, 16, 28, 6, 0, time.UTC).Unix()
+	for i, line := range parsedLines {
+		assert.Equal(t, expectedSecond, line.Timestamp.Unix(),
+			"line %d should have correct second timestamp", i)
+	}
+}
+
 func TestWatcherClose(t *testing.T) {
 	w, err := NewWatcherWithCommands([][]string{
 		{"sleep 10"},
@@ -244,9 +288,13 @@ func TestWatcherError(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := watch(ctx, [][]string{
-		{"sleep 10"},
-	})
+	ch, err := watch(ctx,
+		[][]string{
+			{"sleep 10"},
+		},
+		DefaultCacheExpiration,
+		DefaultCachePurgeInterval,
+	)
 	if err != nil {
 		t.Fatalf("failed to create watch: %v", err)
 	}
@@ -265,9 +313,14 @@ func TestContextCancellationWithTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	ch, err := watch(ctx, [][]string{
-		{"sleep 10"},
-	})
+	ch, err := watch(
+		ctx,
+		[][]string{
+			{"sleep 10"},
+		},
+		DefaultCacheExpiration,
+		DefaultCachePurgeInterval,
+	)
 	if err != nil {
 		t.Fatalf("failed to create watch: %v", err)
 	}
@@ -287,12 +340,17 @@ func TestContextCancellationWithTimeout(t *testing.T) {
 
 func TestContextCancellationWithMultipleCommands(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := watch(ctx, [][]string{
-		{"echo 'first'"},
-		{"sleep 1"},
-		{"echo 'second'"},
-		{"sleep 10"},
-	})
+	ch, err := watch(
+		ctx,
+		[][]string{
+			{"echo 'first'"},
+			{"sleep 1"},
+			{"echo 'second'"},
+			{"sleep 10"},
+		},
+		DefaultCacheExpiration,
+		DefaultCachePurgeInterval,
+	)
 	if err != nil {
 		t.Fatalf("failed to create watch: %v", err)
 	}
@@ -598,7 +656,7 @@ func TestReadContextCancellation(t *testing.T) {
 	}
 
 	// Start reading in a goroutine
-	go read(ctx, p, ch)
+	go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
 	// Give it a moment to start
 	time.Sleep(time.Second)

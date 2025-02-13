@@ -53,13 +53,18 @@ func NewWatcher() (Watcher, error) {
 	return NewWatcherWithCommands(DefaultWatchCommands)
 }
 
+const (
+	DefaultCacheExpiration    = 5 * time.Minute
+	DefaultCachePurgeInterval = 10 * time.Minute
+)
+
 func NewWatcherWithCommands(cmds [][]string) (Watcher, error) {
 	if len(cmds) == 0 {
 		return nil, errors.New("no commands provided")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := watch(ctx, cmds)
+	ch, err := watch(ctx, cmds, DefaultCacheExpiration, DefaultCachePurgeInterval)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -83,8 +88,11 @@ func (w *watcher) Close() {
 func watch(
 	ctx context.Context,
 	cmds [][]string,
+	cacheExpiration time.Duration,
+	cachePurgeInterval time.Duration,
 ) (<-chan LogLine, error) {
-	ch := make(chan LogLine, 1000)
+	// initial dmesg command may return >1k lines, buffer 3k to minimize the event loss
+	ch := make(chan LogLine, 3000)
 
 	opts := []process.OpOption{}
 	for _, cmd := range cmds {
@@ -102,7 +110,7 @@ func watch(
 		return nil, err
 	}
 	go wait(ctx, p)
-	go read(ctx, p, ch)
+	go read(ctx, p, cacheExpiration, cachePurgeInterval, ch)
 	return ch, nil
 }
 
@@ -119,8 +127,12 @@ func wait(ctx context.Context, p process.Process) {
 	}
 }
 
-func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
+func read(ctx context.Context, p process.Process, cacheExpiration time.Duration, cachePurgeInterval time.Duration, ch chan<- LogLine) {
 	defer close(ch)
+
+	// dedup by second
+	deduper := newDeduper(cacheExpiration, cachePurgeInterval)
+
 	if err := process.Read(
 		ctx,
 		p,
@@ -131,10 +143,16 @@ func read(ctx context.Context, p process.Process, ch chan<- LogLine) {
 				return
 			}
 
+			parsed := ParseDmesgLine(line)
+			if occurrences := deduper.addCache(parsed); occurrences > 1 {
+				log.Logger.Warnw("skipping duplicate log line", "occurrences", occurrences, "timestamp", parsed.Timestamp, "line", parsed.Content)
+				return
+			}
+
 			select {
 			case <-ctx.Done():
 				return
-			case ch <- ParseDmesgLine(line):
+			case ch <- parsed:
 			default:
 				log.Logger.Warnw("failed to send event -- dropped")
 			}
