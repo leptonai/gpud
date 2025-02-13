@@ -4,43 +4,48 @@ package nccl
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
-	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(nvidia_nccl_id.Name),
+		3*24*time.Hour,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	cfg.Query.SetDefaultsIfNotSet()
-
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_nccl_id.Name)
+	w, err := newWatcher(cctx, eventsStore)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
 
 	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
+		rootCtx:     ctx,
+		cancel:      ccancel,
+		watcher:     w,
+		eventsStore: eventsStore,
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
+	rootCtx     context.Context
+	cancel      context.CancelFunc
+	watcher     *watcher
+	eventsStore events_db.Store
 }
 
 func (c *component) Name() string { return nvidia_nccl_id.Name }
@@ -56,65 +61,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-const (
-	// repeated messages may indicate GPU communication issues, which may happen due to fabric manager issues
-	// e.g.,
-	// [Thu Oct 10 03:06:53 2024] pt_main_thread[2536443]: segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2[7f7c7ac00000+d3d3000]
-	EventNameNCCLSegfaultInLibncclFromDmesg = "nccl_segfault_in_libnccl_from_dmesg"
-
-	EventKeyNCCLSegfaultInLibncclFromDmesgUnixSeconds = "unix_seconds"
-	EventKeyNCCLSegfaultInLibncclFromDmesgLogLine     = "log_line"
-)
-
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]components.Event, 0)
-	for i, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventNvidiaNCCLSegfaultInLibnccl {
-			continue
-		}
-
-		// "TailScanMatched" are sorted by the time from new to old
-		// thus keeping the first 30 latest, to prevent too many events
-		if i > 30 {
-			break
-		}
-
-		events = append(events, components.Event{
-			Time: logItem.Time,
-			Name: EventNameNCCLSegfaultInLibncclFromDmesg,
-			Type: common.EventTypeCritical,
-			ExtraInfo: map[string]string{
-				EventKeyNCCLSegfaultInLibncclFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
-				EventKeyNCCLSegfaultInLibncclFromDmesgLogLine:     logItem.Line,
-			},
-		})
-	}
-
-	return events, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -125,9 +73,10 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_nccl_id.Name)
+	c.watcher.close()
+	c.eventsStore.Close()
 
 	return nil
 }
