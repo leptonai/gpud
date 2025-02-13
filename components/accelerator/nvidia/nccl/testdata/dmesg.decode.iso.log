@@ -1,0 +1,2 @@
+kern  :warn  : 2025-01-21T04:41:44,285060+00:00 pt_main_thread[2536443]: segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2[7f7c7ac00000+d3d3000]
+kern  :warn  : 2025-01-21T04:42:44,285060+00:00 pt_main_thread[2536443]: segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2[7f7c7ac00000+d3d3000]
