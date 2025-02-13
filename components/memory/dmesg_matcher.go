@@ -1,4 +1,4 @@
-package dmesg
+package memory
 
 import (
 	"regexp"
@@ -12,26 +12,30 @@ const (
 	// NOTE: this is often followed by a line like:
 	// [Sun Dec  8 09:23:39 2024] oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0
 	// (to reap the memory used by the OOM victim)
-	EventOOM = "memory_oom"
-	RegexOOM = `Out of memory:`
+	EventOOM   = "memory_oom"
+	RegexOOM   = `Out of memory:`
+	MessageOOM = `oom detected`
 
 	// e.g.,
 	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
 	// [...] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
-	EventOOMKillConstraint = "memory_oom_kill_constraint"
-	RegexOOMKillConstraint = `oom-kill:constraint=`
+	EventOOMKillConstraint   = "memory_oom_kill_constraint"
+	RegexOOMKillConstraint   = `oom-kill:constraint=`
+	MessageOOMKillConstraint = "oom kill constraint detected"
 
 	// e.g.,
 	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
 	// [...] postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
-	EventOOMKiller = "memory_oom_killer"
-	RegexOOMKiller = `(?i)\b(invoked|triggered) oom-killer\b`
+	EventOOMKiller   = "memory_oom_killer"
+	RegexOOMKiller   = `(?i)\b(invoked|triggered) oom-killer\b`
+	MessageOOMKiller = "oom killer detected"
 
 	// e.g.,
 	// Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
 	// [...] Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
-	EventOOMCgroup = "memory_oom_cgroup"
-	RegexOOMCgroup = `Memory cgroup out of memory`
+	EventOOMCgroup   = "memory_oom_cgroup"
+	RegexOOMCgroup   = `Memory cgroup out of memory`
+	MessageOOMCgroup = "oom cgroup detected"
 
 	// May indicate that Dual Inline Memory Module (DIMM) is beginning to fail.
 	//
@@ -42,8 +46,9 @@ const (
 	// ref.
 	// https://serverfault.com/questions/682909/how-to-find-faulty-memory-module-from-mce-message
 	// https://github.com/Azure/azurehpc/blob/2d57191cb35ed638525ba9424cc2aa1b5abe1c05/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L51C20-L51C40
-	EventEDACCorrectableErrors = "memory_edac_correctable_errors"
-	RegexEDACCorrectableErrors = `.*CE memory read error.*`
+	EventEDACCorrectableErrors   = "memory_edac_correctable_errors"
+	RegexEDACCorrectableErrors   = `.*CE memory read error.*`
+	MessageEDACCorrectableErrors = "edac correctable errors detected"
 )
 
 var (
@@ -108,10 +113,10 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasOOM, name: EventOOM, message: "oom detected"},
-		{check: HasOOMKillConstraint, name: EventOOMKillConstraint, message: "oom kill constraint detected"},
-		{check: HasOOMKiller, name: EventOOMKiller, message: "oom killer detected"},
-		{check: HasOOMCgroup, name: EventOOMCgroup, message: "oom cgroup detected"},
-		{check: HasEDACCorrectableErrors, name: EventEDACCorrectableErrors, message: "edac correctable errors detected"},
+		{check: HasOOM, name: EventOOM, message: MessageOOM},
+		{check: HasOOMKillConstraint, name: EventOOMKillConstraint, message: MessageOOMKillConstraint},
+		{check: HasOOMKiller, name: EventOOMKiller, message: MessageOOMKiller},
+		{check: HasOOMCgroup, name: EventOOMCgroup, message: MessageOOMCgroup},
+		{check: HasEDACCorrectableErrors, name: EventEDACCorrectableErrors, message: MessageEDACCorrectableErrors},
 	}
 }

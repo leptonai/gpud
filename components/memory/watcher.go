@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	memory_dmesg "github.com/leptonai/gpud/components/memory/dmesg"
 	"github.com/leptonai/gpud/pkg/common"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
@@ -63,16 +62,17 @@ func (w *watcher) watch() {
 				},
 			}
 
-			ev.Name, ev.Message = memory_dmesg.Match(line.Content)
+			ev.Name, ev.Message = Match(line.Content)
 			if ev.Name == "" {
 				continue
 			}
 
 			cctx, ccancel := context.WithTimeout(w.ctx, 15*time.Second)
 			found, err := w.eventsStore.Find(cctx, components.Event{
-				Time: ev.Time,
-				Name: ev.Name,
-				Type: ev.Type,
+				Time:    ev.Time,
+				Name:    ev.Name,
+				Message: ev.Message,
+				Type:    ev.Type,
 			})
 			ccancel()
 			if err != nil {
