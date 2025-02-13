@@ -1,4 +1,4 @@
-package dmesg
+package memory
 
 import (
 	"testing"
