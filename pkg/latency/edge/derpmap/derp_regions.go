@@ -4,6 +4,7 @@ package derpmap
 // ref. https://aws.amazon.com/about-aws/global-infrastructure/regions_az/
 var derpRegionNameToAWSRegion = map[string]string{
 	"Amsterdam":     "eu-west-1",
+	"Ashburn":       "us-east-1",
 	"Bangalore":     "ap-south-1",
 	"Chicago":       "us-east-2",
 	"Dallas":        "us-east-1",
@@ -19,6 +20,7 @@ var derpRegionNameToAWSRegion = map[string]string{
 	"Miami":         "us-east-1",
 	"Nairobi":       "af-south-1",
 	"New York City": "us-east-1",
+	"Nuremberg":     "eu-central-1",
 	"Paris":         "eu-west-3",
 	"San Francisco": "us-west-1",
 	"Seattle":       "us-west-2",
