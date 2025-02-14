@@ -37,7 +37,6 @@
           "HostName": "derp1i.tailscale.com",
           "IPv4": "199.38.181.103",
           "IPv6": "2607:f740:f::e19",
-          "STUNOnly": true,
           "CanPort80": true
         }
       ]
@@ -599,6 +598,80 @@
           "HostName": "derp25d.tailscale.com",
           "IPv4": "102.67.167.188",
           "IPv6": "2c0f:edb0:2000:1::188",
+          "CanPort80": true
+        }
+      ]
+    },
+    "26": {
+      "RegionID": 26,
+      "RegionCode": "nue",
+      "RegionName": "Nuremberg",
+      "Latitude": 49.453889,
+      "Longitude": 11.0775,
+      "Nodes": [
+        {
+          "Name": "26b",
+          "RegionID": 26,
+          "HostName": "derp26b.tailscale.com",
+          "IPv4": "167.235.72.200",
+          "IPv6": "2a01:4f8:1c1c:47b6::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "26c",
+          "RegionID": 26,
+          "HostName": "derp26c.tailscale.com",
+          "IPv4": "49.12.193.137",
+          "IPv6": "2a01:4f8:1c1c:5c70::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "26d",
+          "RegionID": 26,
+          "HostName": "derp26d.tailscale.com",
+          "IPv4": "49.13.204.141",
+          "IPv6": "2a01:4f8:1c0c:7d06::1",
+          "CanPort80": true
+        }
+      ]
+    },
+    "27": {
+      "RegionID": 27,
+      "RegionCode": "iad",
+      "RegionName": "Ashburn",
+      "Latitude": 39.03,
+      "Longitude": -77.471111,
+      "Nodes": [
+        {
+          "Name": "27b",
+          "RegionID": 27,
+          "HostName": "derp27b.tailscale.com",
+          "IPv4": "5.161.218.233",
+          "IPv6": "2a01:4ff:f0:3db9::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "27c",
+          "RegionID": 27,
+          "HostName": "derp27c.tailscale.com",
+          "IPv4": "178.156.152.91",
+          "IPv6": "2a01:4ff:f0:3913::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "27d",
+          "RegionID": 27,
+          "HostName": "derp27d.tailscale.com",
+          "IPv4": "178.156.152.106",
+          "IPv6": "2a01:4ff:f0:3c8e::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "27e",
+          "RegionID": 27,
+          "HostName": "derp27e.tailscale.com",
+          "IPv4": "178.156.134.232",
+          "IPv6": "2a01:4ff:f0:28d4::1",
           "CanPort80": true
         }
       ]
