@@ -1,4 +1,4 @@
-package server
+package gpudserver
 
 import (
 	"context"
@@ -107,19 +107,19 @@ import (
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	gpud_login "github.com/leptonai/gpud/pkg/gpud-login"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	gpud_session "github.com/leptonai/gpud/pkg/gpud-session"
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/login"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/query/log/common"
 	query_log_config "github.com/leptonai/gpud/pkg/query/log/config"
 	query_log_state "github.com/leptonai/gpud/pkg/query/log/state"
-	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -132,7 +132,7 @@ type Server struct {
 	uid                   string
 	fifoPath              string
 	fifo                  *goOS.File
-	session               *session.Session
+	session               *gpud_session.Session
 	enableAutoUpdate      bool
 	autoUpdateExitCode    int
 }
@@ -1345,7 +1345,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames
 	ghler.componentNamesMu.RUnlock()
-	if err = login.Gossip(endpoint, uid, config.Address, currComponents); err != nil {
+	if err = gpud_login.Gossip(endpoint, uid, config.Address, currComponents); err != nil {
 		log.Logger.Debugf("failed to gossip: %v", err)
 	}
 	return s, nil
@@ -1447,13 +1447,13 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 
 	if userToken != "" {
 		var err error
-		s.session, err = session.NewSession(
+		s.session, err = gpud_session.NewSession(
 			ctx,
 			fmt.Sprintf("https://%s/api/v1/session", endpoint),
-			session.WithMachineID(uid),
-			session.WithPipeInterval(3*time.Second),
-			session.WithEnableAutoUpdate(s.enableAutoUpdate),
-			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			gpud_session.WithMachineID(uid),
+			gpud_session.WithPipeInterval(3*time.Second),
+			gpud_session.WithEnableAutoUpdate(s.enableAutoUpdate),
+			gpud_session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -1492,13 +1492,13 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			if s.session != nil {
 				s.session.Stop()
 			}
-			s.session, err = session.NewSession(
+			s.session, err = gpud_session.NewSession(
 				ctx,
 				fmt.Sprintf("https://%s/api/v1/session", endpoint),
-				session.WithMachineID(uid),
-				session.WithPipeInterval(3*time.Second),
-				session.WithEnableAutoUpdate(s.enableAutoUpdate),
-				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+				gpud_session.WithMachineID(uid),
+				gpud_session.WithPipeInterval(3*time.Second),
+				gpud_session.WithEnableAutoUpdate(s.enableAutoUpdate),
+				gpud_session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)

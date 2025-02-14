@@ -1,4 +1,4 @@
-package session
+package gpudsession
 
 import (
 	"context"
@@ -20,12 +20,12 @@ import (
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	gpud_update "github.com/leptonai/gpud/pkg/gpud-update"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/query"
 	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"
-	"github.com/leptonai/gpud/pkg/update"
 )
 
 const DefaultQuerySince = 30 * time.Minute
@@ -132,7 +132,7 @@ func (s *Session) serve() {
 			}
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
-				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
+				err := gpud_update.PackageUpdate(targetVersion[0], targetVersion[1], gpud_update.DefaultUpdateURL)
 				log.Logger.Infow("Update received for machine", "version", targetVersion[1], "package", targetVersion[0], "error", err)
 			} else {
 				if !s.enableAutoUpdate {
@@ -156,12 +156,12 @@ func (s *Session) serve() {
 				}
 
 				if systemdManaged {
-					response.Error = update.Update(nextVersion, update.DefaultUpdateURL)
+					response.Error = gpud_update.Update(nextVersion, gpud_update.DefaultUpdateURL)
 					break
 				}
 
 				if s.autoUpdateExitCode != -1 {
-					response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
+					response.Error = gpud_update.UpdateOnlyBinary(nextVersion, gpud_update.DefaultUpdateURL)
 					if response.Error == nil {
 						needExit = s.autoUpdateExitCode
 					}

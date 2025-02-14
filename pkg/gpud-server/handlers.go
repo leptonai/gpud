@@ -1,4 +1,4 @@
-package server
+package gpudserver
 
 import (
 	"encoding/json"

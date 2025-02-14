@@ -11,8 +11,8 @@ import (
 
 	"github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	gpud_server "github.com/leptonai/gpud/pkg/gpud-server"
 	"github.com/leptonai/gpud/pkg/log"
-	lepServer "github.com/leptonai/gpud/pkg/server"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 
@@ -103,7 +103,7 @@ func cmdRun(cliContext *cli.Context) error {
 	start := time.Now()
 
 	signals := make(chan os.Signal, 2048)
-	serverC := make(chan *lepServer.Server, 1)
+	serverC := make(chan *gpud_server.Server, 1)
 
 	log.Logger.Infof("starting gpud %v", version.Version)
 
@@ -117,7 +117,7 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	m.Start(rootCtx)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m, configOpts...)
+	server, err := gpud_server.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m, configOpts...)
 	if err != nil {
 		return err
 	}

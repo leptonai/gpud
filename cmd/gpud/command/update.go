@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
-	pkgupdate "github.com/leptonai/gpud/pkg/update"
-	"github.com/leptonai/gpud/version"
-
 	"github.com/urfave/cli"
+
+	gpud_update "github.com/leptonai/gpud/pkg/gpud-update"
+	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
+	"github.com/leptonai/gpud/version"
 )
 
 const defaultURLPrefix = "https://pkg.gpud.dev/"
@@ -70,7 +70,7 @@ func cmdUpdate(cliContext *cli.Context) error {
 		url = defaultURLPrefix
 	}
 
-	return pkgupdate.Update(ver, url)
+	return gpud_update.Update(ver, url)
 }
 
 func cmdUpdateCheck(cliContext *cli.Context) error {

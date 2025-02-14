@@ -21,9 +21,9 @@ import (
 
 	"github.com/leptonai/gpud/pkg/accelerator"
 	"github.com/leptonai/gpud/pkg/asn"
+	gpud_login "github.com/leptonai/gpud/pkg/gpud-login"
 	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/login"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -60,7 +60,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	// network section
-	publicIP, _ := login.PublicIP()
+	publicIP, _ := gpud_login.PublicIP()
 	region := "unknown"
 	detectProvider := "unknown"
 	latencies, _ := latency_edge.Measure(rootCtx)

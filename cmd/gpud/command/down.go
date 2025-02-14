@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	gpud_update "github.com/leptonai/gpud/pkg/gpud-update"
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
-	pkg_update "github.com/leptonai/gpud/pkg/update"
 
 	"github.com/urfave/cli"
 )
@@ -15,7 +15,7 @@ func cmdDown(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := pkg_update.RequireRoot(); err != nil {
+	if err := gpud_update.RequireRoot(); err != nil {
 		fmt.Printf("%s %q requires root to stop gpud (if not run by systemd, manually kill the process with 'pidof gpud')\n", warningSign, bin)
 		os.Exit(1)
 	}
@@ -34,12 +34,12 @@ func cmdDown(cliContext *cli.Context) error {
 		os.Exit(0)
 	}
 
-	if err := pkg_update.StopSystemdUnit(); err != nil {
+	if err := gpud_update.StopSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to stop systemd unit 'gpud.service': %v\n", warningSign, err)
 		os.Exit(1)
 	}
 
-	if err := pkg_update.DisableSystemdUnit(); err != nil {
+	if err := gpud_update.DisableSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to disable systemd unit 'gpud.service': %v\n", warningSign, err)
 		os.Exit(1)
 	}

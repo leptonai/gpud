@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
-	pkg_update "github.com/leptonai/gpud/pkg/update"
-
 	"github.com/urfave/cli"
+
+	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
+	gpud_update "github.com/leptonai/gpud/pkg/gpud-update"
+	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
@@ -30,7 +30,7 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if err := pkg_update.RequireRoot(); err != nil {
+	if err := gpud_update.RequireRoot(); err != nil {
 		fmt.Printf("%s %q requires root to run with systemd: %v (to run without systemd, '%s run')\n", warningSign, bin, err, bin)
 		return err
 	}
@@ -53,12 +53,12 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	if err := pkg_update.EnableSystemdUnit(); err != nil {
+	if err := gpud_update.EnableSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to enable systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
 
-	if err := pkg_update.RestartSystemdUnit(); err != nil {
+	if err := gpud_update.RestartSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to restart systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}

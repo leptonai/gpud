@@ -1,5 +1,5 @@
-// Package update provides the update functionality for the server.
-package update
+// Package gpudupdate provides the update functionality for the server.
+package gpudupdate
 
 import (
 	"archive/tar"

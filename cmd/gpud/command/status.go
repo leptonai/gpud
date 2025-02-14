@@ -11,8 +11,8 @@ import (
 	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	gpud_server "github.com/leptonai/gpud/pkg/gpud-server"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
@@ -53,7 +53,7 @@ func cmdStatus(cliContext *cli.Context) error {
 
 	for {
 		cctx, ccancel := context.WithTimeout(rootCtx, 15*time.Second)
-		packageStatus, err := client.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
+		packageStatus, err := client.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, gpud_server.URLPathAdminPackages))
 		ccancel()
 		if err != nil {
 			fmt.Printf("%s failed to get package status: %v\n", warningSign, err)

@@ -8,9 +8,9 @@ import (
 
 	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
+	gpud_login "github.com/leptonai/gpud/pkg/gpud-login"
+	gpud_server "github.com/leptonai/gpud/pkg/gpud-server"
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
-	"github.com/leptonai/gpud/pkg/login"
-	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/urfave/cli"
@@ -82,7 +82,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		if err != nil {
 			hostname = "UnknownName"
 		}
-		if err := login.Login(hostname, token, endpoint, components, uid); err != nil {
+		if err := gpud_login.Login(hostname, token, endpoint, components, uid); err != nil {
 			return err
 		}
 	} else {
@@ -90,7 +90,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		return nil
 	}
 
-	if err := server.WriteToken(token, fifoFile); err != nil {
+	if err := gpud_server.WriteToken(token, fifoFile); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 

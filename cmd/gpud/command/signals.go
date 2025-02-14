@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/server"
-	"github.com/leptonai/gpud/pkg/systemd"
-
 	sd "github.com/coreos/go-systemd/v22/daemon"
 	"golang.org/x/sys/unix"
+
+	gpud_server "github.com/leptonai/gpud/pkg/gpud-server"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 var handledSignals = []os.Signal{
@@ -22,10 +22,10 @@ var handledSignals = []os.Signal{
 	unix.SIGPIPE,
 }
 
-func handleSignals(ctx context.Context, cancel context.CancelFunc, signals chan os.Signal, serverC chan *server.Server) chan struct{} {
+func handleSignals(ctx context.Context, cancel context.CancelFunc, signals chan os.Signal, serverC chan *gpud_server.Server) chan struct{} {
 	done := make(chan struct{}, 1)
 	go func() {
-		var server *server.Server
+		var server *gpud_server.Server
 		for {
 			select {
 			case s := <-serverC:
