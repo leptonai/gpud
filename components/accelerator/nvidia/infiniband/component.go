@@ -58,6 +58,19 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) getStates(ctx context.Context, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
+	// in rare cases, some machines have "ibstat" installed that returns empty output
+	// not failing the ibstat check, thus we need manual check on the thresholds here
+	// before we call the ibstat command
+	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
+		return []components.State{
+			{
+				Name:   "ibstat",
+				Health: components.StateHealthy,
+				Reason: msgThresholdNotSetSkipped,
+			},
+		}, nil
+	}
+
 	o, err := infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
 	if err != nil {
 		return nil, err

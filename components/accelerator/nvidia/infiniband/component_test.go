@@ -277,3 +277,40 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	assert.Equal(t, msgNoIbIssueFound, state.Reason)
 	assert.Nil(t, state.SuggestedActions)
 }
+
+func TestComponentGetStatesWithThresholds(t *testing.T) {
+	tests := []struct {
+		name       string
+		thresholds infiniband.ExpectedPortStates
+		wantState  components.State
+		wantErr    bool
+	}{
+		{
+			name: "thresholds not set - should skip check",
+			thresholds: infiniband.ExpectedPortStates{
+				AtLeastPorts: 0,
+				AtLeastRate:  0,
+			},
+			wantState: components.State{
+				Name:   "ibstat",
+				Health: components.StateHealthy,
+				Reason: msgThresholdNotSetSkipped,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{}
+			states, err := c.getStates(context.Background(), tt.thresholds)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, states, 1)
+			assert.Equal(t, tt.wantState, states[0])
+		})
+	}
+}
