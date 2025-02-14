@@ -314,3 +314,45 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 		})
 	}
 }
+
+func TestComponentStatesNoIbstatCommand(t *testing.T) {
+	testCases := []struct {
+		name          string
+		ibstatCommand string
+	}{
+		{
+			name:          "empty command",
+			ibstatCommand: "",
+		},
+		{
+			name:          "non-existent command",
+			ibstatCommand: "/non/existent/path/to/ibstat",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &component{
+				toolOverwrites: nvidia_common.ToolOverwrites{
+					IbstatCommand: tc.ibstatCommand,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			states, err := c.getStates(ctx, infiniband.ExpectedPortStates{
+				AtLeastPorts: 1,
+				AtLeastRate:  100,
+			})
+
+			require.NoError(t, err)
+			require.Len(t, states, 1)
+
+			state := states[0]
+			assert.Equal(t, "ibstat", state.Name)
+			assert.Equal(t, components.StateUnhealthy, state.Health)
+			assert.Contains(t, state.Reason, "ibstat threshold set but ibstat not found")
+		})
+	}
+}
