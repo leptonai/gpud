@@ -271,10 +271,23 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		}
 
 		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+
 		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
+		// Start the process and read from it
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
@@ -284,12 +297,10 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			}
 		}()
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
-		}
+		// Wait for all lines to be collected
+		<-done
 
 		assert.Equal(t, 5, len(lines), "expected five log lines (one per second) after deduplication")
 
