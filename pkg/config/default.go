@@ -89,32 +89,6 @@ var (
 	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
 )
 
-var (
-	DefaultNVIDIALibraries = []string{
-		// core library for NVML
-		// typically symlinked to "libnvidia-ml.so.1" or "libnvidia-ml.so.535.183.06"
-		"libnvidia-ml.so",
-
-		// core library for CUDA support
-		// typically symlinked to "libcuda.so.1" or "libcuda.so.535.183.06"
-		"libcuda.so",
-	}
-	DefaultNVIDIALibrariesSearchDirs = []string{
-		// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
-		"/",
-		"/usr/lib64",
-		"/usr/lib/x86_64-linux-gnu",
-		"/usr/lib/aarch64-linux-gnu",
-		"/usr/lib/x86_64-linux-gnu/nvidia/current",
-		"/usr/lib/aarch64-linux-gnu/nvidia/current",
-		"/lib64",
-		"/lib/x86_64-linux-gnu",
-		"/lib/aarch64-linux-gnu",
-		"/lib/x86_64-linux-gnu/nvidia/current",
-		"/lib/aarch64-linux-gnu/nvidia/current",
-	}
-)
-
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	options := &Op{}
 	if err := options.ApplyOpts(opts); err != nil {
@@ -299,8 +273,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_processes.Name] = nil
 		cfg.Components[nvidia_remapped_rows.Name] = nil
 		cfg.Components[library_id.Name] = library.Config{
-			Libraries:  DefaultNVIDIALibraries,
-			SearchDirs: DefaultNVIDIALibrariesSearchDirs,
+			Libraries:  nvidia_query.DefaultNVIDIALibraries,
+			SearchDirs: nvidia_query.DefaultNVIDIALibrariesSearchDirs,
 		}
 
 		// optional
