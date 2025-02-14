@@ -191,3 +191,47 @@ func TestUpdateAPIVersionIfNotExistsComprehensive(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, firstVersion, dbVersion)
 }
+
+func TestUpdateAPIVersionTransactionBehavior(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Create table
+	err := CreateTableAPIVersion(ctx, dbRW)
+	require.NoError(t, err)
+
+	// Test successful transaction
+	version, err := UpdateAPIVersionIfNotExists(ctx, dbRW, "v1.0.0")
+	assert.NoError(t, err)
+	assert.Equal(t, "v1.0.0", version)
+
+	// Verify the version was actually committed
+	var count int
+	err = dbRO.QueryRowContext(ctx, "SELECT COUNT(*) FROM api_version WHERE version = ?", "v1.0.0").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count, "Version should be committed in the database")
+
+	// Test that subsequent updates don't create new rows
+	version, err = UpdateAPIVersionIfNotExists(ctx, dbRW, "v2.0.0")
+	assert.NoError(t, err)
+	assert.Equal(t, "v1.0.0", version) // Should return existing version
+
+	err = dbRO.QueryRowContext(ctx, "SELECT COUNT(*) FROM api_version").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count, "Should still have only one row in the database")
+
+	// Test empty version (should rollback)
+	version, err = UpdateAPIVersionIfNotExists(ctx, dbRW, "")
+	assert.Equal(t, ErrEmptyAPIVersion, err)
+	assert.Empty(t, version)
+
+	// Verify no additional rows were added after failed attempt
+	err = dbRO.QueryRowContext(ctx, "SELECT COUNT(*) FROM api_version").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count, "Failed transaction should not add new rows")
+}

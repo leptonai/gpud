@@ -39,9 +39,13 @@ func UpdateAPIVersionIfNotExists(ctx context.Context, db *sql.DB, apiVersion str
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %v", err)
 	}
+
+	var committed bool
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			log.Logger.Errorw("failed to rollback transaction", "errror", err)
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				log.Logger.Errorw("failed to rollback transaction", "error", err)
+			}
 		}
 	}()
 
@@ -75,6 +79,7 @@ INSERT INTO %s (%s) VALUES (?)
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("failed to commit transaction: %v", err)
 	}
+	committed = true
 
 	return apiVersion, nil
 }
