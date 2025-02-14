@@ -3,6 +3,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,16 +15,11 @@ import (
 )
 
 type Config struct {
-	Libraries  []string
+	Libraries  map[string][]string
 	SearchDirs []string
 }
 
 func New(cfg Config) components.Component {
-	libraries := make(map[string]any)
-	for _, lib := range cfg.Libraries {
-		libraries[lib] = struct{}{}
-	}
-
 	searchDirs := make(map[string]any)
 	for _, dir := range cfg.SearchDirs {
 		searchDirs[dir] = struct{}{}
@@ -34,7 +30,7 @@ func New(cfg Config) components.Component {
 	}
 
 	return &component{
-		libraries:  libraries,
+		libraries:  cfg.Libraries,
 		searchDirs: searchDirs,
 		searchOpts: searchOpts,
 	}
@@ -43,7 +39,7 @@ func New(cfg Config) components.Component {
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	libraries  map[string]any
+	libraries  map[string][]string
 	searchDirs map[string]any
 	searchOpts []file.OpOption
 }
@@ -54,13 +50,19 @@ func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	reasons := []string{}
-	for lib := range c.libraries {
-		resolved, err := file.FindLibrary(lib, c.searchOpts...)
+	for lib, alternatives := range c.libraries {
+		opts := []file.OpOption{}
+		opts = append(opts, c.searchOpts...)
+		for _, alt := range alternatives {
+			opts = append(opts, file.WithAlternativeLibraryName(alt))
+		}
+		resolved, err := file.FindLibrary(lib, opts...)
+		if resolved == "" && errors.Is(err, file.ErrLibraryNotFound) {
+			reasons = append(reasons, fmt.Sprintf("library %q does not exist", lib))
+			continue
+		}
 		if err != nil {
 			return nil, err
-		}
-		if resolved == "" {
-			reasons = append(reasons, fmt.Sprintf("library %q does not exist", lib))
 		}
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
