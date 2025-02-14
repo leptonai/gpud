@@ -4,6 +4,8 @@ package infiniband
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -72,6 +74,16 @@ func (c *component) getStates(ctx context.Context, thresholds infiniband.Expecte
 	}
 
 	o, err := infiniband.GetIbstatOutput(ctx, []string{c.toolOverwrites.IbstatCommand})
+	if errors.Is(err, infiniband.ErrNoIbstatCommand) {
+		return []components.State{
+			{
+				Name:   "ibstat",
+				Health: components.StateUnhealthy,
+				Reason: fmt.Sprintf("ibstat threshold set but %s", err),
+			},
+		}, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
