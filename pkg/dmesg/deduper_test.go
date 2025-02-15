@@ -162,20 +162,33 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		ch := make(chan LogLine, 1000)
 		p, err := process.New(process.WithCommand("echo", "-e", "kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,300000+00:00 Test message"))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
+		// Wait for all lines to be collected
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
 		assert.Equal(t, 1, len(lines), "expected only one log line after deduplication")
@@ -186,11 +199,22 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		ch := make(chan LogLine, 1000)
 		p, err := process.New(process.WithCommand("echo", "-e", "kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:45,200000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:46,300000+00:00 Test message"))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
@@ -200,11 +224,13 @@ func TestDedupLogLines(t *testing.T) {
 			}
 		}()
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
+		// Wait for all lines to be collected
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
 		assert.Equal(t, 3, len(lines), "expected three log lines with different second timestamps")
@@ -217,7 +243,6 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		ch := make(chan LogLine, 1000)
 		p, err := process.New(process.WithCommand("echo", "-e", `kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message
 kern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message
 kern  :info  : 2025-01-21T04:41:45,100000+00:00 Test message
@@ -226,6 +251,18 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
@@ -235,11 +272,13 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			}
 		}()
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
+		// Wait for all lines to be collected
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
 		assert.Equal(t, 3, len(lines), "expected three log lines after deduplication")
@@ -270,16 +309,15 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			}
 		}
 
-		ch := make(chan LogLine, 1000)
-		done := make(chan struct{})
-		var lines []LogLine
-
 		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
 
 		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
 		go func() {
 			defer close(done)
 			for line := range ch {
@@ -300,7 +338,11 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
 		// Wait for all lines to be collected
-		<-done
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
+		}
 
 		assert.Equal(t, 5, len(lines), "expected five log lines (one per second) after deduplication")
 
@@ -323,11 +365,22 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing",
 		}
 
-		ch := make(chan LogLine, 1000)
 		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
@@ -337,11 +390,13 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			}
 		}()
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
+		// Wait for all lines to be collected
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
 		// Should get 2 lines: one for "127" and one for "128"
@@ -376,16 +431,27 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		// Create log lines with same content but different trailing whitespaces
 		logLines := []string{
 			"kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem error message",
-			"kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem error message  ",   // two spaces at end
-			"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem error message\t",   // tab at end
-			"kern  :err   : 2025-02-10T16:28:06,535389+00:00 nvidia-peermem error message \t ", // mixed whitespace at end
+			"kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem error message  ",    // two spaces at end
+			"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem error message\t",    // tab at end
+			"kern  :err   : 2025-02-10T16:28:06,535389+00:00 nvidia-peermem error message \t  ", // mixed whitespace at end
 		}
 
-		ch := make(chan LogLine, 1000)
 		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
+
+		// Start collecting results in background
+		ch := make(chan LogLine, 1000)
+		done := make(chan struct{})
+		var lines []LogLine
+		go func() {
+			defer close(done)
+			for line := range ch {
+				lines = append(lines, line)
+			}
+		}()
+
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
@@ -395,11 +461,13 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			}
 		}()
 
-		go read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
+		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
-		var lines []LogLine
-		for line := range ch {
-			lines = append(lines, line)
+		// Wait for all lines to be collected
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
 		// Should get only 1 line since they're all the same content with different whitespace
