@@ -423,18 +423,27 @@ func TestWatchPeerMemLogs(t *testing.T) {
 	}
 	defer w.Close()
 
-	// slow CI...
-	time.Sleep(3 * time.Second)
-
+	done := make(chan struct{})
 	var lines []LogLine
-	for line := range w.Watch() {
-		lines = append(lines, line)
+	go func() {
+		defer close(done)
+		for line := range w.Watch() {
+			lines = append(lines, line)
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("expected all lines to be collected within 10 seconds")
 	}
 
 	// All log lines in peermem.log.0 are from the same second and have the same content,
-	// so they should be deduplicated into a single entry
-	// including the second line with "test"
-	assert.Equal(t, 2, len(lines), "expected only one log line after deduplication")
+	// except for the last line which has different content ("test").
+	// So after deduplication we should have 2 lines:
+	// 1. One line representing all the deduplicated nvidia-peermem messages
+	// 2. One line for the "test" message
+	assert.Equal(t, len(lines), 2, "expected 2 log lines after deduplication")
 
 	expectedLine := LogLine{
 		Timestamp: time.Date(2025, 2, 10, 16, 28, 6, 502716000, time.UTC),
