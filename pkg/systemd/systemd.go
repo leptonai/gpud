@@ -149,6 +149,7 @@ func GetUptime(service string) (*time.Duration, error) {
 	b, err := exec.CommandContext(ctx, p, "show", "--property=InactiveExitTimestamp", service).CombinedOutput()
 	cancel()
 	if err != nil {
+		log.Logger.Warnw("failed to get uptime for unit", "unit", service, "output", string(b), "error", err)
 		return nil, err
 	}
 
