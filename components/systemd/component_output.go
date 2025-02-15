@@ -224,7 +224,7 @@ func ConnectDbus() error {
 			defaultDbusConn, err = systemd.NewDbusConn(ctx)
 			if err != nil {
 				defaultDbusConnCancel()
-				log.Logger.Debugw("failed to connect to dbus", "error", err)
+				log.Logger.Errorw("failed to connect to dbus", "error", err)
 				time.Sleep(time.Duration(i) * time.Second)
 				continue
 			}
