@@ -2,6 +2,8 @@ package dmesg
 
 import (
 	"context"
+	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +33,7 @@ func TestLogLineProcessor(t *testing.T) {
 	require.NoError(t, err, "failed to create events store")
 	defer eventsStore.Close()
 
-	w := NewLogLineProcessor(
+	w, err := NewLogLineProcessor(
 		ctx,
 		dmesgWatcher,
 		func(_ string) (string, string) {
@@ -39,6 +41,7 @@ func TestLogLineProcessor(t *testing.T) {
 		},
 		eventsStore,
 	)
+	require.NoError(t, err, "failed to create log line processor")
 	defer w.Close()
 
 	time.Sleep(5 * time.Second)
@@ -94,12 +97,13 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 		return "", ""
 	}
 
-	w := NewLogLineProcessor(
+	w, err := NewLogLineProcessor(
 		ctx,
 		dmesgWatcher,
 		matchFunc,
 		eventsStore,
 	)
+	require.NoError(t, err, "failed to create log line processor")
 	defer w.Close()
 
 	// Wait for events to be processed
@@ -121,4 +125,35 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 	// latest event first
 	assert.Contains(t, events[0].Message, "third", "first event should be third message")
 	assert.Contains(t, events[1].Message, "first", "second event should be first message")
+}
+
+func TestNewLogLineProcessorDefaultWatcher(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping test on non-linux")
+	}
+
+	if _, err := exec.LookPath("dmesg"); err != nil {
+		t.Skip("skipping test since dmesg is not available")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
+	require.NoError(t, err, "failed to create events store")
+	defer eventsStore.Close()
+
+	lp, err := NewLogLineProcessor(
+		ctx,
+		nil,
+		func(string) (string, string) {
+			return "test", "test"
+		},
+		eventsStore,
+	)
+	require.NoError(t, err, "failed to create log line processor")
+	lp.Close()
 }

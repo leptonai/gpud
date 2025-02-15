@@ -21,7 +21,18 @@ type LogLineProcessor struct {
 
 type MatchFunc func(line string) (name string, message string)
 
-func NewLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventsStore events_db.Store) *LogLineProcessor {
+// Creates a new log line processor where it streams logs from the dmesg watcher, uses the match function,
+// and inserts the events into the events store.
+// If the dmesg watcher is not provided, it will create a default one.
+func NewLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
+	if dmesgWatcher == nil {
+		var err error
+		dmesgWatcher, err = NewWatcher()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	w := &LogLineProcessor{
 		ctx:          ctx,
 		dmesgWatcher: dmesgWatcher,
@@ -29,7 +40,7 @@ func NewLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc Ma
 		eventsStore:  eventsStore,
 	}
 	go w.watch()
-	return w
+	return w, nil
 }
 
 const EventKeyLogLine = "log_line"
