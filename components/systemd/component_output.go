@@ -165,11 +165,6 @@ func CreateGet(cfg Config) query.GetFunc {
 		o := &Output{SystemdVersion: ver}
 
 		for _, unit := range cfg.Units {
-			uptime, err := systemd.GetUptime(unit)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get uptime for unit %q: %w", unit, err)
-			}
-
 			active := false
 
 			defaultConn := GetDefaultDbusConn()
@@ -188,6 +183,12 @@ func CreateGet(cfg Config) query.GetFunc {
 
 			uptimeSeconds := int64(0)
 			uptimeDescription := "n/a"
+
+			uptime, err := systemd.GetUptime(unit)
+			if err != nil {
+				log.Logger.Errorw("failed to get uptime for unit", "unit", unit, "error", err)
+			}
+
 			if uptime != nil {
 				uptimeSeconds = int64(uptime.Seconds())
 
