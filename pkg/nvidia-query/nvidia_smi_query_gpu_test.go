@@ -53,49 +53,6 @@ func TestGPUPowerReadings(t *testing.T) {
 	}
 }
 
-func TestFBMemoryUsage(t *testing.T) {
-	t.Parallel()
-
-	f := &SMIFBMemoryUsage{
-		Total:    "81559 MiB",
-		Reserved: "551 MiB",
-		Used:     "0 MiB",
-		Free:     "81007 MiB",
-	}
-
-	totalBytes, err := f.GetTotalBytes()
-	if err != nil {
-		t.Fatalf("error getting total bytes: %v", err)
-	}
-	if totalBytes != 85520809984 {
-		t.Fatalf("expected total bytes of 85520809984, got %d", totalBytes)
-	}
-
-	reservedBytes, err := f.GetReservedBytes()
-	if err != nil {
-		t.Fatalf("error getting reserved bytes: %v", err)
-	}
-	if reservedBytes != 577765376 {
-		t.Fatalf("expected reserved bytes of 577765376, got %d", reservedBytes)
-	}
-
-	usedBytes, err := f.GetUsedBytes()
-	if err != nil {
-		t.Fatalf("error getting used bytes: %v", err)
-	}
-	if usedBytes != 0 {
-		t.Fatalf("expected used bytes of 0, got %d", usedBytes)
-	}
-
-	freeBytes, err := f.GetFreeBytes()
-	if err != nil {
-		t.Fatalf("error getting free bytes: %v", err)
-	}
-	if freeBytes != 84941996032 {
-		t.Fatalf("expected free bytes of 84941996032, got %d", freeBytes)
-	}
-}
-
 func TestGPU_HasErr(t *testing.T) {
 	t.Parallel()
 

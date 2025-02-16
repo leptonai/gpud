@@ -20,11 +20,7 @@ func ToOutput(i *nvidia_query.Output) *Output {
 	var totalMemHumanized string
 
 	if i.SMI != nil && len(i.SMI.GPUs) > 0 {
-		parsed, err := i.SMI.GPUs[0].FBMemoryUsage.Parse()
-		if err == nil {
-			totalMem = parsed.TotalBytes
-			totalMemHumanized = parsed.TotalHumanized
-		} else if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
+		if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
 			totalMem = i.NVML.DeviceInfos[0].Memory.TotalBytes
 			totalMemHumanized = humanize.Bytes(i.NVML.DeviceInfos[0].Memory.TotalBytes)
 		}
