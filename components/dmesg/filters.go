@@ -9,7 +9,6 @@ import (
 
 func DefaultLogFilters(ctx context.Context) ([]*query_log_common.Filter, error) {
 	defaultFilters := []*query_log_common.Filter{}
-	defaultFilters = append(defaultFilters, DefaultDmesgFiltersForFileDescriptor()...)
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {

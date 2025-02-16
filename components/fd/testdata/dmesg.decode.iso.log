@@ -1,0 +1,2 @@
+kern  :warn  : 2025-01-21T04:41:44,285060+00:00 VFS: file-max limit 1000000 reached
+kern  :warn  : 2025-01-21T04:42:44,285060+00:00 VFS: file-max limit 1000000 reached
