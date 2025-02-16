@@ -281,7 +281,7 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 			t.Fatalf("expected all lines to be collected within 10 seconds")
 		}
 
-		assert.Equal(t, 3, len(lines), "expected three log lines after deduplication")
+		assert.Equal(t, 3, len(lines), fmt.Sprintf("expected three log lines after deduplication, got %q", lines))
 
 		// Count unique messages
 		messageCount := make(map[string]int)
@@ -511,7 +511,7 @@ func TestWatchPeerMemLogs(t *testing.T) {
 	// So after deduplication we should have 2 lines:
 	// 1. One line representing all the deduplicated nvidia-peermem messages
 	// 2. One line for the "test" message
-	assert.Equal(t, len(lines), 2, "expected 2 log lines after deduplication")
+	assert.Equal(t, 2, len(lines), fmt.Sprintf("expected 2 log lines after deduplication, got %q", lines))
 
 	expectedLine := LogLine{
 		Timestamp: time.Date(2025, 2, 10, 16, 28, 6, 502716000, time.UTC),
