@@ -5,42 +5,62 @@ package peermem
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
-	"github.com/leptonai/gpud/components/dmesg"
-	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/dmesg"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/query"
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(nvidia_peermem_id.Name),
+		3*24*time.Hour,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	cctx, ccancel := context.WithCancel(ctx)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
+	// TODO: deprecate shared poller in favor of its own "lsmod" poller for peermem
 	if nvidia_query.GetDefaultPoller() == nil {
+		ccancel()
 		return nil, nvidia_query.ErrDefaultPollerNotSet
 	}
 
 	cfg.Query.SetDefaultsIfNotSet()
-
-	cctx, ccancel := context.WithCancel(ctx)
 	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_peermem_id.Name)
 
 	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
+		rootCtx:          ctx,
+		cancel:           ccancel,
+		logLineProcessor: logLineProcessor,
+		eventsStore:      eventsStore,
+		poller:           nvidia_query.GetDefaultPoller(),
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	logLineProcessor *dmesg.LogLineProcessor
+	eventsStore      events_db.Store
+	poller           query.Poller
 }
 
 func (c *component) Name() string { return nvidia_peermem_id.Name }
@@ -92,86 +112,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
-const (
-	// repeated messages may indicate more persistent issue on the inter-GPU communication
-	// e.g.,
-	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
-	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
-	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
-	EventNamePeermemInvalidContextFromDmesg = "peermem_invalid_context_from_dmesg"
-
-	EventKeyPeermemInvalidContextFromDmesgUnixSeconds = "unix_seconds"
-	EventKeyPeermemInvalidContextFromDmesgLogLine     = "log_line"
-)
-
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.getEvents(ctx, since, dmesgTailResults)
-}
-
-func (c *component) getEvents(ctx context.Context, since time.Time, dmesgTailResults *dmesg.State) ([]components.Event, error) {
-	// dedup by minute level
-	seenMinute := make(map[int64]struct{})
-	events := make([]components.Event, 0)
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-
-		if logItem.Matched.Name != dmesg.EventNvidiaPeermemInvalidContext {
-			continue
-		}
-
-		// skip this for now as the latest driver https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-560-35-03/index.html#abstract fixes this issue
-		// "4272659 – A design defect has been identified and mitigated in the GPU kernel-mode driver, related to the GPUDirect RDMA support
-		// in MLNX_OFED and some Ubuntu kernels, commonly referred to as the PeerDirect technology, i.e. the one using the peer-memory kernel
-		// patch. In specific scenarios, for example involving the cleanup after killing of a multi-process application, this issue may lead to
-		// use-after-free and potentially to kernel memory corruption."
-		//
-		// ref. https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-535-129-03/index.html
-		// ref. https://github.com/Mellanox/nv_peer_memory/issues/120
-		if logItem.Matched.Name == dmesg.EventNvidiaPeermemInvalidContext {
-			continue
-		}
-
-		minute := logItem.Time.Unix() / 60
-		if _, ok := seenMinute[minute]; ok {
-			continue
-		}
-		seenMinute[minute] = struct{}{}
-
-		events = append(events, components.Event{
-			Time: logItem.Time,
-			Name: EventNamePeermemInvalidContextFromDmesg,
-			Type: common.EventTypeCritical,
-			ExtraInfo: map[string]string{
-				EventKeyPeermemInvalidContextFromDmesgUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
-				EventKeyPeermemInvalidContextFromDmesgLogLine:     logItem.Line,
-			},
-		})
-	}
-
-	return events, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -182,9 +124,13 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
 	// safe to call stop multiple times
 	_ = c.poller.Stop(nvidia_peermem_id.Name)
+
+	c.logLineProcessor.Close()
+	c.eventsStore.Close()
 
 	return nil
 }
