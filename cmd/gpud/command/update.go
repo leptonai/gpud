@@ -5,6 +5,7 @@
 package command
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -42,13 +43,18 @@ func detectLatestVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return detectLatestVersionByURL(defaultURLPrefix + track + "_latest.txt")
+}
 
-	fetchedVer, err := distsign.Fetch(defaultURLPrefix+track+"_latest.txt", 100)
+func detectLatestVersionByURL(url string) (string, error) {
+	fetchedVer, err := distsign.Fetch(url, 100)
 	if err != nil {
 		fmt.Printf("Failed to fetch latest version: %v\n", err)
 		return "", err
 	}
-	ver := string(fetchedVer)
+
+	// trim whitespaces in case the version _latest.txt file included trailing spaces
+	ver := string(bytes.TrimSpace(fetchedVer))
 	fmt.Printf("automatically fetched the latest version: %s\n", ver)
 
 	return ver, nil
