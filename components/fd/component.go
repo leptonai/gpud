@@ -5,41 +5,59 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/dmesg"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/dmesg"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
+func New(ctx context.Context, cfg Config) (components.Component, error) {
+	eventsStore, err := events_db.NewStore(
+		cfg.Query.State.DBRW,
+		cfg.Query.State.DBRO,
+		events_db.CreateDefaultTableName(fd_id.Name),
+		3*24*time.Hour,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	cctx, ccancel := context.WithCancel(ctx)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
+	cfg.Query.SetDefaultsIfNotSet()
+	setDefaultPoller(cfg)
 	getDefaultPoller().Start(cctx, cfg.Query, fd_id.Name)
 
 	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
-	}
+		rootCtx:          ctx,
+		cancel:           ccancel,
+		logLineProcessor: logLineProcessor,
+		eventsStore:      eventsStore,
+		poller:           getDefaultPoller(),
+	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	logLineProcessor *dmesg.LogLineProcessor
+	eventsStore      events_db.Store
+	poller           query.Poller
+	gatherer         prometheus.Gatherer
 }
 
 func (c *component) Name() string { return fd_id.Name }
@@ -88,61 +106,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return output.States()
 }
 
-const (
-	EventNameErrorVFSFileMaxLimitReached = "error_vfs_file_max_limit_reached"
-
-	EventKeyErrorVFSFileMaxLimitReachedUnixSeconds = "unix_seconds"
-	EventKeyErrorVFSFileMaxLimitReachedLogLine     = "log_line"
-)
-
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	dmesgC, err := components.GetComponent(dmesg.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	var dmesgComponent *dmesg.Component
-	if o, ok := dmesgC.(interface{ Unwrap() interface{} }); ok {
-		if unwrapped, ok := o.Unwrap().(*dmesg.Component); ok {
-			dmesgComponent = unwrapped
-		} else {
-			return nil, fmt.Errorf("expected *dmesg.Component, got %T", dmesgC)
-		}
-	}
-
-	// tailScan fetches the latest output from the dmesg
-	// it is ok to call this function multiple times for the following reasons (thus shared with events method)
-	// 1) dmesg "TailScan" is cheap (just tails the last x number of lines)
-	dmesgTailResults, err := dmesgComponent.TailScan()
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]components.Event, 0)
-	for _, logItem := range dmesgTailResults.TailScanMatched {
-		if logItem.Error != nil {
-			continue
-		}
-		if logItem.Matched == nil {
-			continue
-		}
-		if logItem.Matched.Name != dmesg.EventFileDescriptorVFSFileMaxLimitReached {
-			continue
-		}
-
-		events = append(events, components.Event{
-			Time:    logItem.Time,
-			Name:    EventNameErrorVFSFileMaxLimitReached,
-			Type:    common.EventTypeCritical,
-			Message: "VFS file-max limit reached",
-			ExtraInfo: map[string]string{
-				EventKeyErrorVFSFileMaxLimitReachedUnixSeconds: strconv.FormatInt(logItem.Time.Unix(), 10),
-				EventKeyErrorVFSFileMaxLimitReachedLogLine:     logItem.Line,
-			},
-		})
-	}
-
-	return events, nil
+	return c.eventsStore.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -191,9 +156,13 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
 	// safe to call stop multiple times
 	c.poller.Stop(fd_id.Name)
+
+	c.logLineProcessor.Close()
+	c.eventsStore.Close()
 
 	return nil
 }
