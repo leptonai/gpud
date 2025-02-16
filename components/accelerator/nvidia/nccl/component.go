@@ -9,6 +9,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -25,27 +26,27 @@ func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, e
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	w, err := newWatcher(cctx, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
 	if err != nil {
 		ccancel()
 		return nil, err
 	}
 
 	return &component{
-		rootCtx:     ctx,
-		cancel:      ccancel,
-		watcher:     w,
-		eventsStore: eventsStore,
+		rootCtx:          ctx,
+		cancel:           ccancel,
+		logLineProcessor: logLineProcessor,
+		eventsStore:      eventsStore,
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx     context.Context
-	cancel      context.CancelFunc
-	watcher     *watcher
-	eventsStore events_db.Store
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	logLineProcessor *dmesg.LogLineProcessor
+	eventsStore      events_db.Store
 }
 
 func (c *component) Name() string { return nvidia_nccl_id.Name }
@@ -75,7 +76,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
 
-	c.watcher.close()
+	c.logLineProcessor.Close()
 	c.eventsStore.Close()
 
 	return nil
