@@ -199,7 +199,6 @@ func TestOutput_States(t *testing.T) {
 				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
 					RowRemapping: true,
 				},
-				RemappedRowsSMI:  []query.ParsedSMIRemappedRows{},
 				RemappedRowsNVML: []nvml.RemappedRows{},
 			},
 			wantErr: false,
@@ -278,46 +277,6 @@ func TestOutput_Evaluate(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name: "SMI GPU needs RMA",
-			output: &Output{
-				GPUProductName: "Test GPU",
-				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
-					RowRemapping: true,
-				},
-				RemappedRowsSMI: []query.ParsedSMIRemappedRows{
-					{
-						ID:                               "GPU-123",
-						RemappingFailed:                  "Yes",
-						RemappingPending:                 "No",
-						RemappedDueToUncorrectableErrors: "5",
-					},
-				},
-			},
-			wantReason:  `nvidia-smi GPU GPU-123 qualifies for RMA (remapping failure occurred Yes, remapped due to uncorrectable errors 5)`,
-			wantHealthy: false,
-			wantErr:     false,
-		},
-		{
-			name: "SMI GPU needs reset",
-			output: &Output{
-				GPUProductName: "Test GPU",
-				MemoryErrorManagementCapabilities: query.MemoryErrorManagementCapabilities{
-					RowRemapping: true,
-				},
-				RemappedRowsSMI: []query.ParsedSMIRemappedRows{
-					{
-						ID:                               "GPU-123",
-						RemappingPending:                 "Yes",
-						RemappingFailed:                  "No",
-						RemappedDueToUncorrectableErrors: "0",
-					},
-				},
-			},
-			wantReason:  `nvidia-smi GPU GPU-123 needs reset (pending remapping true)`,
-			wantHealthy: false,
-			wantErr:     false,
-		},
-		{
 			name: "NVML GPU needs RMA",
 			output: &Output{
 				GPUProductName: "Test GPU",
@@ -367,16 +326,8 @@ func TestOutput_Evaluate(t *testing.T) {
 						RemappingPending: true,
 					},
 				},
-				RemappedRowsSMI: []query.ParsedSMIRemappedRows{
-					{
-						ID:                               "GPU-123",
-						RemappingFailed:                  "Yes",
-						RemappingPending:                 "No",
-						RemappedDueToUncorrectableErrors: "5",
-					},
-				},
 			},
-			wantReason:  `nvidia-smi GPU GPU-123 qualifies for RMA (remapping failure occurred Yes, remapped due to uncorrectable errors 5), nvml GPU GPU-456 needs reset (pending remapping true)`,
+			wantReason:  `nvml GPU GPU-456 needs reset (pending remapping true)`,
 			wantHealthy: false,
 			wantErr:     false,
 		},

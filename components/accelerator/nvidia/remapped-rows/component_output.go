@@ -8,7 +8,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
@@ -44,40 +43,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			if g.RemappedRows == nil {
-				continue
-			}
-			parsed, err := g.RemappedRows.Parse()
-			if err != nil {
-				log.Logger.Warnw("failed to parse temperature", "error", err)
-				continue
-			}
-			o.RemappedRowsSMI = append(o.RemappedRowsSMI, parsed)
-
-			requiresReset, err := parsed.RequiresReset()
-			if err != nil {
-				log.Logger.Warnw("failed to determine if GPU needs reset", "error", err)
-				continue
-			}
-			if requiresReset {
-				msg := fmt.Sprintf("nvidia-smi indicates GPU %q needs reset (pending remapping %v)", parsed.ID, requiresReset)
-				needRebootMsgs = append(needRebootMsgs, msg)
-			}
-
-			rma, err := parsed.QualifiesForRMA()
-			if err != nil {
-				log.Logger.Warnw("failed to determine if GPU qualifies for RMA", "error", err)
-				continue
-			}
-			if rma {
-				msg := fmt.Sprintf("nvidia-smi indicates GPU %q qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", parsed.ID, parsed.RemappingFailed, parsed.RemappedDueToUncorrectableErrors)
-				rmaMsgs = append(rmaMsgs, msg)
-			}
-		}
-	}
-
 	if len(needRebootMsgs) > 0 {
 		if o.SuggestedActions == nil {
 			o.SuggestedActions = &common.SuggestedActions{}
@@ -101,7 +66,6 @@ func ToOutput(i *nvidia_query.Output) *Output {
 type Output struct {
 	GPUProductName                    string                                         `json:"gpu_product_name"`
 	MemoryErrorManagementCapabilities nvidia_query.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
-	RemappedRowsSMI                   []nvidia_query.ParsedSMIRemappedRows           `json:"remapped_rows_smi"`
 	RemappedRowsNVML                  []nvidia_query_nvml.RemappedRows               `json:"remapped_rows_nvml"`
 
 	// Recommended course of actions for any of the GPUs with a known issue.
@@ -169,29 +133,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 	if !o.isRowRemappingSupported() {
 		reasons = append(reasons, fmt.Sprintf("GPU product name %q does not support row remapping (message: %q)", o.GPUProductName, o.MemoryErrorManagementCapabilities.Message))
 	} else {
-		for _, r := range o.RemappedRowsSMI {
-			rma, err := r.QualifiesForRMA()
-			if err != nil {
-				healthy = false
-				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it qualifies for RMA: %s", r.ID, err.Error()))
-				continue
-			}
-			if rma {
-				healthy = false
-				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %s)", r.ID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
-			}
-
-			needsReset, err := r.RequiresReset()
-			if err != nil {
-				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s failed to determine if it needs reset: %s", r.ID, err.Error()))
-				continue
-			}
-			if needsReset {
-				healthy = false
-				reasons = append(reasons, fmt.Sprintf("nvidia-smi GPU %s needs reset (pending remapping %v)", r.ID, needsReset))
-			}
-		}
-
 		for _, r := range o.RemappedRowsNVML {
 			if r.QualifiesForRMA() {
 				healthy = false
