@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
+	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
@@ -29,7 +30,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	w, err := newWatcher(cctx, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -40,25 +41,25 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	getDefaultPoller().Start(cctx, cfg.Query, memory_id.Name)
 
 	return &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		poller:      getDefaultPoller(),
-		cfg:         cfg,
-		watcher:     w,
-		eventsStore: eventsStore,
+		ctx:              cctx,
+		cancel:           ccancel,
+		poller:           getDefaultPoller(),
+		cfg:              cfg,
+		logLineProcessor: logLineProcessor,
+		eventsStore:      eventsStore,
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	poller      query.Poller
-	cfg         Config
-	watcher     *watcher
-	eventsStore events_db.Store
-	gatherer    prometheus.Gatherer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	poller           query.Poller
+	cfg              Config
+	logLineProcessor *dmesg.LogLineProcessor
+	eventsStore      events_db.Store
+	gatherer         prometheus.Gatherer
 }
 
 func (c *component) Name() string { return memory_id.Name }
@@ -148,7 +149,7 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	c.poller.Stop(memory_id.Name)
 
-	c.watcher.close()
+	c.logLineProcessor.Close()
 	c.eventsStore.Close()
 
 	return nil
