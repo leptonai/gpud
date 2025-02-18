@@ -297,7 +297,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eventName, _, message := Match(tt.input)
+			eventName, message := Match(tt.input)
 			assert.Equal(t, tt.expectedName, eventName)
 			assert.Equal(t, tt.expectedMsg, message)
 		})

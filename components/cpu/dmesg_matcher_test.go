@@ -150,7 +150,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotName, _, gotMessage := Match(tt.line)
+			gotName, gotMessage := Match(tt.line)
 			if gotName != tt.wantName {
 				t.Errorf("Match() name = %v, want %v", gotName, tt.wantName)
 			}
