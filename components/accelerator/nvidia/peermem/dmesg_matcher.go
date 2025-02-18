@@ -1,6 +1,8 @@
 package peermem
 
-import "regexp"
+import (
+	"regexp"
+)
 
 const (
 	// repeated messages may indicate more persistent issue on the inter-GPU communication
@@ -24,23 +26,24 @@ func HasPeermemInvalidContext(line string) bool {
 	return false
 }
 
-func Match(line string) (name string, message string) {
+func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
-			return m.name, m.message
+			return m.eventName, m.message
 		}
 	}
 	return "", ""
 }
 
 type match struct {
-	check   func(string) bool
-	name    string
-	message string
+	check     func(string) bool
+	eventName string
+	regex     string
+	message   string
 }
 
 func getMatches() []match {
 	return []match{
-		{check: HasPeermemInvalidContext, name: eventPeermemInvalidContext, message: messagePeermemInvalidContext},
+		{check: HasPeermemInvalidContext, eventName: eventPeermemInvalidContext, regex: regexPeermemInvalidContext, message: messagePeermemInvalidContext},
 	}
 }

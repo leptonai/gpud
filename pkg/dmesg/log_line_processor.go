@@ -19,7 +19,7 @@ type LogLineProcessor struct {
 	eventsStore  events_db.Store
 }
 
-type MatchFunc func(line string) (name string, message string)
+type MatchFunc func(line string) (eventName string, message string)
 
 // Creates a new log line processor where it streams logs from the dmesg watcher, uses the match function,
 // and inserts the events into the events store.
