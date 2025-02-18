@@ -35,7 +35,6 @@ import (
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
-	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
@@ -159,14 +158,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[power_supply_id.Name] = nil
 	}
 
-	cc, exists, err := DefaultDmesgComponent(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		cfg.Components[dmesg.Name] = cc
-	}
-
 	cfg.Components[network_latency_id.Name] = nil
 
 	if runtime.GOOS == "linux" {
@@ -245,10 +236,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		cfg.Components[nvidia_ecc_id.Name] = nil
 		cfg.Components[nvidia_error.Name] = nil
-		if _, ok := cfg.Components[dmesg.Name]; ok {
-			cfg.Components[nvidia_component_error_xid_id.Name] = nil
-			cfg.Components[nvidia_component_error_sxid_id.Name] = nil
-		}
+		cfg.Components[nvidia_component_error_xid_id.Name] = nil
+		cfg.Components[nvidia_component_error_sxid_id.Name] = nil
 		cfg.Components[nvidia_info.Name] = nil
 
 		cfg.Components[nvidia_clock_speed_id.Name] = nil
@@ -458,29 +447,4 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 	}
 
 	return nil, false
-}
-
-func DefaultDmesgComponent(ctx context.Context) (any, bool, error) {
-	if runtime.GOOS != "linux" {
-		log.Logger.Debugw("ignoring default dmesg since it's not linux", "os", runtime.GOOS)
-		return nil, false, nil
-	}
-
-	asRoot := stdos.Geteuid() == 0 // running as root
-	if !asRoot {
-		log.Logger.Debugw("auto-detected dmesg but running as root -- skipping")
-		return nil, false, nil
-	}
-
-	if dmesg.DmesgExists() {
-		log.Logger.Debugw("auto-detected dmesg -- configuring dmesg component")
-		cfg, err := dmesg.DefaultConfig(ctx)
-		if err != nil {
-			return nil, false, err
-		}
-		return cfg, true, nil
-	}
-
-	log.Logger.Debugw("dmesg does not exist -- skipping dmesg component")
-	return nil, false, nil
 }

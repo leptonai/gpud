@@ -24,7 +24,6 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/nxadm/tail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
@@ -71,7 +70,6 @@ import (
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
-	"github.com/leptonai/gpud/components/dmesg"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	"github.com/leptonai/gpud/components/fd"
@@ -116,8 +114,6 @@ import (
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
-	"github.com/leptonai/gpud/pkg/query/log/common"
-	query_log_config "github.com/leptonai/gpud/pkg/query/log/config"
 	query_log_state "github.com/leptonai/gpud/pkg/query/log/state"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -266,18 +262,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			DBRO: dbRO,
 		},
 	}
-	defaultLogCfg := query_log_config.Config{
-		Query: defaultQueryCfg,
-		SeekInfoSyncer: func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-			if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
-				log.Logger.Errorw("failed to sync seek info", "error", err)
-			}
-		},
-	}
-
-	if err := checkDependencies(config); err != nil {
-		return nil, fmt.Errorf("dependency check failed: %w", err)
-	}
 
 	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os_id.Name]; !ok {
@@ -354,63 +338,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				cfg = *parsed
 			}
 			c, err := pci.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case dmesg.Name:
-			// "defaultQueryCfg" here has the db object to write/insert xid/sxid events (write-only, reads are done in individual components)
-			cfg := dmesg.Config{Log: defaultLogCfg}
-			if configValue != nil {
-				parsed, err := dmesg.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-
-				parsed.Log.SeekInfoSyncer = func(ctx context.Context, file string, seekInfo tail.SeekInfo) {
-					if err := query_log_state.InsertLogFileSeekInfo(ctx, dbRW, file, seekInfo.Offset, int64(seekInfo.Whence)); err != nil {
-						log.Logger.Errorw("failed to sync seek info", "error", err)
-					}
-				}
-
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-
-			if _, ok := config.Components[nvidia_component_error_xid_id.Name]; ok {
-				// nvidia_error_xid cannot be used without dmesg
-				nvrmXidFilterFound := false
-
-				for _, f := range cfg.Log.SelectFilters {
-					if f.Name == dmesg.EventNvidiaNVRMXid {
-						nvrmXidFilterFound = true
-						break
-					}
-				}
-				if !nvrmXidFilterFound {
-					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_xid_id.Name, dmesg.EventNvidiaNVRMXid)
-				}
-			}
-
-			if _, ok := config.Components[nvidia_component_error_sxid_id.Name]; ok {
-				// nvidia_error_sxid cannot be used without dmesg
-				nvswitchSXidFilterFound := false
-
-				for _, f := range cfg.Log.SelectFilters {
-					if f.Name == dmesg.EventNvidiaNVSwitchSXid {
-						nvswitchSXidFilterFound = true
-						break
-					}
-				}
-				if !nvswitchSXidFilterFound {
-					return nil, fmt.Errorf("%q enabled but dmesg config missing %q filter", nvidia_component_error_sxid_id.Name, dmesg.EventNvidiaNVSwitchSXid)
-				}
-			}
-
-			c, err := dmesg.New(ctx, cfg, func(parsedTime time.Time, line []byte, filter *common.Filter) {})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
