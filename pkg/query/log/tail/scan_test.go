@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
-
 	"k8s.io/utils/ptr"
+
+	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
 )
 
 func TestScan(t *testing.T) {
@@ -55,6 +55,7 @@ func TestScan(t *testing.T) {
 		fileName      string
 		commandArgs   []string
 		n             int
+		matchFuncs    []query_log_common.MatchFunc
 		selectFilters []*query_log_common.Filter
 		want          []string
 		wantError     bool
@@ -174,6 +175,79 @@ func TestScan(t *testing.T) {
 			},
 			want: nil, // We'll check the length instead of exact content
 		},
+		{
+			name:     "tail with match function - single match",
+			fileName: tmpf.Name(),
+			n:        5,
+			matchFuncs: []query_log_common.MatchFunc{
+				func(line string) (string, string) {
+					if line == "line3" {
+						return "found_line3", line
+					}
+					return "", ""
+				},
+			},
+			want: []string{"line3"},
+		},
+		{
+			name:     "tail with match function - multiple matches",
+			fileName: tmpf.Name(),
+			n:        5,
+			matchFuncs: []query_log_common.MatchFunc{
+				func(line string) (string, string) {
+					if strings.Contains(line, "line3") || strings.Contains(line, "line5") {
+						return "found_line3_or_5", line
+					}
+					return "", ""
+				},
+			},
+			want: []string{"line5", "line3"},
+		},
+		{
+			name:     "tail with multiple match functions",
+			fileName: tmpf.Name(),
+			n:        5,
+			matchFuncs: []query_log_common.MatchFunc{
+				func(line string) (string, string) {
+					if strings.Contains(line, "line3") {
+						return "found_line3", line
+					}
+					return "", ""
+				},
+				func(line string) (string, string) {
+					if strings.Contains(line, "line5") {
+						return "found_line5", line
+					}
+					return "", ""
+				},
+			},
+			want: []string{"line5", "line3"},
+		},
+		{
+			name:     "tail with match function - no matches",
+			fileName: tmpf.Name(),
+			n:        5,
+			matchFuncs: []query_log_common.MatchFunc{
+				func(line string) (string, string) {
+					return "", ""
+				},
+			},
+			want: nil,
+		},
+		{
+			name:     "tail with match function on large file",
+			fileName: largeTmpf.Name(),
+			n:        1000,
+			matchFuncs: []query_log_common.MatchFunc{
+				func(line string) (string, string) {
+					if strings.Contains(line, "line100") || strings.Contains(line, "line500") {
+						return "found_special_lines", line
+					}
+					return "", ""
+				},
+			},
+			want: []string{"line1000", "line500", "line100"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -185,6 +259,7 @@ func TestScan(t *testing.T) {
 				WithCommands([][]string{tt.commandArgs}),
 				WithLinesToTail(tt.n),
 				WithSelectFilter(tt.selectFilters...),
+				WithMatchFunc(tt.matchFuncs...),
 				WithExtractTime(func(line []byte) (time.Time, []byte, error) {
 					return time.Time{}, nil, nil
 				}),
@@ -207,7 +282,7 @@ func TestScan(t *testing.T) {
 					t.Errorf("Scan on kubelet.0.log with filter returned no results")
 				}
 			} else if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Scan = %v, want %v", got, tt.want)
+				t.Errorf("Scan = %q, want %q", got, tt.want)
 			}
 		})
 	}

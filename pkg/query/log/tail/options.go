@@ -153,9 +153,28 @@ func WithMatchFunc(matchFuncs ...query_log_common.MatchFunc) OpOption {
 }
 
 func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_log_common.Filter, err error) {
-	if len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 && len(op.matchFuncs) == 0 {
+	if len(op.matchFuncs) == 0 && len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 {
 		// no filters
 		return true, nil, nil
+	}
+
+	for _, matchFunc := range op.matchFuncs {
+		var eventName string
+		switch line := line.(type) {
+		case string:
+			eventName, _ = matchFunc(line)
+		case []byte:
+			eventName, _ = matchFunc(string(line))
+		}
+		if eventName != "" {
+			filter := &query_log_common.Filter{
+				Name: eventName,
+			}
+			return true, filter, nil
+		}
+	}
+	if len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 {
+		return false, nil, nil
 	}
 
 	// blacklist (e.g., error logs)
@@ -206,26 +225,6 @@ func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_lo
 		// means, the line matches a good log line regex
 		// thus should not be marked as an event
 		return false, nil, nil
-	}
-
-	for _, matchFunc := range op.matchFuncs {
-		var eventName string
-		var regex string
-		switch line := line.(type) {
-		case string:
-			eventName, regex, _ = matchFunc(line)
-		case []byte:
-			eventName, regex, _ = matchFunc(string(line))
-		}
-		if eventName != "" {
-			filter := &query_log_common.Filter{
-				Name: eventName,
-			}
-			if regex != "" {
-				filter.Regex = &regex
-			}
-			return true, filter, nil
-		}
 	}
 
 	return true, matchedFilter, nil

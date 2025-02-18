@@ -27,13 +27,13 @@ func HasVFSFileMaxLimitReached(line string) bool {
 	return false
 }
 
-func Match(line string) (eventName string, regex string, message string) {
+func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
-			return m.eventName, m.regex, m.message
+			return m.eventName, m.message
 		}
 	}
-	return "", "", ""
+	return "", ""
 }
 
 type match struct {
