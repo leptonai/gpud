@@ -13,7 +13,7 @@ import (
 )
 
 func createXidEvent(eventTime time.Time, xid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
-	xidErr := XidError{
+	xidErr := xidErrorFromDmesg{
 		Xid:        xid,
 		DataSource: "test",
 		SuggestedActionsByGPUd: &common.SuggestedActions{
@@ -106,5 +106,60 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
 		assert.Equal(t, components.StateHealthy, state.Health)
+	})
+}
+
+func TestXidErrorFromDmesgJSON(t *testing.T) {
+	testTime := metav1.Time{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)}
+
+	t.Run("successful marshaling", func(t *testing.T) {
+		xidErr := xidErrorFromDmesg{
+			Time:       testTime,
+			DataSource: "test-source",
+			DeviceUUID: "test-uuid",
+			Xid:        123,
+			SuggestedActionsByGPUd: &common.SuggestedActions{
+				RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem},
+			},
+			CriticalErrorMarkedByGPUd: true,
+		}
+
+		jsonBytes, err := xidErr.JSON()
+		assert.NoError(t, err)
+		assert.NotNil(t, jsonBytes)
+
+		// Verify JSON structure by unmarshaling
+		var unmarshaled xidErrorFromDmesg
+		err = json.Unmarshal(jsonBytes, &unmarshaled)
+		assert.NoError(t, err)
+		assert.Equal(t, xidErr.Time.UTC(), unmarshaled.Time.UTC())
+		assert.Equal(t, xidErr.DataSource, unmarshaled.DataSource)
+		assert.Equal(t, xidErr.DeviceUUID, unmarshaled.DeviceUUID)
+		assert.Equal(t, xidErr.Xid, unmarshaled.Xid)
+		assert.Equal(t, xidErr.CriticalErrorMarkedByGPUd, unmarshaled.CriticalErrorMarkedByGPUd)
+		assert.Equal(t, xidErr.SuggestedActionsByGPUd.RepairActions, unmarshaled.SuggestedActionsByGPUd.RepairActions)
+	})
+
+	t.Run("minimal fields", func(t *testing.T) {
+		xidErr := xidErrorFromDmesg{
+			Time:       testTime,
+			DataSource: "test-source",
+			DeviceUUID: "test-uuid",
+			Xid:        123,
+		}
+
+		jsonBytes, err := xidErr.JSON()
+		assert.NoError(t, err)
+		assert.NotNil(t, jsonBytes)
+
+		var unmarshaled xidErrorFromDmesg
+		err = json.Unmarshal(jsonBytes, &unmarshaled)
+		assert.NoError(t, err)
+		assert.Equal(t, xidErr.Time.UTC(), unmarshaled.Time.UTC())
+		assert.Equal(t, xidErr.DataSource, unmarshaled.DataSource)
+		assert.Equal(t, xidErr.DeviceUUID, unmarshaled.DeviceUUID)
+		assert.Equal(t, xidErr.Xid, unmarshaled.Xid)
+		assert.Nil(t, unmarshaled.SuggestedActionsByGPUd)
+		assert.False(t, unmarshaled.CriticalErrorMarkedByGPUd)
 	})
 }
