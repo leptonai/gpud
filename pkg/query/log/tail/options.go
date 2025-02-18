@@ -18,9 +18,9 @@ type Op struct {
 
 	perLineFunc func([]byte)
 
+	matchFuncs    []query_log_common.MatchFunc
 	selectFilters []*query_log_common.Filter
 	rejectFilters []*query_log_common.Filter
-	matchFuncs    []query_log_common.MatchFunc
 
 	extractTime   query_log_common.ExtractTimeFunc
 	skipEmptyLine bool
@@ -119,6 +119,16 @@ func WithPerLineFunc(f func([]byte)) OpOption {
 }
 
 // "OR" conditions to select logs.
+// The line is sent when any of the match function returns non-empty strings.
+func WithMatchFunc(matchFuncs ...query_log_common.MatchFunc) OpOption {
+	return func(op *Op) {
+		if len(matchFuncs) > 0 {
+			op.matchFuncs = append(op.matchFuncs, matchFuncs...)
+		}
+	}
+}
+
+// "OR" conditions to select logs.
 //
 // The line is sent when any of the filters match.
 // Useful for explicit blacklisting "error" logs
@@ -140,14 +150,6 @@ func WithRejectFilter(filters ...*query_log_common.Filter) OpOption {
 	return func(op *Op) {
 		if len(filters) > 0 {
 			op.rejectFilters = append(op.rejectFilters, filters...)
-		}
-	}
-}
-
-func WithMatchFunc(matchFuncs ...query_log_common.MatchFunc) OpOption {
-	return func(op *Op) {
-		if len(matchFuncs) > 0 {
-			op.matchFuncs = append(op.matchFuncs, matchFuncs...)
 		}
 	}
 }
