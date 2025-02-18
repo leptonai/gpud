@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/leptonai/gpud/pkg/log"
 )
 
 // GPU object from the nvidia-smi query.
@@ -26,9 +24,8 @@ type NvidiaSMIGPU struct {
 	GPUResetStatus    *SMIGPUResetStatus    `json:"GPU Reset Status,omitempty"`
 	ClockEventReasons *SMIClockEventReasons `json:"Clocks Event Reasons,omitempty"`
 
-	ECCMode      *SMIECCMode      `json:"ECC Mode,omitempty"`
-	ECCErrors    *SMIECCErrors    `json:"ECC Errors,omitempty"`
-	RemappedRows *SMIRemappedRows `json:"Remapped Rows,omitempty"`
+	ECCMode   *SMIECCMode   `json:"ECC Mode,omitempty"`
+	ECCErrors *SMIECCErrors `json:"ECC Errors,omitempty"`
 
 	Temperature      *SMIGPUTemperature   `json:"Temperature,omitempty"`
 	GPUPowerReadings *SMIGPUPowerReadings `json:"GPU Power Readings,omitempty"`
@@ -79,103 +76,6 @@ type SMIECCErrors struct {
 	Aggregate                         *SMIECCErrorAggregate                         `json:"Aggregate,omitempty"`
 	AggregateUncorrectableSRAMSources *SMIECCErrorAggregateUncorrectableSRAMSources `json:"Aggregate Uncorrectable SRAM Sources,omitempty"`
 	Volatile                          *SMIECCErrorVolatile                          `json:"Volatile,omitempty"`
-}
-
-type SMIRemappedRows struct {
-	ID string `json:"id"`
-
-	CorrectableError   string `json:"Correctable Error,omitempty"`
-	UncorrectableError string `json:"Uncorrectable Error,omitempty"`
-
-	// Yes/No.
-	// If uncorrectable error is >0, this pending field is set to "Yes".
-	// For a100/h100, it requires a GPU reset to actually remap the row.
-	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds
-	Pending string `json:"Pending,omitempty"`
-
-	// Yes/No
-	RemappingFailureOccurred string `json:"Remapping Failure Occurred,omitempty"`
-}
-
-type ParsedSMIRemappedRows struct {
-	ID string `json:"id"`
-
-	RemappedDueToCorrectableErrors   string `json:"remapped_due_to_correctable_errors"`
-	RemappedDueToUncorrectableErrors string `json:"remapped_due_to_uncorrectable_errors"`
-	RemappingPending                 string `json:"remapping_pending"`
-	RemappingFailed                  string `json:"remapping_failed"`
-}
-
-func (rw *SMIRemappedRows) Parse() (ParsedSMIRemappedRows, error) {
-	return ParsedSMIRemappedRows{
-		ID:                               rw.ID,
-		RemappedDueToCorrectableErrors:   rw.CorrectableError,
-		RemappedDueToUncorrectableErrors: rw.UncorrectableError,
-		RemappingPending:                 rw.Pending,
-		RemappingFailed:                  rw.RemappingFailureOccurred,
-	}, nil
-}
-
-func (rw ParsedSMIRemappedRows) GetRemappedDueToCorrectableError() (int64, error) {
-	return strconv.ParseInt(rw.RemappedDueToCorrectableErrors, 10, 64)
-}
-
-func (rw ParsedSMIRemappedRows) GetRemappedDueToUncorrectableError() (int64, error) {
-	return strconv.ParseInt(rw.RemappedDueToUncorrectableErrors, 10, 64)
-}
-
-func (rw ParsedSMIRemappedRows) GetRemappingPending() (bool, error) {
-	if rw.RemappingPending == "Yes" || rw.RemappingPending == "true" {
-		return true, nil
-	}
-	if rw.RemappingPending == "No" || rw.RemappingPending == "false" {
-		return false, nil
-	}
-	return false, fmt.Errorf("invalid pending value: %q", rw.RemappingPending)
-}
-
-func (rw ParsedSMIRemappedRows) GetRemappingFailured() (bool, error) {
-	if rw.RemappingFailed == "Yes" || rw.RemappingFailed == "true" {
-		return true, nil
-	}
-	if rw.RemappingFailed == "No" || rw.RemappingFailed == "false" {
-		return false, nil
-	}
-	return false, fmt.Errorf("invalid remapping failure occurred value: %q", rw.RemappingFailed)
-}
-
-// Returns true if a GPU qualifies for RMA.
-// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds-for-row-remapping
-func (rw ParsedSMIRemappedRows) QualifiesForRMA() (bool, error) {
-	failureOccurred, err := rw.GetRemappingFailured()
-	if err != nil {
-		return false, err
-	}
-
-	uncorrectableErrors, err := rw.GetRemappedDueToUncorrectableError()
-	if err != nil {
-		return false, err
-	}
-
-	// "remapping attempt for an uncorrectable memory error on a bank that already has eight uncorrectable error rows remapped."
-	// "uncorrectableErrors >= 8" was dropped since it is also possible that:
-	// "A remapping attempt for an uncorrectable memory error on a row that was already remapped and can occur with less than eight total remaps to the same bank."
-	//
-	// NVIDIA DCGM also checks for this condition (only check row remapping failure but not the uncorrectable error count)
-	// ref. https://github.com/NVIDIA/DCGM/blob/b0ec3c624ea21e688b0d93cf9b214ae0eeb6fe52/nvvs/plugin_src/software/Software.cpp#L718-L736
-	if failureOccurred && uncorrectableErrors < 8 {
-		log.Logger.Debugw("uncorrectable error count <8 but still qualifies for RMA since remapping failed", "uncorrectableErrors", uncorrectableErrors)
-	}
-
-	return failureOccurred, nil
-}
-
-func (rw ParsedSMIRemappedRows) RequiresReset() (bool, error) {
-	pending, err := rw.GetRemappingPending()
-	if err != nil {
-		return false, err
-	}
-	return pending, nil
 }
 
 type SMIECCErrorAggregate struct {
