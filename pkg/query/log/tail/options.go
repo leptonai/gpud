@@ -20,6 +20,7 @@ type Op struct {
 
 	selectFilters []*query_log_common.Filter
 	rejectFilters []*query_log_common.Filter
+	matchFuncs    []query_log_common.MatchFunc
 
 	extractTime   query_log_common.ExtractTimeFunc
 	skipEmptyLine bool
@@ -143,8 +144,16 @@ func WithRejectFilter(filters ...*query_log_common.Filter) OpOption {
 	}
 }
 
+func WithMatchFunc(matchFuncs ...query_log_common.MatchFunc) OpOption {
+	return func(op *Op) {
+		if len(matchFuncs) > 0 {
+			op.matchFuncs = append(op.matchFuncs, matchFuncs...)
+		}
+	}
+}
+
 func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_log_common.Filter, err error) {
-	if len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 {
+	if len(op.selectFilters) == 0 && len(op.rejectFilters) == 0 && len(op.matchFuncs) == 0 {
 		// no filters
 		return true, nil, nil
 	}
@@ -197,6 +206,26 @@ func (op *Op) applyFilter(line any) (shouldInclude bool, matchedFilter *query_lo
 		// means, the line matches a good log line regex
 		// thus should not be marked as an event
 		return false, nil, nil
+	}
+
+	for _, matchFunc := range op.matchFuncs {
+		var eventName string
+		var regex string
+		switch line := line.(type) {
+		case string:
+			eventName, regex, _ = matchFunc(line)
+		case []byte:
+			eventName, regex, _ = matchFunc(string(line))
+		}
+		if eventName != "" {
+			filter := &query_log_common.Filter{
+				Name: eventName,
+			}
+			if regex != "" {
+				filter.Regex = &regex
+			}
+			return true, filter, nil
+		}
 	}
 
 	return true, matchedFilter, nil
