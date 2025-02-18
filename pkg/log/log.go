@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -22,6 +23,28 @@ func DefaultLoggerConfig() *zap.Config {
 	c := zap.NewProductionConfig()
 	c.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 	return &c
+}
+
+func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Level) *LeptonLogger {
+	w := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   logFile,
+		MaxSize:    maxSize, // megabytes
+		MaxBackups: 3,
+		MaxAge:     3,    // days
+		Compress:   true, // compress the rotated files
+	})
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		w,
+		logLevel,
+	)
+	logger := zap.New(core)
+
+	return &LeptonLogger{logger.Sugar()}
 }
 
 func CreateLogger(config *zap.Config) *LeptonLogger {

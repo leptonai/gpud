@@ -38,6 +38,7 @@ require (
 	golang.org/x/crypto v0.32.0
 	golang.org/x/sys v0.29.0
 	google.golang.org/grpc v1.69.2
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.32.0
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.29.1

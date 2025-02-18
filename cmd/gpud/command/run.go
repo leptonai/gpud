@@ -30,15 +30,20 @@ func cmdRun(cliContext *cli.Context) error {
 
 	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
 	if logLevel != "" && logLevel != "info" {
-		lCfg := log.DefaultLoggerConfig()
 		var err error
 		zapLvl, err = zap.ParseAtomicLevel(logLevel)
 		if err != nil {
 			return err
 		}
+	}
+	if logFile != "" {
+		log.Logger = log.CreateLoggerWithLumberjack(logFile, 128, zapLvl.Level())
+	} else {
+		lCfg := log.DefaultLoggerConfig()
 		lCfg.Level = zapLvl
 		log.Logger = log.CreateLogger(lCfg)
 	}
+
 	if zapLvl.Level() > zap.DebugLevel { // e.g., info, warn, error
 		gin.SetMode(gin.ReleaseMode)
 	} else {

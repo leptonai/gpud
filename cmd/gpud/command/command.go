@@ -19,7 +19,9 @@ sudo gpud up
 `
 
 var (
-	logLevel    string
+	logLevel string
+	logFile  string
+
 	statusWatch bool
 	uid         string
 
@@ -174,6 +176,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
+				},
+				&cli.StringFlag{
+					Name:        "log-file",
+					Usage:       "set the log file path (leave empty to stdout/stderr)",
+					Destination: &logFile,
 				},
 				&cli.StringFlag{
 					Name:        "listen-address",
