@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
@@ -26,7 +28,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
 	var lastSuggestedAction *common.SuggestedActions
-	var lastSXidErr *SXidError
+	var lastSXidErr *sxidErrorFromDmesg
 	lastHealth := StateHealthy
 	sxidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
@@ -34,7 +36,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, sxidRebootMap, lastSXidErr)
 		if event.Name == EventNameErroSXid {
 			resolvedEvent := resolveSXIDEvent(event)
-			var currSXidErr SXidError
+			var currSXidErr sxidErrorFromDmesg
 			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErroSXidData]), &currSXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
@@ -121,16 +123,45 @@ func resolveSXIDEvent(event components.Event) components.Event {
 			ret.Type = detail.EventType
 			ret.Message = fmt.Sprintf("XID %d detected on %s", currSXid, event.ExtraInfo[EventKeyDeviceUUID])
 			ret.SuggestedActions = detail.SuggestedActionsByGPUd
-			raw, _ := json.Marshal(&SXidError{
+
+			sxidErr := sxidErrorFromDmesg{
 				Time:                      event.Time,
 				DataSource:                "dmesg",
 				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
 				SXid:                      uint64(currSXid),
 				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
 				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
-			})
+			}
+			raw, _ := sxidErr.JSON()
+
 			ret.ExtraInfo[EventKeyErroSXidData] = string(raw)
 		}
 	}
 	return ret
+}
+
+// sxidErrorFromDmesg represents an SXid error from dmesg.
+type sxidErrorFromDmesg struct {
+	// Time is the time of the event.
+	Time metav1.Time `json:"time"`
+
+	// DataSource is the source of the data.
+	DataSource string `json:"data_source"`
+
+	// DeviceUUID is the UUID of the device that has the error.
+	DeviceUUID string `json:"device_uuid"`
+
+	// SXid is the corresponding SXid from the raw event.
+	// The monitoring component can use this SXid to decide its own action.
+	SXid uint64 `json:"sxid"`
+
+	// SuggestedActionsByGPUd are the suggested actions for the error.
+	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
+	// You may use this field to decide whether to alert or not.
+	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
+}
+
+func (sxidErr sxidErrorFromDmesg) JSON() ([]byte, error) {
+	return json.Marshal(sxidErr)
 }

@@ -20,7 +20,6 @@ import (
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid/dmesg"
 )
 
 const (
@@ -150,7 +149,7 @@ func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durat
 			c.mu.Unlock()
 		case dmesgLine := <-watcher.Watch():
 			log.Logger.Debugw("dmesg line", "line", dmesgLine)
-			sxidErr := dmesg.Match(dmesgLine.Content)
+			sxidErr := Match(dmesgLine.Content)
 			if sxidErr == nil {
 				log.Logger.Debugw("not xid event, skip")
 				continue

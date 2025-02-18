@@ -1,8 +1,10 @@
-package dmesg
+package sxid
 
 import (
 	"regexp"
 	"strconv"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
@@ -51,6 +53,10 @@ type SXidError struct {
 	SXid       int          `json:"sxid"`
 	DeviceUUID string       `json:"device_uuid"`
 	Detail     *sxid.Detail `json:"detail,omitempty"`
+}
+
+func (sxidErr SXidError) YAML() ([]byte, error) {
+	return yaml.Marshal(sxidErr)
 }
 
 // Returns a matching xid error object if found.
