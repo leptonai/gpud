@@ -47,7 +47,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
 		assert.Equal(t, components.StateDegraded, state.Health)
-		assert.Contains(t, state.Error, "xid 123")
+		assert.Contains(t, state.Reason, "xid 123")
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
 		assert.Equal(t, components.StateUnhealthy, state.Health)
-		assert.Contains(t, state.Error, "xid 456")
+		assert.Contains(t, state.Reason, "xid 456")
 	})
 
 	t.Run("reboot recover", func(t *testing.T) {
