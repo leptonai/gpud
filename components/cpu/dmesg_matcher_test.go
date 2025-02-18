@@ -150,7 +150,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotName, gotMessage := Match(tt.line)
+			gotName, _, gotMessage := Match(tt.line)
 			if gotName != tt.wantName {
 				t.Errorf("Match() name = %v, want %v", gotName, tt.wantName)
 			}
@@ -171,8 +171,11 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the blocked too long matcher
 	blockedMatch := matches[0]
-	if blockedMatch.name != eventBlockedTooLong {
-		t.Errorf("first match name = %v, want %v", blockedMatch.name, eventBlockedTooLong)
+	if blockedMatch.eventName != eventBlockedTooLong {
+		t.Errorf("first match name = %v, want %v", blockedMatch.eventName, eventBlockedTooLong)
+	}
+	if blockedMatch.regex != regexBlockedTooLong {
+		t.Errorf("first match regex = %v, want %v", blockedMatch.regex, regexBlockedTooLong)
 	}
 	if blockedMatch.message != messageBlockedTooLong {
 		t.Errorf("first match message = %v, want %v", blockedMatch.message, messageBlockedTooLong)
@@ -180,8 +183,8 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the soft lockup matcher
 	lockupMatch := matches[1]
-	if lockupMatch.name != eventSoftLockup {
-		t.Errorf("second match name = %v, want %v", lockupMatch.name, eventSoftLockup)
+	if lockupMatch.eventName != eventSoftLockup {
+		t.Errorf("second match name = %v, want %v", lockupMatch.eventName, eventSoftLockup)
 	}
 	if lockupMatch.message != messageSoftLockup {
 		t.Errorf("second match message = %v, want %v", lockupMatch.message, messageSoftLockup)

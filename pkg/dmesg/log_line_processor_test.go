@@ -36,8 +36,8 @@ func TestLogLineProcessor(t *testing.T) {
 	w, err := NewLogLineProcessor(
 		ctx,
 		dmesgWatcher,
-		func(_ string) (string, string) {
-			return "test", ""
+		func(_ string) (string, string, string) {
+			return "test", "", ""
 		},
 		eventsStore,
 	)
@@ -86,15 +86,15 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 	defer eventsStore.Close()
 
 	// Create a match function that only matches specific messages
-	matchFunc := func(content string) (string, string) {
+	matchFunc := func(content string) (string, string, string) {
 		if strings.Contains(content, "first message") {
-			return "test_event", "first message matched"
+			return "test_event", "", "first message matched"
 		}
 		if strings.Contains(content, "third message") {
-			return "test_event", "third message matched"
+			return "test_event", "", "third message matched"
 		}
 		// Return empty name for second message, which should be skipped
-		return "", ""
+		return "", "", ""
 	}
 
 	w, err := NewLogLineProcessor(
@@ -149,8 +149,8 @@ func TestNewLogLineProcessorDefaultWatcher(t *testing.T) {
 	lp, err := NewLogLineProcessor(
 		ctx,
 		nil,
-		func(string) (string, string) {
-			return "test", "test"
+		func(string) (string, string, string) {
+			return "test", "test", "test"
 		},
 		eventsStore,
 	)

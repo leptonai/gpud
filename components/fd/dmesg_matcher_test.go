@@ -115,7 +115,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotName, gotMessage := Match(tt.line)
+			gotName, _, gotMessage := Match(tt.line)
 			if gotName != tt.wantName {
 				t.Errorf("Match() name = %v, want %v", gotName, tt.wantName)
 			}
@@ -136,8 +136,11 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the VFS file-max matcher
 	vfsMatch := matches[0]
-	if vfsMatch.name != eventVFSFileMaxLimitReached {
-		t.Errorf("first match name = %v, want %v", vfsMatch.name, eventVFSFileMaxLimitReached)
+	if vfsMatch.eventName != eventVFSFileMaxLimitReached {
+		t.Errorf("first match name = %v, want %v", vfsMatch.eventName, eventVFSFileMaxLimitReached)
+	}
+	if vfsMatch.regex != regexVFSFileMaxLimitReached {
+		t.Errorf("first match regex = %v, want %v", vfsMatch.regex, regexVFSFileMaxLimitReached)
 	}
 	if vfsMatch.message != messageVFSFileMaxLimitReached {
 		t.Errorf("first match message = %v, want %v", vfsMatch.message, messageVFSFileMaxLimitReached)

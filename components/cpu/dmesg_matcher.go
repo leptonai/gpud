@@ -46,24 +46,25 @@ func HasSoftLockup(line string) bool {
 	return false
 }
 
-func Match(line string) (name string, message string) {
+func Match(line string) (eventName string, regex string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
-			return m.name, m.message
+			return m.eventName, m.regex, m.message
 		}
 	}
-	return "", ""
+	return "", "", ""
 }
 
 type match struct {
-	check   func(string) bool
-	name    string
-	message string
+	check     func(string) bool
+	eventName string
+	regex     string
+	message   string
 }
 
 func getMatches() []match {
 	return []match{
-		{check: HasBlockedTooLong, name: eventBlockedTooLong, message: messageBlockedTooLong},
-		{check: HasSoftLockup, name: eventSoftLockup, message: messageSoftLockup},
+		{check: HasBlockedTooLong, eventName: eventBlockedTooLong, regex: regexBlockedTooLong, message: messageBlockedTooLong},
+		{check: HasSoftLockup, eventName: eventSoftLockup, regex: regexSoftLockup, message: messageSoftLockup},
 	}
 }

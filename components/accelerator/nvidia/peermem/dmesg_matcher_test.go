@@ -94,7 +94,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotName, gotMessage := Match(tt.line)
+			gotName, _, gotMessage := Match(tt.line)
 			if gotName != tt.wantName {
 				t.Errorf("Match() name = %v, want %v", gotName, tt.wantName)
 			}
@@ -115,8 +115,11 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the peermem invalid context matcher
 	peermemMatch := matches[0]
-	if peermemMatch.name != eventPeermemInvalidContext {
-		t.Errorf("first match name = %v, want %v", peermemMatch.name, eventPeermemInvalidContext)
+	if peermemMatch.eventName != eventPeermemInvalidContext {
+		t.Errorf("first match name = %v, want %v", peermemMatch.eventName, eventPeermemInvalidContext)
+	}
+	if peermemMatch.regex != regexPeermemInvalidContext {
+		t.Errorf("first match regex = %v, want %v", peermemMatch.regex, regexPeermemInvalidContext)
 	}
 	if peermemMatch.message != messagePeermemInvalidContext {
 		t.Errorf("first match message = %v, want %v", peermemMatch.message, messagePeermemInvalidContext)
