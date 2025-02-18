@@ -205,12 +205,6 @@ func TestParseWithNoProcesses(t *testing.T) {
 	if parsed.GPUs[0].ECCErrors.Volatile.SRAMCorrectable != "0" {
 		t.Errorf("GPU0.ECCErrors.Volatile.SRAMCorrectable mismatch: %+v", parsed.GPUs[0].ECCErrors.Volatile.SRAMCorrectable)
 	}
-	if parsed.GPUs[0].FBMemoryUsage.Total != "81559 MiB" {
-		t.Errorf("GPU0.FBMemoryUsage.Total mismatch: %+v", parsed.GPUs[0].FBMemoryUsage.Total)
-	}
-	if parsed.GPUs[0].FBMemoryUsage.Reserved != "551 MiB" {
-		t.Errorf("GPU0.FBMemoryUsage.Reserved mismatch: %+v", parsed.GPUs[0].FBMemoryUsage.Reserved)
-	}
 
 	if parsed.GPUs[1].ID != "GPU 00000000:64:00.0" {
 		t.Errorf("GPU1.ID mismatch: %+v", parsed.GPUs[1].ID)

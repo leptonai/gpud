@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/pkg/log"
-
-	"github.com/dustin/go-humanize"
 )
 
 // GPU object from the nvidia-smi query.
@@ -35,7 +33,6 @@ type NvidiaSMIGPU struct {
 	Temperature      *SMIGPUTemperature   `json:"Temperature,omitempty"`
 	GPUPowerReadings *SMIGPUPowerReadings `json:"GPU Power Readings,omitempty"`
 	Processes        *SMIProcesses        `json:"Processes,omitempty"`
-	FBMemoryUsage    *SMIFBMemoryUsage    `json:"FB Memory Usage"`
 
 	FanSpeed string `json:"Fan Speed"`
 }
@@ -716,97 +713,6 @@ type SMIProcesses struct {
 	ProcessType          string `json:"Process Type"`
 	ProcessName          string `json:"Process Name"`
 	ProcessUsedGPUMemory string `json:"Process Used GPU Memory"`
-}
-
-type SMIFBMemoryUsage struct {
-	ID string `json:"id"`
-
-	Total    string `json:"Total"`
-	Reserved string `json:"Reserved"`
-	Used     string `json:"Used"`
-	Free     string `json:"Free"`
-}
-
-func (f *SMIFBMemoryUsage) GetTotalBytes() (uint64, error) {
-	return humanize.ParseBytes(f.Total)
-}
-
-func (f *SMIFBMemoryUsage) GetReservedBytes() (uint64, error) {
-	return humanize.ParseBytes(f.Reserved)
-}
-
-func (f *SMIFBMemoryUsage) GetUsedBytes() (uint64, error) {
-	return humanize.ParseBytes(f.Used)
-}
-
-func (f *SMIFBMemoryUsage) GetFreeBytes() (uint64, error) {
-	return humanize.ParseBytes(f.Free)
-}
-
-type ParsedMemoryUsage struct {
-	ID string `json:"id"`
-
-	TotalBytes     uint64 `json:"total_bytes"`
-	TotalHumanized string `json:"total_humanized"`
-
-	ReservedBytes     uint64 `json:"reserved_bytes"`
-	ReservedHumanized string `json:"reserved_humanized"`
-
-	UsedBytes     uint64 `json:"used_bytes"`
-	UsedHumanized string `json:"used_humanized"`
-
-	UsedPercent string `json:"used_percent"`
-
-	FreeBytes     uint64 `json:"free_bytes"`
-	FreeHumanized string `json:"free_humanized"`
-}
-
-func (u ParsedMemoryUsage) GetUsedPercent() (float64, error) {
-	return strconv.ParseFloat(u.UsedPercent, 64)
-}
-
-func (f *SMIFBMemoryUsage) Parse() (ParsedMemoryUsage, error) {
-	u := ParsedMemoryUsage{}
-	u.ID = f.ID
-
-	u.TotalHumanized = f.Total
-	b, err := humanize.ParseBytes(f.Total)
-	if err != nil {
-		return ParsedMemoryUsage{}, err
-	}
-	u.TotalBytes = b
-	u.TotalHumanized = humanize.Bytes(u.TotalBytes)
-
-	u.ReservedHumanized = f.Reserved
-	b, err = humanize.ParseBytes(f.Reserved)
-	if err != nil {
-		return ParsedMemoryUsage{}, err
-	}
-	u.ReservedBytes = b
-	u.ReservedHumanized = humanize.Bytes(u.ReservedBytes)
-
-	u.UsedHumanized = f.Used
-	b, err = humanize.ParseBytes(f.Used)
-	if err != nil {
-		return ParsedMemoryUsage{}, err
-	}
-	u.UsedBytes = b
-	u.UsedHumanized = humanize.Bytes(u.UsedBytes)
-
-	u.UsedPercent = "0.0"
-	if u.TotalBytes > 0 {
-		u.UsedPercent = fmt.Sprintf("%0.2f", float64(u.UsedBytes)/float64(u.TotalBytes)*100)
-	}
-
-	u.FreeHumanized = f.Free
-	b, err = humanize.ParseBytes(f.Free)
-	if err != nil {
-		return ParsedMemoryUsage{}, err
-	}
-	u.FreeBytes = b
-	u.FreeHumanized = humanize.Bytes(u.FreeBytes)
-
-	return u, nil
 }
 
 // Returns true if the GPU has any errors.
