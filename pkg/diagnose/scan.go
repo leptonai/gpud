@@ -8,9 +8,10 @@ import (
 	"runtime"
 	"time"
 
+	nvidia_component_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	nvidia_component_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	"github.com/leptonai/gpud/components/dmesg"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
@@ -22,15 +23,12 @@ import (
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvidia_query_sxid "github.com/leptonai/gpud/pkg/nvidia-query/sxid"
-	nvidia_query_xid "github.com/leptonai/gpud/pkg/nvidia-query/xid"
 	"github.com/leptonai/gpud/pkg/process"
 	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
 	query_log_tail "github.com/leptonai/gpud/pkg/query/log/tail"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/dustin/go-humanize"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -234,31 +232,37 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			query_log_tail.WithDedup(true),
 			query_log_tail.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
 			query_log_tail.WithLinesToTail(op.lines),
-			query_log_tail.WithSelectFilter(dmesg.DefaultDmesgFiltersForNvidia()...),
+			query_log_tail.WithMatchFunc(
+				func(line string) (string, string) {
+					xidErr := nvidia_component_error_xid.Match(line)
+					if xidErr != nil {
+						return "xid found", ""
+					}
+					return "", "" // no match
+				},
+				func(line string) (string, string) {
+					sxidErr := nvidia_component_error_sxid.Match(line)
+					if sxidErr != nil {
+						return "sxid found", ""
+					}
+					return "", "" // no match
+				},
+			),
 			query_log_tail.WithExtractTime(func(l []byte) (time.Time, []byte, error) {
 				dm := pkg_dmesg.ParseDmesgLine(string(l))
 				return dm.Timestamp, l, nil
 			}),
 			query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
-				log.Logger.Debugw("matched", "line", string(line))
-				fmt.Println("line", string(line))
-				matchedB, _ := matched.YAML()
-				fmt.Println(string(matchedB))
-
-				if xid := nvidia_query_xid.ExtractNVRMXid(string(line)); xid > 0 {
-					if dm, err := nvidia_query_xid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
-						log.Logger.Warnw("known xid", "line", string(line))
-						yb, _ := dm.YAML()
-						fmt.Println(string(yb))
-					}
+				if xidErr := nvidia_component_error_xid.Match(string(line)); xidErr != nil {
+					log.Logger.Warnw("known xid", "line", string(line))
+					yb, _ := xidErr.YAML()
+					fmt.Println(string(yb))
 				}
 
-				if sxid := nvidia_query_sxid.ExtractNVSwitchSXid(string(line)); sxid > 0 {
-					if dm, err := nvidia_query_sxid.ParseDmesgLogLine(metav1.Time{Time: time}, string(line)); err == nil {
-						log.Logger.Warnw("known sxid", "line", string(line))
-						yb, _ := dm.YAML()
-						fmt.Println(string(yb))
-					}
+				if sxidErr := nvidia_component_error_sxid.Match(string(line)); sxidErr != nil {
+					log.Logger.Warnw("known sxid", "line", string(line))
+					yb, _ := sxidErr.YAML()
+					fmt.Println(string(yb))
 				}
 			}),
 		)
