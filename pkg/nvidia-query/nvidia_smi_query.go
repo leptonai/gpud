@@ -389,9 +389,6 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 		if out.GPUs[i].GPUPowerReadings != nil {
 			out.GPUs[i].GPUPowerReadings.ID = id
 		}
-		if out.GPUs[i].FBMemoryUsage != nil {
-			out.GPUs[i].FBMemoryUsage.ID = id
-		}
 		if out.GPUs[i].RemappedRows != nil {
 			out.GPUs[i].RemappedRows.ID = id
 		}
