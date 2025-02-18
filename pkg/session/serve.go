@@ -28,7 +28,10 @@ import (
 	"github.com/leptonai/gpud/pkg/update"
 )
 
-const DefaultQuerySince = 30 * time.Minute
+const (
+	DefaultQuerySince     = 30 * time.Minute
+	initializeGracePeriod = 3 * time.Minute
+)
 
 type Request struct {
 	Method        string            `json:"method,omitempty"`
@@ -337,6 +340,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 		allComponents = payload.Components
 	}
 	var states v1.LeptonStates
+	var lastRebootTime time.Time
 	for _, componentName := range allComponents {
 		currState := v1.LeptonComponentStates{
 			Component: componentName,
@@ -363,6 +367,21 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 		} else {
 			log.Logger.Debugw("successfully got states", "component", componentName)
 			currState.States = state
+		}
+		for i, componentState := range currState.States {
+			if !componentState.Healthy {
+				if lastRebootTime.IsZero() {
+					lastRebootTime, err = reboot.LastReboot(context.Background())
+					if err != nil {
+						log.Logger.Errorw("failed to get last reboot time", "error", err)
+					}
+				}
+				if time.Since(lastRebootTime) < initializeGracePeriod {
+					log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
+					currState.States[i].Health = components.StateInitializing
+					currState.States[i].Healthy = true
+				}
+			}
 		}
 		states = append(states, currState)
 	}
