@@ -113,25 +113,25 @@ func TestMatch(t *testing.T) {
 		{
 			name:        "blocked too long",
 			line:        "INFO: task kcompactd1:1177 blocked for more than 120 seconds.",
-			wantName:    eventBlockedTooLong,
+			wantName:    EventBlockedTooLong,
 			wantMessage: messageBlockedTooLong,
 		},
 		{
 			name:        "blocked too long with timestamp",
 			line:        "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds.",
-			wantName:    eventBlockedTooLong,
+			wantName:    EventBlockedTooLong,
 			wantMessage: messageBlockedTooLong,
 		},
 		{
 			name:        "soft lockup",
 			line:        "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]",
-			wantName:    eventSoftLockup,
+			wantName:    EventSoftLockup,
 			wantMessage: messageSoftLockup,
 		},
 		{
 			name:        "soft lockup with different process",
 			line:        "[Sun Jan  5 18:28:55 2025] watchdog: BUG: soft lockup - CPU#18 stuck for 27s! [python3:2254956]",
-			wantName:    eventSoftLockup,
+			wantName:    EventSoftLockup,
 			wantMessage: messageSoftLockup,
 		},
 		{
@@ -171,8 +171,8 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the blocked too long matcher
 	blockedMatch := matches[0]
-	if blockedMatch.name != eventBlockedTooLong {
-		t.Errorf("first match name = %v, want %v", blockedMatch.name, eventBlockedTooLong)
+	if blockedMatch.name != EventBlockedTooLong {
+		t.Errorf("first match name = %v, want %v", blockedMatch.name, EventBlockedTooLong)
 	}
 	if blockedMatch.message != messageBlockedTooLong {
 		t.Errorf("first match message = %v, want %v", blockedMatch.message, messageBlockedTooLong)
@@ -180,8 +180,8 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the soft lockup matcher
 	lockupMatch := matches[1]
-	if lockupMatch.name != eventSoftLockup {
-		t.Errorf("second match name = %v, want %v", lockupMatch.name, eventSoftLockup)
+	if lockupMatch.name != EventSoftLockup {
+		t.Errorf("second match name = %v, want %v", lockupMatch.name, EventSoftLockup)
 	}
 	if lockupMatch.message != messageSoftLockup {
 		t.Errorf("second match message = %v, want %v", lockupMatch.message, messageSoftLockup)

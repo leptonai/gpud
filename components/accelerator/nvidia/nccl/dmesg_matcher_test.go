@@ -75,13 +75,13 @@ func TestMatch(t *testing.T) {
 			name:        "NCCL segfault with full details",
 			line:        "[Thu Oct 10 03:06:53 2024] pt_main_thread[2536443]: segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2[7f7c7ac00000+d3d3000]",
 			wantName:    EventNCCLSegfaultInLibnccl,
-			wantMessage: MessageNCCLSegfaultInLibnccl,
+			wantMessage: messageNCCLSegfaultInLibnccl,
 		},
 		{
 			name:        "NCCL segfault with ISO timestamp",
 			line:        "kern  :err   : 2025-02-10T16:28:06,502716+00:00 segfault at 7f797fe00000 ip 00007f7c7ac69996 sp 00007f7c12fd7c30 error 4 in libnccl.so.2",
 			wantName:    EventNCCLSegfaultInLibnccl,
-			wantMessage: MessageNCCLSegfaultInLibnccl,
+			wantMessage: messageNCCLSegfaultInLibnccl,
 		},
 		{
 			name:        "no match - different library",
@@ -129,8 +129,8 @@ func TestGetMatches(t *testing.T) {
 	if ncclMatch.name != EventNCCLSegfaultInLibnccl {
 		t.Errorf("first match name = %v, want %v", ncclMatch.name, EventNCCLSegfaultInLibnccl)
 	}
-	if ncclMatch.message != MessageNCCLSegfaultInLibnccl {
-		t.Errorf("first match message = %v, want %v", ncclMatch.message, MessageNCCLSegfaultInLibnccl)
+	if ncclMatch.message != messageNCCLSegfaultInLibnccl {
+		t.Errorf("first match message = %v, want %v", ncclMatch.message, messageNCCLSegfaultInLibnccl)
 	}
 
 	// Test the check function

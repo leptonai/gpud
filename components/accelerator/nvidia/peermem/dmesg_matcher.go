@@ -8,13 +8,13 @@ const (
 	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
 	// [Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing
-	eventPeermemInvalidContext   = "nvidia_peermem_invalid_context"
-	regexPeermemInvalidContext   = `.*ERROR detected invalid context, skipping further processing`
+	EventPeermemInvalidContext   = "nvidia_peermem_invalid_context"
+	RegexPeermemInvalidContext   = `.*ERROR detected invalid context, skipping further processing`
 	messagePeermemInvalidContext = `peermem error detected (possible GPU communication issue)`
 )
 
 var (
-	compiledPeermemInvalidContext = regexp.MustCompile(regexPeermemInvalidContext)
+	compiledPeermemInvalidContext = regexp.MustCompile(RegexPeermemInvalidContext)
 )
 
 func HasPeermemInvalidContext(line string) bool {
@@ -41,6 +41,6 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasPeermemInvalidContext, name: eventPeermemInvalidContext, message: messagePeermemInvalidContext},
+		{check: HasPeermemInvalidContext, name: EventPeermemInvalidContext, message: messagePeermemInvalidContext},
 	}
 }

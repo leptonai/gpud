@@ -10,8 +10,8 @@ const (
 	// "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
 	// task:jfsmount        state:D stack:    0 pid: 9831 ppid:  9614 flags:0x00000004
 	// ref. https://github.com/torvalds/linux/blob/68763b29e0a6441f57f9ee652bbf8e7bc59183e5/kernel/hung_task.c#L144-L145
-	eventBlockedTooLong   = "cpu_blocked_too_long"
-	regexBlockedTooLong   = `(?:INFO: )?task ([^:]+):.+blocked for more than \d+ seconds`
+	EventBlockedTooLong   = "cpu_blocked_too_long"
+	RegexBlockedTooLong   = `(?:INFO: )?task ([^:]+):.+blocked for more than \d+ seconds`
 	messageBlockedTooLong = "CPU task blocked for more than 120 seconds"
 
 	// e.g.,
@@ -20,14 +20,14 @@ const (
 	// [Sun Jan  5 18:33:00 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 25s! [pt_data_pin:2273422]
 	// [Sun Jan  5 19:42:34 2025] watchdog: BUG: soft lockup - CPU#4 stuck for 23s! [pt_autograd_0:2289563]
 	// [Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]
-	eventSoftLockup   = "cpu_soft_lockup"
-	regexSoftLockup   = `soft lockup - CPU#\d+ stuck for \d+s! \[([^:]+):`
+	EventSoftLockup   = "cpu_soft_lockup"
+	RegexSoftLockup   = `soft lockup - CPU#\d+ stuck for \d+s! \[([^:]+):`
 	messageSoftLockup = "CPU soft lockup detected, not releasing for a period of time"
 )
 
 var (
-	compiledBlockedTooLong = regexp.MustCompile(regexBlockedTooLong)
-	compiledSoftLockup     = regexp.MustCompile(regexSoftLockup)
+	compiledBlockedTooLong = regexp.MustCompile(RegexBlockedTooLong)
+	compiledSoftLockup     = regexp.MustCompile(RegexSoftLockup)
 )
 
 // Returns the task name and true if the line indicates that a task is hung too long.
@@ -63,7 +63,7 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasBlockedTooLong, name: eventBlockedTooLong, message: messageBlockedTooLong},
-		{check: HasSoftLockup, name: eventSoftLockup, message: messageSoftLockup},
+		{check: HasBlockedTooLong, name: EventBlockedTooLong, message: messageBlockedTooLong},
+		{check: HasSoftLockup, name: EventSoftLockup, message: messageSoftLockup},
 	}
 }

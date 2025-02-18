@@ -78,19 +78,19 @@ func TestMatch(t *testing.T) {
 		{
 			name:        "VFS file-max limit reached",
 			line:        "VFS: file-max limit 1000000 reached",
-			wantName:    eventVFSFileMaxLimitReached,
+			wantName:    EventVFSFileMaxLimitReached,
 			wantMessage: messageVFSFileMaxLimitReached,
 		},
 		{
 			name:        "VFS file-max with timestamp",
 			line:        "[Sun Dec  1 14:54:40 2024] VFS: file-max limit 1000000 reached",
-			wantName:    eventVFSFileMaxLimitReached,
+			wantName:    EventVFSFileMaxLimitReached,
 			wantMessage: messageVFSFileMaxLimitReached,
 		},
 		{
 			name:        "VFS file-max with ISO timestamp and facility",
 			line:        "kern  :warn  : 2025-01-21T04:41:44,285060+00:00 VFS: file-max limit 1000000 reached",
-			wantName:    eventVFSFileMaxLimitReached,
+			wantName:    EventVFSFileMaxLimitReached,
 			wantMessage: messageVFSFileMaxLimitReached,
 		},
 		{
@@ -136,8 +136,8 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the VFS file-max matcher
 	vfsMatch := matches[0]
-	if vfsMatch.name != eventVFSFileMaxLimitReached {
-		t.Errorf("first match name = %v, want %v", vfsMatch.name, eventVFSFileMaxLimitReached)
+	if vfsMatch.name != EventVFSFileMaxLimitReached {
+		t.Errorf("first match name = %v, want %v", vfsMatch.name, EventVFSFileMaxLimitReached)
 	}
 	if vfsMatch.message != messageVFSFileMaxLimitReached {
 		t.Errorf("first match message = %v, want %v", vfsMatch.message, messageVFSFileMaxLimitReached)

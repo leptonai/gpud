@@ -69,13 +69,13 @@ func TestMatch(t *testing.T) {
 		{
 			name:        "peermem invalid context with full details",
 			line:        "[Thu Sep 19 02:29:46 2024] nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing",
-			wantName:    eventPeermemInvalidContext,
+			wantName:    EventPeermemInvalidContext,
 			wantMessage: messagePeermemInvalidContext,
 		},
 		{
 			name:        "peermem invalid context with ISO timestamp",
 			line:        "kern  :warn  : 2025-01-21T04:41:44,285060+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing",
-			wantName:    eventPeermemInvalidContext,
+			wantName:    EventPeermemInvalidContext,
 			wantMessage: messagePeermemInvalidContext,
 		},
 		{
@@ -115,8 +115,8 @@ func TestGetMatches(t *testing.T) {
 
 	// Verify the peermem invalid context matcher
 	peermemMatch := matches[0]
-	if peermemMatch.name != eventPeermemInvalidContext {
-		t.Errorf("first match name = %v, want %v", peermemMatch.name, eventPeermemInvalidContext)
+	if peermemMatch.name != EventPeermemInvalidContext {
+		t.Errorf("first match name = %v, want %v", peermemMatch.name, EventPeermemInvalidContext)
 	}
 	if peermemMatch.message != messagePeermemInvalidContext {
 		t.Errorf("first match message = %v, want %v", peermemMatch.message, messagePeermemInvalidContext)

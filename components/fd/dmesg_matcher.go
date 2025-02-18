@@ -11,12 +11,12 @@ const (
 	//
 	// ref.
 	// https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
-	eventVFSFileMaxLimitReached   = "vfs_file_max_limit_reached"
-	regexVFSFileMaxLimitReached   = `VFS: file-max limit \d+ reached`
+	EventVFSFileMaxLimitReached   = "vfs_file_max_limit_reached"
+	RegexVFSFileMaxLimitReached   = `VFS: file-max limit \d+ reached`
 	messageVFSFileMaxLimitReached = "VFS file-max limit reached"
 )
 
-var compiledVFSFileMaxLimitReached = regexp.MustCompile(regexVFSFileMaxLimitReached)
+var compiledVFSFileMaxLimitReached = regexp.MustCompile(RegexVFSFileMaxLimitReached)
 
 // Returns true if the line indicates that the file-max limit has been reached.
 // ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
@@ -44,6 +44,6 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasVFSFileMaxLimitReached, name: eventVFSFileMaxLimitReached, message: messageVFSFileMaxLimitReached},
+		{check: HasVFSFileMaxLimitReached, name: EventVFSFileMaxLimitReached, message: messageVFSFileMaxLimitReached},
 	}
 }

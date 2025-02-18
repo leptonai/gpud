@@ -14,28 +14,28 @@ const (
 	// (to reap the memory used by the OOM victim)
 	EventOOM   = "memory_oom"
 	RegexOOM   = `Out of memory:`
-	MessageOOM = `oom detected`
+	messageOOM = `oom detected`
 
 	// e.g.,
 	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
 	// [...] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
 	EventOOMKillConstraint   = "memory_oom_kill_constraint"
 	RegexOOMKillConstraint   = `oom-kill:constraint=`
-	MessageOOMKillConstraint = "oom kill constraint detected"
+	messageOOMKillConstraint = "oom kill constraint detected"
 
 	// e.g.,
 	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
 	// [...] postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
 	EventOOMKiller   = "memory_oom_killer"
 	RegexOOMKiller   = `(?i)\b(invoked|triggered) oom-killer\b`
-	MessageOOMKiller = "oom killer detected"
+	messageOOMKiller = "oom killer detected"
 
 	// e.g.,
 	// Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
 	// [...] Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
 	EventOOMCgroup   = "memory_oom_cgroup"
 	RegexOOMCgroup   = `Memory cgroup out of memory`
-	MessageOOMCgroup = "oom cgroup detected"
+	messageOOMCgroup = "oom cgroup detected"
 
 	// May indicate that Dual Inline Memory Module (DIMM) is beginning to fail.
 	//
@@ -48,7 +48,7 @@ const (
 	// https://github.com/Azure/azurehpc/blob/2d57191cb35ed638525ba9424cc2aa1b5abe1c05/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L51C20-L51C40
 	EventEDACCorrectableErrors   = "memory_edac_correctable_errors"
 	RegexEDACCorrectableErrors   = `.*CE memory read error.*`
-	MessageEDACCorrectableErrors = "edac correctable errors detected"
+	messageEDACCorrectableErrors = "edac correctable errors detected"
 )
 
 var (
@@ -113,10 +113,10 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasOOM, name: EventOOM, message: MessageOOM},
-		{check: HasOOMKillConstraint, name: EventOOMKillConstraint, message: MessageOOMKillConstraint},
-		{check: HasOOMKiller, name: EventOOMKiller, message: MessageOOMKiller},
-		{check: HasOOMCgroup, name: EventOOMCgroup, message: MessageOOMCgroup},
-		{check: HasEDACCorrectableErrors, name: EventEDACCorrectableErrors, message: MessageEDACCorrectableErrors},
+		{check: HasOOM, name: EventOOM, message: messageOOM},
+		{check: HasOOMKillConstraint, name: EventOOMKillConstraint, message: messageOOMKillConstraint},
+		{check: HasOOMKiller, name: EventOOMKiller, message: messageOOMKiller},
+		{check: HasOOMCgroup, name: EventOOMCgroup, message: messageOOMCgroup},
+		{check: HasEDACCorrectableErrors, name: EventEDACCorrectableErrors, message: messageEDACCorrectableErrors},
 	}
 }
