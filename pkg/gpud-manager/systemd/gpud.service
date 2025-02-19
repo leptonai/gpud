@@ -11,9 +11,6 @@ Slice=runtime.slice
 EnvironmentFile=/etc/default/gpud
 ExecStart=/usr/sbin/gpud run $FLAGS
 
-StandardOutput=append:/var/log/gpud.log
-StandardError=append:/var/log/gpud.log
-
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
 Type=notify
 
