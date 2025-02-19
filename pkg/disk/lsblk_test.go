@@ -20,7 +20,6 @@ package disk
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/dustin/go-humanize"
@@ -78,19 +77,67 @@ func TestParsePairs(t *testing.T) {
 func TestCheckVersion(t *testing.T) {
 	t.Parallel()
 
-	expecteds := []string{
-		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --pairs",
-		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
-		"--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+	tests := []struct {
+		name          string
+		input         string
+		expectedFlags string
+		expectError   bool
+	}{
+		{
+			name:          "Chinese locale version 2.23.2",
+			input:         "lsblk，来自 util-linux 2.23.2",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --pairs",
+			expectError:   false,
+		},
+		{
+			name:          "English locale version 2.37.2",
+			input:         "lsblk from util-linux 2.37.2",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+			expectError:   false,
+		},
+		{
+			name:          "English locale version 2.37.4",
+			input:         "lsblk from util-linux 2.37.4",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+			expectError:   false,
+		},
+		{
+			name:          "Empty string",
+			input:         "",
+			expectedFlags: "",
+			expectError:   true,
+		},
+		{
+			name:          "Invalid version format",
+			input:         "lsblk from util-linux abc.def",
+			expectedFlags: "",
+			expectError:   true,
+		},
+		{
+			name:          "No version number",
+			input:         "lsblk from util-linux",
+			expectedFlags: "",
+			expectError:   true,
+		},
 	}
 
-	for i, s := range []string{"lsblk，来自 util-linux 2.23.2", "lsblk from util-linux 2.37.2", "lsblk from util-linux 2.37.4"} {
-		lsblkCmd, _, err := decideLsblkFlagAndParserFromVersion(s)
-		if err != nil {
-			t.Errorf("Expected %v, got %v", expecteds[i], lsblkCmd)
-		}
-		if !reflect.DeepEqual(lsblkCmd, expecteds[i]) {
-			t.Errorf("Expected %v, got %v", expecteds[i], lsblkCmd)
-		}
+	for _, tt := range tests {
+		tt := tt // capture range variable
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			flags, _, err := decideLsblkFlagAndParserFromVersion(tt.input)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if flags != tt.expectedFlags {
+					t.Errorf("Expected flags %q, got %q", tt.expectedFlags, flags)
+				}
+			}
+		})
 	}
 }
