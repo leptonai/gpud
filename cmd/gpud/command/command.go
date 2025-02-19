@@ -179,9 +179,9 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.StringFlag{
 					Name:        "log-file",
-					Usage:       "set the log file path (leave empty to stdout/stderr)",
+					Usage:       "set the log file path (set empty to stdout/stderr)",
 					Destination: &logFile,
-					Value:       "/var/log/gpud.log",
+					Value:       "",
 				},
 				&cli.StringFlag{
 					Name:        "listen-address",
@@ -488,9 +488,9 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.StringFlag{
 					Name:        "log-file",
-					Usage:       "set the log file path (leave empty to stdout/stderr)",
+					Usage:       "set the log file path (set empty to stdout/stderr)",
 					Destination: &logFile,
-					Value:       "/var/log/gpud.log",
+					Value:       "",
 				},
 			},
 		},
