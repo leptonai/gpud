@@ -181,6 +181,7 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "log-file",
 					Usage:       "set the log file path (leave empty to stdout/stderr)",
 					Destination: &logFile,
+					Value:       "/var/log/gpud.log",
 				},
 				&cli.StringFlag{
 					Name:        "listen-address",
