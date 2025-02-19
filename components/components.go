@@ -82,9 +82,10 @@ type State struct {
 }
 
 const (
-	StateHealthy   = "Healthy"
-	StateUnhealthy = "Unhealthy"
-	StateDegraded  = "Degraded"
+	StateHealthy      = "Healthy"
+	StateUnhealthy    = "Unhealthy"
+	StateInitializing = "Initializing"
+	StateDegraded     = "Degraded"
 )
 
 type Event struct {
