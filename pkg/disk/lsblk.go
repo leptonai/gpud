@@ -68,7 +68,7 @@ func decideLsblkFlagAndParserFromVersion(verOutput string) (string, func([]byte,
 		}
 	}
 
-	return "", nil, errors.New("failed to parse 'lsblk --version' output")
+	return "", nil, fmt.Errorf("failed to parse 'lsblk --version' output: %q", verOutput)
 }
 
 func decideLsblkFlag(ctx context.Context) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
