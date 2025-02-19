@@ -485,6 +485,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Destination: &tailLines,
 					Value:       100,
 				},
+				&cli.StringFlag{
+					Name:        "log-file",
+					Usage:       "set the log file path (leave empty to stdout/stderr)",
+					Destination: &logFile,
+					Value:       "/var/log/gpud.log",
+				},
 			},
 		},
 

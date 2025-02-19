@@ -12,7 +12,7 @@ import (
 )
 
 func cmdLogs(cliContext *cli.Context) error {
-	if _, err := os.Stat("/var/log/gpud.log"); err != nil {
+	if _, err := os.Stat(logFile); err != nil {
 		return fmt.Errorf("log file %s does not exist", logFile)
 	}
 
