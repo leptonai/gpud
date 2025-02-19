@@ -32,7 +32,7 @@ func CreateDefaultEnvFile() error {
 	defer f.Close()
 
 	_, err = f.WriteString(`# gpud environment variables are set here
-FLAGS="--log-level=info"
+FLAGS="--log-level=info --log-file=/var/log/gpud.log"
 `)
 	return err
 }
