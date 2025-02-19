@@ -85,9 +85,11 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		xidErrBytes, _ := lastXidErr.JSON()
-		reason = string(xidErrBytes)
-		stateError = fmt.Sprintf("xid %d detected by %s", lastXidErr.Xid, lastXidErr.DataSource)
+		reason = fmt.Sprintf("xid %d detected by %s", lastXidErr.Xid, lastXidErr.DataSource)
+		stateError = fmt.Sprintf("Critical: %v", lastXidErr.CriticalErrorMarkedByGPUd)
+		if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 {
+			stateError += fmt.Sprintf(", Suggestion: %s", lastSuggestedAction.RepairActions[0])
+		}
 	}
 	return components.State{
 		Name:             StateNameErrorXid,
