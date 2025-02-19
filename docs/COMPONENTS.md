@@ -47,7 +47,7 @@
 ## Misc. components
 
 - [**`containerd-pod`**](https://pkg.go.dev/github.com/leptonai/gpud/components/containerd/pod): Tracks the current pods from the containerd CRI.
-- [**`k8s-pod`**](https://pkg.go.dev/github.com/leptonai/gpud/components/k8s/pod): Tracks the current pods from the kubelet read-only port.
+- [**`kubelet`**](https://pkg.go.dev/github.com/leptonai/gpud/components/kubelet/pod): Tracks the current pods from the kubelet read-only port.
 - [**`docker-container`**](https://pkg.go.dev/github.com/leptonai/gpud/components/docker/container): Tracks the current containers from the docker runtime.
 - [**`tailscale`**](https://pkg.go.dev/github.com/leptonai/gpud/components/tailscale): Tracks the tailscale state (e.g., version) if available.
 - [**`file`**](https://pkg.go.dev/github.com/leptonai/gpud/components/file): Returns healthy if and only if all the specified files exist.

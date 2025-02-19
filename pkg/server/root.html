@@ -689,7 +689,7 @@ function fetchAndDisplayStates() {
         let nonWorkloadsTotalStates = 0;
         const workloadsData = [];
         data.forEach(component => {
-            if (component.component === 'accelerator-nvidia-processes' || component.component === 'containerd-pod' || component.component === 'docker-container' || component.component === 'k8s-pod') {
+            if (component.component === 'accelerator-nvidia-processes' || component.component === 'containerd-pod' || component.component === 'docker-container' || component.component === 'kubelet') {
                 workloadsData.push(component);
                 return;
             }
