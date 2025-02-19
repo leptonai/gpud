@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -15,7 +16,7 @@ var (
 )
 
 func init() {
-	Logger = CreateLogger(DefaultLoggerConfig())
+	Logger = CreateLoggerWithConfig(DefaultLoggerConfig())
 }
 
 func DefaultLoggerConfig() *zap.Config {
@@ -24,7 +25,51 @@ func DefaultLoggerConfig() *zap.Config {
 	return &c
 }
 
-func CreateLogger(config *zap.Config) *LeptonLogger {
+func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Level) *LeptonLogger {
+	w := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   logFile,
+		MaxSize:    maxSize, // megabytes
+		MaxBackups: 5,
+		MaxAge:     3,    // days
+		Compress:   true, // compress the rotated files
+	})
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		w,
+		logLevel,
+	)
+	logger := zap.New(core)
+
+	return &LeptonLogger{logger.Sugar()}
+}
+
+func ParseLogLevel(logLevel string) (zap.AtomicLevel, error) {
+	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
+	if logLevel != "" && logLevel != "info" {
+		var err error
+		zapLvl, err = zap.ParseAtomicLevel(logLevel)
+		if err != nil {
+			return zap.AtomicLevel{}, err
+		}
+	}
+	return zapLvl, nil
+}
+
+func CreateLogger(logLevel zap.AtomicLevel, logFile string) *LeptonLogger {
+	if logFile != "" {
+		return CreateLoggerWithLumberjack(logFile, 128, logLevel.Level())
+	}
+
+	lCfg := DefaultLoggerConfig()
+	lCfg.Level = logLevel
+	return CreateLoggerWithConfig(lCfg)
+}
+
+func CreateLoggerWithConfig(config *zap.Config) *LeptonLogger {
 	if config == nil {
 		config = DefaultLoggerConfig()
 	}

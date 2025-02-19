@@ -86,6 +86,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		By("start gpud command")
 		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "run",
+			`--log-file=""`, // stdout/stderr
 			"--log-level=debug",
 			"--web-enable=false",
 			"--enable-auto-update=false",

@@ -28,17 +28,12 @@ func cmdRun(cliContext *cli.Context) error {
 		os.Exit(1)
 	}
 
-	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
-	if logLevel != "" && logLevel != "info" {
-		lCfg := log.DefaultLoggerConfig()
-		var err error
-		zapLvl, err = zap.ParseAtomicLevel(logLevel)
-		if err != nil {
-			return err
-		}
-		lCfg.Level = zapLvl
-		log.Logger = log.CreateLogger(lCfg)
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
 	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	if zapLvl.Level() > zap.DebugLevel { // e.g., info, warn, error
 		gin.SetMode(gin.ReleaseMode)
 	} else {

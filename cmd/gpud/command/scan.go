@@ -4,25 +4,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/diagnose"
-	"github.com/leptonai/gpud/pkg/log"
-
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
+
+	"github.com/leptonai/gpud/pkg/diagnose"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func cmdScan(cliContext *cli.Context) error {
-	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
-	if logLevel != "" && logLevel != "info" {
-		lCfg := log.DefaultLoggerConfig()
-		var err error
-		zapLvl, err = zap.ParseAtomicLevel(logLevel)
-		if err != nil {
-			return err
-		}
-		lCfg.Level = zapLvl
-		log.Logger = log.CreateLogger(lCfg)
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
 	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	diagnoseOpts := []diagnose.OpOption{
 		diagnose.WithLines(tailLines),
@@ -41,8 +35,7 @@ func cmdScan(cliContext *cli.Context) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	err := diagnose.Scan(ctx, diagnoseOpts...)
-	if err != nil {
+	if err = diagnose.Scan(ctx, diagnoseOpts...); err != nil {
 		return err
 	}
 

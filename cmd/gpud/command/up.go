@@ -48,11 +48,6 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	if err := systemd.LogrotateInit(); err != nil {
-		fmt.Printf("%s failed to initialize logrotate for gpud log\n", warningSign)
-		return err
-	}
-
 	if err := pkg_update.EnableSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to enable systemd unit 'gpud.service'\n", warningSign)
 		return err

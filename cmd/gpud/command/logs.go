@@ -11,8 +11,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-const logFile = "/var/log/gpud.log"
-
 func cmdLogs(cliContext *cli.Context) error {
 	if _, err := os.Stat(logFile); err != nil {
 		return fmt.Errorf("log file %s does not exist", logFile)
