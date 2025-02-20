@@ -41,9 +41,9 @@ import (
 	file_id "github.com/leptonai/gpud/components/file/id"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	info_id "github.com/leptonai/gpud/components/info/id"
-	k8s_pod "github.com/leptonai/gpud/components/k8s/pod"
-	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
+	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
+	kubelet_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
 	"github.com/leptonai/gpud/components/library"
 	library_id "github.com/leptonai/gpud/components/library/id"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
@@ -151,7 +151,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[containerd_pod_id.Name] = cc
 	}
 	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
-		cfg.Components[k8s_pod_id.Name] = cc
+		cfg.Components[kubelet_pod_id.Name] = cc
 	}
 
 	if _, err := stdos.Stat(power_supply.DefaultBatteryCapacityFile); err == nil {
@@ -413,34 +413,34 @@ func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (a
 	p, err := pkg_file.LocateExecutable("kubelet")
 	if err == nil {
 		log.Logger.Debugw("kubelet found in PATH", "path", p)
-		return k8s_pod.Config{
+		return kubelet_pod.Config{
 			Query:                  query_config.DefaultConfig(),
-			Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
+			Port:                   kubelet_pod.DefaultKubeletReadOnlyPort,
 			IgnoreConnectionErrors: ignoreConnectionErrors,
 		}, true
 	}
 	log.Logger.Debugw("kubelet not found in PATH -- fallback to kubelet run checks", "error", err)
 
 	// check if the TCP port is open/used
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", k8s_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", kubelet_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
 	if err != nil {
-		log.Logger.Debugw("tcp port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", err)
+		log.Logger.Debugw("tcp port is not open", "port", kubelet_pod.DefaultKubeletReadOnlyPort, "error", err)
 	} else {
-		log.Logger.Debugw("tcp port is open", "port", k8s_pod.DefaultKubeletReadOnlyPort)
+		log.Logger.Debugw("tcp port is open", "port", kubelet_pod.DefaultKubeletReadOnlyPort)
 		conn.Close()
 
-		kerr := k8s_pod.CheckKubeletReadOnlyPort(ctx, k8s_pod.DefaultKubeletReadOnlyPort)
+		kerr := kubelet_pod.CheckKubeletReadOnlyPort(ctx, kubelet_pod.DefaultKubeletReadOnlyPort)
 		// check
 		if kerr != nil {
-			log.Logger.Debugw("kubelet readonly port is not open", "port", k8s_pod.DefaultKubeletReadOnlyPort, "error", kerr)
+			log.Logger.Debugw("kubelet readonly port is not open", "port", kubelet_pod.DefaultKubeletReadOnlyPort, "error", kerr)
 		} else {
-			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", k8s_pod.DefaultKubeletReadOnlyPort)
+			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", kubelet_pod.DefaultKubeletReadOnlyPort)
 
-			// "k8s_pod" requires kubelet read-only port
+			// "kubelet_pod" requires kubelet read-only port
 			// assume if kubelet is running, it opens the most common read-only port 10255
-			return k8s_pod.Config{
+			return kubelet_pod.Config{
 				Query:                  query_config.DefaultConfig(),
-				Port:                   k8s_pod.DefaultKubeletReadOnlyPort,
+				Port:                   kubelet_pod.DefaultKubeletReadOnlyPort,
 				IgnoreConnectionErrors: ignoreConnectionErrors,
 			}, true
 		}

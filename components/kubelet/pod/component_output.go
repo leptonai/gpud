@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
+	k8s_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"

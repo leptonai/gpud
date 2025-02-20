@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	k8s_pod_id "github.com/leptonai/gpud/components/k8s/pod/id"
+	kubelet_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
@@ -17,7 +17,7 @@ func New(ctx context.Context, cfg Config) components.Component {
 	setDefaultPoller(cfg)
 
 	cctx, ccancel := context.WithCancel(ctx)
-	GetDefaultPoller().Start(cctx, cfg.Query, k8s_pod_id.Name)
+	GetDefaultPoller().Start(cctx, cfg.Query, kubelet_pod_id.Name)
 	defaultPollerCloseOnce.Do(func() {
 		close(defaultPollerc)
 	})
@@ -40,17 +40,17 @@ type component struct {
 	cfg Config
 }
 
-func (c *component) Name() string { return k8s_pod_id.Name }
+func (c *component) Name() string { return kubelet_pod_id.Name }
 
 func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.Last()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", k8s_pod_id.Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", kubelet_pod_id.Name)
 		return []components.State{
 			{
-				Name:    k8s_pod_id.Name,
+				Name:    kubelet_pod_id.Name,
 				Healthy: true,
 				Reason:  query.ErrNoData.Error(),
 			},
@@ -62,7 +62,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Error != nil {
 		return []components.State{
 			{
-				Name:    k8s_pod_id.Name,
+				Name:    kubelet_pod_id.Name,
 				Healthy: false,
 				Error:   last.Error.Error(),
 				Reason:  "last query failed",
@@ -72,7 +72,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	if last.Output == nil {
 		return []components.State{
 			{
-				Name:    k8s_pod_id.Name,
+				Name:    kubelet_pod_id.Name,
 				Healthy: true,
 				Reason:  "no output",
 			},
@@ -100,7 +100,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	// safe to call stop multiple times
-	c.poller.Stop(k8s_pod_id.Name)
+	c.poller.Stop(kubelet_pod_id.Name)
 
 	return nil
 }
