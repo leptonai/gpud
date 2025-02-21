@@ -68,7 +68,9 @@ func (c *component) getStates(ctx context.Context, thresholds infiniband.Expecte
 			{
 				Name:   "ibstat",
 				Health: components.StateHealthy,
-				Reason: msgThresholdNotSetSkipped,
+				//TODO: depreciate Healthy field
+				Healthy: true,
+				Reason:  msgThresholdNotSetSkipped,
 			},
 		}, nil
 	}
@@ -79,7 +81,9 @@ func (c *component) getStates(ctx context.Context, thresholds infiniband.Expecte
 			{
 				Name:   "ibstat",
 				Health: components.StateUnhealthy,
-				Reason: fmt.Sprintf("ibstat threshold set but %s", err),
+				//TODO: depreciate Healthy field
+				Healthy: false,
+				Reason:  fmt.Sprintf("ibstat threshold set but %s", err),
 			},
 		}, nil
 	}
