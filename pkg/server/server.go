@@ -772,7 +772,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_infiniband_id.Name:
-			allComponents = append(allComponents, nvidia_infiniband.New(ctx, options.ToolOverwrites))
+			c, err := nvidia_infiniband.New(ctx, dbRW, dbRO, options.ToolOverwrites)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case nvidia_peermem_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
