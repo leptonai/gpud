@@ -5,7 +5,7 @@
 # Copyright (c) Tailscale Inc & AUTHORS
 # SPDX-License-Identifier: BSD-3-Clause
 
-set -eu
+set -e
 
 main() {
   OS=
@@ -65,7 +65,11 @@ main() {
   fi
 
   TRACK="${TRACK:-unstable}"
-  VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
+  if [ -n "$1" ]; then
+    VERSION="$1"
+  else
+    VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
+  fi
 
   if ! type lsb_release >/dev/null 2>&1; then
     . /etc/os-release
@@ -137,4 +141,4 @@ main() {
   rm -rf "$DIR"
 }
 
-main
+main "$@"
