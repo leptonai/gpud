@@ -603,6 +603,7 @@ func StartDefaultInstance(rootCtx context.Context, opts ...OpOption) error {
 
 	defer func() {
 		defaultInstanceReadyCloseOnce.Do(func() {
+			log.Logger.Infow("signaling that the default nvml instance is ready")
 			close(defaultInstanceReadyc)
 		})
 	}()
