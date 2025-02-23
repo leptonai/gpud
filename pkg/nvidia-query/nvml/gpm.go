@@ -64,6 +64,12 @@ func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	if IsNotSupportError(ret) {
 		return false, nil
 	}
+	// Version mismatch errors are considered as not supported errors
+	// since they indicate that the NVML library is not compatible
+	// with the corresponding API call.
+	if IsVersionMismatchError(ret) {
+		return false, nil
+	}
 
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
@@ -204,6 +210,12 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.Gpm
 
 	sample1, ret := nvml.GpmSampleAlloc()
 	if IsNotSupportError(ret) {
+		return nil, nil
+	}
+	// Version mismatch errors are considered as not supported errors
+	// since they indicate that the NVML library is not compatible
+	// with the corresponding API call.
+	if IsVersionMismatchError(ret) {
 		return nil, nil
 	}
 
