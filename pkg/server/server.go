@@ -1036,15 +1036,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	// to not start healthz until the initial gpu data is ready
 	if s.nvidiaComponentsExist {
-		log.Logger.Debugw("waiting for nvml instance to be ready")
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-nvidia_query_nvml.DefaultInstanceReady():
-			log.Logger.Debugw("nvml instance is ready")
-		}
+		// no need to wait for "nvidia_query_nvml.DefaultInstanceReady()"
+		// as "nvidia_query.GetSuccessOnce()" already waits for it
 
-		log.Logger.Debugw("waiting for first nvidia query to succeed")
+		log.Logger.Infow("waiting for first nvidia query to succeed")
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

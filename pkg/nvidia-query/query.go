@@ -125,6 +125,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	defer func() {
 		getSuccessOnceCloseOnce.Do(func() {
+			log.Logger.Infow("signaling that the nvidia query completed once")
 			close(getSuccessOnce)
 		})
 	}()
@@ -139,7 +140,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	}
 
 	if o.FabricManagerExists {
-		log.Logger.Debugw("checking fabric manager version")
+		log.Logger.Infow("checking fabric manager version")
 		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 		ver, err := CheckFabricManagerVersion(cctx)
 		ccancel()
@@ -191,7 +192,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
 	}
 
-	log.Logger.Debugw("waiting for default nvml instance")
+	log.Logger.Infow("waiting for default nvml instance")
 	select {
 	case <-ctx.Done():
 		return o, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
