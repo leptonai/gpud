@@ -208,12 +208,12 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 	nvmlLib := NewNVML()
 
-	log.Logger.Debugw("initializing nvml library")
+	log.Logger.Infow("initializing nvml library")
 	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
 
-	log.Logger.Debugw("getting driver version from nvml library")
+	log.Logger.Infow("getting driver version from nvml library")
 	driverVersion, err := GetDriverVersion()
 	if err != nil {
 		return nil, err
@@ -223,21 +223,21 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 
-	log.Logger.Debugw("checking if clock events are supported")
+	log.Logger.Infow("checking if clock events are supported")
 	clockEventsSupported := ClockEventsSupportedVersion(major)
 	if !clockEventsSupported {
 		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 	}
 
-	log.Logger.Debugw("successfully initialized NVML", "driverVersion", driverVersion)
+	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion)
 
-	log.Logger.Debugw("creating device library")
+	log.Logger.Infow("creating device library")
 	deviceLib := device.New(nvmlLib)
 
-	log.Logger.Debugw("creating info library")
+	log.Logger.Infow("creating info library")
 	infoLib := NewNVInfo(nvmlLib, deviceLib)
 
-	log.Logger.Debugw("checking if nvml exists from info library")
+	log.Logger.Infow("checking if nvml exists from info library")
 	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
 	if !nvmlExists {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
