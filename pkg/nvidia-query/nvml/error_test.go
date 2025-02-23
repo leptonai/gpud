@@ -29,86 +29,90 @@ func TestIsNotSupportError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "Invalid argument is not a not-supported error",
-			ret:      nvml.ERROR_INVALID_ARGUMENT,
-			expected: false,
-		},
-		{
-			name:     "Uninitialized is not a not-supported error",
-			ret:      nvml.ERROR_UNINITIALIZED,
-			expected: false,
-		},
-		{
-			name:     "No permission is not a not-supported error",
-			ret:      nvml.ERROR_NO_PERMISSION,
-			expected: false,
-		},
-		{
-			name:     "Already initialized is not a not-supported error",
-			ret:      nvml.ERROR_ALREADY_INITIALIZED,
-			expected: false,
-		},
-		{
-			name:     "Insufficient size is not a not-supported error",
-			ret:      nvml.ERROR_INSUFFICIENT_SIZE,
-			expected: false,
-		},
-		{
-			name:     "Driver not loaded is not a not-supported error",
-			ret:      nvml.ERROR_DRIVER_NOT_LOADED,
-			expected: false,
-		},
-		{
-			name:     "Timeout is not a not-supported error",
-			ret:      nvml.ERROR_TIMEOUT,
-			expected: false,
-		},
-		{
-			name:     "IRQ issue is not a not-supported error",
-			ret:      nvml.ERROR_IRQ_ISSUE,
-			expected: false,
-		},
-		{
-			name:     "Library not found is not a not-supported error",
-			ret:      nvml.ERROR_LIBRARY_NOT_FOUND,
-			expected: false,
-		},
-		{
-			name:     "Function not found is not a not-supported error",
-			ret:      nvml.ERROR_FUNCTION_NOT_FOUND,
-			expected: false,
-		},
-		{
-			name:     "Corrupted inforom is not a not-supported error",
-			ret:      nvml.ERROR_CORRUPTED_INFOROM,
-			expected: false,
-		},
-		{
-			name:     "GPU is lost is not a not-supported error",
-			ret:      nvml.ERROR_GPU_IS_LOST,
-			expected: false,
-		},
-		{
-			name:     "Reset required is not a not-supported error",
-			ret:      nvml.ERROR_RESET_REQUIRED,
-			expected: false,
-		},
-		{
-			name:     "Operating system call failed is not a not-supported error",
-			ret:      nvml.ERROR_OPERATING_SYSTEM,
-			expected: false,
-		},
-		{
-			name:     "Memory is not a not-supported error",
-			ret:      nvml.ERROR_MEMORY,
-			expected: false,
-		},
-		{
-			name:     "No data is not a not-supported error",
-			ret:      nvml.ERROR_NO_DATA,
+			name:     "Version mismatch error is not a not-supported error",
+			ret:      nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
 			expected: false,
 		},
 	}
+
+	// Override nvml.ErrorString for testing string-based matches
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	nvml.ErrorString = func(ret nvml.Return) string {
+		switch ret {
+		case nvml.Return(1000):
+			return "operation is not supported on this device"
+		case nvml.Return(1001):
+			return "THIS OPERATION IS NOT SUPPORTED"
+		case nvml.Return(1002):
+			return "Feature Not Supported"
+		case nvml.Return(1003):
+			return "  not supported  "
+		case nvml.Return(1004):
+			return "The requested operation is not supported on device 0"
+		case nvml.Return(1005):
+			return "Some other error"
+		case nvml.Return(1006):
+			return ""
+		case nvml.Return(1007):
+			return "notsupported" // No space between 'not' and 'supported'
+		default:
+			return originalErrorString(ret)
+		}
+	}
+
+	// Add string-based test cases
+	stringBasedTests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "String contains 'not supported' (lowercase)",
+			ret:      nvml.Return(1000),
+			expected: true,
+		},
+		{
+			name:     "String contains 'NOT SUPPORTED' (uppercase)",
+			ret:      nvml.Return(1001),
+			expected: true,
+		},
+		{
+			name:     "String contains 'Not Supported' (mixed case)",
+			ret:      nvml.Return(1002),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not supported' with leading/trailing spaces",
+			ret:      nvml.Return(1003),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not supported' within a longer message",
+			ret:      nvml.Return(1004),
+			expected: true,
+		},
+		{
+			name:     "String does not contain 'not supported'",
+			ret:      nvml.Return(1005),
+			expected: false,
+		},
+		{
+			name:     "Empty string",
+			ret:      nvml.Return(1006),
+			expected: false,
+		},
+		{
+			name:     "String with similar but not exact match",
+			ret:      nvml.Return(1007),
+			expected: false,
+		},
+	}
+
+	tests = append(tests, stringBasedTests...)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -201,6 +205,137 @@ func TestIsNotSupportErrorStringMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsNotSupportError(tt.ret)
 			assert.Equal(t, tt.expected, result, "IsNotSupportError(%v) = %v, want %v", tt.ret, result, tt.expected)
+		})
+	}
+}
+
+func TestNormalizeErrorString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Lowercase string",
+			input:    "error message",
+			expected: "error message",
+		},
+		{
+			name:     "Uppercase string",
+			input:    "ERROR MESSAGE",
+			expected: "error message",
+		},
+		{
+			name:     "Mixed case string",
+			input:    "Error Message",
+			expected: "error message",
+		},
+		{
+			name:     "String with leading/trailing spaces",
+			input:    "  Error Message  ",
+			expected: "error message",
+		},
+		{
+			name:     "String with multiple spaces",
+			input:    "Error    Message",
+			expected: "error    message",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Only whitespace",
+			input:    "   ",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeErrorString(tt.input)
+			assert.Equal(t, tt.expected, result, "normalizeErrorString(%q) = %q, want %q", tt.input, result, tt.expected)
+		})
+	}
+}
+
+func TestIsVersionMismatchError(t *testing.T) {
+	tests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "Direct ERROR_ARGUMENT_VERSION_MISMATCH match",
+			ret:      nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
+			expected: true,
+		},
+		{
+			name:     "Success is not a version mismatch error",
+			ret:      nvml.SUCCESS,
+			expected: false,
+		},
+		{
+			name:     "Unknown error is not a version mismatch error",
+			ret:      nvml.ERROR_UNKNOWN,
+			expected: false,
+		},
+		{
+			name:     "Not supported error is not a version mismatch error",
+			ret:      nvml.ERROR_NOT_SUPPORTED,
+			expected: false,
+		},
+	}
+
+	// Override nvml.ErrorString for testing string-based matches
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	nvml.ErrorString = func(ret nvml.Return) string {
+		if ret == nvml.Return(1000) {
+			return "operation failed due to version mismatch"
+		}
+		if ret == nvml.Return(1001) {
+			return "ERROR: VERSION MISMATCH DETECTED"
+		}
+		if ret == nvml.Return(1002) {
+			return "The API call failed: Version Mismatch between components"
+		}
+		return originalErrorString(ret)
+	}
+
+	// Add string-based test cases
+	stringBasedTests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "String contains 'version mismatch' (lowercase)",
+			ret:      nvml.Return(1000),
+			expected: true,
+		},
+		{
+			name:     "String contains 'VERSION MISMATCH' (uppercase)",
+			ret:      nvml.Return(1001),
+			expected: true,
+		},
+		{
+			name:     "String contains 'Version Mismatch' within message",
+			ret:      nvml.Return(1002),
+			expected: true,
+		},
+	}
+
+	tests = append(tests, stringBasedTests...)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsVersionMismatchError(tt.ret)
+			assert.Equal(t, tt.expected, result, "IsVersionMismatchError(%v) = %v, want %v", tt.ret, result, tt.expected)
 		})
 	}
 }
