@@ -56,10 +56,15 @@ func (ev *GPMEvent) YAML() ([]byte, error) {
 }
 
 func GPMSupportedByDevice(dev device.Device) (bool, error) {
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmFunctions.html#group__nvmlGpmFunctions_1gdfd08d875be65f0532201913da9b8890
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
+
+	// may fail due to "Argument version mismatch"
+	// with driver mismatch
 	if IsNotSupportError(ret) {
 		return false, nil
 	}
+
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
 	}

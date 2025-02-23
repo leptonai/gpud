@@ -108,6 +108,11 @@ func TestIsNotSupportError(t *testing.T) {
 			ret:      nvml.ERROR_NO_DATA,
 			expected: false,
 		},
+		{
+			name:     "Argument version mismatch is a not-supported error",
+			ret:      nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -166,6 +171,21 @@ func TestIsNotSupportErrorStringMatch(t *testing.T) {
 			ret:      nvml.Return(1007),
 			expected: false,
 		},
+		{
+			name:     "String contains 'version mismatch'",
+			ret:      nvml.Return(1008),
+			expected: true,
+		},
+		{
+			name:     "String contains 'VERSION MISMATCH' (uppercase)",
+			ret:      nvml.Return(1009),
+			expected: true,
+		},
+		{
+			name:     "String contains 'Version Mismatch' within message",
+			ret:      nvml.Return(1010),
+			expected: true,
+		},
 	}
 
 	// Override nvml.ErrorString for testing
@@ -192,6 +212,12 @@ func TestIsNotSupportErrorStringMatch(t *testing.T) {
 			return ""
 		case 1007:
 			return "notsupported" // No space between 'not' and 'supported'
+		case 1008:
+			return "operation failed due to version mismatch"
+		case 1009:
+			return "ERROR: VERSION MISMATCH DETECTED"
+		case 1010:
+			return "The API call failed: Version Mismatch between components"
 		default:
 			return originalErrorString(ret)
 		}
