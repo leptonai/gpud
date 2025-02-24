@@ -126,7 +126,7 @@ func New(opts ...OpOption) (Process, error) {
 	var bashFile *os.File
 	if op.runAsBashScript {
 		var err error
-		bashFile, err = os.CreateTemp(os.TempDir(), "tmpbash*.bash")
+		bashFile, err = os.CreateTemp(op.bashScriptTmpDirectory, op.bashScriptFilePattern)
 		if err != nil {
 			return nil, err
 		}
