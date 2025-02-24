@@ -5,7 +5,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 type ReadOpOption func(*ReadOp)
@@ -160,4 +164,21 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 	}
 
 	return nil
+}
+
+// Removes all the bash files in the given directory that match the given pattern.
+func RemoveBashFiles(dir string, pattern string) {
+	files, err := filepath.Glob(filepath.Join(dir, pattern))
+	if err != nil {
+		log.Logger.Warn("failed to glob bash files", "dir", dir, "pattern", pattern, "error", err)
+		return
+	}
+
+	for _, file := range files {
+		if _, err := os.Stat(file); err == nil {
+			if err := os.Remove(file); err != nil {
+				log.Logger.Warn("failed to remove bash file", "file", file, "error", err)
+			}
+		}
+	}
 }

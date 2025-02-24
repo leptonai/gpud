@@ -654,7 +654,12 @@ func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	// Only remove if the directory still exists
+	defer func() {
+		if _, err := os.Stat(tmpDir); err == nil {
+			os.RemoveAll(tmpDir)
+		}
+	}()
 
 	tests := []struct {
 		name           string
