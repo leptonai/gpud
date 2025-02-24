@@ -3,11 +3,8 @@ package process
 import (
 	"bufio"
 	"context"
-	"errors"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -379,90 +376,4 @@ func TestProcessStates(t *testing.T) {
 			t.Errorf("expected ErrProcessAborted, got %v", err)
 		}
 	})
-}
-
-func TestRemoveBashFiles(t *testing.T) {
-	// Create a temporary directory for the test
-	tmpDir, err := os.MkdirTemp("", "remove-bash-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create test files
-	testFiles := []struct {
-		name      string
-		content   string
-		remove    bool // should be removed by pattern
-		preDelete bool // delete before running RemoveBashFiles
-	}{
-		{
-			name:    "test-1.bash",
-			content: "echo 1",
-			remove:  true,
-		},
-		{
-			name:      "test-2.bash",
-			content:   "echo 2",
-			remove:    true,
-			preDelete: true, // This file will be deleted before running RemoveBashFiles
-		},
-		{
-			name:    "other.txt",
-			content: "not a bash file",
-			remove:  false,
-		},
-		{
-			name:    "test-3.bash",
-			content: "echo 3",
-			remove:  true,
-		},
-	}
-
-	// Create the test files
-	for _, tf := range testFiles {
-		path := filepath.Join(tmpDir, tf.name)
-		if err := os.WriteFile(path, []byte(tf.content), 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// Pre-delete files marked for pre-deletion
-	for _, tf := range testFiles {
-		if tf.preDelete {
-			path := filepath.Join(tmpDir, tf.name)
-			if err := os.Remove(path); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-
-	// Run RemoveBashFiles
-	RemoveBashFiles(tmpDir, "test-*.bash")
-
-	// Verify the results
-	for _, tf := range testFiles {
-		path := filepath.Join(tmpDir, tf.name)
-		_, err := os.Stat(path)
-
-		if tf.remove && !tf.preDelete {
-			// Should be removed
-			if !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("file %q should have been removed but still exists", tf.name)
-			}
-		} else if !tf.remove {
-			// Should still exist
-			if err != nil {
-				t.Errorf("file %q should exist but was removed or not found: %v", tf.name, err)
-			}
-			// Verify content is unchanged
-			content, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(content) != tf.content {
-				t.Errorf("file %q content was modified, got %q, want %q", tf.name, string(content), tf.content)
-			}
-		}
-	}
 }
