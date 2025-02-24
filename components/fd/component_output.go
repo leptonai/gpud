@@ -298,7 +298,7 @@ func CreateGet(cfg Config) query.GetFunc {
 		fileHandlesSupported := file.CheckFileHandlesSupported()
 		var thresholdAllocatedFileHandlesPct float64
 		if cfg.ThresholdAllocatedFileHandles > 0 {
-			thresholdAllocatedFileHandlesPct = calcUsagePct(usage, cfg.ThresholdAllocatedFileHandles)
+			thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(cfg.ThresholdAllocatedFileHandles, limit))
 		}
 		if err := metrics.SetThresholdAllocatedFileHandles(ctx, float64(cfg.ThresholdAllocatedFileHandles)); err != nil {
 			return nil, err
