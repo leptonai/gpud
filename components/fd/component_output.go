@@ -198,6 +198,7 @@ func (o *Output) States() ([]components.State, error) {
 	}
 
 	if thresholdAllocatedPercent, err := o.GetThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
+		state.Healthy = false
 		state.Health = components.StateDegraded
 		state.Reason += "; " + ErrFileHandlesAllocationExceedsWarning
 	}
