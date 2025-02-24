@@ -60,7 +60,7 @@ func TestOutputStates(t *testing.T) {
 			output: Output{
 				ThresholdAllocatedFileHandlesPercent: "81.00",
 			},
-			wantHealthy:    true,
+			wantHealthy:    false,
 			wantReasonPart: ErrFileHandlesAllocationExceedsWarning,
 		},
 		{
