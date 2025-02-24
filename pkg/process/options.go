@@ -30,7 +30,7 @@ type Op struct {
 	restartConfig *RestartConfig
 }
 
-const DefaultBashScriptFilePattern = "tmpbash*.bash"
+const DefaultBashScriptFilePattern = "delete-me-gpud-pkg-process-commands*.bash"
 
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
