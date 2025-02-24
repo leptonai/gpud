@@ -1,7 +1,9 @@
 package xid
 
 import (
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/yaml"
@@ -221,5 +223,61 @@ func TestXidError_YAML(t *testing.T) {
 				t.Errorf("XidError.YAML() roundtrip failed, got = %+v, want %+v", parsedXidErr, tt.xidErr)
 			}
 		})
+	}
+}
+
+func TestMatchDmesgWithXid119(t *testing.T) {
+	t.Parallel()
+
+	// Read the test data file
+	data, err := os.ReadFile("testdata/dmesg-with-xid-119.log")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	// Split the file into lines
+	lines := strings.Split(string(data), "\n")
+
+	// Find all XID errors
+	var xidErrors []*XidError
+	for _, line := range lines {
+		if xidErr := Match(line); xidErr != nil {
+			xidErrors = append(xidErrors, xidErr)
+		}
+	}
+
+	// Verify we found exactly 5 XID errors
+	if len(xidErrors) != 5 {
+		t.Errorf("Expected 5 XID errors, got %d", len(xidErrors))
+	}
+
+	// Verify each XID error
+	expectedErrors := []struct {
+		xid        int
+		deviceUUID string
+	}{
+		{119, "PCI:0000:9b:00"}, // First nvidia-smi error
+		{119, "PCI:0000:9b:00"}, // Second nvidia-smi error
+		{119, "PCI:0000:9b:00"}, // Third nvidia-smi error
+		{119, "PCI:0000:9b:00"}, // cache_mgr_main error
+		{119, "PCI:0000:9b:00"}, // gpud error
+	}
+
+	for i, expected := range expectedErrors {
+		if i >= len(xidErrors) {
+			t.Errorf("Missing XID error at index %d", i)
+			continue
+		}
+
+		actual := xidErrors[i]
+		if actual.Xid != expected.xid {
+			t.Errorf("XID error %d: expected Xid %d, got %d", i, expected.xid, actual.Xid)
+		}
+		if actual.DeviceUUID != expected.deviceUUID {
+			t.Errorf("XID error %d: expected DeviceUUID %s, got %s", i, expected.deviceUUID, actual.DeviceUUID)
+		}
+		if actual.Detail == nil {
+			t.Errorf("XID error %d: expected non-nil Detail", i)
+		}
 	}
 }

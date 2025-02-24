@@ -1,0 +1,43 @@
+[Sun Feb 23 16:24:18 2025] NVRM: GPU at PCI:0000:9b:00: GPU-509665ad-b600-ac93-3616-d754b23d636d
+[Sun Feb 23 16:24:18 2025] NVRM: GPU Board Serial Number: 1650124014249
+[Sun Feb 23 16:24:18 2025] NVRM: Xid (PCI:0000:9b:00): 119, pid=2024380, name=nvidia-smi, Timeout after 6s of waiting for RPC response from GPU4 GSP! Expected function 103 (GSP_RM_ALLOC) (0x2081 0x4).
+[Sun Feb 23 16:24:18 2025] NVRM: GPU4 GSP RPC buffer contains function 103 (GSP_RM_ALLOC) and data 0x0000000000002081 0x0000000000000004.
+[Sun Feb 23 16:24:18 2025] NVRM: GPU4 RPC history (CPU -> GSP):
+[Sun Feb 23 16:24:18 2025] NVRM:     entry function                   data0              data1              ts_start           ts_end             duration actively_polling
+[Sun Feb 23 16:24:18 2025] NVRM:      0    103  GSP_RM_ALLOC          0x0000000000002081 0x0000000000000004 0x00062ed1a6bd61fa 0x0000000000000000          y
+[Sun Feb 23 16:24:18 2025] NVRM:     -1    103  GSP_RM_ALLOC          0x0000000000002080 0x0000000000000004 0x00062ed1a6b51c6f 0x00062ed1a6b51f2a    699us
+[Sun Feb 23 16:24:18 2025] NVRM:     -2    103  GSP_RM_ALLOC          0x0000000000000080 0x0000000000000038 0x00062ed1a6b51a22 0x00062ed1a6b51c28    518us
+[Sun Feb 23 16:24:18 2025] NVRM:     -3    103  GSP_RM_ALLOC          0x0000000000000000 0x000000000000006c 0x00062ed1a6b517d9 0x00062ed1a6b51a20    583us
+[Sun Feb 23 16:24:18 2025] NVRM:     -4    76   GSP_RM_CONTROL        0x0000000020802a02 0x0000000000000008 0x00062ed1a6b480ff 0x00062ed1a6b48273    372us
+[Sun Feb 23 16:24:18 2025] NVRM:     -5    76   GSP_RM_CONTROL        0x0000000020803039 0x0000000000000020 0x00062ed1a6b47f8a 0x00062ed1a6b480fc    370us
+[Sun Feb 23 16:24:18 2025] NVRM:     -6    76   GSP_RM_CONTROL        0x000000002080302a 0x0000000000000004 0x00062ed1a6b476cc 0x00062ed1a6b478d3    519us
+[Sun Feb 23 16:24:18 2025] NVRM:     -7    76   GSP_RM_CONTROL        0x0000000020802a02 0x0000000000000008 0x00062ed1a6b47540 0x00062ed1a6b476b3    371us
+[Sun Feb 23 16:24:18 2025] NVRM: GPU4 RPC event history (CPU <- GSP):
+[Sun Feb 23 16:24:18 2025] NVRM:     entry function                   data0              data1              ts_start           ts_end             duration during_incomplete_rpc
+[Sun Feb 23 16:24:18 2025] NVRM:      0    4115 NVLINK_INBAND_RECEIVE 0x0000000000000000 0x0000000000000000 0x00062e099d8f14e7 0x00062e099d8f14eb      4us
+[Sun Feb 23 16:24:18 2025] NVRM:     -1    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00062e099220bc3a 0x00062e099220bc3a
+[Sun Feb 23 16:24:18 2025] NVRM:     -2    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000001 0x0000000000000000 0x00062e09922080cf 0x00062e09922080cf
+[Sun Feb 23 16:24:18 2025] NVRM:     -3    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00062e0992208089 0x00062e0992208089
+[Sun Feb 23 16:24:18 2025] NVRM:     -4    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000001 0x0000000000000000 0x00062e0992207ffb 0x00062e0992207ffb
+[Sun Feb 23 16:24:18 2025] NVRM:     -5    4108 UCODE_LIBOS_PRINT     0x0000000000000000 0x0000000000000000 0x00062e09921f64c0 0x00062e09921f64c0
+[Sun Feb 23 16:24:18 2025] NVRM:     -6    4108 UCODE_LIBOS_PRINT     0x0000000000000000 0x0000000000000000 0x00062e09921f64ab 0x00062e09921f64ab
+[Sun Feb 23 16:24:18 2025] NVRM:     -7    4108 UCODE_LIBOS_PRINT     0x0000000000000000 0x0000000000000000 0x00062e09921f15c0 0x00062e09921f15c0
+[Sun Feb 23 16:24:18 2025] CPU: 17 PID: 2024380 Comm: nvidia-smi Tainted: P           OE     5.15.0-112-generic #122-Ubuntu
+[Sun Feb 23 16:24:18 2025] Hardware name: Dell Inc. PowerEdge XE9680/0KK0RG, BIOS 2.3.5 09/10/2024
+[Sun Feb 23 16:24:18 2025] Call Trace:
+[Sun Feb 23 16:24:18 2025]  <TASK>
+[Sun Feb 23 16:24:18 2025]  show_stack+0x52/0x5c
+[Sun Feb 23 16:24:18 2025]  dump_stack_lvl+0x4a/0x63
+[Sun Feb 23 16:24:18 2025]  dump_stack+0x10/0x16
+[Sun Feb 23 16:24:18 2025]  os_dump_stack+0xe/0x14 [nvidia]
+[Sun Feb 23 16:24:18 2025]  _nv012454rm+0x437/0x4b0 [nvidia]
+[Sun Feb 23 16:24:18 2025] WARNING: kernel stack frame pointer at 000000005611dc97 in nvidia-smi:2024380 has bad value 00000000ec717e66
+[Sun Feb 23 16:24:18 2025] unwind stack type:0 next_sp:0000000000000000 mask:0x2 graph_idx:0
+[Sun Feb 23 16:24:18 2025]  ? entry_SYSCALL_64_after_hwframe+0x67/0xd1
+[Sun Feb 23 16:24:18 2025]  </TASK>
+[Sun Feb 23 16:24:24 2025] NVRM: Xid (PCI:0000:9b:00): 119, pid=2024380, name=nvidia-smi, Timeout after 6s of waiting for RPC response from GPU4 GSP! Expected function 10 (FREE) (0xa55a0210 0x0).
+[Sun Feb 23 16:24:30 2025] clocksource: Long readout interval, skipping watchdog check: cs_nsec: 1584036171 wd_nsec: 1584036160
+[Sun Feb 23 16:24:30 2025] NVRM: Xid (PCI:0000:9b:00): 119, pid=2024380, name=nvidia-smi, Timeout after 6s of waiting for RPC response from GPU4 GSP! Expected function 10 (FREE) (0xa55a0090 0x0).
+[Sun Feb 23 16:24:36 2025] NVRM: Rate limiting GSP RPC error prints for GPU at PCI:0000:9b:00 (printing 1 of every 30).  The GPU likely needs to be reset.
+[Sun Feb 23 16:27:12 2025] NVRM: Xid (PCI:0000:9b:00): 119, pid=1263500, name=cache_mgr_main, Timeout after 6s of waiting for RPC response from GPU4 GSP! Expected function 76 (GSP_RM_CONTROL) (0x20801813 0x4c).
+[Sun Feb 23 16:30:13 2025] NVRM: Xid (PCI:0000:9b:00): 119, pid=1240590, name=gpud, Timeout after 6s of waiting for RPC response from GPU4 GSP! Expected function 76 (GSP_RM_CONTROL) (0x20803032 0x58c).
