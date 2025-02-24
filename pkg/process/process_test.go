@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -644,5 +645,102 @@ func TestStartAndWaitForCombinedOutputWithLongOutput(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "Line 1000") {
 		t.Error("output missing Line 1000")
+	}
+}
+
+func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
+	// Create a temporary directory for the test
+	tmpDir, err := os.MkdirTemp("", "process-test-bash-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Only remove if the directory still exists
+	defer func() {
+		if _, err := os.Stat(tmpDir); err == nil {
+			os.RemoveAll(tmpDir)
+		}
+	}()
+
+	tests := []struct {
+		name           string
+		pattern        string
+		expectedMatch  string
+		scriptContents string
+	}{
+		{
+			name:           "custom pattern with prefix",
+			pattern:        "test-script-*.sh",
+			expectedMatch:  "test-script-*.sh",
+			scriptContents: "echo hello",
+		},
+		{
+			name:           "custom pattern with suffix",
+			pattern:        "script-*.bash",
+			expectedMatch:  "script-*.bash",
+			scriptContents: "echo world",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := New(
+				WithCommand(tt.scriptContents),
+				WithRunAsBashScript(),
+				WithBashScriptTmpDirectory(tmpDir),
+				WithBashScriptFilePattern(tt.pattern),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := p.Start(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			// Get the process instance to access the bash file
+			proc, ok := p.(*process)
+			if !ok {
+				t.Fatal("failed to cast to *process")
+			}
+
+			// Verify the bash file exists and matches the pattern
+			bashFile := proc.runBashFile.Name()
+			if bashFile == "" {
+				t.Fatal("bash file is not created")
+			}
+
+			// Check if the file is in the specified directory
+			if !strings.HasPrefix(bashFile, tmpDir) {
+				t.Errorf("expected bash file to be in directory %q, got %q", tmpDir, bashFile)
+			}
+
+			// Check if the file matches the pattern
+			base := filepath.Base(bashFile)
+			matched, err := filepath.Match(strings.ReplaceAll(tt.expectedMatch, "*", "*"), base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !matched {
+				t.Errorf("expected bash file to match pattern %q, got %q", tt.expectedMatch, base)
+			}
+
+			// Verify the file exists on disk
+			if _, err := os.Stat(bashFile); err != nil {
+				t.Fatal(err)
+			}
+
+			// Clean up
+			if err := p.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify the file is removed after Close
+			if _, err := os.Stat(bashFile); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("bash file was not removed after Close")
+			}
+		})
 	}
 }

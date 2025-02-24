@@ -21,8 +21,16 @@ type Op struct {
 	bashScriptContentsToRun string
 	runAsBashScript         bool
 
+	// temporary directory to store bash script files
+	bashScriptTmpDirectory string
+	// pattern of the bash script file names
+	// e.g., "tmpbash*.bash"
+	bashScriptFilePattern string
+
 	restartConfig *RestartConfig
 }
+
+const DefaultBashScriptFilePattern = "gpud-*.bash"
 
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
@@ -64,6 +72,14 @@ func (op *Op) applyOpts(opts []OpOption) error {
 
 	if op.bashScriptContentsToRun != "" && !op.runAsBashScript {
 		op.runAsBashScript = true
+	}
+
+	if op.bashScriptTmpDirectory == "" {
+		op.bashScriptTmpDirectory = os.TempDir()
+	}
+
+	if op.bashScriptFilePattern == "" {
+		op.bashScriptFilePattern = DefaultBashScriptFilePattern
 	}
 
 	return nil
@@ -126,6 +142,22 @@ func WithOutputFile(file *os.File) OpOption {
 func WithRunAsBashScript() OpOption {
 	return func(op *Op) {
 		op.runAsBashScript = true
+	}
+}
+
+// Sets the temporary directory to store bash script files.
+// Default is to use the system's temporary directory.
+func WithBashScriptTmpDirectory(dir string) OpOption {
+	return func(op *Op) {
+		op.bashScriptTmpDirectory = dir
+	}
+}
+
+// Sets the pattern of the bash script file names.
+// Default is to use "tmpbash*.bash".
+func WithBashScriptFilePattern(pattern string) OpOption {
+	return func(op *Op) {
+		op.bashScriptFilePattern = pattern
 	}
 }
 
