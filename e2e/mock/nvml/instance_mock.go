@@ -99,6 +99,9 @@ var MockInstance = &nvmlmock.Interface{
 			GetMemoryErrorCounterFunc: func(memoryErrorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
 				return 0, nvml.SUCCESS
 			},
+			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
+			},
 			GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 				return 0, 0, false, false, nvml.SUCCESS
 			},
