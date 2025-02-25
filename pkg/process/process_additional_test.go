@@ -536,7 +536,7 @@ func TestProcessWithContextCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Wait for the context to be cancelled
+	// Wait for the context to be canceled
 	select {
 	case err := <-p.Wait():
 		if err == nil {
