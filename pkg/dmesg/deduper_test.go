@@ -162,7 +162,13 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		p, err := process.New(process.WithCommand("echo", "-e", "kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,300000+00:00 Test message"))
+		p, err := process.New(
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,300000+00:00 Test message'"),
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
@@ -181,6 +187,11 @@ func TestDedupLogLines(t *testing.T) {
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
+		defer func() {
+			if err := p.Close(ctx); err != nil {
+				t.Fatalf("failed to close process: %v", err)
+			}
+		}()
 
 		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
@@ -199,7 +210,13 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		p, err := process.New(process.WithCommand("echo", "-e", "kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:45,200000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:46,300000+00:00 Test message"))
+		p, err := process.New(
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:45,200000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:46,300000+00:00 Test message'"),
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
@@ -243,11 +260,13 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		p, err := process.New(process.WithCommand("echo", "-e", `kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message
-kern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message
-kern  :info  : 2025-01-21T04:41:45,100000+00:00 Test message
-kern  :info  : 2025-01-21T04:41:45,200000+00:00 Test message
-kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
+		p, err := process.New(
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:45,100000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message'"),
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
@@ -358,14 +377,13 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Create log lines with same second but slightly different content
-		logLines := []string{
-			"kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing",
-			"kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem nv_get_p2p_free_callback:128 ERROR detected invalid context, skipping further processing", // note the 127->128
-			"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing",
-		}
-
-		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
+		p, err := process.New(
+			process.WithCommand("echo 'kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing'"),
+			process.WithCommand("echo 'kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem nv_get_p2p_free_callback:128 ERROR detected invalid context, skipping further processing'"), // note the 127->128
+			process.WithCommand("echo 'kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem nv_get_p2p_free_callback:127 ERROR detected invalid context, skipping further processing'"),
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
@@ -428,15 +446,14 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Create log lines with same content but different trailing whitespaces
-		logLines := []string{
-			"kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem error message",
-			"kern  :err   : 2025-02-10T16:28:06,514050+00:00 nvidia-peermem error message  ",    // two spaces at end
-			"kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem error message\t",    // tab at end
-			"kern  :err   : 2025-02-10T16:28:06,535389+00:00 nvidia-peermem error message \t  ", // mixed whitespace at end
-		}
-
-		p, err := process.New(process.WithCommand("echo", "-e", strings.Join(logLines, "\n")))
+		p, err := process.New(
+			process.WithCommand("echo", "-e", "kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem error message"),
+			process.WithCommand("echo", "-e", "kern  :err   : 2025-02-10T16:28:06,502716+00:00 nvidia-peermem error message  "),    // two spaces at end
+			process.WithCommand("echo", "-e", "kern  :err   : 2025-02-10T16:28:06,525389+00:00 nvidia-peermem error message\t"),    // tab at end
+			process.WithCommand("echo", "-e", "kern  :err   : 2025-02-10T16:28:06,535389+00:00 nvidia-peermem error message \t  "), // mixed whitespace at end
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
@@ -485,6 +502,10 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 func TestWatchPeerMemLogs(t *testing.T) {
 	w, err := NewWatcherWithCommands([][]string{
 		{"cat", "testdata/dmesg.peermem.log.0"},
+
+		// sleep a bit to ensure that slow CI has enough time to
+		// read the file
+		{"sleep 1"},
 	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
