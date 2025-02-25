@@ -154,7 +154,7 @@ func read(ctx context.Context, p process.Process, cacheExpiration time.Duration,
 				return
 			case ch <- parsed:
 			default:
-				log.Logger.Warnw("failed to send event -- dropped")
+				log.Logger.Warnw("failed to send event -- dropped", "dropped", parsed)
 			}
 		}),
 
