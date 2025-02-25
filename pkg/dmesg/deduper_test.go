@@ -162,7 +162,13 @@ func TestDedupLogLines(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		p, err := process.New(process.WithCommand("echo", "-e", "kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message\nkern  :info  : 2025-01-21T04:41:44,300000+00:00 Test message"))
+		p, err := process.New(
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,100000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,200000+00:00 Test message'"),
+			process.WithCommand("echo 'kern  :info  : 2025-01-21T04:41:44,300000+00:00 Test message'"),
+			process.WithCommand("sleep 1"),
+			process.WithRunAsBashScript(),
+		)
 		if err != nil {
 			t.Fatalf("failed to create process: %v", err)
 		}
