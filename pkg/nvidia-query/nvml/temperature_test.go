@@ -325,7 +325,7 @@ func TestGetTemperatureWithNilDevice(t *testing.T) {
 	// We expect the function to panic with a nil device
 	assert.Panics(t, func() {
 		// Call the function with a nil device
-		GetTemperature(testUUID, nilDevice)
+		_, _ = GetTemperature(testUUID, nilDevice)
 	}, "Expected panic when calling GetTemperature with nil device")
 }
 
