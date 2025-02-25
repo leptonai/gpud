@@ -490,6 +490,7 @@ kern  :info  : 2025-01-21T04:41:46,100000+00:00 Different message`))
 func TestWatchPeerMemLogs(t *testing.T) {
 	w, err := NewWatcherWithCommands([][]string{
 		{"cat", "testdata/dmesg.peermem.log.0"},
+		{"sleep 1"},
 	})
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
