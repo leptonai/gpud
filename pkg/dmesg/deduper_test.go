@@ -181,6 +181,11 @@ func TestDedupLogLines(t *testing.T) {
 		if err := p.Start(ctx); err != nil {
 			t.Fatalf("failed to start process: %v", err)
 		}
+		defer func() {
+			if err := p.Close(ctx); err != nil {
+				t.Fatalf("failed to close process: %v", err)
+			}
+		}()
 
 		read(ctx, p, DefaultCacheExpiration, DefaultCachePurgeInterval, ch)
 
