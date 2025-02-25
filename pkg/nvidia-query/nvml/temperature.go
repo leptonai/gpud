@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/leptonai/gpud/pkg/log"
-
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 type Temperature struct {
