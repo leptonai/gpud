@@ -10,6 +10,7 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
@@ -596,4 +597,138 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetClockEventsWithNotSupported adds a test for the not supported case
+func TestGetClockEventsWithNotSupported(t *testing.T) {
+	testUUID := "GPU-ABCDEF"
+
+	// Create a custom error case - mimicking driver versions < 535
+	// which don't support clock events
+	t.Run("not supported through string matching", func(t *testing.T) {
+		// Override the error string function
+		originalErrorString := nvml.ErrorString
+		defer func() { nvml.ErrorString = originalErrorString }()
+
+		// Custom return value
+		customNotSupportedReturn := nvml.Return(2000)
+
+		nvml.ErrorString = func(ret nvml.Return) string {
+			if ret == customNotSupportedReturn {
+				return "this operation is not supported in the current driver"
+			}
+			return originalErrorString(ret)
+		}
+
+		// Mock device with custom not supported error
+		mockDevice := &testutil.MockDevice{
+			Device: &mock.Device{
+				GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+					return 0, customNotSupportedReturn
+				},
+			},
+		}
+
+		// Call the function
+		clockEvents, err := GetClockEvents(testUUID, mockDevice)
+
+		// Should recognize as not supported
+		assert.NoError(t, err)
+		assert.Equal(t, testUUID, clockEvents.UUID)
+		assert.False(t, clockEvents.Supported)
+		assert.Equal(t, uint64(0), clockEvents.ReasonsBitmask)
+	})
+}
+
+// TestClockEventsWithNilPointer tests handling of nil pointers in JSON and YAML serialization
+func TestClockEventsWithNilPointer(t *testing.T) {
+	// Test handling nil pointers for both JSON and YAML methods
+	t.Run("nil receiver for JSON()", func(t *testing.T) {
+		var clockEvents *ClockEvents
+		result, err := clockEvents.JSON()
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("nil receiver for YAML()", func(t *testing.T) {
+		var clockEvents *ClockEvents
+		result, err := clockEvents.YAML()
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// TestClockEventsSupportedWithMockedNVML tests the top-level ClockEventsSupported function
+// with a mocked NVML library and various device configurations
+func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
+	// Test with initialization failure
+	t.Run("nvml initialization failure", func(t *testing.T) {
+		// Set up mock NVML environment
+		err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+		if err != nil {
+			t.Fatalf("failed to set mock NVML environment: %v", err)
+		}
+		defer os.Unsetenv(mocknvml.EnvNVMLMock)
+
+		// Mock NVML with init failure
+		mockNVML := &mock.Interface{
+			InitFunc: func() nvml.Return {
+				return nvml.ERROR_UNKNOWN
+			},
+		}
+
+		// Replace the mock instance
+		originalMockInstance := mocknvml.MockInstance
+		mocknvml.MockInstance = mockNVML
+		defer func() { mocknvml.MockInstance = originalMockInstance }()
+
+		// Call function
+		result, err := ClockEventsSupported()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to initialize NVML")
+		assert.False(t, result)
+	})
+
+	// Test with device initialization but GetDevices failure
+	t.Run("device get failure", func(t *testing.T) {
+		// Set up mock NVML environment
+		err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+		if err != nil {
+			t.Fatalf("failed to set mock NVML environment: %v", err)
+		}
+		defer os.Unsetenv(mocknvml.EnvNVMLMock)
+
+		// Mock NVML with device get failure
+		mockNVML := &mock.Interface{
+			InitFunc: func() nvml.Return {
+				return nvml.SUCCESS
+			},
+			DeviceGetCountFunc: func() (int, nvml.Return) {
+				return 0, nvml.ERROR_UNKNOWN
+			},
+		}
+
+		// Replace the mock instance
+		originalMockInstance := mocknvml.MockInstance
+		mocknvml.MockInstance = mockNVML
+		defer func() { mocknvml.MockInstance = originalMockInstance }()
+
+		// Call function
+		result, err := ClockEventsSupported()
+		assert.Error(t, err)
+		assert.False(t, result)
+	})
+}
+
+// TestInstanceClockEventsSupported checks the instance method for clock events supported
+func TestInstanceClockEventsSupported(t *testing.T) {
+	t.Run("returns correct value from instance", func(t *testing.T) {
+		inst := &instance{
+			clockEventsSupported: true,
+		}
+		assert.True(t, inst.ClockEventsSupported())
+
+		inst.clockEventsSupported = false
+		assert.False(t, inst.ClockEventsSupported())
+	})
 }
