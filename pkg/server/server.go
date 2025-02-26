@@ -94,8 +94,6 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
-	power_supply "github.com/leptonai/gpud/components/power-supply"
-	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
@@ -432,17 +430,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
 			allComponents = append(allComponents, c)
-
-		case power_supply_id.Name:
-			cfg := power_supply.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := power_supply.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			allComponents = append(allComponents, power_supply.New(ctx, cfg))
 
 		case systemd_id.Name:
 			cfg := component_systemd.Config{Query: defaultQueryCfg}
