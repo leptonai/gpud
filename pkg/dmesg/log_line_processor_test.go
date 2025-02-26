@@ -33,7 +33,7 @@ func TestLogLineProcessor(t *testing.T) {
 	require.NoError(t, err, "failed to create events store")
 	defer eventsStore.Close()
 
-	w, err := NewLogLineProcessor(
+	w, err := newLogLineProcessor(
 		ctx,
 		dmesgWatcher,
 		func(_ string) (string, string) {
@@ -97,7 +97,7 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 		return "", ""
 	}
 
-	w, err := NewLogLineProcessor(
+	w, err := newLogLineProcessor(
 		ctx,
 		dmesgWatcher,
 		matchFunc,
@@ -148,7 +148,6 @@ func TestNewLogLineProcessorDefaultWatcher(t *testing.T) {
 
 	lp, err := NewLogLineProcessor(
 		ctx,
-		nil,
 		func(string) (string, string) {
 			return "test", "test"
 		},

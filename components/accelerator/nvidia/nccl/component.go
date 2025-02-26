@@ -26,7 +26,7 @@ func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, e
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
 	if err != nil {
 		ccancel()
 		return nil, err
