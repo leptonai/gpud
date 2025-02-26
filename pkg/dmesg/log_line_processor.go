@@ -23,8 +23,12 @@ type MatchFunc func(line string) (eventName string, message string)
 
 // Creates a new log line processor where it streams logs from the dmesg watcher, uses the match function,
 // and inserts the events into the events store.
+func NewLogLineProcessor(ctx context.Context, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
+	return newLogLineProcessor(ctx, nil, matchFunc, eventsStore)
+}
+
 // If the dmesg watcher is not provided, it will create a default one.
-func NewLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
+func newLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
 	if dmesgWatcher == nil {
 		var err error
 		dmesgWatcher, err = NewWatcher()
