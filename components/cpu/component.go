@@ -30,7 +30,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, nil, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
 	if err != nil {
 		ccancel()
 		return nil, err
