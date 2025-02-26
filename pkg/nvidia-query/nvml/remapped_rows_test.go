@@ -1,6 +1,15 @@
 package nvml
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+)
 
 func TestRemappedRows_QualifiesForRMA(t *testing.T) {
 	tests := []struct {
@@ -46,4 +55,162 @@ func TestRemappedRows_QualifiesForRMA(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemappedRows_RequiresReset(t *testing.T) {
+	tests := []struct {
+		name             string
+		remappingPending bool
+		want             bool
+	}{
+		{
+			name:             "requires reset when remapping is pending",
+			remappingPending: true,
+			want:             true,
+		},
+		{
+			name:             "does not require reset when no remapping is pending",
+			remappingPending: false,
+			want:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := RemappedRows{
+				RemappingPending: tt.remappingPending,
+			}
+			if got := r.RequiresReset(); got != tt.want {
+				t.Errorf("RemappedRows.RequiresReset() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetRemappedRows(t *testing.T) {
+	testUUID := "GPU-12345678"
+
+	tests := []struct {
+		name                 string
+		corrRows             int
+		uncRows              int
+		isPending            bool
+		failureOccurred      bool
+		ret                  nvml.Return
+		expectedRemappedRows RemappedRows
+		expectError          bool
+		errorContains        string
+	}{
+		{
+			name:            "success case",
+			corrRows:        2,
+			uncRows:         1,
+			isPending:       true,
+			failureOccurred: false,
+			ret:             nvml.SUCCESS,
+			expectedRemappedRows: RemappedRows{
+				UUID:                             testUUID,
+				RemappedDueToCorrectableErrors:   2,
+				RemappedDueToUncorrectableErrors: 1,
+				RemappingPending:                 true,
+				RemappingFailed:                  false,
+				Supported:                        true,
+			},
+			expectError:   false,
+			errorContains: "",
+		},
+		{
+			name:            "feature not supported",
+			corrRows:        0,
+			uncRows:         0,
+			isPending:       false,
+			failureOccurred: false,
+			ret:             nvml.ERROR_NOT_SUPPORTED,
+			expectedRemappedRows: RemappedRows{
+				UUID:                             testUUID,
+				RemappedDueToCorrectableErrors:   0,
+				RemappedDueToUncorrectableErrors: 0,
+				RemappingPending:                 false,
+				RemappingFailed:                  false,
+				Supported:                        false,
+			},
+			expectError:   false,
+			errorContains: "",
+		},
+		{
+			name:            "severe error with failure",
+			corrRows:        8,
+			uncRows:         7,
+			isPending:       true,
+			failureOccurred: true,
+			ret:             nvml.SUCCESS,
+			expectedRemappedRows: RemappedRows{
+				UUID:                             testUUID,
+				RemappedDueToCorrectableErrors:   8,
+				RemappedDueToUncorrectableErrors: 7,
+				RemappingPending:                 true,
+				RemappingFailed:                  true,
+				Supported:                        true,
+			},
+			expectError:   false,
+			errorContains: "",
+		},
+		{
+			name:            "other error",
+			corrRows:        0,
+			uncRows:         0,
+			isPending:       false,
+			failureOccurred: false,
+			ret:             nvml.ERROR_UNKNOWN,
+			expectedRemappedRows: RemappedRows{
+				UUID:      testUUID,
+				Supported: true,
+			},
+			expectError:   true,
+			errorContains: "failed to get device remapped rows",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock device
+			mockDevice := &testutil.MockDevice{
+				Device: &mock.Device{
+					GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
+						return tt.corrRows, tt.uncRows, tt.isPending, tt.failureOccurred, tt.ret
+					},
+				},
+			}
+
+			// Call the function being tested
+			rows, err := GetRemappedRows(testUUID, mockDevice)
+
+			// Check results
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedRemappedRows.UUID, rows.UUID)
+				assert.Equal(t, tt.expectedRemappedRows.RemappedDueToCorrectableErrors, rows.RemappedDueToCorrectableErrors)
+				assert.Equal(t, tt.expectedRemappedRows.RemappedDueToUncorrectableErrors, rows.RemappedDueToUncorrectableErrors)
+				assert.Equal(t, tt.expectedRemappedRows.RemappingPending, rows.RemappingPending)
+				assert.Equal(t, tt.expectedRemappedRows.RemappingFailed, rows.RemappingFailed)
+				assert.Equal(t, tt.expectedRemappedRows.Supported, rows.Supported)
+			}
+		})
+	}
+}
+
+func TestGetRemappedRowsWithNilDevice(t *testing.T) {
+	var nilDevice device.Device = nil
+	testUUID := "GPU-NILTEST"
+
+	// We expect the function to panic with a nil device
+	assert.Panics(t, func() {
+		// Call the function with a nil device
+		_, _ = GetRemappedRows(testUUID, nilDevice)
+	}, "Expected panic when calling GetRemappedRows with nil device")
 }
