@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -124,11 +125,14 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}, nil
 	}
 
+	// Extract data source information
+	dataSrcSum := summarizeDataSources(events)
 	return []components.State{
 		{
 			Name:    StateKeyHWSlowdown,
 			Healthy: false,
-			Reason:  fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, len(eventsByMinute), c.stateHWSlowdownEventsThresholdFrequencyPerMinute, c.stateHWSlowdownEvaluationWindow),
+			Reason: fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s (event source counts %s)",
+				freqPerMin, len(eventsByMinute), c.stateHWSlowdownEventsThresholdFrequencyPerMinute, c.stateHWSlowdownEvaluationWindow, dataSrcSum),
 			SuggestedActions: &common.SuggestedActions{
 				RepairActions: []common.RepairActionType{
 					common.RepairActionTypeHardwareInspection,
@@ -139,6 +143,27 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 			},
 		},
 	}, nil
+}
+
+// summarizeDataSources summarizes data source information
+func summarizeDataSources(events []components.Event) string {
+	dataSources := make(map[string]int)
+	for _, event := range events {
+		if event.ExtraInfo == nil {
+			continue
+		}
+
+		src := event.ExtraInfo["data_source"]
+		if src != "" {
+			dataSources[src]++
+		}
+	}
+
+	dsDescs := make([]string, 0, len(dataSources))
+	for ds, count := range dataSources {
+		dsDescs = append(dsDescs, fmt.Sprintf("%s: %d", ds, count))
+	}
+	return strings.Join(dsDescs, ", ")
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
