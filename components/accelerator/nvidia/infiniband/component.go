@@ -16,6 +16,7 @@ import (
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
@@ -55,11 +56,18 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
 	c := &component{
-		rootCtx:        cctx,
-		cancel:         ccancel,
-		eventsStore:    eventsStore,
-		toolOverwrites: toolOverwrites,
+		rootCtx:          cctx,
+		cancel:           ccancel,
+		eventsStore:      eventsStore,
+		logLineProcessor: logLineProcessor,
+		toolOverwrites:   toolOverwrites,
 	}
 
 	return c, nil
@@ -68,10 +76,11 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx        context.Context
-	cancel         context.CancelFunc
-	eventsStore    events_db.Store
-	toolOverwrites nvidia_common.ToolOverwrites
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	eventsStore      events_db.Store
+	logLineProcessor *dmesg.LogLineProcessor
+	toolOverwrites   nvidia_common.ToolOverwrites
 
 	lastEventMu        sync.Mutex
 	lastEvent          *components.Event

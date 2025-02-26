@@ -32,6 +32,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return []components.State{
 		{
 			Name:    tailscale_id.Name,
+			Health:  components.StateHealthy,
 			Healthy: true,
 		},
 	}, nil

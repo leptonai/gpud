@@ -50,8 +50,6 @@ import (
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
-	power_supply "github.com/leptonai/gpud/components/power-supply"
-	power_supply_id "github.com/leptonai/gpud/components/power-supply/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
@@ -152,10 +150,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 		cfg.Components[kubelet_pod_id.Name] = cc
-	}
-
-	if _, err := stdos.Stat(power_supply.DefaultBatteryCapacityFile); err == nil {
-		cfg.Components[power_supply_id.Name] = nil
 	}
 
 	cfg.Components[network_latency_id.Name] = nil
