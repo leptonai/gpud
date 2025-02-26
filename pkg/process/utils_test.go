@@ -93,8 +93,19 @@ func newTestProcess(command string, args ...string) *testProcess {
 func TestReadAll(t *testing.T) {
 	// Test reading both stdout and stderr
 	t.Run("read stdout and stderr", func(t *testing.T) {
-		// This command outputs to both stdout and stderr
-		p := newTestProcess("sh", "-c", `echo "stdout line" && echo "stderr line" >&2`)
+		// Create a custom testProcess that simulates both stdout and stderr output
+		stdoutReader := strings.NewReader("stdout line\n")
+		stderrReader := strings.NewReader("stderr line\n")
+
+		p := &testProcess{
+			stdout: io.NopCloser(stdoutReader),
+			stderr: io.NopCloser(stderrReader),
+			waitCh: make(chan error, 1),
+		}
+		// Signal that the process is done
+		p.waitCh <- nil
+		close(p.waitCh)
+
 		lines := make([]string, 0)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
