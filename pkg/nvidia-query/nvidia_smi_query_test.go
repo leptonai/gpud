@@ -3,12 +3,14 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
@@ -605,6 +607,108 @@ func TestCreateHWSlowdownEventFromNvidiaSMI(t *testing.T) {
 			got := createHWSlowdownEventFromNvidiaSMI(tt.eventTime, tt.gpuUUID, tt.slowdownReasons)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("createHWSlowdownEventFromNvidiaSMI() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindGPUErrsAttachedGPUs(t *testing.T) {
+	tests := []struct {
+		name          string
+		attachedGPUs  int
+		gpuCount      int
+		expectedError string
+		errorInGPUs   bool // Set to true to intentionally add errors in GPU structs
+	}{
+		{
+			name:          "matching counts",
+			attachedGPUs:  4,
+			gpuCount:      4,
+			expectedError: "",
+			errorInGPUs:   false,
+		},
+		{
+			name:          "attached greater than found",
+			attachedGPUs:  8,
+			gpuCount:      4,
+			expectedError: "nvidia-smi query output 'Attached GPUs' 8 but only found GPUs 4 in the nvidia-smi command output -- check 'nvidia-smi --query' output",
+			errorInGPUs:   false,
+		},
+		{
+			name:          "attached less than found",
+			attachedGPUs:  2,
+			gpuCount:      4,
+			expectedError: "nvidia-smi query output 'Attached GPUs' 2 but only found GPUs 4 in the nvidia-smi command output -- check 'nvidia-smi --query' output",
+			errorInGPUs:   false,
+		},
+		{
+			name:          "matching counts with GPU error",
+			attachedGPUs:  2,
+			gpuCount:      2,
+			expectedError: "", // No mismatch error
+			errorInGPUs:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create GPUs that won't trigger errors
+			gpus := make([]NvidiaSMIGPU, tt.gpuCount)
+			for i := range gpus {
+				addressingMode := "Default" // Not "Unknown Error"
+				if tt.errorInGPUs && i == 0 {
+					addressingMode = "Unknown Error" // This will trigger an error
+				}
+
+				gpus[i] = NvidiaSMIGPU{
+					ID:             fmt.Sprintf("GPU-%d", i),
+					AddressingMode: addressingMode,
+					FanSpeed:       "50%", // Not "Unknown Error"
+					ClockEventReasons: &SMIClockEventReasons{
+						HWSlowdown:           ClockEventsNotActive,
+						HWThermalSlowdown:    ClockEventsNotActive,
+						HWPowerBrakeSlowdown: ClockEventsNotActive,
+					},
+					Temperature: &SMIGPUTemperature{
+						Current:                 "50 C", // Not "Unknown Error"
+						Limit:                   "95 C", // Not "Unknown Error"
+						ShutdownLimit:           "100 C",
+						SlowdownLimit:           "90 C",
+						MaxOperatingLimit:       "95 C",
+						Target:                  "80 C",
+						MemoryCurrent:           "45 C",
+						MemoryMaxOperatingLimit: "95 C",
+					},
+				}
+			}
+
+			// Create a test SMIOutput with the specified configuration
+			o := &SMIOutput{
+				AttachedGPUs: tt.attachedGPUs,
+				GPUs:         gpus,
+				Summary:      "",
+			}
+
+			// Call the method under test
+			errs := o.FindGPUErrs()
+
+			if tt.errorInGPUs {
+				// If we intentionally added an error, we expect other errors
+				assert.NotEmpty(t, errs, "Should have errors from GPU structs")
+				// But shouldn't have the mismatch error
+				for _, err := range errs {
+					assert.NotContains(t, err, "nvidia-smi query output 'Attached GPUs'",
+						"Should not have the mismatch error")
+				}
+			} else if tt.expectedError == "" {
+				// No error expected for this test case
+				assert.Empty(t, errs, "Expected no errors when AttachedGPUs matches GPU count")
+			} else {
+				// Error expected for this test case
+				assert.Contains(t, errs, tt.expectedError, "Expected error message about mismatched GPU counts")
+
+				// Verify that we only have the expected error
+				assert.Len(t, errs, 1, "Should only have one error from AttachedGPUs mismatch")
 			}
 		})
 	}
