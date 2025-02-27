@@ -2,6 +2,7 @@ package hwslowdown
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -591,4 +592,270 @@ func TestComponentMetrics(t *testing.T) {
 	} else {
 		assert.Empty(t, metrics)
 	}
+}
+
+func TestGetDataSourceInfo(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		events        []components.Event
+		expectedParts []string
+	}{
+		{
+			name:          "empty events",
+			events:        []components.Event{},
+			expectedParts: []string{},
+		},
+		{
+			name: "events with no data_source field",
+			events: []components.Event{
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: map[string]string{},
+				},
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: map[string]string{"gpu_uuid": "gpu-0"},
+				},
+			},
+			expectedParts: []string{},
+		},
+		{
+			name: "events with nil extraInfo",
+			events: []components.Event{
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: nil,
+				},
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: nil,
+				},
+			},
+			expectedParts: []string{},
+		},
+		{
+			name: "mixed events with and without data_sources",
+			events: []components.Event{
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: map[string]string{},
+				},
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvidia-smi",
+						"gpu_uuid":    "gpu-0",
+					},
+				},
+				{
+					Time:      metav1.Time{Time: time.Now()},
+					Name:      "hw_slowdown",
+					Type:      common.EventTypeWarning,
+					Message:   "HW Slowdown detected",
+					ExtraInfo: nil,
+				},
+			},
+			expectedParts: []string{"nvidia-smi: 1"},
+		},
+		{
+			name: "events with single data_source",
+			events: []components.Event{
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvidia-smi",
+						"gpu_uuid":    "gpu-0",
+					},
+				},
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvidia-smi",
+						"gpu_uuid":    "gpu-1",
+					},
+				},
+			},
+			expectedParts: []string{"nvidia-smi: 2"},
+		},
+		{
+			name: "events with multiple data_sources",
+			events: []components.Event{
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvidia-smi",
+						"gpu_uuid":    "gpu-0",
+					},
+				},
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "dcgm",
+						"gpu_uuid":    "gpu-1",
+					},
+				},
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvml",
+						"gpu_uuid":    "gpu-2",
+					},
+				},
+				{
+					Time:    metav1.Time{Time: time.Now()},
+					Name:    "hw_slowdown",
+					Type:    common.EventTypeWarning,
+					Message: "HW Slowdown detected",
+					ExtraInfo: map[string]string{
+						"data_source": "nvidia-smi",
+						"gpu_uuid":    "gpu-3",
+					},
+				},
+			},
+			expectedParts: []string{"nvidia-smi: 2", "dcgm: 1", "nvml: 1"},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			result := summarizeDataSources(tc.events)
+
+			if len(tc.expectedParts) == 0 {
+				assert.Empty(t, result)
+				return
+			}
+
+			// Check for each expected part in the result
+			for _, part := range tc.expectedParts {
+				assert.Contains(t, result, part)
+			}
+
+			// Verify the count of commas matches expected parts - 1 (if more than one part)
+			if len(tc.expectedParts) > 1 {
+				commaCount := strings.Count(result, ", ")
+				assert.Equal(t, len(tc.expectedParts)-1, commaCount, "Expected %d commas in result: %s", len(tc.expectedParts)-1, result)
+			}
+		})
+	}
+}
+
+// Test specifically for the state message with data sources
+func TestStatesWithDataSources(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+
+	// Setup test events with data sources
+	testEvents := []components.Event{
+		{
+			Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid":    "gpu-0",
+				"data_source": "nvidia-smi",
+			},
+		},
+		{
+			Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid":    "gpu-1",
+				"data_source": "dcgm",
+			},
+		},
+		{
+			Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid":    "gpu-0",
+				"data_source": "nvidia-smi",
+			},
+		},
+		{
+			Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid":    "gpu-1",
+				"data_source": "dcgm",
+			},
+		},
+	}
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
+	assert.NoError(t, err)
+	defer store.Close()
+
+	// Insert test events
+	for _, event := range testEvents {
+		err := store.Insert(ctx, event)
+		assert.NoError(t, err)
+	}
+
+	// Create component with specific thresholds to ensure unhealthy state
+	c := &component{
+		stateHWSlowdownEvaluationWindow:                  5 * time.Minute,
+		stateHWSlowdownEventsThresholdFrequencyPerMinute: 0.1, // Low threshold to ensure unhealthy state
+		eventsStore: store,
+	}
+
+	// Get states
+	states, err := c.States(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(states))
+	assert.False(t, states[0].Healthy)
+
+	// Verify data sources are included in the reason
+	assert.Contains(t, states[0].Reason, "event source counts")
+	assert.Contains(t, states[0].Reason, "nvidia-smi")
+	assert.Contains(t, states[0].Reason, "dcgm")
 }
