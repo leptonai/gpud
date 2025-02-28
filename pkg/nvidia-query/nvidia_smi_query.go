@@ -436,7 +436,10 @@ func (o *SMIOutput) FindGPUErrs() []string {
 	}
 
 	if o.AttachedGPUs != len(o.GPUs) {
-		rs = append(rs, fmt.Sprintf("AttachedGPUs %d != GPUs %d", o.AttachedGPUs, len(o.GPUs)))
+		msg := fmt.Sprintf("nvidia-smi query output 'Attached GPUs' %d but only found GPUs %d in the nvidia-smi command output -- check 'nvidia-smi --query' output", o.AttachedGPUs, len(o.GPUs))
+		rs = append(rs, msg)
+
+		log.Logger.Warnw(msg, "rawOutput", o.Raw)
 	}
 
 	if len(rs) == 0 {
