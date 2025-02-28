@@ -60,21 +60,15 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	// network section
-	publicIP, _ := netutil.PublicIP()
 	region := "unknown"
-	detectProvider := "unknown"
 	latencies, _ := latency_edge.Measure(rootCtx)
-	var closest int64
-	for _, latency := range latencies {
-		if closest == 0 {
-			closest = latency.LatencyMilliseconds
-			region = latency.RegionCode
-		}
-		if latency.LatencyMilliseconds < closest {
-			closest = latency.LatencyMilliseconds
-			region = latency.RegionCode
-		}
+	if len(latencies) > 0 {
+		closest := latencies.Closest()
+		region = closest.RegionCode
 	}
+
+	detectProvider := "unknown"
+	publicIP, _ := netutil.PublicIP()
 	asnResult, err := asn.GetASLookup(publicIP)
 	if err != nil {
 		log.Logger.Errorf("failed to get asn lookup: %v", err)

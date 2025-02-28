@@ -26,6 +26,22 @@ func (l Latencies) RenderTable(wr io.Writer) {
 	table.Render()
 }
 
+// Returns the closest latency from the list of latencies,
+// meaning the latency region with the smallest latency in milliseconds
+// from the local device.
+func (l Latencies) Closest() Latency {
+	var closest Latency
+	for _, lat := range l {
+		if closest.LatencyMilliseconds == 0 {
+			closest = lat
+		}
+		if lat.LatencyMilliseconds < closest.LatencyMilliseconds {
+			closest = lat
+		}
+	}
+	return closest
+}
+
 // Latency measures the time it takes for a request to be sent to an edge server and back.
 // It measures the egress latency from the perspective of the local device.
 type Latency struct {
