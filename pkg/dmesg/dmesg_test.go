@@ -9,9 +9,9 @@ import (
 )
 
 func TestParseISOtimeWithFile(t *testing.T) {
-	b, err := os.ReadFile("dmesg-time-format-iso.log")
+	b, err := os.ReadFile("testdata/dmesg-time-format-iso.log")
 	if err != nil {
-		t.Fatalf("failed to read dmesg-time-format-iso.log: %v", err)
+		t.Fatalf("failed to read testdata/dmesg-time-format-iso.log: %v", err)
 	}
 
 	for _, line := range strings.Split(string(b), "\n") {
@@ -27,9 +27,9 @@ func TestParseISOtimeWithFile(t *testing.T) {
 }
 
 func TestParseShortISOtimeWithFile(t *testing.T) {
-	b, err := os.ReadFile("dmesg-time-format-short-iso.log")
+	b, err := os.ReadFile("testdata/dmesg-time-format-short-iso.log")
 	if err != nil {
-		t.Fatalf("failed to read dmesg-time-format-short-iso.log: %v", err)
+		t.Fatalf("failed to read testdata/dmesg-time-format-short-iso.log: %v", err)
 	}
 
 	for _, line := range strings.Split(string(b), "\n") {
