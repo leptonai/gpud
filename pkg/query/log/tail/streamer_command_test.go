@@ -1,7 +1,6 @@
 package tail
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -95,19 +94,4 @@ func TestCommandStreamerWithDedup(t *testing.T) {
 	}
 
 	t.Logf("%+v\n", streamer.Commands())
-}
-
-func readFileToLines(t *testing.T, path string) []string {
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	lines := make([]string, 0)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines
 }
