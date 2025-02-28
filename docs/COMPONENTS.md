@@ -11,7 +11,7 @@
 - [**`accelerator-nvidia-error-xid`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/error/xid): Tracks the NVIDIA GPU Xid errors scanning the dmesg and using the NVIDIA Management Library (NVML) -- see [Xid messages](https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages).
 - [**`accelerator-nvidia-fabric-manager`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks the fabric manager version and its activeness.
 - [**`accelerator-nvidia-gsp-firmware`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks the GSP firmware mode.
-- [**`accelerator-nvidia-infiniband`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/infiniband): Monitors the infiniband status of the system. Optional, enabled if the host has NVIDIA GPUs.
+- [**`accelerator-nvidia-infiniband`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/infiniband): Monitors the infiniband status of the system and Mellanox kernel events. Optional, enabled if the host has NVIDIA GPUs.
 - [**`accelerator-nvidia-info`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/info): Serves relatively static information about the NVIDIA accelerators (e.g., GPU product names).
 - [**`accelerator-nvidia-memory`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/memory): Monitors the NVIDIA per-GPU memory usage.
 - [**`accelerator-nvidia-gpm`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/gpm): Monitors the NVIDIA per-GPU GPM metrics.

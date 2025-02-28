@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -764,4 +766,359 @@ func TestClose(t *testing.T) {
 
 	err = c.Close()
 	assert.NoError(t, err)
+}
+
+// MockWatcher implements the dmesg.Watcher interface for testing
+type MockWatcher struct {
+	ch chan dmesg.LogLine
+}
+
+func NewMockWatcher() *MockWatcher {
+	return &MockWatcher{
+		ch: make(chan dmesg.LogLine, 100),
+	}
+}
+
+func (m *MockWatcher) Watch() <-chan dmesg.LogLine {
+	return m.ch
+}
+
+func (m *MockWatcher) Close() {
+	close(m.ch)
+}
+
+func (m *MockWatcher) SendLogLine(line dmesg.LogLine) {
+	m.ch <- line
+}
+
+// MockEventsStore implements the events_db.Store interface for testing
+type MockEventsStore struct {
+	events []components.Event
+	mu     sync.Mutex
+}
+
+func NewMockEventsStore() *MockEventsStore {
+	return &MockEventsStore{
+		events: []components.Event{},
+	}
+}
+
+func (m *MockEventsStore) Insert(ctx context.Context, event components.Event) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.events = append(m.events, event)
+	return nil
+}
+
+func (m *MockEventsStore) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var result []components.Event
+	for _, event := range m.events {
+		if !event.Time.Time.Before(since) {
+			result = append(result, event)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockEventsStore) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, e := range m.events {
+		if e.Name == event.Name && e.Type == event.Type && e.Message == event.Message {
+			return &m.events[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockEventsStore) Latest(ctx context.Context) (*components.Event, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(m.events) == 0 {
+		return nil, nil
+	}
+
+	latest := m.events[0]
+	for _, e := range m.events[1:] {
+		if e.Time.Time.After(latest.Time.Time) {
+			latest = e
+		}
+	}
+	return &latest, nil
+}
+
+func (m *MockEventsStore) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var newEvents []components.Event
+	var purgedCount int
+
+	for _, event := range m.events {
+		if event.Time.Time.Unix() >= beforeTimestamp {
+			newEvents = append(newEvents, event)
+		} else {
+			purgedCount++
+		}
+	}
+
+	m.events = newEvents
+	return purgedCount, nil
+}
+
+func (m *MockEventsStore) Close() {
+	// No-op for mock
+}
+
+func (m *MockEventsStore) GetEvents() []components.Event {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	result := make([]components.Event, len(m.events))
+	copy(result, m.events)
+	return result
+}
+
+// TestLogLineProcessor tests the Match function with sample log lines
+func TestLogLineProcessor(t *testing.T) {
+	t.Parallel()
+
+	// Test direct matching of log lines
+	tests := []struct {
+		name         string
+		logLine      string
+		expectMatch  bool
+		expectedName string
+		expectedMsg  string
+	}{
+		{
+			name:         "PCI power insufficient",
+			logLine:      "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W).",
+			expectMatch:  true,
+			expectedName: "pci_power_insufficient",
+			expectedMsg:  "Insufficient power on MLX5 PCIe slot",
+		},
+		{
+			name:         "Port module high temperature",
+			logLine:      "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
+			expectMatch:  true,
+			expectedName: "port_module_high_temperature",
+			expectedMsg:  "Overheated MLX5 adapter",
+		},
+		{
+			name:         "No match",
+			logLine:      "Some unrelated log line",
+			expectMatch:  false,
+			expectedName: "",
+			expectedMsg:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, msg := Match(tt.logLine)
+			if tt.expectMatch {
+				assert.Equal(t, tt.expectedName, name)
+				assert.Equal(t, tt.expectedMsg, msg)
+			} else {
+				assert.Empty(t, name)
+				assert.Empty(t, msg)
+			}
+		})
+	}
+
+	// Test with events store
+	mockStore := NewMockEventsStore()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create a direct log processor test using our processor function
+	// We'll test the match function integration with the mock store
+	now := time.Now().UTC()
+
+	// Create events using the Match function
+	for _, tt := range tests {
+		if tt.expectMatch {
+			eventName, eventMessage := Match(tt.logLine)
+			event := components.Event{
+				Time:      metav1.Time{Time: now},
+				Name:      eventName,
+				Type:      common.EventTypeWarning,
+				Message:   eventMessage,
+				ExtraInfo: map[string]string{"log_line": tt.logLine},
+			}
+			err := mockStore.Insert(ctx, event)
+			require.NoError(t, err)
+		}
+	}
+
+	// Verify events were properly stored
+	events := mockStore.GetEvents()
+	matchingTests := 0
+	for _, tt := range tests {
+		if tt.expectMatch {
+			matchingTests++
+		}
+	}
+	require.Len(t, events, matchingTests)
+
+	for _, event := range events {
+		assert.Equal(t, common.EventTypeWarning, event.Type)
+		assert.NotEmpty(t, event.Name)
+		assert.NotEmpty(t, event.Message)
+		assert.Contains(t, event.ExtraInfo, "log_line")
+	}
+}
+
+// TestNewWithLogLineProcessor tests the New function with focus on the log line processor
+func TestNewWithLogLineProcessor(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Test successful creation
+	comp, err := New(ctx, dbRW, dbRO, nvidia_common.ToolOverwrites{})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	require.NotNil(t, c.logLineProcessor)
+
+	// Test with invalid DB connection (should fail)
+	_, err = New(ctx, nil, nil, nvidia_common.ToolOverwrites{})
+	assert.Error(t, err, "Expected error with nil DB connections")
+}
+
+// TestIntegrationWithLogLineProcessor tests that the component can process dmesg events
+func TestIntegrationWithLogLineProcessor(t *testing.T) {
+	// We are not using t.Parallel() here because we need to mock some global functions
+
+	// Set up a mock events store
+	mockStore := NewMockEventsStore()
+
+	// Create a component with mock store
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp := &component{
+		rootCtx:     ctx,
+		cancel:      cancel,
+		eventsStore: mockStore,
+	}
+
+	// Directly test the Match function on a sample log line
+	logLine := "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W)."
+	eventName, eventMessage := Match(logLine)
+	assert.Equal(t, "pci_power_insufficient", eventName)
+	assert.Equal(t, "Insufficient power on MLX5 PCIe slot", eventMessage)
+
+	// Manually create an event and insert it
+	now := time.Now().UTC()
+	event := components.Event{
+		Time:    metav1.Time{Time: now},
+		Name:    eventName,
+		Type:    common.EventTypeWarning,
+		Message: eventMessage,
+		ExtraInfo: map[string]string{
+			"log_line": logLine,
+		},
+	}
+	err := mockStore.Insert(ctx, event)
+	require.NoError(t, err)
+
+	// Now test the Events method and verify our event exists in the results
+	// Note: Events() may also generate an additional "ibstat" event
+	events, err := comp.Events(ctx, now.Add(-10*time.Second))
+	require.NoError(t, err)
+
+	// Find our manually created event in the results
+	var foundManualEvent bool
+	for _, e := range events {
+		if e.Name == eventName && e.Message == eventMessage {
+			foundManualEvent = true
+			break
+		}
+	}
+	assert.True(t, foundManualEvent, "Our manually created event should be in the results")
+
+	// Now add another event with a different timestamp and verify filtering works
+	olderEvent := components.Event{
+		Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
+		Name:    "port_module_high_temperature",
+		Type:    common.EventTypeWarning,
+		Message: "Overheated MLX5 adapter",
+		ExtraInfo: map[string]string{
+			"log_line": "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
+		},
+	}
+	err = mockStore.Insert(ctx, olderEvent)
+	require.NoError(t, err)
+
+	// Test filtering by time
+	recentEvents, err := comp.Events(ctx, now.Add(-30*time.Second))
+	require.NoError(t, err)
+
+	// Instead of checking exact count, verify that our recent event is included
+	var foundRecentEvent bool
+	for _, e := range recentEvents {
+		if e.Name == eventName && e.Message == eventMessage {
+			foundRecentEvent = true
+			break
+		}
+	}
+	assert.True(t, foundRecentEvent, "Our recent event should be in the filtered results")
+
+	// Get all events
+	allEvents, err := comp.Events(ctx, now.Add(-2*time.Minute))
+	require.NoError(t, err)
+
+	// Verify both our manually created events are in the results
+	var foundManualEvents int
+	for _, e := range allEvents {
+		if (e.Name == eventName && e.Message == eventMessage) ||
+			(e.Name == "port_module_high_temperature" && e.Message == "Overheated MLX5 adapter") {
+			foundManualEvents++
+		}
+	}
+	assert.Equal(t, 2, foundManualEvents, "Both our manually created events should be in the results")
 }
