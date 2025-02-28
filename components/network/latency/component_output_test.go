@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/leptonai/gpud/components/network/latency"
-	pkg_latency "github.com/leptonai/gpud/pkg/latency"
+	pkg_latency "github.com/leptonai/gpud/pkg/netutil/latency"
 )
 
 func TestStatesHealthyEvaluation(t *testing.T) {

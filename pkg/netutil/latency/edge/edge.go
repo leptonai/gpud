@@ -4,7 +4,8 @@ package edge
 import (
 	"context"
 
-	"github.com/leptonai/gpud/pkg/latency"
+	"github.com/leptonai/gpud/pkg/netutil/latency"
+	"github.com/leptonai/gpud/pkg/netutil/latency/edge/derpmap"
 )
 
 type Op struct {
@@ -29,5 +30,5 @@ func WithVerbose(verbose bool) OpOption {
 
 // Measure measures the latencies from local to the global edge nodes.
 func Measure(ctx context.Context, opts ...OpOption) (latency.Latencies, error) {
-	return measureDERP(ctx, opts...)
+	return measureDERP(ctx, &derpmap.DefaultDERPMap, opts...)
 }
