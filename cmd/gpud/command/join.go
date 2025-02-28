@@ -21,9 +21,9 @@ import (
 
 	"github.com/leptonai/gpud/pkg/accelerator"
 	"github.com/leptonai/gpud/pkg/asn"
-	latency_edge "github.com/leptonai/gpud/pkg/latency/edge"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
+	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	"github.com/leptonai/gpud/pkg/process"
 )
 

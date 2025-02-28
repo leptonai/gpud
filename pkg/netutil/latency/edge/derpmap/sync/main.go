@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/leptonai/gpud/pkg/latency/edge/derpmap"
+	"github.com/leptonai/gpud/pkg/netutil/latency/edge/derpmap"
 )
 
 const derpmapPath = "../derpmap.json"

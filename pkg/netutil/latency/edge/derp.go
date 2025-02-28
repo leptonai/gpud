@@ -8,22 +8,23 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/leptonai/gpud/pkg/latency"
-	"github.com/leptonai/gpud/pkg/latency/edge/derpmap"
-	"github.com/leptonai/gpud/pkg/log"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"tailscale.com/net/netcheck"
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/portmapper"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/logger"
+
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/netutil/latency"
+	"github.com/leptonai/gpud/pkg/netutil/latency/edge/derpmap"
 )
 
 const ProviderTailscaleDERP = "tailscale-derp"
 
 // measureDERP measures the latencies from local to the global tailscale DERP nodes.
 // ref. "tailscale netcheck" command https://github.com/tailscale/tailscale/blob/v1.76.1/cmd/tailscale/cli/netcheck.go.
-func measureDERP(ctx context.Context, opts ...OpOption) (latency.Latencies, error) {
+func measureDERP(ctx context.Context, targetDerpServrs *tailcfg.DERPMap, opts ...OpOption) (latency.Latencies, error) {
 	op := new(Op)
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -52,15 +53,14 @@ func measureDERP(ctx context.Context, opts ...OpOption) (latency.Latencies, erro
 		Verbose:     op.verbose,
 	}
 
-	dm := derpmap.DefaultDERPMap
-	report, err := c.GetReport(ctx, &dm, nil)
+	report, err := c.GetReport(ctx, targetDerpServrs, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	latencies := make(latency.Latencies, 0, len(report.RegionLatency))
 	for regionID, dur := range report.RegionLatency {
-		derpRegion, ok := dm.Regions[regionID]
+		derpRegion, ok := targetDerpServrs.Regions[regionID]
 		if !ok {
 			return nil, fmt.Errorf("region %d not found in derpmap", regionID)
 		}
