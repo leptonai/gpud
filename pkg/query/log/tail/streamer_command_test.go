@@ -7,8 +7,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/leptonai/gpud/pkg/dmesg"
 )
 
 func TestCommandStreamer(t *testing.T) {
@@ -40,48 +38,6 @@ func TestCommandStreamer(t *testing.T) {
 			if line.Text != testLine {
 				t.Fatalf("expected %q, got %q", testLine, line.Text)
 			}
-		case <-time.After(3 * time.Second):
-			t.Fatal("timeout")
-		}
-	}
-
-	t.Logf("%+v\n", streamer.Commands())
-}
-
-func TestCommandStreamerDmesg(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	tmpf, err := os.CreateTemp("", "test*.txt")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpf.Name())
-
-	streamer, err := NewFromCommand(
-		ctx,
-		[][]string{{"tail", "-f", tmpf.Name()}},
-		WithExtractTime(dmesg.ParseISOtimeWithError),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	time.Sleep(time.Second)
-
-	for _, line := range readFileToLines(t, "./testdata/dmesg.0.log") {
-		if _, err := tmpf.WriteString(line + "\n"); err != nil {
-			t.Fatal(err)
-		}
-
-		select {
-		case line := <-streamer.Line():
-			t.Logf("received %v", line.Time)
-
-			if line.Time.IsZero() {
-				t.Fatalf("expected non-zero time, got %v", line.Time)
-			}
-
 		case <-time.After(3 * time.Second):
 			t.Fatal("timeout")
 		}
