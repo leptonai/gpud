@@ -44,7 +44,9 @@ type Request struct {
 }
 
 type Response struct {
-	Error   error            `json:"error,omitempty"`
+	// don't use "error" type as it doesn't marshal/unmarshal well
+	Error string `json:"error,omitempty"`
+
 	States  v1.LeptonStates  `json:"states,omitempty"`
 	Events  v1.LeptonEvents  `json:"events,omitempty"`
 	Metrics v1.LeptonMetrics `json:"metrics,omitempty"`
@@ -76,21 +78,28 @@ func (s *Session) serve() {
 		switch payload.Method {
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
-			response.Error = err
+			if err != nil {
+				response.Error = err.Error()
+			}
 			response.Metrics = metrics
 
 		case "states":
 			states, err := s.getStates(ctx, payload)
-			response.Error = err
+			if err != nil {
+				response.Error = err.Error()
+			}
 			response.States = states
 
 		case "events":
 			events, err := s.getEvents(ctx, payload)
-			response.Error = err
+			if err != nil {
+				response.Error = err.Error()
+			}
 			response.Events = events
 
 		case "delete":
 			go s.deleteMachine(ctx, payload)
+
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
@@ -133,6 +142,7 @@ func (s *Session) serve() {
 					log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
 				}
 			}
+
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
@@ -140,32 +150,38 @@ func (s *Session) serve() {
 			} else {
 				if !s.enableAutoUpdate {
 					log.Logger.Warnw("auto update is disabled -- skipping update")
-					response.Error = errors.New("auto update is disabled")
+					response.Error = "auto update is disabled"
 					break
 				}
 
 				systemdManaged, _ := systemd.IsActive("gpud.service")
 				if s.autoUpdateExitCode == -1 && !systemdManaged {
 					log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
-					response.Error = errors.New("gpud is not managed with systemd")
+					response.Error = "gpud is not managed with systemd"
 					break
 				}
 
 				nextVersion := payload.UpdateVersion
 				if nextVersion == "" {
 					log.Logger.Warnw("target update_version is empty -- skipping update")
-					response.Error = errors.New("update_version is empty")
+					response.Error = "update_version is empty"
 					break
 				}
 
 				if systemdManaged {
-					response.Error = update.Update(nextVersion, update.DefaultUpdateURL)
+					uerr := update.Update(nextVersion, update.DefaultUpdateURL)
+					if uerr != nil {
+						response.Error = uerr.Error()
+					}
 					break
 				}
 
 				if s.autoUpdateExitCode != -1 {
-					response.Error = update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
-					if response.Error == nil {
+					uerr := update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
+					if uerr != nil {
+						response.Error = uerr.Error()
+					}
+					if response.Error == "" {
 						needExit = s.autoUpdateExitCode
 					}
 				}
