@@ -37,7 +37,7 @@ func detectUbuntuVersion() string {
 	return ""
 }
 
-func EnableSystemdUnit() error {
+func EnableGPUdSystemdUnit() error {
 	if !pkd_systemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
@@ -47,7 +47,7 @@ func EnableSystemdUnit() error {
 	return nil
 }
 
-func DisableSystemdUnit() error {
+func DisableGPUdSystemdUnit() error {
 	if !pkd_systemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
@@ -57,7 +57,7 @@ func DisableSystemdUnit() error {
 	return nil
 }
 
-func RestartSystemdUnit() error {
+func RestartGPUdSystemdUnit() error {
 	if !pkd_systemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}

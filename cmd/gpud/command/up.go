@@ -48,12 +48,12 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	if err := pkg_update.EnableSystemdUnit(); err != nil {
+	if err := pkg_update.EnableGPUdSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to enable systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
 
-	if err := pkg_update.RestartSystemdUnit(); err != nil {
+	if err := pkg_update.RestartGPUdSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to restart systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}

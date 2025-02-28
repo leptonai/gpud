@@ -56,7 +56,7 @@ func update(ver, url string, requireRoot bool, useSystemd bool) error {
 	}
 
 	if useSystemd {
-		if err := RestartSystemdUnit(); err != nil {
+		if err := RestartGPUdSystemdUnit(); err != nil {
 			if strings.Contains(err.Error(), "signal: terminated") {
 				// an expected error
 				log.Logger.Infof("gpud binary updated successfully. Waiting complete of systemd restart.")

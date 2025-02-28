@@ -39,7 +39,7 @@ func cmdDown(cliContext *cli.Context) error {
 		os.Exit(1)
 	}
 
-	if err := pkg_update.DisableSystemdUnit(); err != nil {
+	if err := pkg_update.DisableGPUdSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to disable systemd unit 'gpud.service': %v\n", warningSign, err)
 		os.Exit(1)
 	}
