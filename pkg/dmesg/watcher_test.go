@@ -13,6 +13,84 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
+func TestLogLineIsEmpty(t *testing.T) {
+	tests := []struct {
+		name string
+		line LogLine
+		want bool
+	}{
+		{
+			name: "completely empty",
+			line: LogLine{},
+			want: true,
+		},
+		{
+			name: "only timestamp",
+			line: LogLine{
+				Timestamp: time.Now(),
+			},
+			want: false,
+		},
+		{
+			name: "only facility",
+			line: LogLine{
+				Facility: "kern",
+			},
+			want: false,
+		},
+		{
+			name: "only level",
+			line: LogLine{
+				Level: "info",
+			},
+			want: false,
+		},
+		{
+			name: "only content",
+			line: LogLine{
+				Content: "test message",
+			},
+			want: false,
+		},
+		{
+			name: "only error",
+			line: LogLine{
+				Error: "test error",
+			},
+			want: false,
+		},
+		{
+			name: "all fields empty strings",
+			line: LogLine{
+				Facility: "",
+				Level:    "",
+				Content:  "",
+				Error:    "",
+			},
+			want: true,
+		},
+		{
+			name: "all fields populated",
+			line: LogLine{
+				Timestamp: time.Now(),
+				Facility:  "kern",
+				Level:     "info",
+				Content:   "test message",
+				Error:     "",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.line.IsEmpty(); got != tt.want {
+				t.Errorf("LogLine.IsEmpty() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWatch(t *testing.T) {
 	w, err := NewWatcherWithCommands([][]string{{"echo 123"}})
 	if err != nil {
