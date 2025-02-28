@@ -28,9 +28,12 @@ var DefaultWatchCommands = [][]string{
 
 type LogLine struct {
 	Timestamp time.Time
-	Facility  string
-	Level     string
-	Content   string
+
+	// Only applied to "dmesg".
+	Facility string
+
+	Level   string
+	Content string
 
 	// Error is set when a dmesg command fails.
 	Error string
