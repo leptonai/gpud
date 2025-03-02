@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
@@ -112,9 +111,8 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	smiExists := err == nil && p != ""
 
 	o := &Output{
-		Time:                time.Now().UTC(),
-		SMIExists:           smiExists,
-		FabricManagerExists: FabricManagerExists(),
+		Time:      time.Now().UTC(),
+		SMIExists: smiExists,
 	}
 
 	log.Logger.Debugw("counting gpu devices")
@@ -136,51 +134,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 				o.BadEnvVarsForCUDA = make(map[string]string)
 			}
 			o.BadEnvVarsForCUDA[k] = desc
-		}
-	}
-
-	if o.FabricManagerExists {
-		log.Logger.Infow("checking fabric manager version")
-		cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-		ver, err := CheckFabricManagerVersion(cctx)
-		ccancel()
-		if err != nil {
-			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager version: %v", err))
-		}
-
-		log.Logger.Debugw("connecting to dbus")
-		if err := systemd.ConnectDbus(); err != nil {
-			log.Logger.Warnw("failed to connect to dbus", "error", err)
-
-			o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to connect to dbus: %v", err))
-		} else {
-			active := false
-			defaultConn := systemd.GetDefaultDbusConn()
-
-			if defaultConn != nil {
-				cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
-				var err error
-				active, err = CheckFabricManagerActive(cctx, defaultConn)
-				ccancel()
-				if err != nil {
-					o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to check fabric manager active: %v", err))
-				}
-			} else {
-				o.FabricManagerErrors = append(o.FabricManagerErrors, "systemd dbus connection not available")
-			}
-
-			cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
-			journalOut, err := GetLatestFabricManagerOutput(cctx)
-			ccancel()
-			if err != nil {
-				o.FabricManagerErrors = append(o.FabricManagerErrors, fmt.Sprintf("failed to get fabric manager journal output: %v", err))
-			}
-
-			o.FabricManager = &FabricManagerOutput{
-				Version:       ver,
-				Active:        active,
-				JournalOutput: journalOut,
-			}
 		}
 	}
 
@@ -316,10 +269,6 @@ type Output struct {
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
 
-	FabricManagerExists bool                 `json:"fabric_manager_exists"`
-	FabricManager       *FabricManagerOutput `json:"fabric_manager,omitempty"`
-	FabricManagerErrors []string             `json:"fabric_manager_errors,omitempty"`
-
 	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
 	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
 
@@ -426,15 +375,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 		}
 	} else {
 		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
-	}
-
-	if len(o.FabricManagerErrors) > 0 {
-		fmt.Printf("%s fabric manager check failed with %d error(s)\n", warningSign, len(o.FabricManagerErrors))
-		for _, err := range o.FabricManagerErrors {
-			fmt.Println(err)
-		}
-	} else {
-		fmt.Printf("%s successfully checked fabric manager\n", checkMark)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {

@@ -4,156 +4,126 @@ package fabricmanager
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
+	"errors"
+	"os/exec"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
+	"github.com/leptonai/gpud/components/systemd"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	fabric_manager_log "github.com/leptonai/gpud/pkg/nvidia-query/fabric-manager-log"
-	"github.com/leptonai/gpud/pkg/query"
-	query_log "github.com/leptonai/gpud/pkg/query/log"
+	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
-const Name = "accelerator-nvidia-fabric-manager"
+func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (components.Component, error) {
+	return newComponent(ctx, fabricManagerExists, defaultWatchCommands, dbRW, dbRO)
+}
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
+func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands [][]string, dbRW *sql.DB, dbRO *sql.DB) (*component, error) {
 	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
-	if err := cfg.Log.Validate(); err != nil {
-		ccancel()
-		return nil, err
-	}
-	cfg.Log.SetDefaultsIfNotSet()
+	var eventsStore events_db.Store
+	var llp *logLineProcessor
+	if checkFMExists() {
+		var err error
+		eventsStore, err = events_db.NewStore(
+			dbRW,
+			dbRO,
+			events_db.CreateDefaultTableName(fabric_manager_id.Name),
+			3*24*time.Hour,
+		)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
 
-	if err := fabric_manager_log.CreateDefaultPoller(ctx, cfg.Log); err != nil {
-		ccancel()
-		return nil, err
+		w, err := newWatcher(watchCommands)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		llp = newLogLineProcessor(cctx, w, Match, eventsStore)
 	}
-	fabric_manager_log.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	return &component{
-		rootCtx:   ctx,
-		cancel:    ccancel,
-		poller:    nvidia_query.GetDefaultPoller(),
-		logPoller: fabric_manager_log.GetDefaultPoller(),
+		checkFMExists:    checkFMExists,
+		rootCtx:          cctx,
+		cancel:           ccancel,
+		eventsStore:      eventsStore,
+		logLineProcessor: llp,
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx   context.Context
-	cancel    context.CancelFunc
-	poller    query.Poller
-	logPoller query_log.Poller
+	checkFMExists    func() bool
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	eventsStore      events_db.Store
+	logLineProcessor *logLineProcessor
 }
 
-func (c *component) Name() string { return Name }
+func (c *component) Name() string { return fabric_manager_id.Name }
 
 func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
+	if !c.checkFMExists() {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    fabric_manager_id.Name,
+				Health:  components.StateHealthy,
 				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
+				Reason:  "fabric manager not found",
 			},
 		}, nil
 	}
+
+	defaultConn := systemd.GetDefaultDbusConn()
+	if defaultConn == nil {
+		return nil, errors.New("systemd dbus connection not available")
+	}
+
+	active, err := checkFabricManagerActive(ctx, defaultConn)
 	if err != nil {
 		return nil, err
 	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-	}
-
-	if !allOutput.FabricManagerExists {
+	if !active {
+		jo, err := getLatestFabricManagerOutput(ctx)
+		if err != nil {
+			log.Logger.Errorw("failed to get latest fabric manager output", "error", err)
+		} else {
+			log.Logger.Warnw("fabric manager is not active", "output", jo)
+		}
 		return []components.State{
 			{
-				Name:    Name,
-				Healthy: true,
-				Reason:  "fabric manager does not exist",
+				Name:    fabric_manager_id.Name,
+				Health:  components.StateUnhealthy,
+				Healthy: false,
+				Reason:  "fabric manager found but not active",
 			},
 		}, nil
 	}
-	if allOutput.FabricManagerExists && len(allOutput.FabricManagerErrors) > 0 {
-		cs := make([]components.State, 0)
-		for _, e := range allOutput.FabricManagerErrors {
-			cs = append(cs, components.State{
-				Name:    Name,
-				Healthy: false,
-				Error:   e,
-				Reason:  "fabric manager query failed with " + e,
-				ExtraInfo: map[string]string{
-					nvidia_query.StateKeyFabricManagerExists: fmt.Sprintf("%v", allOutput.FabricManagerExists),
-				},
-			})
-		}
-		return cs, nil
-	}
-	output := ToOutput(allOutput)
-	return output.States()
-}
 
-const (
-	EventKeyFabricManagerNVSwitchLogUnixSeconds = "fabricmanager_nvswitch_log_unix_seconds"
-	EventKeyFabricManagerNVSwitchLogLine        = "fabricmanager_nvswitch_log_line"
-	EventKeyFabricManagerNVSwitchLogFilter      = "fabricmanager_nvswitch_log_filter"
-	EventKeyFabricManagerNVSwitchLogError       = "fabricmanager_nvswitch_log_error"
-)
+	return []components.State{
+		{
+			Name:    fabric_manager_id.Name,
+			Health:  components.StateHealthy,
+			Healthy: true,
+			Reason:  "fabric manager found and active",
+		},
+	}, nil
+}
 
 // Returns `github.com/leptonai/gpud/pkg/query.ErrNoData` if there is no event found.
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	items, err := c.logPoller.Find(since)
-	if err != nil {
-		return nil, err
+	if c.logLineProcessor != nil {
+		return c.logLineProcessor.getEvents(ctx, since)
 	}
-
-	evs := make([]components.Event, 0)
-	for _, ev := range items {
-		b, _ := ev.Matched.JSON()
-		es := ""
-		if ev.Error != nil {
-			es = *ev.Error
-		}
-		evs = append(evs, components.Event{
-			Time: ev.Time,
-			Name: Name,
-			Type: common.EventTypeCritical,
-			ExtraInfo: map[string]string{
-				EventKeyFabricManagerNVSwitchLogUnixSeconds: fmt.Sprintf("%d", ev.Time.Unix()),
-				EventKeyFabricManagerNVSwitchLogLine:        ev.Line,
-				EventKeyFabricManagerNVSwitchLogFilter:      string(b),
-				EventKeyFabricManagerNVSwitchLogError:       es,
-			},
-		})
-	}
-	if len(evs) == 0 {
-		return nil, nil
-	}
-	return evs, nil
+	return nil, nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -164,10 +134,34 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+	c.cancel()
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
-	c.logPoller.Stop(Name)
+	if c.logLineProcessor != nil {
+		c.logLineProcessor.close()
+	}
+	if c.eventsStore != nil {
+		c.eventsStore.Close()
+	}
 
 	return nil
+}
+
+func fabricManagerExists() bool {
+	p, err := exec.LookPath("nv-fabricmanager")
+	if err != nil {
+		return false
+	}
+	return p != ""
+}
+
+func checkFabricManagerActive(ctx context.Context, conn *pkg_systemd.DbusConn) (bool, error) {
+	active, err := conn.IsActive(ctx, "nvidia-fabricmanager")
+	if err != nil {
+		return false, err
+	}
+	return active, nil
+}
+
+func getLatestFabricManagerOutput(ctx context.Context) (string, error) {
+	return pkg_systemd.GetLatestJournalctlOutput(ctx, "nvidia-fabricmanager")
 }
