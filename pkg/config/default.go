@@ -14,7 +14,6 @@ import (
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
-	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
@@ -261,8 +260,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		}
 
 		// optional
-		cfg.Components[nvidia_fabric_manager.Name] = nil
-
 		cfg.Components[nvidia_infiniband_id.Name] = nil
 
 		cfg.Components[nvidia_nccl_id.Name] = nil
