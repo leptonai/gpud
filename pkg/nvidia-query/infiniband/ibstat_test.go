@@ -182,60 +182,68 @@ func TestParseIBStatFiles(t *testing.T) {
 
 func TestParseIBStatCountByRates(t *testing.T) {
 	tt := []struct {
-		fileName              string
-		expectedPhysicalState string
-		expectedState         string
-		expectedAtLeastRate   int
-		expectedCount         int
-		expectedPortNames     []string
+		fileName               string
+		expectedPhysicalStates []string
+		expectedState          string
+		expectedAtLeastRate    int
+		expectedCount          int
+		expectedPortNames      []string
 	}{
 		{
-			fileName:              "testdata/ibstat.47.0.a100.all.active.0",
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedAtLeastRate:   200,
-			expectedCount:         9,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
+			fileName:               "testdata/ibstat.47.0.a100.all.active.0",
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedAtLeastRate:    200,
+			expectedCount:          9,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.a100.all.active.0",
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedAtLeastRate:   100,
-			expectedCount:         9,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
+			fileName:               "testdata/ibstat.47.0.a100.all.active.0",
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedAtLeastRate:    100,
+			expectedCount:          9,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.h100.all.active.0",
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedAtLeastRate:   400,
-			expectedCount:         8,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
+			fileName:               "testdata/ibstat.47.0.h100.all.active.0",
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedAtLeastRate:    400,
+			expectedCount:          8,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.h100.all.active.1",
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedAtLeastRate:   400,
-			expectedCount:         8,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
+			fileName:               "testdata/ibstat.47.0.h100.all.active.1",
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedAtLeastRate:    400,
+			expectedCount:          8,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.h100.some.down.0",
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedAtLeastRate:   400,
-			expectedCount:         8,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
+			fileName:               "testdata/ibstat.47.0.h100.some.down.0",
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedAtLeastRate:    400,
+			expectedCount:          8,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
 		},
 		{
-			fileName:              "testdata/ibstat.47.0.h100.some.down.1",
-			expectedAtLeastRate:   400,
-			expectedPhysicalState: "LinkUp",
-			expectedState:         "Active",
-			expectedCount:         6,
-			expectedPortNames:     []string{"mlx5_0", "mlx5_10", "mlx5_3", "mlx5_4", "mlx5_6", "mlx5_9"},
+			fileName:               "testdata/ibstat.47.0.h100.some.down.1",
+			expectedAtLeastRate:    400,
+			expectedPhysicalStates: []string{"LinkUp"},
+			expectedState:          "Active",
+			expectedCount:          6,
+			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_3", "mlx5_4", "mlx5_6", "mlx5_9"},
+		},
+		{
+			fileName:               "testdata/ibstat.47.0.h100.some.down.with.polling.1",
+			expectedPhysicalStates: []string{"Disabled", "Polling"},
+			expectedState:          "",
+			expectedAtLeastRate:    0,
+			expectedCount:          2,
+			expectedPortNames:      []string{"mlx5_11", "mlx5_5"},
 		},
 	}
 	for _, tc := range tt {
@@ -249,7 +257,7 @@ func TestParseIBStatCountByRates(t *testing.T) {
 				t.Fatalf("Failed to parse ibstat file %s: %v", tc.fileName, err)
 			}
 			matched := parsed.Match(
-				tc.expectedPhysicalState,
+				tc.expectedPhysicalStates,
 				tc.expectedState,
 				tc.expectedAtLeastRate,
 			)
@@ -430,7 +438,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 2, expected at least 2 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_0, mlx5_1)"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 0 LinkUp ports found; some ports might be down or polling, 2 'Disabled' or 'Polling' devices with Rate > 200 found (mlx5_0, mlx5_1)"),
 		},
 		{
 			name: "some ports down",
@@ -454,7 +462,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_1, mlx5_3)"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 2 LinkUp ports found; some ports might be down or polling, 2 'Disabled' or 'Polling' devices with Rate > 200 found (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "wrong rate",
@@ -470,7 +478,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 2, expected at least 2 ports and 200 Gb/sec rate; some ports must be missing"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 0 LinkUp ports found; some ports must be missing"),
 		},
 		{
 			name: "mixed rates with lower threshold",
@@ -510,7 +518,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 3, expected at least 3 ports and 200 Gb/sec rate; some ports might be down, 1 Disabled devices with Rate > 200 found (mlx5_1)"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 2 LinkUp ports found; some ports might be down or polling, 1 'Disabled' or 'Polling' devices with Rate > 200 found (mlx5_1)"),
 		},
 		{
 			name: "mixed states with wrong rate",
@@ -530,14 +538,14 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 3, expected at least 3 ports and 200 Gb/sec rate; some ports must be missing"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 0 LinkUp ports found; some ports must be missing"),
 		},
 		{
 			name:         "empty cards",
 			cards:        IBStatCards{},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 0 LinkUp out of 0, expected at least 2 ports and 200 Gb/sec rate; some ports must be missing"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 0 LinkUp ports found; some ports must be missing"),
 		},
 		{
 			name: "some ports disabled but with high enough rate",
@@ -561,7 +569,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("not enough LinkUp ports, only 2 LinkUp out of 4, expected at least 4 ports and 200 Gb/sec rate; some ports might be down, 2 Disabled devices with Rate > 200 found (mlx5_1, mlx5_3)"),
+			wantErr:      errors.New("not enough LinkUp ports -- only 2 LinkUp ports found; some ports might be down or polling, 2 'Disabled' or 'Polling' devices with Rate > 200 found (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "some ports disabled but with high enough rate but missing ports/rates",

@@ -114,13 +114,19 @@ type IBStatCards []IBStatCard
 //
 // If the `expectedPhysicalState` is empty, it matches all states.
 // If the `expectedState` is empty, it matches all states.
-func (cards IBStatCards) Match(expectedPhysicalState string, expectedState string, atLeastRate int) []string {
+func (cards IBStatCards) Match(expectedPhysicalStates []string, expectedState string, atLeastRate int) []string {
+	expStates := make(map[string]struct{})
+	for _, s := range expectedPhysicalStates {
+		expStates[s] = struct{}{}
+	}
+
 	names := make([]string, 0)
 	for _, card := range cards {
 		// e.g.,
 		// expected "Physical state: LinkUp"
-		// but got "Physical state: Disabled"
-		if expectedPhysicalState != "" && card.Port1.PhysicalState != expectedPhysicalState {
+		// but got "Physical state: Disabled" or "Physical state: Polling"
+		_, found := expStates[card.Port1.PhysicalState]
+		if len(expStates) > 0 && !found {
 			continue
 		}
 
@@ -146,28 +152,26 @@ func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) er
 		return nil
 	}
 
-	totalPorts := len(cards)
-
 	// select all "up" devices, and count the ones that match the expected rate with ">="
-	portNamesWithLinkUp := cards.Match("LinkUp", "", atLeastRate)
-	unstatisfieldCount := atLeastPorts - len(portNamesWithLinkUp)
-	if unstatisfieldCount <= 0 {
+	portNamesWithLinkUp := cards.Match([]string{"LinkUp"}, "", atLeastRate)
+	if len(portNamesWithLinkUp) >= atLeastPorts {
 		return nil
 	}
 
-	errMsg := fmt.Sprintf("not enough LinkUp ports, only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate", len(portNamesWithLinkUp), totalPorts, atLeastPorts, atLeastRate)
+	errMsg := fmt.Sprintf("not enough LinkUp ports -- only %d LinkUp ports found", len(portNamesWithLinkUp))
+	log.Logger.Warnw(errMsg, "totalPorts", len(cards), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
 
-	portNamesWithDisabled := cards.Match("Disabled", "", atLeastRate)
-	if len(portNamesWithDisabled) > 0 {
+	portNamesWithDisabledOrPolling := cards.Match([]string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored
+	if len(portNamesWithDisabledOrPolling) > 0 {
 		// some ports must be missing -- construct error message accordingly
-		errMsg += fmt.Sprintf("; some ports might be down, %v Disabled devices with Rate > %v found (%v)",
-			len(portNamesWithDisabled),
+		errMsg += fmt.Sprintf("; some ports might be down or polling, %d 'Disabled' or 'Polling' devices with Rate > %v found (%v)",
+			len(portNamesWithDisabledOrPolling),
 			atLeastRate,
-			strings.Join(portNamesWithDisabled, ", "),
+			strings.Join(portNamesWithDisabledOrPolling, ", "),
 		)
 	}
 
-	unstatisfieldCount -= len(portNamesWithDisabled)
+	unstatisfieldCount := atLeastPorts - len(portNamesWithLinkUp) - len(portNamesWithDisabledOrPolling)
 	if unstatisfieldCount > 0 {
 		errMsg += "; some ports must be missing"
 	}
