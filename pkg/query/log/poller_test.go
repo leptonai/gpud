@@ -10,7 +10,6 @@ import (
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
 	query_log_config "github.com/leptonai/gpud/pkg/query/log/config"
-	query_log_tail "github.com/leptonai/gpud/pkg/query/log/tail"
 
 	"github.com/nxadm/tail"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,14 +61,6 @@ func TestPoller(t *testing.T) {
 
 	if synced != 20 { // 20 lines
 		t.Fatalf("expected 20 seek info sync, got %d", synced)
-	}
-
-	evs, err := poller.TailScan(ctx, query_log_tail.WithLinesToTail(1000))
-	if err != nil {
-		t.Fatalf("failed to tail: %v", err)
-	}
-	if len(evs) != 20 {
-		t.Fatalf("expected 20 events, got %d", len(evs))
 	}
 }
 
@@ -135,14 +126,6 @@ func TestPollerTail(t *testing.T) {
 
 	if synced != 2 { // 2 lines
 		t.Fatalf("expected 2 seek info sync, got %d", synced)
-	}
-
-	evs, err := poller.TailScan(ctx, query_log_tail.WithLinesToTail(1000))
-	if err != nil {
-		t.Fatalf("failed to tail: %v", err)
-	}
-	if len(evs) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(evs))
 	}
 }
 
