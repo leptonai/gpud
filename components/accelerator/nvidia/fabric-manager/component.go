@@ -84,6 +84,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	defaultConn := systemd.GetDefaultDbusConn()
 	if defaultConn == nil {
+		log.Logger.Errorw("systemd dbus connection not available")
 		return nil, errors.New("systemd dbus connection not available")
 	}
 
@@ -92,11 +93,11 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		return nil, err
 	}
 	if !active {
-		jo, err := getLatestFabricManagerOutput(ctx)
+		fmStatusOutput, err := pkg_systemd.GetLatestJournalctlOutput(ctx, "nvidia-fabricmanager")
 		if err != nil {
 			log.Logger.Errorw("failed to get latest fabric manager output", "error", err)
 		} else {
-			log.Logger.Warnw("fabric manager is not active", "output", jo)
+			log.Logger.Warnw("fabric manager is not active", "output", fmStatusOutput)
 		}
 		return []components.State{
 			{
@@ -160,8 +161,4 @@ func checkFabricManagerActive(ctx context.Context, conn *pkg_systemd.DbusConn) (
 		return false, err
 	}
 	return active, nil
-}
-
-func getLatestFabricManagerOutput(ctx context.Context) (string, error) {
-	return pkg_systemd.GetLatestJournalctlOutput(ctx, "nvidia-fabricmanager")
 }
