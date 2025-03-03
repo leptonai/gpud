@@ -303,9 +303,9 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (v1.LeptonMet
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
 	for _, componentName := range allComponents {
-		go func() {
-			metricBuf <- s.getMetricsFromComponent(localCtx, componentName, metricsSince)
-		}()
+		go func(name string) {
+			metricBuf <- s.getMetricsFromComponent(localCtx, name, metricsSince)
+		}(componentName)
 	}
 	var retMetrics v1.LeptonMetrics
 	for currMetric := range metricBuf {
