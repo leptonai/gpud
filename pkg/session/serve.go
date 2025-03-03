@@ -98,7 +98,14 @@ func (s *Session) serve() {
 			response.Events = events
 
 		case "delete":
-			go s.deleteMachine(ctx, payload)
+			go func() {
+				// cleanup packages
+				if err := createNeedDeleteFiles("/var/lib/gpud/packages"); err != nil {
+					log.Logger.Errorw("failed to delete packages",
+						"error", err,
+					)
+				}
+			}()
 
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
@@ -219,15 +226,6 @@ func (s *Session) serve() {
 			log.Logger.Infow("exiting with code for auto update", "code", needExit)
 			os.Exit(s.autoUpdateExitCode)
 		}
-	}
-}
-
-func (s *Session) deleteMachine(ctx context.Context, payload Request) {
-	// cleanup packages
-	if err := createNeedDeleteFiles("/var/lib/gpud/packages"); err != nil {
-		log.Logger.Errorw("failed to delete packages",
-			"error", err,
-		)
 	}
 }
 
