@@ -3,7 +3,244 @@ package nvml
 import (
 	"reflect"
 	"testing"
+
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
+
+// createECCErrorsDevice creates a mock device for ECC errors testing
+func createECCErrorsDevice(
+	uuid string,
+	totalECCCorrected uint64,
+	totalECCUncorrected uint64,
+	totalECCRet nvml.Return,
+	memoryErrorRet nvml.Return,
+) device.Device {
+	mockDevice := &mock.Device{
+		GetTotalEccErrorsFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType) (uint64, nvml.Return) {
+			if totalECCRet != nvml.SUCCESS {
+				return 0, totalECCRet
+			}
+			if errorType == nvml.MEMORY_ERROR_TYPE_CORRECTED {
+				return totalECCCorrected, nvml.SUCCESS
+			}
+			return totalECCUncorrected, nvml.SUCCESS
+		},
+		GetMemoryErrorCounterFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, location nvml.MemoryLocation) (uint64, nvml.Return) {
+			if memoryErrorRet != nvml.SUCCESS {
+				return 0, memoryErrorRet
+			}
+			if errorType == nvml.MEMORY_ERROR_TYPE_CORRECTED {
+				return 1, nvml.SUCCESS
+			}
+			return 2, nvml.SUCCESS
+		},
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+
+	return testutil.NewMockDevice(mockDevice, "test-arch", "test-brand", "test-cuda", "test-pci")
+}
+
+func TestGetECCErrors(t *testing.T) {
+	tests := []struct {
+		name                  string
+		uuid                  string
+		eccModeEnabled        bool
+		totalECCCorrected     uint64
+		totalECCUncorrected   uint64
+		totalECCRet           nvml.Return
+		memoryErrorRet        nvml.Return
+		expectedECCErrors     ECCErrors
+		expectError           bool
+		expectedErrorContains string
+	}{
+		{
+			name:                "successful case with ECC mode enabled",
+			uuid:                "test-uuid",
+			eccModeEnabled:      true,
+			totalECCCorrected:   5,
+			totalECCUncorrected: 2,
+			totalECCRet:         nvml.SUCCESS,
+			memoryErrorRet:      nvml.SUCCESS,
+			expectedECCErrors: ECCErrors{
+				UUID: "test-uuid",
+				Aggregate: AllECCErrorCounts{
+					Total: ECCErrorCounts{
+						Corrected:   5,
+						Uncorrected: 2,
+					},
+					L1Cache: ECCErrorCounts{
+						Corrected:   1,
+						Uncorrected: 2,
+					},
+					// ... other memory locations will have similar values due to mock
+				},
+				Volatile: AllECCErrorCounts{
+					Total: ECCErrorCounts{
+						Corrected:   5,
+						Uncorrected: 2,
+					},
+					L1Cache: ECCErrorCounts{
+						Corrected:   1,
+						Uncorrected: 2,
+					},
+					// ... other memory locations will have similar values due to mock
+				},
+				Supported: true,
+			},
+			expectError: false,
+		},
+		{
+			name:                "ECC mode disabled",
+			uuid:                "test-uuid",
+			eccModeEnabled:      false,
+			totalECCCorrected:   5,
+			totalECCUncorrected: 2,
+			totalECCRet:         nvml.SUCCESS,
+			memoryErrorRet:      nvml.SUCCESS,
+			expectedECCErrors: ECCErrors{
+				UUID: "test-uuid",
+				Aggregate: AllECCErrorCounts{
+					Total: ECCErrorCounts{
+						Corrected:   5,
+						Uncorrected: 2,
+					},
+				},
+				Volatile: AllECCErrorCounts{
+					Total: ECCErrorCounts{
+						Corrected:   5,
+						Uncorrected: 2,
+					},
+				},
+				Supported: true,
+			},
+			expectError: false,
+		},
+		{
+			name:           "not supported error",
+			uuid:           "test-uuid",
+			eccModeEnabled: true,
+			totalECCRet:    nvml.ERROR_NOT_SUPPORTED,
+			expectedECCErrors: ECCErrors{
+				UUID:      "test-uuid",
+				Supported: false,
+			},
+			expectError: false,
+		},
+		{
+			name:                  "total ECC error",
+			uuid:                  "test-uuid",
+			eccModeEnabled:        true,
+			totalECCRet:           nvml.ERROR_UNKNOWN,
+			expectError:           true,
+			expectedErrorContains: "failed to get total ecc errors",
+		},
+		{
+			name:                  "memory error counter error",
+			uuid:                  "test-uuid",
+			eccModeEnabled:        true,
+			totalECCRet:           nvml.SUCCESS,
+			memoryErrorRet:        nvml.ERROR_UNKNOWN,
+			expectError:           true,
+			expectedErrorContains: "failed to get",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockDevice := createECCErrorsDevice(
+				tc.uuid,
+				tc.totalECCCorrected,
+				tc.totalECCUncorrected,
+				tc.totalECCRet,
+				tc.memoryErrorRet,
+			)
+
+			result, err := GetECCErrors(tc.uuid, mockDevice, tc.eccModeEnabled)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				if tc.totalECCRet == nvml.SUCCESS {
+					// Check total counts
+					assert.Equal(t, tc.expectedECCErrors.Aggregate.Total, result.Aggregate.Total)
+					assert.Equal(t, tc.expectedECCErrors.Volatile.Total, result.Volatile.Total)
+
+					if tc.eccModeEnabled && tc.memoryErrorRet == nvml.SUCCESS {
+						// Check L1 Cache as an example of memory location counts
+						assert.Equal(t, tc.expectedECCErrors.Aggregate.L1Cache, result.Aggregate.L1Cache)
+						assert.Equal(t, tc.expectedECCErrors.Volatile.L1Cache, result.Volatile.L1Cache)
+					}
+				}
+				assert.Equal(t, tc.expectedECCErrors.Supported, result.Supported)
+				assert.Equal(t, tc.expectedECCErrors.UUID, result.UUID)
+			}
+		})
+	}
+}
+
+func TestECCErrors_JSON(t *testing.T) {
+	eccErrors := ECCErrors{
+		UUID: "test-uuid",
+		Aggregate: AllECCErrorCounts{
+			Total: ECCErrorCounts{
+				Corrected:   5,
+				Uncorrected: 2,
+			},
+		},
+		Volatile: AllECCErrorCounts{
+			Total: ECCErrorCounts{
+				Corrected:   3,
+				Uncorrected: 1,
+			},
+		},
+		Supported: true,
+	}
+
+	jsonData, err := eccErrors.JSON()
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonData), `"uuid":"test-uuid"`)
+	assert.Contains(t, string(jsonData), `"supported":true`)
+	assert.Contains(t, string(jsonData), `"corrected":5`)
+	assert.Contains(t, string(jsonData), `"uncorrected":2`)
+}
+
+func TestECCErrors_YAML(t *testing.T) {
+	eccErrors := ECCErrors{
+		UUID: "test-uuid",
+		Aggregate: AllECCErrorCounts{
+			Total: ECCErrorCounts{
+				Corrected:   5,
+				Uncorrected: 2,
+			},
+		},
+		Volatile: AllECCErrorCounts{
+			Total: ECCErrorCounts{
+				Corrected:   3,
+				Uncorrected: 1,
+			},
+		},
+		Supported: true,
+	}
+
+	yamlData, err := eccErrors.YAML()
+	require.NoError(t, err)
+	assert.Contains(t, string(yamlData), "uuid: test-uuid")
+	assert.Contains(t, string(yamlData), "supported: true")
+	assert.Contains(t, string(yamlData), "corrected: 5")
+	assert.Contains(t, string(yamlData), "uncorrected: 2")
+}
 
 func TestAllECCErrorCounts_FindUncorrectedErrs(t *testing.T) {
 	tests := []struct {

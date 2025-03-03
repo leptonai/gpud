@@ -1,0 +1,90 @@
+package nvml
+
+import (
+	"testing"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+)
+
+func TestGetGSPFirmwareMode(t *testing.T) {
+	testCases := []struct {
+		name                  string
+		gspEnabled            bool
+		gspSupported          bool
+		gspFirmwareRet        nvml.Return
+		expectedGSPFirmware   GSPFirmwareMode
+		expectError           bool
+		expectedErrorContains string
+	}{
+		{
+			name:           "gsp enabled and supported",
+			gspEnabled:     true,
+			gspSupported:   true,
+			gspFirmwareRet: nvml.SUCCESS,
+			expectedGSPFirmware: GSPFirmwareMode{
+				UUID:      "test-uuid",
+				Enabled:   true,
+				Supported: true,
+			},
+			expectError: false,
+		},
+		{
+			name:           "gsp disabled but supported",
+			gspEnabled:     false,
+			gspSupported:   true,
+			gspFirmwareRet: nvml.SUCCESS,
+			expectedGSPFirmware: GSPFirmwareMode{
+				UUID:      "test-uuid",
+				Enabled:   false,
+				Supported: true,
+			},
+			expectError: false,
+		},
+		{
+			name:           "not supported",
+			gspEnabled:     false,
+			gspSupported:   false,
+			gspFirmwareRet: nvml.ERROR_NOT_SUPPORTED,
+			expectedGSPFirmware: GSPFirmwareMode{
+				UUID:      "test-uuid",
+				Enabled:   false,
+				Supported: false,
+			},
+			expectError: false,
+		},
+		{
+			name:                  "error case",
+			gspEnabled:            false,
+			gspSupported:          false,
+			gspFirmwareRet:        nvml.ERROR_UNKNOWN,
+			expectError:           true,
+			expectedErrorContains: "failed to get gsp firmware mode",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockDevice := testutil.CreateGSPFirmwareDevice(
+				"test-uuid",
+				tc.gspEnabled,
+				tc.gspSupported,
+				tc.gspFirmwareRet,
+			)
+
+			gspFirmware, err := GetGSPFirmwareMode("test-uuid", mockDevice)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedGSPFirmware, gspFirmware)
+			}
+		})
+	}
+}
