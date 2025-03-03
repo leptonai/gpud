@@ -7,14 +7,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/leptonai/gpud/pkg/log"
-
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 // Processes represents the current clock events from the nvmlDeviceGetCurrentClocksEventReasons API.
