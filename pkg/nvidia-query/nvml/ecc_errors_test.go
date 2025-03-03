@@ -7,9 +7,10 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 // createECCErrorsDevice creates a mock device for ECC errors testing
