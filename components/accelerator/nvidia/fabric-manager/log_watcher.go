@@ -237,7 +237,7 @@ func watch(
 	cacheExpiration time.Duration,
 	cachePurgeInterval time.Duration,
 ) (<-chan logLine, error) {
-	// initial dmesg command may return >1k lines, buffer 3k to minimize the event loss
+	// initial 'tail' command may return >1k lines, buffer 3k to minimize the event loss
 	ch := make(chan logLine, 3000)
 
 	opts := []process.OpOption{}
@@ -245,7 +245,7 @@ func watch(
 		opts = append(opts, process.WithCommand(cmd...))
 	}
 
-	// need to run as bash script when dmesg commands are complicated
+	// need to run as bash script when 'tail' commands are complicated
 	opts = append(opts, process.WithRunAsBashScript())
 
 	p, err := process.New(opts...)
@@ -304,11 +304,8 @@ func read(ctx context.Context, p process.Process, cacheExpiration time.Duration,
 			}
 		}),
 
-		// default buffer size of "dmesg" is 16384 bytes
-		// set initial buffer size to 16384 bytes
-		// larger than default 4KB to avoid output truncation
-		// when dmesg command exits for some reason
-		// ref. https://linux.die.net/man/8/dmesg
+		// larger to avoid output truncation
+		// when 'tail' command exits for some reason
 		process.WithInitialBufferSize(16384),
 
 		process.WithWaitForCmd(),
