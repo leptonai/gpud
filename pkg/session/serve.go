@@ -98,7 +98,7 @@ func (s *Session) serve() {
 			response.Events = events
 
 		case "delete":
-			go s.deleteMachine(ctx, payload)
+			go s.delete()
 
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
@@ -222,7 +222,7 @@ func (s *Session) serve() {
 	}
 }
 
-func (s *Session) deleteMachine(ctx context.Context, payload Request) {
+func (s *Session) delete() {
 	// cleanup packages
 	if err := createNeedDeleteFiles("/var/lib/gpud/packages"); err != nil {
 		log.Logger.Errorw("failed to delete packages",
