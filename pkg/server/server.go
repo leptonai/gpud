@@ -42,6 +42,7 @@ import (
 	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
+	nvidia_fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
@@ -718,23 +719,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_fabric_manager.Name:
-			cfg := nvidia_fabric_manager.Config{
-				Query:          defaultQueryCfg,
-				Log:            nvidia_fabric_manager.DefaultLogConfig(),
-				ToolOverwrites: options.ToolOverwrites,
-			}
-			if configValue != nil {
-				parsed, err := nvidia_fabric_manager.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, cfg)
+		case nvidia_fabric_manager_id.Name:
+			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, dbRW, dbRO)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

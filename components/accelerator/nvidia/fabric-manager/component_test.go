@@ -2,113 +2,194 @@ package fabricmanager
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	query_config "github.com/leptonai/gpud/pkg/query/config"
-	query_log_config "github.com/leptonai/gpud/pkg/query/log/config"
-	"github.com/leptonai/gpud/pkg/sqlite"
-
-	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/components"
+	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
+	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestComponentWithNoPoller(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	defaultPoller := nvidia_query.GetDefaultPoller()
-	_, err := New(ctx, Config{})
-
-	if defaultPoller != nil {
-		// expects no error
-		assert.NoError(t, err)
-	} else {
-		// expects error
-		assert.Equal(t, err, nvidia_query.ErrDefaultPollerNotSet)
-	}
-}
-
-func TestComponentLog(t *testing.T) {
+func TestComponentEvents(t *testing.T) {
 	t.Parallel()
-
-	f, err := os.CreateTemp(os.TempDir(), "test-log")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(f.Name())
-
-	if _, err := f.WriteString("test\ntest\ntest\n"); err != nil {
-		t.Fatalf("failed to write to temp file: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	nvidia_query.SetDefaultPoller(
-		nvidia_query.WithDBRW(dbRW),
-		nvidia_query.WithDBRO(dbRO),
-	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	pollInterval := 3 * time.Second
-	component, err := New(
+	comp, err := newComponent(
 		ctx,
-		Config{
-			Log: query_log_config.Config{
-				Query: query_config.Config{
-					Interval: metav1.Duration{Duration: pollInterval},
-					State: &query_config.State{
-						DBRW: dbRW,
-						DBRO: dbRO,
-					},
-				},
-				BufferSize:    query_log_config.DefaultBufferSize,
-				File:          f.Name(),
-				SelectFilters: filters,
-			},
+		func() bool { return true },
+		[][]string{
+			{"tail", "testdata/fabricmanager.log"},
+			{"sleep 1"},
 		},
+		dbRW,
+		dbRO,
 	)
+	require.NoError(t, err)
+	defer comp.Close()
 
-	if err != nil {
-		t.Fatalf("failed to create component: %v", err)
+	time.Sleep(5 * time.Second)
+
+	events, err := comp.Events(ctx, time.Time{})
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+
+	expectedEvent := components.Event{
+		Time:    metav1.Time{Time: time.Date(2025, 2, 27, 15, 10, 2, 0, time.UTC)},
+		Name:    "fabricmanager_nvswitch_non_fatal_error",
+		Type:    "Warning",
+		Message: "NVSwitch non-fatal error detected",
+		ExtraInfo: map[string]string{
+			"log_line": "[ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61",
+		},
 	}
 
-	t.Log("writing non error log")
-	if _, err := f.WriteString("[Jul 24 2024 03:14:18] [INFO] [tid 855] Sending inband response message:  Message header details: magic Id:adbc request Id:2b59bdc21b9504c4 status:0 type:3 length:24\n"); err != nil {
-		t.Fatalf("failed to write non error log: %v", err)
-	}
-	time.Sleep(pollInterval + 3*time.Second)
+	assert.Equal(t, expectedEvent.Name, events[0].Name)
+	assert.Equal(t, expectedEvent.Type, events[0].Type)
+	assert.Equal(t, expectedEvent.Message, events[0].Message)
+	assert.Equal(t, expectedEvent.ExtraInfo["log_line"], events[0].ExtraInfo["log_line"])
 
-	t.Log("writing non fatal error log")
-	if _, err := f.WriteString("[Jul 09 2024 18:14:07] [ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61\n"); err != nil {
-		t.Fatalf("failed to write non-fatal error log: %v", err)
-	}
-	time.Sleep(pollInterval + 3*time.Second)
+	comp.checkFMExists = func() bool { return false }
+	states, err := comp.States(ctx)
+	require.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "fabric manager not found", states[0].Reason)
+}
 
-	t.Log("writing fatal error log")
-	if _, err := f.WriteString("[Jul 23 2024 07:53:55] [ERROR] [tid 841] detected NVSwitch fatal error 20034 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33\n"); err != nil {
-		t.Fatalf("failed to write fatal error log: %v", err)
-	}
-	time.Sleep(pollInterval + 3*time.Second)
+// mockWatcher implements the watcher interface for testing
+type mockWatcher struct {
+	ch chan logLine
+}
 
-	t.Log("writing fatal error log")
-	if _, err := f.WriteString("[Apr 17 2024 01:51:39] [ERROR] [tid 2999877] failed to find the GPU handle 10187860174420860981 in the multicast team request setup 5653964288847403984.\n"); err != nil {
-		t.Fatalf("failed to write fatal error log: %v", err)
+func newMockWatcher() *mockWatcher {
+	return &mockWatcher{
+		ch: make(chan logLine),
 	}
-	time.Sleep(pollInterval + 3*time.Second)
+}
 
-	events, err := component.Events(ctx, time.Now().Add(-876600*time.Hour))
-	if err != nil {
-		t.Fatalf("failed to get events: %v", err)
-	}
-	t.Logf("events: %+v", events)
+func (w *mockWatcher) watch() <-chan logLine {
+	return w.ch
+}
 
-	if len(events) != 3 {
-		t.Errorf("expected 3 events, got %d", len(events))
+func (w *mockWatcher) close() {
+	close(w.ch)
+}
+
+// mockMatchFunc implements the matchFunc interface for testing
+func mockMatchFunc(line string) (eventName string, message string) {
+	if line == "test-error-line" {
+		return "test-error", "This is a test error"
 	}
+	return "", ""
+}
+
+func TestEventsWithNoProcessor(t *testing.T) {
+	t.Parallel()
+
+	// Create a component with no logLineProcessor
+	comp := &component{
+		checkFMExists: func() bool { return false },
+		rootCtx:       context.Background(),
+		cancel:        func() {},
+	}
+
+	// Call Events
+	events, err := comp.Events(context.Background(), time.Now().Add(-1*time.Hour))
+
+	// Verify results
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+}
+
+func TestEventsWithProcessor(t *testing.T) {
+	t.Parallel()
+
+	// Setup SQLite database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	// Create context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a mock watcher
+	mockW := newMockWatcher()
+
+	// Create events store
+	eventsStore, err := events_db.NewStore(
+		dbRW,
+		dbRO,
+		events_db.CreateDefaultTableName(fabric_manager_id.Name),
+		3*24*time.Hour,
+	)
+	require.NoError(t, err)
+
+	// Create a processor
+	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, eventsStore)
+
+	// Create component with processor
+	comp := &component{
+		checkFMExists:    func() bool { return true },
+		rootCtx:          ctx,
+		cancel:           cancel,
+		eventsStore:      eventsStore,
+		logLineProcessor: llp,
+	}
+
+	// Insert a test event directly into the store
+	testEvent := components.Event{
+		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+		Name:    "test-error",
+		Message: "This is a test error",
+		Type:    "Warning",
+		ExtraInfo: map[string]string{
+			"log_line": "test-error-line",
+		},
+	}
+	err = eventsStore.Insert(ctx, testEvent)
+	require.NoError(t, err)
+
+	// Call Events
+	events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
+
+	// Verify results
+	assert.NoError(t, err)
+	require.NotNil(t, events)
+	assert.Len(t, events, 1)
+	assert.Equal(t, "test-error", events[0].Name)
+	assert.Equal(t, "This is a test error", events[0].Message)
+}
+
+func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
+	t.Parallel()
+
+	// Create a component where fabric manager doesn't exist
+	comp := &component{
+		checkFMExists: func() bool { return false },
+		rootCtx:       context.Background(),
+		cancel:        func() {},
+	}
+
+	// Call States
+	states, err := comp.States(context.Background())
+
+	// Verify results
+	assert.NoError(t, err)
+	require.NotNil(t, states)
+	assert.Len(t, states, 1)
+	assert.Equal(t, fabric_manager_id.Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "fabric manager not found", states[0].Reason)
 }
