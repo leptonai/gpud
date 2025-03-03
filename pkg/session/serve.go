@@ -331,9 +331,9 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
 	for _, componentName := range allComponents {
-		go func() {
-			statesBuf <- s.getStatesFromComponent(localCtx, componentName, lastRebootTime)
-		}()
+		go func(name string) {
+			statesBuf <- s.getStatesFromComponent(localCtx, name, lastRebootTime)
+		}(componentName)
 	}
 	var states v1.LeptonStates
 	for currState := range statesBuf {
