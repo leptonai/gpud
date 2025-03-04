@@ -1,0 +1,47 @@
+6,3964,206764307,-;nvidia-nvswitch2: open (major=510)
+6,3965,206764310,-;nvidia-nvswitch2: open (major=510)
+6,3966,206764312,-;nvidia-nvswitch2: open (major=510)
+6,3967,206764314,-;nvidia-nvswitch2: open (major=510)
+6,3968,206764317,-;nvidia-nvswitch3: open (major=510)
+6,3969,206764319,-;nvidia-nvswitch3: open (major=510)
+6,3970,206764321,-;nvidia-nvswitch3: open (major=510)
+6,3971,206764324,-;nvidia-nvswitch3: open (major=510)
+6,3972,206764326,-;nvidia-nvswitch3: open (major=510)
+6,3973,227986636,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3974,227986678,-;IPv6: ADDRCONF(NETDEV_CHANGE): calib317e2eeb40: link becomes ready
+6,3975,231320398,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3976,231320445,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali817bc444564: link becomes ready
+6,3977,232192800,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali16b7bb8d9d5: link becomes ready
+6,3978,233839047,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3979,233839101,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali7d4279dcdef: link becomes ready
+6,3980,234700472,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali192c173bf63: link becomes ready
+6,3981,238298440,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3982,238298483,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali77b6400b38f: link becomes ready
+6,3983,240602554,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali201b519bdba: link becomes ready
+6,3984,241965918,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3985,241965979,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali44287ff2a69: link becomes ready
+6,3986,242226782,-;wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+6,3987,242226785,-;wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+6,3988,251568620,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3989,251568671,-;IPv6: ADDRCONF(NETDEV_CHANGE): calic1ed24fe77c: link becomes ready
+6,3990,251895583,-;Initializing XFRM netlink socket
+6,3991,255473436,-;IPv6: ADDRCONF(NETDEV_CHANGE): califb6c0b21ee7: link becomes ready
+6,3992,256593815,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3993,256593857,-;IPv6: ADDRCONF(NETDEV_CHANGE): caliad6cf817e1b: link becomes ready
+6,3994,258429679,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3995,258429745,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali160c958f6d3: link becomes ready
+6,3996,259919742,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,3997,259919785,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali990e6b401ee: link becomes ready
+6,3998,261229012,-;nvidia-nvswitch3: open (major=510)
+6,3999,261323780,-;nvidia-nvswitch2: open (major=510)
+6,4000,261448167,-;nvidia-nvswitch1: open (major=510)
+6,4001,261573217,-;nvidia-nvswitch0: open (major=510)
+6,4002,3757433091,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,4003,3757433151,-;IPv6: ADDRCONF(NETDEV_CHANGE): calia3f11b97c70: link becomes ready
+6,4004,9184121699,-;perf: interrupt took too long (2509 > 2500), lowering kernel.perf_event_max_sample_rate to 79500
+6,4005,11424928251,-;perf: interrupt took too long (3141 > 3136), lowering kernel.perf_event_max_sample_rate to 63500
+6,4006,15519938051,-;perf: interrupt took too long (7156 > 3926), lowering kernel.perf_event_max_sample_rate to 27750
+6,4007,41700858271,-;perf: interrupt took too long (9494 > 8945), lowering kernel.perf_event_max_sample_rate to 21000
+6,4008,56238116492,-;IPv6: ADDRCONF(NETDEV_CHANGE): cali21960952cd0: link becomes ready
+6,4009,57631398407,-;IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+6,4010,57631398464,-;IPv6: ADDRCONF(NETDEV_CHANGE): calic24dd7712a6: link becomes ready
