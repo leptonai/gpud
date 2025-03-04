@@ -91,7 +91,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason:  "only 1 LinkUp ports found (expected at least 2)",
+			wantReason:  "only 1 ports (>= 200 Gb/s) are active, expect at least 2",
 			wantHealthy: false,
 			wantErr:     false,
 		},
@@ -122,7 +122,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason:  "only 0 LinkUp ports found (expected at least 2)",
+			wantReason:  "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
 			wantHealthy: false,
 			wantErr:     false,
 		},
@@ -153,7 +153,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason:  "only 0 LinkUp ports found (expected at least 2); 2 device(s) found Disabled (mlx5_0, mlx5_1)",
+			wantReason:  "only 0 ports (>= 200 Gb/s) are active, expect at least 2; 2 device(s) found Disabled (mlx5_0, mlx5_1)",
 			wantHealthy: false,
 			wantErr:     false,
 		},
@@ -239,7 +239,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastPorts: 12,  // Total number of ports
 				AtLeastRate:  400, // Only 8 ports have this rate
 			},
-			wantReason:  "only 8 LinkUp ports found (expected at least 12)",
+			wantReason:  "only 8 ports (>= 400 Gb/s) are active, expect at least 12",
 			wantHealthy: false,
 			wantErr:     false,
 		},
@@ -313,7 +313,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	assert.Equal(t, "ibstat", state.Name)
 	assert.False(t, state.Healthy)
 	assert.Equal(t, components.StateUnhealthy, state.Health)
-	assert.Contains(t, state.Reason, "only 8 LinkUp ports found (expected at least 12)")
+	assert.Contains(t, state.Reason, "only 8 ports (>= 400 Gb/s) are active, expect at least 12")
 	assert.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []common.RepairActionType{common.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
 }

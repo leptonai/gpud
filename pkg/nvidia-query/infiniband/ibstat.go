@@ -164,7 +164,7 @@ func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) er
 		return nil
 	}
 
-	errMsg := fmt.Sprintf("only %d LinkUp ports found (expected at least %d)", len(portNamesWithLinkUp), atLeastPorts)
+	errMsg := fmt.Sprintf("only %d ports (>= %d Gb/s) are active, expect at least %d", len(portNamesWithLinkUp), atLeastRate, atLeastPorts)
 	log.Logger.Warnw(errMsg, "totalPorts", len(cards), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
 
 	pm, portNamesWithDisabledOrPolling := cards.match([]string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored

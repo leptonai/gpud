@@ -438,7 +438,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 0 LinkUp ports found (expected at least 2); 2 device(s) found Disabled (mlx5_0, mlx5_1)"),
+			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2; 2 device(s) found Disabled (mlx5_0, mlx5_1)"),
 		},
 		{
 			name: "some ports down",
@@ -462,7 +462,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 2 LinkUp ports found (expected at least 4); 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 4; 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "wrong rate",
@@ -478,7 +478,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 0 LinkUp ports found (expected at least 2)"),
+			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2"),
 		},
 		{
 			name: "mixed rates with lower threshold",
@@ -518,7 +518,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 2 LinkUp ports found (expected at least 3); 1 device(s) found Disabled (mlx5_1)"),
+			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1)"),
 		},
 		{
 			name: "mixed states with empty expected state matches all and with polling state",
@@ -542,7 +542,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 2 LinkUp ports found (expected at least 3); 1 device(s) found Disabled (mlx5_1); 1 device(s) found Polling (mlx5_3)"),
+			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1); 1 device(s) found Polling (mlx5_3)"),
 		},
 		{
 			name: "mixed states with wrong rate",
@@ -562,14 +562,14 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 3,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 0 LinkUp ports found (expected at least 3)"),
+			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 3"),
 		},
 		{
 			name:         "empty cards",
 			cards:        IBStatCards{},
 			atLeastPorts: 2,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 0 LinkUp ports found (expected at least 2)"),
+			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2"),
 		},
 		{
 			name: "some ports disabled but with high enough rate",
@@ -593,7 +593,7 @@ func TestValidateIBPorts(t *testing.T) {
 			},
 			atLeastPorts: 4,
 			atLeastRate:  200,
-			wantErr:      errors.New("only 2 LinkUp ports found (expected at least 4); 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 4; 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
 		},
 		{
 			name: "some ports disabled but with high enough rate but missing ports/rates",
