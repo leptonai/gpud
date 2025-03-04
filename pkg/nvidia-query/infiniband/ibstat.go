@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -108,19 +109,26 @@ type IbstatOutput struct {
 
 type IBStatCards []IBStatCard
 
-// Match returns the IB port names whose physical state, state, and "Port 1"."Rate" match the expected values.
+// match returns the map from the physical state to each IB port names that matches the expected values.
 // The specified rate is the threshold for "Port 1"."Rate", where it evaluates with ">=" operator
 // (e.g., count all the cards whose rate is >= 400).
 //
 // If the `expectedPhysicalState` is empty, it matches all states.
+// If the `expectedPhysicalState` are multiple states, it matches all states with OR operator.
 // If the `expectedState` is empty, it matches all states.
-func (cards IBStatCards) Match(expectedPhysicalState string, expectedState string, atLeastRate int) []string {
-	names := make([]string, 0)
+func (cards IBStatCards) match(expectedPhysicalStates []string, expectedState string, atLeastRate int) (map[string][]string, []string) {
+	expStates := make(map[string]struct{})
+	for _, s := range expectedPhysicalStates {
+		expStates[s] = struct{}{}
+	}
+
+	all, names := make(map[string][]string), make([]string, 0)
 	for _, card := range cards {
 		// e.g.,
 		// expected "Physical state: LinkUp"
-		// but got "Physical state: Disabled"
-		if expectedPhysicalState != "" && card.Port1.PhysicalState != expectedPhysicalState {
+		// but got "Physical state: Disabled" or "Physical state: Polling"
+		_, found := expStates[card.Port1.PhysicalState]
+		if len(expStates) > 0 && !found {
 			continue
 		}
 
@@ -135,9 +143,13 @@ func (cards IBStatCards) Match(expectedPhysicalState string, expectedState strin
 			continue
 		}
 
+		if _, ok := all[card.Port1.PhysicalState]; !ok {
+			all[card.Port1.PhysicalState] = make([]string, 0)
+		}
+		all[card.Port1.PhysicalState] = append(all[card.Port1.PhysicalState], card.Name)
 		names = append(names, card.Name)
 	}
-	return names
+	return all, names
 }
 
 // CheckPortsAndRate checks if the number of active IB ports matches expectations
@@ -146,31 +158,26 @@ func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) er
 		return nil
 	}
 
-	totalPorts := len(cards)
-
 	// select all "up" devices, and count the ones that match the expected rate with ">="
-	portNamesWithLinkUp := cards.Match("LinkUp", "", atLeastRate)
-	unstatisfieldCount := atLeastPorts - len(portNamesWithLinkUp)
-	if unstatisfieldCount <= 0 {
+	_, portNamesWithLinkUp := cards.match([]string{"LinkUp"}, "", atLeastRate)
+	if len(portNamesWithLinkUp) >= atLeastPorts {
 		return nil
 	}
 
-	errMsg := fmt.Sprintf("not enough LinkUp ports, only %d LinkUp out of %d, expected at least %d ports and %d Gb/sec rate", len(portNamesWithLinkUp), totalPorts, atLeastPorts, atLeastRate)
+	errMsg := fmt.Sprintf("only %d ports (>= %d Gb/s) are active, expect at least %d", len(portNamesWithLinkUp), atLeastRate, atLeastPorts)
+	log.Logger.Warnw(errMsg, "totalPorts", len(cards), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
 
-	portNamesWithDisabled := cards.Match("Disabled", "", atLeastRate)
-	if len(portNamesWithDisabled) > 0 {
+	pm, portNamesWithDisabledOrPolling := cards.match([]string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored
+	if len(portNamesWithDisabledOrPolling) > 0 {
 		// some ports must be missing -- construct error message accordingly
-		errMsg += fmt.Sprintf("; some ports might be down, %v Disabled devices with Rate > %v found (%v)",
-			len(portNamesWithDisabled),
-			atLeastRate,
-			strings.Join(portNamesWithDisabled, ", "),
-		)
+		msgs := make([]string, 0)
+		for state, names := range pm {
+			msgs = append(msgs, fmt.Sprintf("%d device(s) found %s (%s)", len(names), state, strings.Join(names, ", ")))
+		}
+		sort.Strings(msgs)
+		errMsg += fmt.Sprintf("; %s", strings.Join(msgs, "; "))
 	}
 
-	unstatisfieldCount -= len(portNamesWithDisabled)
-	if unstatisfieldCount > 0 {
-		errMsg += "; some ports must be missing"
-	}
 	return errors.New(errMsg)
 }
 
