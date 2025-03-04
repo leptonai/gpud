@@ -113,7 +113,6 @@ import (
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
-	query_log_state "github.com/leptonai/gpud/pkg/query/log/state"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -227,10 +226,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	log.Logger.Infow("api version", "version", ver)
 	if ver != "v1" {
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
-	}
-
-	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 
 	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {

@@ -11,15 +11,11 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	nvidia_component_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_component_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/process"
-	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/pkg/query/log/tail"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
@@ -144,44 +140,16 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if nvidiaInstalled && err == nil {
 		fmt.Printf("%s scanning dmesg with regexes\n", inProgress)
-		matched, err := query_log_tail.Scan(
-			ctx,
-			query_log_tail.WithDedup(true),
-			query_log_tail.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
-			query_log_tail.WithLinesToTail(5000),
-			query_log_tail.WithMatchFunc(
-				func(line string) (string, string) {
-					xidErr := nvidia_component_error_xid.Match(line)
-					if xidErr != nil {
-						return "xid found", ""
-					}
-					return "", "" // no match
-				},
-				func(line string) (string, string) {
-					sxidErr := nvidia_component_error_sxid.Match(line)
-					if sxidErr != nil {
-						return "sxid found", ""
-					}
-					return "", "" // no match
-				},
-			),
-			query_log_tail.WithExtractTime(func(l []byte) (time.Time, []byte, error) {
-				dm := pkg_dmesg.ParseDmesgLine(string(l))
-				return dm.Timestamp, l, nil
-			}),
-			query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
-				o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg match: %s", string(line)))
-			}),
-		)
+		issueCnt, err := scanDmesg(ctx)
 		if err != nil {
 			o.Results = append(o.Results, CommandResult{
 				Command: strings.Join(pkg_dmesg.DefaultDmesgScanCommands[0], " "),
 				Error:   err.Error(),
 			})
-		} else if matched == 0 {
+		} else if issueCnt == 0 {
 			o.CheckSummary = append(o.CheckSummary, "dmesg scan passed")
 		} else {
-			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg scan detected %d issues", matched))
+			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg scan detected %d issues", issueCnt))
 		}
 	}
 

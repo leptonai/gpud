@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_component_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_component_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/disk"
@@ -24,8 +24,6 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
-	query_log_common "github.com/leptonai/gpud/pkg/query/log/common"
-	query_log_tail "github.com/leptonai/gpud/pkg/query/log/tail"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/dustin/go-humanize"
@@ -227,52 +225,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 
 		fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
-		matched, err := query_log_tail.Scan(
-			ctx,
-			query_log_tail.WithDedup(true),
-			query_log_tail.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
-			query_log_tail.WithLinesToTail(op.lines),
-			query_log_tail.WithMatchFunc(
-				func(line string) (string, string) {
-					xidErr := nvidia_component_error_xid.Match(line)
-					if xidErr != nil {
-						return "xid found", ""
-					}
-					return "", "" // no match
-				},
-				func(line string) (string, string) {
-					sxidErr := nvidia_component_error_sxid.Match(line)
-					if sxidErr != nil {
-						return "sxid found", ""
-					}
-					return "", "" // no match
-				},
-			),
-			query_log_tail.WithExtractTime(func(l []byte) (time.Time, []byte, error) {
-				dm := pkg_dmesg.ParseDmesgLine(string(l))
-				return dm.Timestamp, l, nil
-			}),
-			query_log_tail.WithProcessMatched(func(time time.Time, line []byte, matched *query_log_common.Filter) {
-				if xidErr := nvidia_component_error_xid.Match(string(line)); xidErr != nil {
-					log.Logger.Warnw("known xid", "line", string(line))
-					yb, _ := xidErr.YAML()
-					fmt.Println(string(yb))
-				}
-
-				if sxidErr := nvidia_component_error_sxid.Match(string(line)); sxidErr != nil {
-					log.Logger.Warnw("known sxid", "line", string(line))
-					yb, _ := sxidErr.YAML()
-					fmt.Println(string(yb))
-				}
-			}),
-		)
+		issueCnt, err := scanDmesg(ctx)
 		if err != nil {
 			return err
 		}
-		if matched == 0 {
+		if issueCnt == 0 {
 			fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
 		} else {
-			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, matched)
+			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, issueCnt)
 		}
 	}
 
@@ -323,4 +283,60 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scan complete\n\n", checkMark)
 	return nil
+}
+
+func scanDmesg(ctx context.Context) (int, error) {
+	p, err := process.New(
+		process.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	if err := p.Start(ctx); err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
+	nowUTC := time.Now().UTC()
+	issueCnt := 0
+	if err := process.Read(
+		ctx,
+		p,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			parsed := pkg_dmesg.ParseDmesgLine(line)
+			ts := humanize.RelTime(parsed.Timestamp, nowUTC, "ago", "from now")
+
+			if found := error_xid.Match(line); found != nil {
+				fmt.Printf("[XID found] (%s) %q\n", ts, parsed.Content)
+				issueCnt++
+				return
+			}
+
+			if found := error_sxid.Match(line); found != nil {
+				fmt.Printf("[SXID found] (%s) %q\n", ts, parsed.Content)
+				issueCnt++
+				return
+			}
+		}),
+	); err != nil {
+		return 0, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case err := <-p.Wait():
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return issueCnt, nil
 }
