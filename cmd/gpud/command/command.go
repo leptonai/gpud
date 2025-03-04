@@ -473,27 +473,6 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 			},
 		},
-		{
-			Name:    "logs",
-			Aliases: []string{"log", "l"},
-
-			Usage:  "checks the gpud logs",
-			Action: cmdLogs,
-			Flags: []cli.Flag{
-				&cli.IntFlag{
-					Name:        "lines,n",
-					Usage:       "set the number to tail logs",
-					Destination: &tailLines,
-					Value:       100,
-				},
-				&cli.StringFlag{
-					Name:        "log-file",
-					Usage:       "set the log file path (set empty to stdout/stderr)",
-					Destination: &logFile,
-					Value:       "",
-				},
-			},
-		},
 
 		{
 			Name: "is-nvidia",

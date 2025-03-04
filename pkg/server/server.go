@@ -37,9 +37,9 @@ import (
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	nvidia_error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
@@ -113,7 +113,6 @@ import (
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
-	query_log_state "github.com/leptonai/gpud/pkg/query/log/state"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -227,10 +226,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	log.Logger.Infow("api version", "version", ver)
 	if ver != "v1" {
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
-	}
-
-	if err := query_log_state.CreateTableLogFileSeekInfo(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create query log state table: %w", err)
 	}
 
 	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
@@ -519,11 +514,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_component_error_xid_id.Name:
-			allComponents = append(allComponents, nvidia_error_xid.New(ctx, dbRW, dbRO))
+			allComponents = append(allComponents, nvidia_xid.New(ctx, dbRW, dbRO))
 
 		case nvidia_component_error_sxid_id.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_error_sxid.New(ctx, dbRW, dbRO))
+			allComponents = append(allComponents, nvidia_sxid.New(ctx, dbRW, dbRO))
 
 		case nvidia_hw_slowdown_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}

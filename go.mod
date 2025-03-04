@@ -21,7 +21,6 @@ require (
 	github.com/hdevalence/ed25519consensus v0.2.0
 	github.com/mattn/go-sqlite3 v1.14.25-0.20241209043634-7658c06970ec
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/nxadm/tail v1.4.11
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
@@ -43,7 +42,6 @@ require (
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.29.1
 	k8s.io/cri-api v0.32.0
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	sigs.k8s.io/yaml v1.4.0
 	tailscale.com v1.68.2
 )
@@ -164,10 +162,10 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250106144421-5f5ef82da422 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	nhooyr.io/websocket v1.8.10 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
