@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	error_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	error_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/disk"
@@ -313,13 +313,13 @@ func scanDmesg(ctx context.Context) (int, error) {
 			parsed := pkg_dmesg.ParseDmesgLine(line)
 			ts := humanize.RelTime(parsed.Timestamp, nowUTC, "ago", "from now")
 
-			if found := error_xid.Match(line); found != nil {
+			if found := nvidia_xid.Match(line); found != nil {
 				fmt.Printf("[XID found] (%s) %q\n", ts, parsed.Content)
 				issueCnt++
 				return
 			}
 
-			if found := error_sxid.Match(line); found != nil {
+			if found := nvidia_sxid.Match(line); found != nil {
 				fmt.Printf("[SXID found] (%s) %q\n", ts, parsed.Content)
 				issueCnt++
 				return
