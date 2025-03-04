@@ -58,7 +58,7 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	fmt.Printf("%s successfully started gpud (run 'gpud status' or 'gpud logs' for checking status)\n", checkMark)
+	fmt.Printf("%s successfully started gpud (run 'gpud status' for checking status)\n", checkMark)
 	return nil
 }
 
