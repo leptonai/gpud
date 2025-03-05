@@ -31,27 +31,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			if g.ECCErrors == nil {
-				continue
-			}
-
-			o.ErrorCountsSMI = append(o.ErrorCountsSMI, *g.ECCErrors)
-
-			if errs := g.ECCErrors.FindVolatileUncorrectableErrs(); len(errs) > 0 {
-				o.VolatileUncorrectedErrorsFromSMI = append(o.VolatileUncorrectedErrorsFromSMI, fmt.Sprintf("[%s] %s", g.ID, strings.Join(errs, ", ")))
-			}
-		}
-	}
-
 	return o
 }
 
 type Output struct {
 	ECCModes []nvidia_query_nvml.ECCMode `json:"ecc_modes"`
 
-	ErrorCountsSMI  []nvidia_query.SMIECCErrors   `json:"error_counts_smi"`
 	ErrorCountsNVML []nvidia_query_nvml.ECCErrors `json:"error_counts_nvml"`
 
 	// Volatile counts are reset each time the driver loads.

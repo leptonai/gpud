@@ -28,33 +28,6 @@ func TestToOutput(t *testing.T) {
 			expected: &Output{},
 		},
 		{
-			name: "SMI data only",
-			input: &nvidia_query.Output{
-				SMI: &nvidia_query.SMIOutput{
-					GPUs: []nvidia_query.NvidiaSMIGPU{
-						{
-							ID: "GPU-1",
-							ECCErrors: &nvidia_query.SMIECCErrors{
-								Volatile: &nvidia_query.SMIECCErrorVolatile{
-									DRAMUncorrectable: "6",
-								},
-							},
-						},
-					},
-				},
-			},
-			expected: &Output{
-				ErrorCountsSMI: []nvidia_query.SMIECCErrors{
-					{
-						Volatile: &nvidia_query.SMIECCErrorVolatile{
-							DRAMUncorrectable: "6",
-						},
-					},
-				},
-				VolatileUncorrectedErrorsFromSMI: []string{"[GPU-1] GPU : Volatile DRAMUncorrectable: 6"},
-			},
-		},
-		{
 			name: "NVML data only",
 			input: &nvidia_query.Output{
 				NVML: &nvidia_query_nvml.Output{

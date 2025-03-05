@@ -91,56 +91,6 @@ func TestParseWithHWSlowdownActive(t *testing.T) {
 	}
 }
 
-func TestParseECCMode(t *testing.T) {
-	data, err := os.ReadFile("testdata/nvidia-smi-query.535.161.08.out.0.valid")
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-	parsed, err := ParseSMIQueryOutput(data)
-	if err != nil {
-		t.Errorf("Parse returned an error: %v", err)
-	}
-	for _, gpu := range parsed.GPUs {
-		if gpu.ECCMode.Current != "Enabled" {
-			t.Errorf("ECCMode mismatch: %+v", gpu.ECCMode.Current)
-		}
-		if gpu.ECCMode.Pending != "Enabled" {
-			t.Errorf("ECCMode mismatch: %+v", gpu.ECCMode.Pending)
-		}
-	}
-}
-
-func TestParseWithProcesses(t *testing.T) {
-	data, err := os.ReadFile("testdata/nvidia-smi-query.535.154.05.out.0.valid")
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-	parsed, err := ParseSMIQueryOutput(data)
-	if err != nil {
-		t.Errorf("Parse returned an error: %v", err)
-	}
-
-	if parsed.GPUs[0].ID != "GPU 00000000:01:00.0" {
-		t.Errorf("GPU0.ID mismatch: %+v", parsed.GPUs[0].ID)
-	}
-	if parsed.GPUs[0].ClockEventReasons.HWThermalSlowdown != ClockEventsNotActive {
-		t.Errorf("HWThermalSlowdown mismatch: %+v", parsed.GPUs[0].ClockEventReasons.HWThermalSlowdown)
-	}
-
-	if parsed.GPUs[7].Processes.ProcessID != 1102861 {
-		t.Errorf("ProcessID mismatch: %d", parsed.GPUs[7].Processes.ProcessID)
-	}
-	if parsed.GPUs[7].Processes.ProcessName != "/opt/lepton/venv/bin/python3.10" {
-		t.Errorf("ProcessName mismatch: %s", parsed.GPUs[7].Processes.ProcessName)
-	}
-
-	yb, err := parsed.YAML()
-	if err != nil {
-		t.Errorf("YAML returned an error: %v", err)
-	}
-	t.Logf("YAML:\n%s\n", yb)
-}
-
 func TestParseWithNoProcesses(t *testing.T) {
 	data, err := os.ReadFile("testdata/nvidia-smi-query.535.183.01.out.0.valid")
 	if err != nil {
@@ -165,9 +115,6 @@ func TestParseWithNoProcesses(t *testing.T) {
 	}
 	if parsed.GPUs[0].GPUPowerReadings.CurrentPowerLimit != "700.00 W" {
 		t.Errorf("CurrentPowerLimit mismatch: %+v", parsed.GPUs[0].GPUPowerReadings.CurrentPowerLimit)
-	}
-	if parsed.GPUs[0].ECCErrors.Volatile.SRAMCorrectable != "0" {
-		t.Errorf("GPU0.ECCErrors.Volatile.SRAMCorrectable mismatch: %+v", parsed.GPUs[0].ECCErrors.Volatile.SRAMCorrectable)
 	}
 
 	if parsed.GPUs[1].ID != "GPU 00000000:64:00.0" {
@@ -448,22 +395,6 @@ func TestFindHWSlowdownErrs(t *testing.T) {
 	}
 }
 
-func TestParseWithAddressingModeError(t *testing.T) {
-	data, err := os.ReadFile("testdata/nvidia-smi-query.535.154.05.out.3.valid")
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-	parsed, err := ParseSMIQueryOutput(data)
-	if err != nil {
-		t.Errorf("Parse returned an error: %v", err)
-	}
-	for _, g := range parsed.GPUs {
-		if g.AddressingMode != "Unknown Error" {
-			t.Errorf("AddressingMode mismatch: %+v", g.AddressingMode)
-		}
-	}
-}
-
 func TestCreateHWSlowdownEventFromNvidiaSMI(t *testing.T) {
 	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -655,15 +586,8 @@ func TestFindGPUErrsAttachedGPUs(t *testing.T) {
 			// Create GPUs that won't trigger errors
 			gpus := make([]NvidiaSMIGPU, tt.gpuCount)
 			for i := range gpus {
-				addressingMode := "Default" // Not "Unknown Error"
-				if tt.errorInGPUs && i == 0 {
-					addressingMode = "Unknown Error" // This will trigger an error
-				}
-
 				gpus[i] = NvidiaSMIGPU{
-					ID:             fmt.Sprintf("GPU-%d", i),
-					AddressingMode: addressingMode,
-					FanSpeed:       "50%", // Not "Unknown Error"
+					ID: fmt.Sprintf("GPU-%d", i),
 					ClockEventReasons: &SMIClockEventReasons{
 						HWSlowdown:           ClockEventsNotActive,
 						HWThermalSlowdown:    ClockEventsNotActive,

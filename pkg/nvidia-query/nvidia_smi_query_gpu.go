@@ -18,43 +18,9 @@ type NvidiaSMIGPU struct {
 	ProductBrand        string `json:"Product Brand"`
 	ProductArchitecture string `json:"Product Architecture"`
 
-	PersistenceMode string `json:"Persistence Mode"`
-	AddressingMode  string `json:"Addressing Mode"`
-
-	GPUResetStatus    *SMIGPUResetStatus    `json:"GPU Reset Status,omitempty"`
 	ClockEventReasons *SMIClockEventReasons `json:"Clocks Event Reasons,omitempty"`
-
-	ECCMode   *SMIECCMode   `json:"ECC Mode,omitempty"`
-	ECCErrors *SMIECCErrors `json:"ECC Errors,omitempty"`
-
-	Temperature      *SMIGPUTemperature   `json:"Temperature,omitempty"`
-	GPUPowerReadings *SMIGPUPowerReadings `json:"GPU Power Readings,omitempty"`
-	Processes        *SMIProcesses        `json:"Processes,omitempty"`
-
-	FanSpeed string `json:"Fan Speed"`
-}
-
-func (gpu *NvidiaSMIGPU) GetSMIGPUPersistenceMode() SMIGPUPersistenceMode {
-	if gpu.PersistenceMode == "Enabled" {
-		return SMIGPUPersistenceMode{
-			ID:      gpu.ID,
-			Enabled: true,
-		}
-	}
-	return SMIGPUPersistenceMode{
-		ID:      gpu.ID,
-		Enabled: false,
-	}
-}
-
-type SMIGPUPersistenceMode struct {
-	ID      string `json:"id"`
-	Enabled bool   `json:"enabled"`
-}
-
-type SMIGPUResetStatus struct {
-	ResetRequired            string `json:"Reset Required"`
-	DrainAndResetRecommended string `json:"Drain and Reset Recommended"`
+	Temperature       *SMIGPUTemperature    `json:"Temperature,omitempty"`
+	GPUPowerReadings  *SMIGPUPowerReadings  `json:"GPU Power Readings,omitempty"`
 }
 
 type SMIClockEventReasons struct {
@@ -63,74 +29,6 @@ type SMIClockEventReasons struct {
 	HWSlowdown           string `json:"HW Slowdown"`
 	HWThermalSlowdown    string `json:"HW Thermal Slowdown"`
 	HWPowerBrakeSlowdown string `json:"HW Power Brake Slowdown"`
-}
-
-type SMIECCMode struct {
-	Current string `json:"Current"`
-	Pending string `json:"Pending"`
-}
-
-type SMIECCErrors struct {
-	ID string `json:"id"`
-
-	Aggregate                         *SMIECCErrorAggregate                         `json:"Aggregate,omitempty"`
-	AggregateUncorrectableSRAMSources *SMIECCErrorAggregateUncorrectableSRAMSources `json:"Aggregate Uncorrectable SRAM Sources,omitempty"`
-	Volatile                          *SMIECCErrorVolatile                          `json:"Volatile,omitempty"`
-}
-
-type SMIECCErrorAggregate struct {
-	DRAMCorrectable   string `json:"DRAM Correctable"`
-	DRAMUncorrectable string `json:"DRAM Uncorrectable"`
-
-	SRAMCorrectable       string `json:"SRAM Correctable"`
-	SRAMThresholdExceeded string `json:"SRAM Threshold Exceeded"`
-
-	SRAMUncorrectable       string `json:"SRAM Uncorrectable"`
-	SRAMUncorrectableParity string `json:"SRAM Uncorrectable Parity"`  // for newer driver versions
-	SRAMUncorrectableSECDED string `json:"SRAM Uncorrectable SEC-DED"` // for newer driver versions
-}
-
-type SMIECCErrorAggregateUncorrectableSRAMSources struct {
-	SRAML2              string `json:"SRAM L2"`
-	SRAMMicrocontroller string `json:"SRAM Microcontroller"`
-	SRAMOther           string `json:"SRAM Other"`
-	SRAMPCIE            string `json:"SRAM PCIE"`
-	SRAMSM              string `json:"SRAM SM"`
-}
-
-type SMIECCErrorVolatile struct {
-	DRAMCorrectable   string `json:"DRAM Correctable"`
-	DRAMUncorrectable string `json:"DRAM Uncorrectable"`
-
-	SRAMCorrectable   string `json:"SRAM Correctable"`
-	SRAMUncorrectable string `json:"SRAM Uncorrectable"`
-
-	SRAMUncorrectableParity string `json:"SRAM Uncorrectable Parity"`  // for newer driver versions
-	SRAMUncorrectableSECDED string `json:"SRAM Uncorrectable SEC-DED"` // for newer driver versions
-}
-
-func (eccErrs SMIECCErrors) FindVolatileUncorrectableErrs() []string {
-	errs := []string{}
-
-	if eccErrs.Volatile != nil {
-		if eccErrs.Volatile.DRAMUncorrectable != "" && eccErrs.Volatile.DRAMUncorrectable != "0" {
-			errs = append(errs, fmt.Sprintf("GPU %s: Volatile DRAMUncorrectable: %s", eccErrs.ID, eccErrs.Volatile.DRAMUncorrectable))
-		}
-		if eccErrs.Volatile.SRAMUncorrectable != "" && eccErrs.Volatile.SRAMUncorrectable != "0" {
-			errs = append(errs, fmt.Sprintf("GPU %s: Volatile SRAMUncorrectable: %s", eccErrs.ID, eccErrs.Volatile.SRAMUncorrectable))
-		}
-		if eccErrs.Volatile.SRAMUncorrectableParity != "" && eccErrs.Volatile.SRAMUncorrectableParity != "0" {
-			errs = append(errs, fmt.Sprintf("GPU %s: Volatile SRAMUncorrectableParity: %s", eccErrs.ID, eccErrs.Volatile.SRAMUncorrectable))
-		}
-		if eccErrs.Volatile.SRAMUncorrectableSECDED != "" && eccErrs.Volatile.SRAMUncorrectableSECDED != "0" {
-			errs = append(errs, fmt.Sprintf("GPU %s: Volatile SRAMUncorrectableSECDED: %s", eccErrs.ID, eccErrs.Volatile.SRAMUncorrectable))
-		}
-	}
-
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
 }
 
 // If any field shows "Unknown Error", it means GPU has some issues.
@@ -606,15 +504,6 @@ func (pr ParsedSMIPowerReading) GetMaxPowerLimitW() (float64, error) {
 	return strconv.ParseFloat(pr.MaxPowerLimitW, 64)
 }
 
-type SMIProcesses struct {
-	GPUInstanceID        string `json:"GPU instance ID"`
-	ComputeInstanceID    string `json:"Compute instance ID"`
-	ProcessID            int64  `json:"Process ID"`
-	ProcessType          string `json:"Process Type"`
-	ProcessName          string `json:"Process Name"`
-	ProcessUsedGPUMemory string `json:"Process Used GPU Memory"`
-}
-
 // Returns true if the GPU has any errors.
 // ref. https://forums.developer.nvidia.com/t/nvidia-smi-q-shows-several-unknown-error-gpu-ignored-by-pytorch/263881
 func (g NvidiaSMIGPU) FindErrs() []string {
@@ -645,26 +534,11 @@ func (g NvidiaSMIGPU) FindErrs() []string {
 			errs = append(errs, fmt.Sprintf("%s: Temperature.MemoryMaxOperatingLimit Unknown Error", g.ID))
 		}
 	}
-	if err := g.FindAddressingModeErr(); err != nil {
-		errs = append(errs, err.Error())
-	}
-	if strings.Contains(g.FanSpeed, "Unknown Error") {
-		errs = append(errs, fmt.Sprintf("%s: FanSpeed Unknown Error", g.ID))
-	}
+
 	if len(errs) == 0 {
 		return nil
 	}
 	return errs
-}
-
-// Returns the Address Mode error if any of the GPU has "Unknown Error" Addressing Mode.
-// It may indicate Xid 31 "GPU memory page fault", where the application crashes with:
-// e.g., RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero.
-func (g NvidiaSMIGPU) FindAddressingModeErr() error {
-	if strings.Contains(g.AddressingMode, "Unknown Error") {
-		return fmt.Errorf("%s: AddressingMode %s", g.ID, g.AddressingMode)
-	}
-	return nil
 }
 
 const (

@@ -380,9 +380,6 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 	for i := range out.GPUs {
 		id := out.GPUs[i].ID
 
-		if out.GPUs[i].ECCErrors != nil {
-			out.GPUs[i].ECCErrors.ID = id
-		}
 		if out.GPUs[i].Temperature != nil {
 			out.GPUs[i].Temperature.ID = id
 		}
