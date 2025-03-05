@@ -14,6 +14,7 @@ import (
 
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
+	"github.com/leptonai/gpud/components/memory"
 )
 
 func scanKmsg(ctx context.Context) {
@@ -26,7 +27,6 @@ func scanKmsg(ctx context.Context) {
 	defer kl.Close()
 
 	ch := make(chan kmsgparser.Message, 1024)
-
 	gr, _ := errgroup.WithContext(ctx)
 	gr.Go(func() error {
 		return kl.Parse(ch)
@@ -38,11 +38,14 @@ func scanKmsg(ctx context.Context) {
 		cnt++
 		ts := humanize.RelTime(msg.Timestamp, now, "ago", "from now")
 
+		if ev, m := memory.Match(msg.Message); m != "" {
+			fmt.Printf("[memory event] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
 		if found := nvidia_xid.Match(msg.Message); found != nil {
-			fmt.Printf("[XID found] (%s) %q\n", ts, msg.Message)
+			fmt.Printf("[xid event] (%s) %q\n", ts, msg.Message)
 		}
 		if found := nvidia_sxid.Match(msg.Message); found != nil {
-			fmt.Printf("[SXID found] (%s) %q\n", ts, msg.Message)
+			fmt.Printf("[sxid event] (%s) %q\n", ts, msg.Message)
 		}
 	}
 
