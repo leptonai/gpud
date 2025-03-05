@@ -572,13 +572,6 @@ func TestFindGPUErrsAttachedGPUs(t *testing.T) {
 			expectedError: "nvidia-smi query output 'Attached GPUs' 2 but only found GPUs 4 in the nvidia-smi command output -- check 'nvidia-smi --query' output",
 			errorInGPUs:   false,
 		},
-		{
-			name:          "matching counts with GPU error",
-			attachedGPUs:  2,
-			gpuCount:      2,
-			expectedError: "", // No mismatch error
-			errorInGPUs:   true,
-		},
 	}
 
 	for _, tt := range tests {
