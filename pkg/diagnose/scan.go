@@ -244,7 +244,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			fmt.Printf("%s scanned kmsg file -- found %d line(s)\n", checkMark, len(msgs))
 		}
 		if len(msgs) > 0 {
-			ts := humanize.RelTime(msgs[0].Timestamp, time.Now().UTC(), "ago", "from now")
+			ts := humanize.RelTime(msgs[0].Timestamp.Time, time.Now().UTC(), "ago", "from now")
 			fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
 
 			for _, msg := range msgs {

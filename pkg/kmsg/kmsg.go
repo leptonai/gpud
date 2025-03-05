@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/host"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Message represents a given kmsg logline, including its timestamp (as
@@ -38,10 +39,10 @@ import (
 // and so on. More information about these mssages may be found here:
 // https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 type Message struct {
-	Priority       int
-	SequenceNumber int
-	Timestamp      time.Time
-	Message        string
+	Priority       int         `json:"priority"`
+	SequenceNumber int         `json:"sequence_number"`
+	Timestamp      metav1.Time `json:"timestamp"`
+	Message        string      `json:"message"`
 }
 
 func ReadAll(ctx context.Context) ([]Message, error) {
@@ -163,7 +164,7 @@ func parseMessage(bootTime time.Time, line string) (*Message, error) {
 	return &Message{
 		Priority:       prioNum,
 		SequenceNumber: sequenceNum,
-		Timestamp:      msgTime,
+		Timestamp:      metav1.NewTime(msgTime),
 		Message:        message,
 	}, nil
 }

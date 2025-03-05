@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestParseMessage(t *testing.T) {
@@ -19,7 +20,7 @@ func TestParseMessage(t *testing.T) {
 	assert.Equal(t, msg.Message, "docker0: port 2(vethc1bb733) entered blocking state")
 	assert.Equal(t, msg.Priority, 6)
 	assert.Equal(t, msg.SequenceNumber, 2565)
-	assert.Equal(t, msg.Timestamp, bootTime.Add(102258085667*time.Microsecond))
+	assert.Equal(t, msg.Timestamp, metav1.NewTime(bootTime.Add(102258085667*time.Microsecond)))
 }
 
 func TestReadAll(t *testing.T) {
@@ -57,7 +58,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       6,
 				SequenceNumber: 2565,
-				Timestamp:      bootTime.Add(102258085667 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(102258085667 * time.Microsecond)),
 				Message:        "docker0: port 2(vethc1bb733) entered blocking state",
 			},
 			expectError: false,
@@ -68,7 +69,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       0,
 				SequenceNumber: 1234,
-				Timestamp:      bootTime.Add(5000000 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(5000000 * time.Microsecond)),
 				Message:        "Critical kernel message",
 			},
 			expectError: false,
@@ -79,7 +80,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       7,
 				SequenceNumber: 9999,
-				Timestamp:      bootTime.Add(10000 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(10000 * time.Microsecond)),
 				Message:        "Debug kernel message",
 			},
 			expectError: false,
@@ -90,7 +91,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       3,
 				SequenceNumber: 2147483647,
-				Timestamp:      bootTime.Add(50000 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(50000 * time.Microsecond)),
 				Message:        "Message with max int32 sequence",
 			},
 			expectError: false,
@@ -101,7 +102,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       4,
 				SequenceNumber: 100,
-				Timestamp:      bootTime,
+				Timestamp:      metav1.NewTime(bootTime),
 				Message:        "Message at boot time",
 			},
 			expectError: false,
@@ -112,7 +113,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       3,
 				SequenceNumber: 123,
-				Timestamp:      bootTime.Add(5000 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(5000 * time.Microsecond)),
 				Message:        "Message with; semicolons; in it",
 			},
 			expectError: false,
@@ -123,7 +124,7 @@ func TestParseMessageComprehensive(t *testing.T) {
 			expected: &Message{
 				Priority:       2,
 				SequenceNumber: 456,
-				Timestamp:      bootTime.Add(7890 * time.Microsecond),
+				Timestamp:      metav1.NewTime(bootTime.Add(7890 * time.Microsecond)),
 				Message:        "Message with extra metadata",
 			},
 			expectError: false,
