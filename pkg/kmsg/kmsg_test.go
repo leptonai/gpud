@@ -221,7 +221,7 @@ func TestParseMessageEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// This should be bootTime + a large duration
-		expectedTime := bootTime.Add(9223372036854 * time.Microsecond)
+		expectedTime := metav1.NewTime(bootTime.Add(9223372036854 * time.Microsecond))
 		assert.Equal(t, expectedTime, msg.Timestamp)
 	})
 
