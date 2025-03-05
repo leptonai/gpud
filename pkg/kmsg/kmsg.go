@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file is a modified version of the kmsg package
-// https://github.com/euank/go-kmsg-parser.
+// This file is a modified version of the following kmsg processing code:
+// - https://github.com/util-linux/util-linux/blob/9c45b256adfc22edbf3783731b7be2b924c8de85/sys-utils/dmesg.c#L1512
+// - https://github.com/euank/go-kmsg-parser
 
 package kmsg
 
@@ -61,6 +62,11 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 	return readAll(kmsgFile, bootTime)
 }
 
+// any value >= PRINTK_MESSAGE_MAX (which is defined as 2048) is fine
+// "dmesg" uses 2048
+// ref. https://github.com/util-linux/util-linux/blob/9c45b256adfc22edbf3783731b7be2b924c8de85/sys-utils/dmesg.c#L212-L217
+const readBufferSize = 8192
+
 func readAll(kmsgFile *os.File, bootTime time.Time) ([]Message, error) {
 	rawReader, err := kmsgFile.SyscallConn()
 	if err != nil {
@@ -79,7 +85,7 @@ func readAll(kmsgFile *os.File, bootTime time.Time) ([]Message, error) {
 	}
 
 	msgs := make([]Message, 0)
-	buf := make([]byte, 8192)
+	buf := make([]byte, readBufferSize)
 	for {
 		// Each read call gives us one full message.
 		// https://www.kernel.org/doc/Documentation/ABI/testing/dev-kmsg
@@ -96,10 +102,11 @@ func readAll(kmsgFile *os.File, bootTime time.Time) ([]Message, error) {
 		switch {
 		case err == nil:
 		case errors.Is(err, syscall.EPIPE):
+			// error that indicates "continuation" of the ring buffer
 			continue
 
 		case errors.Is(err, syscall.EAGAIN):
-			// end of ring buffer in nofollow mode, we're done
+			// end of ring buffer in non-follow mode
 			return msgs, nil
 
 		default:
