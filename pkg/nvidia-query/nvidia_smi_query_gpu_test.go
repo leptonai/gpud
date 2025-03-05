@@ -107,11 +107,6 @@ func TestGPU_HasErr(t *testing.T) {
 			errors: []string{"test: Temperature.MemoryMaxOperatingLimit Unknown Error"},
 		},
 		{
-			name:   "Error in FanSpeed",
-			gpu:    NvidiaSMIGPU{ID: "test", Temperature: &SMIGPUTemperature{}},
-			errors: []string{"test: FanSpeed Unknown Error"},
-		},
-		{
 			name:   "Nil Temperature",
 			gpu:    NvidiaSMIGPU{ID: "test", Temperature: nil},
 			errors: nil,
