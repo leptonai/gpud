@@ -21,7 +21,7 @@ func scanKmsg(ctx context.Context) {
 	fmt.Printf("%s scanning kmsg\n", inProgress)
 	kl, err := kmsgparser.NewParser(kmsgparser.WithNoFollow())
 	if err != nil {
-		log.Logger.Warnw("error creating kmsg parser", "error", err)
+		fmt.Printf("%s failed to create kmsg parser: %v\n", warningSign, err)
 		return
 	}
 	defer kl.Close()
@@ -49,7 +49,8 @@ func scanKmsg(ctx context.Context) {
 
 	if err := gr.Wait(); err != nil {
 		log.Logger.Warnw("failed to scan kmsg", "error", err)
+		fmt.Printf("%s failed to scan kmsg; %d line(s) scanned, error: %v\n", warningSign, cnt, err)
 	} else {
-		fmt.Printf("%s scanned kmsg file for %d line(s)\n", checkMark, cnt)
+		fmt.Printf("%s scanned kmsg for %d line(s)\n", checkMark, cnt)
 	}
 }
