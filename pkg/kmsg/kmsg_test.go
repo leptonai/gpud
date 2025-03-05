@@ -204,7 +204,7 @@ func TestParseMessageWithDifferentBootTimes(t *testing.T) {
 			require.NoError(t, err)
 
 			// The message timestamp should be bootTime + 5 seconds
-			expectedTime := bootTime.Add(5000000 * time.Microsecond)
+			expectedTime := metav1.NewTime(bootTime.Add(5000000 * time.Microsecond))
 			assert.Equal(t, expectedTime, msg.Timestamp)
 		})
 	}
