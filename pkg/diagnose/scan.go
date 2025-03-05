@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
@@ -224,7 +225,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			return errors.New("requires sudo/root access in order to scan dmesg errors")
 		}
 
-		fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
+		fmt.Printf("%s scanning dmesg\n", inProgress)
 		issueCnt, err := scanDmesg(ctx)
 		if err != nil {
 			return err
@@ -233,6 +234,27 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
 		} else {
 			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, issueCnt)
+		}
+
+		fmt.Printf("%s scanning kmsg\n", inProgress)
+		msgs, err := kmsg.ReadAll(ctx)
+		if err != nil {
+			log.Logger.Warnw("error reading kmsg", "error", err)
+		} else {
+			fmt.Printf("%s scanned kmsg file -- found %d line(s)\n", checkMark, len(msgs))
+		}
+		if len(msgs) > 0 {
+			ts := humanize.RelTime(msgs[0].Timestamp, time.Now().UTC(), "ago", "from now")
+			fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
+
+			for _, msg := range msgs {
+				if found := nvidia_xid.Match(msg.Message); found != nil {
+					fmt.Printf("[XID found] (%s) %q\n", ts, msg.Message)
+				}
+				if found := nvidia_sxid.Match(msg.Message); found != nil {
+					fmt.Printf("[SXID found] (%s) %q\n", ts, msg.Message)
+				}
+			}
 		}
 	}
 
