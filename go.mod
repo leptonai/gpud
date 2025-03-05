@@ -12,6 +12,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/docker/docker v25.0.6+incompatible
 	github.com/dustin/go-humanize v1.0.1
+	github.com/euank/go-kmsg-parser/v3 v3.0.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/gin-contrib/gzip v1.0.1
 	github.com/gin-contrib/requestid v1.0.2
@@ -35,6 +36,7 @@ require (
 	github.com/urfave/cli v1.22.15
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.32.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.29.0
 	google.golang.org/grpc v1.69.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -78,7 +80,6 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
-	github.com/euank/go-kmsg-parser/v3 v3.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
@@ -155,7 +156,6 @@ require (
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
