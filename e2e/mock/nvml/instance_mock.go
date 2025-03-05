@@ -19,6 +19,10 @@ var MockInstance = &nvmlmock.Interface{
 		return 1, nvml.SUCCESS
 	},
 
+	ShutdownFunc: func() nvml.Return {
+		return nvml.SUCCESS
+	},
+
 	DeviceGetHandleByIndexFunc: func(n int) (nvml.Device, nvml.Return) {
 		return &nvmlmock.Device{
 			GetNameFunc: func() (string, nvml.Return) {
