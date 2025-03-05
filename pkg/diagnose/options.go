@@ -5,7 +5,6 @@ type Op struct {
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 
-	lines         int
 	debug         bool
 	createArchive bool
 
@@ -36,9 +35,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		op.ibstatCommand = "ibstat"
 	}
 
-	if op.lines == 0 {
-		op.lines = 100
-	}
 	return nil
 }
 
@@ -59,12 +55,6 @@ func WithNvidiaSMIQueryCommand(p string) OpOption {
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {
 		op.ibstatCommand = p
-	}
-}
-
-func WithLines(lines int) OpOption {
-	return func(op *Op) {
-		op.lines = lines
 	}
 }
 
