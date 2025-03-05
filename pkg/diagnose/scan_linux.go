@@ -14,7 +14,6 @@ import (
 
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
-	"github.com/leptonai/gpud/pkg/log"
 )
 
 func scanKmsg(ctx context.Context) {
@@ -48,7 +47,6 @@ func scanKmsg(ctx context.Context) {
 	}
 
 	if err := gr.Wait(); err != nil {
-		log.Logger.Warnw("failed to scan kmsg", "error", err)
 		fmt.Printf("%s failed to scan kmsg; %d line(s) scanned, error: %v\n", warningSign, cnt, err)
 	} else {
 		fmt.Printf("%s scanned kmsg for %d line(s)\n", checkMark, cnt)
