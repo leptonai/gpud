@@ -26,18 +26,11 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			o.PersistenceModesSMI = append(o.PersistenceModesSMI, g.GetSMIGPUPersistenceMode())
-		}
-	}
-
 	return o
 }
 
 type Output struct {
-	PersistenceModesSMI  []nvidia_query.SMIGPUPersistenceMode `json:"persistence_modes_smi"`
-	PersistenceModesNVML []nvidia_query_nvml.PersistenceMode  `json:"persistence_modes_nvml"`
+	PersistenceModesNVML []nvidia_query_nvml.PersistenceMode `json:"persistence_modes_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {
@@ -87,16 +80,6 @@ func (o *Output) Evaluate() (string, bool, error) {
 	reasons := []string{}
 
 	enabled := true
-	for _, p := range o.PersistenceModesSMI {
-		// legacy mode (https://docs.nvidia.com/deploy/driver-persistence/index.html#installation)
-		// "The reason why we cannot immediately deprecate the legacy persistence mode and switch transparently to the NVIDIA Persistence Daemon is because at this time,
-		// we cannot guarantee that the NVIDIA Persistence Daemon will be running. This would be a feature regression as persistence mode might not be available out-of- the-box."
-		if !p.Enabled {
-			reasons = append(reasons, fmt.Sprintf("persistence mode is not enabled on %s (nvidia-smi)", p.ID))
-			enabled = false
-		}
-	}
-
 	for _, p := range o.PersistenceModesNVML {
 		// legacy mode (https://docs.nvidia.com/deploy/driver-persistence/index.html#installation)
 		// "The reason why we cannot immediately deprecate the legacy persistence mode and switch transparently to the NVIDIA Persistence Daemon is because at this time,
