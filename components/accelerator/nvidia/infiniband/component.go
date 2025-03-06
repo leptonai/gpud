@@ -63,7 +63,7 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.CreateEventsWatcher(Match)
+	kmsgWatcher, err := kmsg.StartWatch(Match)
 	if err != nil {
 		ccancel()
 		return nil, err

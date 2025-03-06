@@ -36,7 +36,7 @@ func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, e
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.CreateEventsWatcher(Match)
+	kmsgWatcher, err := kmsg.StartWatch(Match)
 	if err != nil {
 		ccancel()
 		return nil, err

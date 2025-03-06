@@ -58,7 +58,7 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 		return nil
 	}
 
-	kmsgWatcher, err := kmsg.CreateEventsWatcher(func(line string) (eventName string, message string) {
+	kmsgWatcher, err := kmsg.StartWatch(func(line string) (eventName string, message string) {
 		xidErr := Match(line)
 		if xidErr == nil {
 			return "", ""

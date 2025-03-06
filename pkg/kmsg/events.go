@@ -7,13 +7,10 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// CreateEventsWatcher creates a new events watcher that will watch the kmsg.
+// StartWatch creates a new events watcher that will watch the kmsg.
 // Experimental.
 // TODO: integrate with the events store.
-func CreateEventsWatcher(matchFunc func(line string) (eventName string, message string)) (Watcher, error) {
-	if os.Getenv("GPUD_EXPERIMENTAL_KMSG_WATCHER") != "true" {
-		return nil, nil
-	}
+func StartWatch(matchFunc func(line string) (eventName string, message string)) (Watcher, error) {
 	if runtime.GOOS != "linux" {
 		log.Logger.Warnw("kmsg watcher is not supported on non-linux systems")
 		return nil, nil

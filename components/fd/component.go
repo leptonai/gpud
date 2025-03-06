@@ -37,7 +37,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.CreateEventsWatcher(Match)
+	kmsgWatcher, err := kmsg.StartWatch(Match)
 	if err != nil {
 		ccancel()
 		return nil, err
