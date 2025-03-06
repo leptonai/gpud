@@ -34,8 +34,6 @@ main() {
   			;;
   		arm64|aarch64)
   			ARCH="arm64"
-  			echo "arm64 is not supported yet, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
-   			exit 1
   			;;
    	  *)
   	    echo "Processor $(uname -m) is not supported, follow https://github.com/leptonai/gpud/blob/main/docs/INSTALL.md to build by yourself"
