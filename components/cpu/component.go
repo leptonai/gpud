@@ -14,6 +14,7 @@ import (
 	"github.com/leptonai/gpud/components/cpu/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
@@ -36,6 +37,12 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		return nil, err
 	}
 
+	kmsgWatcher, err := kmsg.CreateEventsWatcher(Match)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 	getDefaultPoller().Start(cctx, cfg.Query, cpu_id.Name)
@@ -45,6 +52,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		cancel:           ccancel,
 		logLineProcessor: logLineProcessor,
 		eventsStore:      eventsStore,
+		kmsgWatcher:      kmsgWatcher,
 		poller:           getDefaultPoller(),
 	}, nil
 }
@@ -58,6 +66,9 @@ type component struct {
 	eventsStore      events_db.Store
 	poller           query.Poller
 	gatherer         prometheus.Gatherer
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func (c *component) Name() string { return cpu_id.Name }
@@ -147,6 +158,10 @@ func (c *component) Close() error {
 
 	c.logLineProcessor.Close()
 	c.eventsStore.Close()
+
+	if c.kmsgWatcher != nil {
+		c.kmsgWatcher.Close()
+	}
 
 	return nil
 }
