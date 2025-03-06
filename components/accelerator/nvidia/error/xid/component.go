@@ -20,6 +20,7 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -41,6 +42,9 @@ type XIDComponent struct {
 	extraEventCh chan *components.Event
 	store        events_db.Store
 	mu           sync.RWMutex
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
@@ -53,11 +57,25 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 		ccancel()
 		return nil
 	}
+
+	kmsgWatcher, err := kmsg.StartWatch(func(line string) (eventName string, message string) {
+		xidErr := Match(line)
+		if xidErr == nil {
+			return "", ""
+		}
+		return fmt.Sprintf("xid %d %s", xidErr.Detail.Xid, xidErr.Detail.Name), xidErr.Detail.Description
+	})
+	if err != nil {
+		ccancel()
+		return nil
+	}
+
 	return &XIDComponent{
 		rootCtx:      cctx,
 		cancel:       ccancel,
 		extraEventCh: extraEventCh,
 		store:        localStore,
+		kmsgWatcher:  kmsgWatcher,
 	}
 }
 
@@ -118,6 +136,11 @@ func (c *XIDComponent) Close() error {
 	log.Logger.Debugw("closing XIDComponent")
 	// safe to call stop multiple times
 	c.cancel()
+
+	if c.kmsgWatcher != nil {
+		c.kmsgWatcher.Close()
+	}
+
 	return nil
 }
 
@@ -128,11 +151,13 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 		select {
 		case <-c.rootCtx.Done():
 			return
+
 		case <-ticker.C:
 			if err := c.updateCurrentState(); err != nil {
 				log.Logger.Debugw("failed to fetch current events", "error", err)
 				continue
 			}
+
 		case newEvent := <-c.extraEventCh:
 			if newEvent == nil {
 				continue
@@ -149,6 +174,7 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 			c.mu.Lock()
 			c.currState = EvolveHealthyState(events)
 			c.mu.Unlock()
+
 		case dmesgLine := <-watcher.Watch():
 			log.Logger.Debugw("dmesg line", "line", dmesgLine)
 			xidErr := Match(dmesgLine.Content)

@@ -212,6 +212,8 @@ func (w *watcher) Close() error {
 // readFollow reads messages from the kmsg file, with follow mode,
 // meaning it will continue to read the file as new messages are written to it.
 func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message) error {
+	log.Logger.Infow("reading kmsg with follow mode")
+
 	defer close(msgs)
 
 	buf := make([]byte, readBufferSize)

@@ -19,6 +19,7 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -40,6 +41,9 @@ type SXIDComponent struct {
 	extraEventCh chan *components.Event
 	store        events_db.Store
 	mu           sync.RWMutex
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *SXIDComponent {
@@ -52,11 +56,25 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *SXIDComponent {
 		ccancel()
 		return nil
 	}
+
+	kmsgWatcher, err := kmsg.StartWatch(func(line string) (eventName string, message string) {
+		sxidErr := Match(line)
+		if sxidErr == nil {
+			return "", ""
+		}
+		return fmt.Sprintf("sxid %d %s", sxidErr.Detail.SXid, sxidErr.Detail.Name), sxidErr.Detail.Description
+	})
+	if err != nil {
+		ccancel()
+		return nil
+	}
+
 	return &SXIDComponent{
 		rootCtx:      cctx,
 		cancel:       ccancel,
 		extraEventCh: extraEventCh,
 		store:        localStore,
+		kmsgWatcher:  kmsgWatcher,
 	}
 }
 
@@ -116,6 +134,11 @@ func (c *SXIDComponent) Metrics(ctx context.Context, since time.Time) ([]compone
 func (c *SXIDComponent) Close() error {
 	log.Logger.Debugw("closing SXIDComponent")
 	c.cancel()
+
+	if c.kmsgWatcher != nil {
+		c.kmsgWatcher.Close()
+	}
+
 	return nil
 }
 

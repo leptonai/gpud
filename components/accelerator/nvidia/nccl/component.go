@@ -11,6 +11,7 @@ import (
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -32,11 +33,18 @@ func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, e
 		return nil, err
 	}
 
+	kmsgWatcher, err := kmsg.StartWatch(Match)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
 	return &component{
 		rootCtx:          ctx,
 		cancel:           ccancel,
 		logLineProcessor: logLineProcessor,
 		eventsStore:      eventsStore,
+		kmsgWatcher:      kmsgWatcher,
 	}, nil
 }
 
@@ -47,6 +55,9 @@ type component struct {
 	cancel           context.CancelFunc
 	logLineProcessor *dmesg.LogLineProcessor
 	eventsStore      events_db.Store
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func (c *component) Name() string { return nvidia_nccl_id.Name }
@@ -78,6 +89,10 @@ func (c *component) Close() error {
 
 	c.logLineProcessor.Close()
 	c.eventsStore.Close()
+
+	if c.kmsgWatcher != nil {
+		c.kmsgWatcher.Close()
+	}
 
 	return nil
 }

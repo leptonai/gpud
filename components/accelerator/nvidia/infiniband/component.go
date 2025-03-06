@@ -18,6 +18,7 @@ import (
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
@@ -62,12 +63,19 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_
 		return nil, err
 	}
 
+	kmsgWatcher, err := kmsg.StartWatch(Match)
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+
 	c := &component{
 		rootCtx:          cctx,
 		cancel:           ccancel,
 		eventsStore:      eventsStore,
 		logLineProcessor: logLineProcessor,
 		toolOverwrites:   toolOverwrites,
+		kmsgWatcher:      kmsgWatcher,
 	}
 
 	return c, nil
@@ -85,6 +93,9 @@ type component struct {
 	lastEventMu        sync.Mutex
 	lastEvent          *components.Event
 	lastEventThreshold infiniband.ExpectedPortStates
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func convertToState(ev *components.Event) components.State {
