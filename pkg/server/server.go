@@ -801,18 +801,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case containerd_pod_id.Name:
-			cfg := containerd_pod.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := containerd_pod.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, containerd_pod.New(ctx, cfg))
+			allComponents = append(allComponents, containerd_pod.New(ctx))
 
 		case docker_container_id.Name:
 			cfg := docker_container.Config{Query: defaultQueryCfg}
@@ -1126,21 +1115,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 						continue
 					}
 
-					if cc, exists := lepconfig.DefaultContainerdComponent(ctx); exists {
-						ccfg := containerd_pod.Config{Query: defaultQueryCfg}
-						if cc != nil {
-							parsed, err := containerd_pod.ParseConfig(cc, dbRW, dbRO)
-							if err != nil {
-								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
-								continue
-							}
-							ccfg = *parsed
-						}
-						if err := ccfg.Validate(); err != nil {
-							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
-							continue
-						}
-						componentsToAdd = append(componentsToAdd, containerd_pod.New(ctx, ccfg))
+					if exists := containerd_pod.CheckContainerdRunning(ctx); exists {
+						componentsToAdd = append(componentsToAdd, containerd_pod.New(ctx))
 					}
 
 					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {

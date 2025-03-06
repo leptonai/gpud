@@ -144,8 +144,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	if cc, exists := DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
 		cfg.Components[docker_container_id.Name] = cc
 	}
-	if cc, exists := DefaultContainerdComponent(ctx); exists {
-		cfg.Components[containerd_pod_id.Name] = cc
+	if exists := containerd_pod.CheckContainerdRunning(ctx); exists {
+		cfg.Components[containerd_pod_id.Name] = nil
 	}
 	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
 		cfg.Components[kubelet_pod_id.Name] = cc
@@ -326,53 +326,6 @@ func DefaultFifoFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(f, "gpud.fifo"), nil
-}
-
-func DefaultContainerdComponent(ctx context.Context) (any, bool) {
-	if runtime.GOOS != "linux" {
-		log.Logger.Debugw("ignoring default containerd pod checking since it's not linux", "os", runtime.GOOS)
-		return nil, false
-	}
-
-	p, err := pkg_file.LocateExecutable("containerd")
-	if err == nil {
-		log.Logger.Debugw("containerd found in PATH", "path", p)
-		return containerd_pod.Config{
-			Query:    query_config.DefaultConfig(),
-			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
-		}, true
-	}
-	log.Logger.Debugw("containerd not found in PATH -- fallback to containerd run checks", "error", err)
-
-	containerdSocketExists := false
-	containerdRunning := false
-
-	if _, err := stdos.Stat(containerd_pod.DefaultSocketFile); err == nil {
-		log.Logger.Debugw("containerd default socket file exists, containerd installed", "file", containerd_pod.DefaultSocketFile)
-		containerdSocketExists = true
-	} else {
-		log.Logger.Debugw("containerd default socket file does not exist, skip containerd check", "file", containerd_pod.DefaultSocketFile, "error", err)
-	}
-
-	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
-	defer ccancel()
-
-	if _, _, conn, err := containerd_pod.Connect(cctx, containerd_pod.DefaultContainerRuntimeEndpoint); err == nil {
-		log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint)
-		containerdRunning = true
-		_ = conn.Close()
-	} else {
-		log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", containerd_pod.DefaultContainerRuntimeEndpoint, "error", err)
-	}
-
-	if containerdSocketExists && containerdRunning {
-		log.Logger.Debugw("auto-detected containerd -- configuring containerd pod component")
-		return containerd_pod.Config{
-			Query:    query_config.DefaultConfig(),
-			Endpoint: containerd_pod.DefaultContainerRuntimeEndpoint,
-		}, true
-	}
-	return nil, false
 }
 
 func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
