@@ -12,12 +12,18 @@ import (
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
+	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
+	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
+	"github.com/leptonai/gpud/components/cpu"
+	"github.com/leptonai/gpud/components/fd"
+	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
@@ -224,7 +230,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			return errors.New("requires sudo/root access in order to scan dmesg errors")
 		}
 
-		fmt.Printf("%s scanning dmesg for %d lines\n", inProgress, op.lines)
+		fmt.Printf("%s scanning dmesg\n", inProgress)
 		issueCnt, err := scanDmesg(ctx)
 		if err != nil {
 			return err
@@ -234,6 +240,8 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		} else {
 			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, issueCnt)
 		}
+
+		scanKmsg(ctx)
 	}
 
 	if op.netcheck {
@@ -339,4 +347,50 @@ func scanDmesg(ctx context.Context) (int, error) {
 	}
 
 	return issueCnt, nil
+}
+
+func scanKmsg(ctx context.Context) {
+	if os.Geteuid() != 0 {
+		fmt.Printf("%s skipping kmsg scan (requires sudo/root access)\n", checkMark)
+		return
+	}
+
+	fmt.Printf("%s scanning kmsg\n", inProgress)
+	msgs, err := kmsg.ReadAll(ctx)
+	if err != nil {
+		fmt.Printf("%s failed to read kmsg: %v\n", warningSign, err)
+		return
+	}
+
+	fmt.Printf("%s scanned kmsg file -- found %d line(s)\n", checkMark, len(msgs))
+	if len(msgs) == 0 {
+		return
+	}
+
+	ts := msgs[0].DescribeTimestamp(time.Now().UTC())
+	fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
+
+	for _, msg := range msgs {
+		if ev, m := cpu.Match(msg.Message); m != "" {
+			fmt.Printf("[cpu] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := memory.Match(msg.Message); m != "" {
+			fmt.Printf("[memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := fd.Match(msg.Message); m != "" {
+			fmt.Printf("[file descriptor] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if found := nvidia_xid.Match(msg.Message); found != nil {
+			fmt.Printf("[nvidia xid] (%s) %q\n", ts, msg.Message)
+		}
+		if found := nvidia_sxid.Match(msg.Message); found != nil {
+			fmt.Printf("[nvidia sxid] (%s) %q\n", ts, msg.Message)
+		}
+		if ev, m := nvidia_nccl.Match(msg.Message); m != "" {
+			fmt.Printf("[nvidia nccl] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := nvidia_peermem.Match(msg.Message); m != "" {
+			fmt.Printf("[nvidia peermem] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+	}
 }

@@ -37,7 +37,6 @@ var (
 	webAdmin         bool
 	webRefreshPeriod time.Duration
 
-	tailLines     int
 	createArchive bool
 
 	pollGPMEvents bool
@@ -520,12 +519,6 @@ cat summary.txt
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
-				},
-				&cli.IntFlag{
-					Name:        "lines,n",
-					Usage:       "set the number of lines to tail log files (e.g., /var/log/dmesg)",
-					Destination: &tailLines,
-					Value:       5000,
 				},
 				&cli.BoolFlag{
 					Name:        "poll-gpm-events",

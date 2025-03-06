@@ -19,7 +19,6 @@ func cmdScan(cliContext *cli.Context) error {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	diagnoseOpts := []diagnose.OpOption{
-		diagnose.WithLines(tailLines),
 		diagnose.WithPollGPMEvents(pollGPMEvents),
 		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),
