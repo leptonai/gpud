@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/randutil"
 )
 
 type Op struct {
@@ -358,7 +357,13 @@ func (c Cluster) writeKubeconfigYAML(kcfg clientcmd_api_v1.Config, opts ...OpOpt
 	}
 
 	if ret.kubeconfigFile == "" {
-		ret.kubeconfigFile = filepath.Join(os.TempDir(), fmt.Sprintf("kubeconfig-%s", randutil.AlphabetsLowerCase(32)))
+		f, err := os.CreateTemp(os.TempDir(), "gpud-*.kubeconfig")
+		if err != nil {
+			return "", err
+		}
+		ret.kubeconfigFile = f.Name()
+		f.Close()
+		os.RemoveAll(ret.kubeconfigFile)
 	}
 
 	if _, err := os.Stat(filepath.Dir(ret.kubeconfigFile)); os.IsNotExist(err) {
