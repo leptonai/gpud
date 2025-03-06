@@ -63,7 +63,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to mock lspci")
 
 		By("mock nvidia-smi")
-		err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalSMIOutput)
+		err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalQueryOutput)
 		Expect(err).ToNot(HaveOccurred(), "failed to mock nvidia-smi")
 
 		By("start gpud scan")
