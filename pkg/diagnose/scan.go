@@ -363,33 +363,34 @@ func scanKmsg(ctx context.Context) {
 	}
 
 	fmt.Printf("%s scanned kmsg file -- found %d line(s)\n", checkMark, len(msgs))
+	if len(msgs) == 0 {
+		return
+	}
 
-	if len(msgs) > 0 {
-		ts := msgs[0].DescribeTimestamp(time.Now().UTC())
-		fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
+	ts := msgs[0].DescribeTimestamp(time.Now().UTC())
+	fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
 
-		for _, msg := range msgs {
-			if ev, m := cpu.Match(msg.Message); m != "" {
-				fmt.Printf("[cpu] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-			}
-			if ev, m := memory.Match(msg.Message); m != "" {
-				fmt.Printf("[memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-			}
-			if ev, m := fd.Match(msg.Message); m != "" {
-				fmt.Printf("[file descriptor] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-			}
-			if found := nvidia_xid.Match(msg.Message); found != nil {
-				fmt.Printf("[nvidia xid] (%s) %q\n", ts, msg.Message)
-			}
-			if found := nvidia_sxid.Match(msg.Message); found != nil {
-				fmt.Printf("[nvidia sxid] (%s) %q\n", ts, msg.Message)
-			}
-			if ev, m := nvidia_nccl.Match(msg.Message); m != "" {
-				fmt.Printf("[nvidia nccl] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-			}
-			if ev, m := nvidia_peermem.Match(msg.Message); m != "" {
-				fmt.Printf("[nvidia peermem] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-			}
+	for _, msg := range msgs {
+		if ev, m := cpu.Match(msg.Message); m != "" {
+			fmt.Printf("[cpu] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := memory.Match(msg.Message); m != "" {
+			fmt.Printf("[memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := fd.Match(msg.Message); m != "" {
+			fmt.Printf("[file descriptor] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if found := nvidia_xid.Match(msg.Message); found != nil {
+			fmt.Printf("[nvidia xid] (%s) %q\n", ts, msg.Message)
+		}
+		if found := nvidia_sxid.Match(msg.Message); found != nil {
+			fmt.Printf("[nvidia sxid] (%s) %q\n", ts, msg.Message)
+		}
+		if ev, m := nvidia_nccl.Match(msg.Message); m != "" {
+			fmt.Printf("[nvidia nccl] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+		}
+		if ev, m := nvidia_peermem.Match(msg.Message); m != "" {
+			fmt.Printf("[nvidia peermem] (%s) %s %s %q\n", ts, ev, m, msg.Message)
 		}
 	}
 }

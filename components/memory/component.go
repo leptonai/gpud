@@ -5,8 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"runtime"
 	"time"
 
 	"github.com/leptonai/gpud/components"
@@ -14,7 +12,6 @@ import (
 	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	events_db "github.com/leptonai/gpud/pkg/events-db"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 
@@ -43,31 +40,6 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 	setDefaultPoller(cfg)
 	getDefaultPoller().Start(cctx, cfg.Query, memory_id.Name)
 
-	// experimental
-	var kmsgWatcher kmsg.Watcher = nil
-	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-		kmsgWatcher, err = kmsg.NewWatcher()
-		if err != nil {
-			ccancel()
-			return nil, err
-		}
-		kmsgCh := make(chan kmsg.Message, 1024)
-		go func() {
-			werr := kmsgWatcher.Watch(kmsgCh)
-			if werr != nil {
-				log.Logger.Errorw("failed to watch kmsg", "err", werr)
-			}
-		}()
-		go func() {
-			for msg := range kmsgCh {
-				ev, n := Match(msg.Message)
-				if n != "" {
-					log.Logger.Infow("[EXPERIMENTAL] kmsg event", "event", ev, "message", n, "raw", msg.Message)
-				}
-			}
-		}()
-	}
-
 	return &component{
 		ctx:              cctx,
 		cancel:           ccancel,
@@ -75,7 +47,6 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		cfg:              cfg,
 		logLineProcessor: logLineProcessor,
 		eventsStore:      eventsStore,
-		kmsgWatcher:      kmsgWatcher,
 	}, nil
 }
 
@@ -89,9 +60,6 @@ type component struct {
 	logLineProcessor *dmesg.LogLineProcessor
 	eventsStore      events_db.Store
 	gatherer         prometheus.Gatherer
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
 }
 
 func (c *component) Name() string { return memory_id.Name }
@@ -183,10 +151,6 @@ func (c *component) Close() error {
 
 	c.logLineProcessor.Close()
 	c.eventsStore.Close()
-
-	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
-	}
 
 	return nil
 }
