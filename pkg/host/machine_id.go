@@ -92,7 +92,11 @@ var machineIDPaths = []string{
 // Returns the OS-level UUID based on /etc/machine-id or /var/lib/dbus/machine-id.
 // Returns an empty string if the UUID is not found.
 func GetOSMachineID() (string, error) {
-	for _, path := range machineIDPaths {
+	return getOSMachineID(machineIDPaths)
+}
+
+func getOSMachineID(files []string) (string, error) {
+	for _, path := range files {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue
 		}
