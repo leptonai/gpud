@@ -1,5 +1,7 @@
 package common
 
+import "strings"
+
 type RepairActionType string
 
 const (
@@ -32,4 +34,12 @@ type SuggestedActions struct {
 
 	// A list of repair actions to mitigate the issue.
 	RepairActions []RepairActionType `json:"repair_actions"`
+}
+
+func (sa *SuggestedActions) DescribeActions() string {
+	acts := make([]string, 0)
+	for _, act := range sa.RepairActions {
+		acts = append(acts, string(act))
+	}
+	return strings.Join(acts, ", ")
 }

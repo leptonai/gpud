@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
@@ -22,8 +23,8 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		MemoryErrorManagementCapabilities: i.MemoryErrorManagementCapabilities,
 	}
 
-	rmaMsgs := make([]string, 0)
 	needRebootMsgs := make([]string, 0)
+	rmaMsgs := make([]string, 0)
 
 	if i.NVML != nil {
 		for _, device := range i.NVML.DeviceInfos {
@@ -171,6 +172,7 @@ func (o *Output) States() ([]components.State, error) {
 	}
 
 	if o.SuggestedActions != nil {
+		log.Logger.Warnw("suggested actions", "suggestedActions", o.SuggestedActions.DescribeActions())
 		state.SuggestedActions = o.SuggestedActions
 	}
 

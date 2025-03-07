@@ -67,6 +67,10 @@ type MemoryErrorManagementCapabilities struct {
 	//
 	// The row remapping requires a GPU reset to take effect.
 	//
+	// even for "NVIDIA GeForce RTX 4090", nvml returns no error
+	// thus "NVML.Supported" is not a reliable way to check if row remapping is supported
+	// thus we track a separate boolean value based on the GPU product name
+	//
 	// ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#row-remapping
 	RowRemapping bool `json:"row_remapping"`
 
