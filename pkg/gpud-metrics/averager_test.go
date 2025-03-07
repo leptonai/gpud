@@ -368,3 +368,103 @@ func TestContinuousAveragerRead(t *testing.T) {
 		})
 	}
 }
+
+func TestNoOpAverager(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	a := NewNoOpAverager()
+
+	// Test MetricName
+	if name := a.MetricName(); name != "" {
+		t.Errorf("MetricName() = %q, want empty string", name)
+	}
+
+	// Test Last
+	value, ok, err := a.Last(ctx)
+	if err != nil {
+		t.Errorf("Last() returned error: %v", err)
+	}
+	if ok {
+		t.Errorf("Last() returned ok = true, want false")
+	}
+	if value != 0 {
+		t.Errorf("Last() returned value = %f, want 0", value)
+	}
+
+	// Test Last with options - should still return zero values
+	value, ok, err = a.Last(ctx, WithSince(time.Now()), WithMetricSecondaryName("test"))
+	if err != nil {
+		t.Errorf("Last() with options returned error: %v", err)
+	}
+	if ok {
+		t.Errorf("Last() with options returned ok = true, want false")
+	}
+	if value != 0 {
+		t.Errorf("Last() with options returned value = %f, want 0", value)
+	}
+
+	// Test Observe - should do nothing and return nil
+	if err := a.Observe(ctx, 123.45); err != nil {
+		t.Errorf("Observe() returned error: %v", err)
+	}
+
+	// Test Observe with options - should still do nothing and return nil
+	if err := a.Observe(ctx, 456.78, WithCurrentTime(time.Now()), WithMetricSecondaryName("test")); err != nil {
+		t.Errorf("Observe() with options returned error: %v", err)
+	}
+
+	// Test Avg - should return zero and nil error
+	avg, err := a.Avg(ctx)
+	if err != nil {
+		t.Errorf("Avg() returned error: %v", err)
+	}
+	if avg != 0 {
+		t.Errorf("Avg() returned %f, want 0", avg)
+	}
+
+	// Test Avg with options - should still return zero and nil error
+	avg, err = a.Avg(ctx, WithSince(time.Now()))
+	if err != nil {
+		t.Errorf("Avg() with options returned error: %v", err)
+	}
+	if avg != 0 {
+		t.Errorf("Avg() with options returned %f, want 0", avg)
+	}
+
+	// Test EMA - should return zero and nil error
+	ema, err := a.EMA(ctx)
+	if err != nil {
+		t.Errorf("EMA() returned error: %v", err)
+	}
+	if ema != 0 {
+		t.Errorf("EMA() returned %f, want 0", ema)
+	}
+
+	// Test EMA with options - should still return zero and nil error
+	ema, err = a.EMA(ctx, WithSince(time.Now()), WithEMAPeriod(time.Minute))
+	if err != nil {
+		t.Errorf("EMA() with options returned error: %v", err)
+	}
+	if ema != 0 {
+		t.Errorf("EMA() with options returned %f, want 0", ema)
+	}
+
+	// Test Read - should return empty metrics and nil error
+	metrics, err := a.Read(ctx)
+	if err != nil {
+		t.Errorf("Read() returned error: %v", err)
+	}
+	if len(metrics) != 0 {
+		t.Errorf("Read() returned %d metrics, want 0", len(metrics))
+	}
+
+	// Test Read with options - should still return empty metrics and nil error
+	metrics, err = a.Read(ctx, WithSince(time.Now()), WithMetricSecondaryName("test"))
+	if err != nil {
+		t.Errorf("Read() with options returned error: %v", err)
+	}
+	if len(metrics) != 0 {
+		t.Errorf("Read() with options returned %d metrics, want 0", len(metrics))
+	}
+}
