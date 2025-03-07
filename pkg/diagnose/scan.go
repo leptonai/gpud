@@ -371,6 +371,8 @@ func scanKmsg(ctx context.Context) {
 	fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
 
 	for _, msg := range msgs {
+		ts = msg.DescribeTimestamp(time.Now().UTC())
+
 		if ev, m := cpu.Match(msg.Message); m != "" {
 			fmt.Printf("[cpu] (%s) %s %s %q\n", ts, ev, m, msg.Message)
 		}
