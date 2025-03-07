@@ -2,7 +2,6 @@ package peermem
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/leptonai/gpud/components"
@@ -38,14 +37,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameLsmodPeermem = "lsmod_peermem"
 
@@ -55,32 +46,6 @@ const (
 
 	// TODO: support compressed gzip
 )
-
-func ParseStateLsmodPeermem(m map[string]string) (*Output, error) {
-	o := &Output{}
-	data := m[StateKeyLsmodPeermemData]
-	if err := json.Unmarshal([]byte(data), &o.LsmodPeermem); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameLsmodPeermem:
-			o, err := ParseStateLsmodPeermem(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()

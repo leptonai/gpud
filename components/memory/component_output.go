@@ -53,14 +53,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateKeyVirtualMemory = "virtual_memory"
 
@@ -83,72 +75,6 @@ const (
 	StateKeyBPFJITBufferBytes     = "bpf_jit_buffer_bytes"
 	StateKeyBPFJITBufferHumanized = "bpf_jit_buffer_humanized"
 )
-
-func ParseStateKeyVirtualMemory(m map[string]string) (*Output, error) {
-	o := &Output{}
-
-	var err error
-	o.TotalBytes, err = strconv.ParseUint(m[StateKeyTotalBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.TotalHumanized = m[StateKeyTotalHumanized]
-
-	o.AvailableBytes, err = strconv.ParseUint(m[StateKeyAvailableBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.AvailableHumanized = m[StateKeyAvailableHumanized]
-
-	o.UsedBytes, err = strconv.ParseUint(m[StateKeyUsedBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.UsedHumanized = m[StateKeyUsedHumanized]
-
-	o.UsedPercent = m[StateKeyUsedPercent]
-
-	o.FreeBytes, err = strconv.ParseUint(m[StateKeyFreeBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.FreeHumanized = m[StateKeyFreeHumanized]
-
-	o.VMAllocTotalBytes, err = strconv.ParseUint(m[StateKeyVMAllocTotalBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.VMAllocTotalHumanized = m[StateKeyVMAllocTotalHumanized]
-
-	o.VMAllocUsedBytes, err = strconv.ParseUint(m[StateKeyVMAllocUsedBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.VMAllocUsedHumanized = m[StateKeyVMAllocUsedHumanized]
-
-	o.VMAllocUsedPercent = m[StateKeyVMAllocUsedPercent]
-
-	o.BPFJITBufferBytes, err = strconv.ParseUint(m[StateKeyBPFJITBufferBytes], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.BPFJITBufferHumanized = m[StateKeyBPFJITBufferHumanized]
-
-	return o, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateKeyVirtualMemory:
-			return ParseStateKeyVirtualMemory(state.ExtraInfo)
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, fmt.Errorf("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	state := components.State{

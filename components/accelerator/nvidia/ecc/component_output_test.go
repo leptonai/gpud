@@ -70,18 +70,9 @@ func TestToOutput(t *testing.T) {
 				t.Errorf("ToOutput()\n%+v\n\nwant\n%+v", result, tt.expected)
 			}
 
-			b, err := result.JSON()
+			_, err := result.JSON()
 			if err != nil {
 				t.Errorf("JSON()\n%+v", err)
-			}
-
-			parsed, err := ParseOutputJSON(b)
-			if err != nil {
-				t.Errorf("ParseOutputJSON()\n%+v", err)
-			}
-
-			if !reflect.DeepEqual(parsed, result) {
-				t.Errorf("ParseOutputJSON()\n%+v\n\nwant\n%+v", parsed, result)
 			}
 		})
 	}
@@ -136,18 +127,9 @@ func TestToOutputECCMode(t *testing.T) {
 				t.Errorf("ToOutput()\n%+v\n\nwant\n%+v", result.ECCModes, tt.expected.ECCModes)
 			}
 
-			b, err := result.JSON()
+			_, err := result.JSON()
 			if err != nil {
 				t.Errorf("JSON()\n%+v", err)
-			}
-
-			parsed, err := ParseOutputJSON(b)
-			if err != nil {
-				t.Errorf("ParseOutputJSON()\n%+v", err)
-			}
-
-			if !reflect.DeepEqual(parsed.ECCModes, result.ECCModes) {
-				t.Errorf("ParseOutputJSON()\n%+v\n\nwant\n%+v", parsed.ECCModes, result.ECCModes)
 			}
 		})
 	}

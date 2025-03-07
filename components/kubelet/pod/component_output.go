@@ -34,14 +34,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNamePod = "pod"
 
@@ -49,28 +41,6 @@ const (
 	StateKeyPodEncoding       = "encoding"
 	StateValuePodEncodingJSON = "json"
 )
-
-func ParseStatePod(m map[string]string) (*Output, error) {
-	o := &Output{}
-	data := m[StateKeyPodData]
-	if err := json.Unmarshal([]byte(data), o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNamePod:
-			return ParseStatePod(state.ExtraInfo)
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, fmt.Errorf("no pod state found")
-}
 
 func (o *Output) describeReason() string {
 	if o.ConnectionError != "" {
@@ -326,14 +296,6 @@ type PodStatus struct {
 
 func (s PodStatus) JSON() ([]byte, error) {
 	return json.Marshal(s)
-}
-
-func ParsePodStatusJSON(b []byte) (*PodStatus, error) {
-	pod := new(PodStatus)
-	if err := json.Unmarshal(b, pod); err != nil {
-		return nil, err
-	}
-	return pod, nil
 }
 
 // ref. https://pkg.go.dev/k8s.io/api/core/v1#PodCondition

@@ -34,14 +34,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameSystemd       = "systemd"
 	StateKeySystemdVersion = "version"
@@ -52,53 +44,6 @@ const (
 	StateKeyUnitUptimeSeconds   = "uptime_seconds"
 	StateKeyUnitUptimeHumanized = "uptime_humanized"
 )
-
-func ParseStateSystemd(m map[string]string) (*Output, error) {
-	o := &Output{}
-	o.SystemdVersion = m[StateKeySystemdVersion]
-	return o, nil
-}
-
-func ParseStateUnit(m map[string]string) (Unit, error) {
-	u := Unit{}
-	u.Name = m[StateKeyUnitName]
-
-	b, err := strconv.ParseBool(m[StateKeyUnitActive])
-	if err != nil {
-		return Unit{}, err
-	}
-	u.Active = b
-
-	v, err := strconv.ParseInt(m[StateKeyUnitUptimeSeconds], 10, 64)
-	if err != nil {
-		return Unit{}, err
-	}
-	u.UptimeSeconds = v
-	u.UptimeHumanized = m[StateKeyUnitUptimeHumanized]
-
-	return u, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	o := &Output{}
-	for _, state := range states {
-		switch state.Name {
-		case StateNameSystemd:
-			o.SystemdVersion = state.ExtraInfo[StateKeySystemdVersion]
-
-		case StateNameUnit:
-			u, err := ParseStateUnit(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Units = append(o.Units, u)
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, fmt.Errorf("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	cs := []components.State{

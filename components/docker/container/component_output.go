@@ -40,14 +40,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameDockerContainer = "docker_container"
 
@@ -58,15 +50,6 @@ const (
 	PodNameLabel      = "io.kubernetes.pod.name"
 	PodNamespaceLabel = "io.kubernetes.pod.namespace"
 )
-
-func ParseStateDockerContainer(m map[string]string) ([]DockerContainer, error) {
-	var containers []DockerContainer
-	data := m[StateKeyDockerContainerData]
-	if err := json.Unmarshal([]byte(data), &containers); err != nil {
-		return nil, err
-	}
-	return containers, nil
-}
 
 func (o *Output) describeReason() string {
 	if o.IsErrDockerClientVersionNewerThanDaemon {
@@ -97,24 +80,6 @@ func (o *Output) States(cfg Config) ([]components.State, error) {
 			StateKeyDockerContainerEncoding: StateValueDockerContainerEncodingJSON,
 		},
 	}}, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	o := &Output{}
-	for _, state := range states {
-		switch state.Name {
-		case StateNameDockerContainer:
-			containers, err := ParseStateDockerContainer(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Containers = containers
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return o, nil
 }
 
 var (

@@ -2,7 +2,6 @@ package gspfirmwaremode
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -36,14 +35,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameGSPFirmwareMode = "gsp_firmware_mode"
 
@@ -51,28 +42,6 @@ const (
 	StateKeyGSPFirmwareModeEncoding   = "encoding"
 	StateValueMemoryUsageEncodingJSON = "json"
 )
-
-func ParseStatePersistenceMode(m map[string]string) (*Output, error) {
-	data := m[StateKeyGSPFirmwareModeData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameGSPFirmwareMode:
-			o, err := ParseStatePersistenceMode(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	reasons := []string{}

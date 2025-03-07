@@ -65,14 +65,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameFileDescriptors = "file_descriptors"
 
@@ -111,61 +103,6 @@ const (
 	ErrTooManyRunningPIDs                   = "too many running PIDs (exceeds threshold %d)"
 	ErrTooManyFileHandlesAllocated          = "too many file handles allocated (exceeds threshold %d)"
 )
-
-func ParseStateFileDescriptors(m map[string]string) (*Output, error) {
-	o := &Output{}
-
-	var err error
-	o.AllocatedFileHandles, err = strconv.ParseUint(m[StateKeyAllocatedFileHandles], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.RunningPIDs, err = strconv.ParseUint(m[StateKeyRunningPIDs], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.Usage, err = strconv.ParseUint(m[StateKeyUsage], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.Limit, err = strconv.ParseUint(m[StateKeyLimit], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	o.AllocatedFileHandlesPercent = m[StateKeyAllocatedFileHandlesPercent]
-	o.UsedPercent = m[StateKeyUsedPercent]
-
-	o.ThresholdAllocatedFileHandles, err = strconv.ParseUint(m[StateKeyThresholdAllocatedFileHandles], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.ThresholdAllocatedFileHandlesPercent = m[StateKeyThresholdAllocatedFileHandlesPercent]
-
-	o.ThresholdRunningPIDs, err = strconv.ParseUint(m[StateKeyThresholdRunningPIDs], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	o.ThresholdRunningPIDsPercent = m[StateKeyThresholdRunningPIDsPercent]
-
-	o.FileHandlesSupported = m[StateKeyFileHandlesSupported] == "true"
-	o.FDLimitSupported = m[StateKeyFDLimitSupported] == "true"
-
-	return o, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameFileDescriptors:
-			return ParseStateFileDescriptors(state.ExtraInfo)
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, fmt.Errorf("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	state := components.State{

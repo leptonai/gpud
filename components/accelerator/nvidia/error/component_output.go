@@ -2,7 +2,6 @@ package error
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/leptonai/gpud/components"
@@ -35,14 +34,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameError = "error"
 
@@ -50,28 +41,6 @@ const (
 	StateKeyErrorEncoding       = "encoding"
 	StateValueErrorEncodingJSON = "json"
 )
-
-func ParseStateError(m map[string]string) (*Output, error) {
-	data := m[StateKeyErrorData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameError:
-			o, err := ParseStateError(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {

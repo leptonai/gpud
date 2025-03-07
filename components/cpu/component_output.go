@@ -36,14 +36,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 type Info struct {
 	Arch      string `json:"arch"`
 	CPU       string `json:"cpu"`
@@ -103,73 +95,6 @@ const (
 	StateKeyUsageLoadAvg5Min  = "load_avg_5min"
 	StateKeyUsageLoadAvg15Min = "load_avg_15min"
 )
-
-func ParseStateInfo(m map[string]string) (Info, error) {
-	i := Info{}
-	i.Arch = m[StateKeyInfoArch]
-	i.CPU = m[StateKeyInfoCPU]
-	i.Family = m[StateKeyInfoFamily]
-	i.Model = m[StateKeyInfoModel]
-	i.ModelName = m[StateKeyInfoModelName]
-	return i, nil
-}
-
-func ParseStateKeyCores(m map[string]string) (Cores, error) {
-	c := Cores{}
-
-	var err error
-	c.Physical, err = strconv.Atoi(m[StateKeyCoresPhysical])
-	if err != nil {
-		return Cores{}, err
-	}
-	c.Logical, err = strconv.Atoi(m[StateKeyCoresLogical])
-	if err != nil {
-		return Cores{}, err
-	}
-
-	return c, nil
-}
-
-func ParseStateUsage(m map[string]string) (Usage, error) {
-	u := Usage{}
-	u.UsedPercent = m[StateKeyUsageUsedPercent]
-	u.LoadAvg1Min = m[StateKeyUsageLoadAvg1Min]
-	u.LoadAvg5Min = m[StateKeyUsageLoadAvg5Min]
-	u.LoadAvg15Min = m[StateKeyUsageLoadAvg15Min]
-	return u, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	o := &Output{}
-	for _, state := range states {
-		switch state.Name {
-		case StateNameInfo:
-			info, err := ParseStateInfo(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Info = info
-
-		case StateNameCores:
-			cores, err := ParseStateKeyCores(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Cores = cores
-
-		case StateNameUsage:
-			usage, err := ParseStateUsage(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Usage = usage
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return o, nil
-}
 
 func (o *Output) States() ([]components.State, error) {
 	return []components.State{
