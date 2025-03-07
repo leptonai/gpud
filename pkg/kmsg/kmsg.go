@@ -175,12 +175,12 @@ func NewWatcher() (Watcher, error) {
 	// use multi-platform library "github.com/shirou/gopsutil/v4/host"
 	// to support darwin builds
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	bt, err := host.BootTimeWithContext(ctx)
+	ut, err := host.UptimeWithContext(ctx)
 	cancel()
 	if err != nil {
 		return nil, err
 	}
-	bootTime := time.Unix(int64(bt), 0)
+	bootTime := time.Unix(int64(ut), 0)
 
 	return &watcher{
 		kmsgFile: kmsgFile,
