@@ -14,7 +14,6 @@ type Config struct {
 }
 
 type ToolOverwrites struct {
-	NvidiaSMICommand      string `json:"nvidia_smi_command"`
 	NvidiaSMIQueryCommand string `json:"nvidia_smi_query_command"`
 	IbstatCommand         string `json:"ibstat_command"`
 }

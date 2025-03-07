@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/urfave/cli"
+
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
-
-	"github.com/urfave/cli"
 )
 
 const usage = `
@@ -53,7 +53,6 @@ var (
 	dockerIgnoreConnectionErrors  bool
 	kubeletIgnoreConnectionErrors bool
 
-	nvidiaSMICommand      string
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 
@@ -269,12 +268,6 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 
 				// only for testing
-				cli.StringFlag{
-					Name:        "nvidia-smi-command",
-					Usage:       "sets the nvidia-smi command (leave empty for default, useful for testing)",
-					Destination: &nvidiaSMICommand,
-					Hidden:      true,
-				},
 				cli.StringFlag{
 					Name:        "nvidia-smi-query-command",
 					Usage:       "sets the nvidia-smi --query command (leave empty for default, useful for testing)",
@@ -547,12 +540,6 @@ cat summary.txt
 				},
 
 				// only for testing
-				cli.StringFlag{
-					Name:        "nvidia-smi-command",
-					Usage:       "sets the nvidia-smi command (leave empty for default, useful for testing)",
-					Destination: &nvidiaSMICommand,
-					Hidden:      true,
-				},
 				cli.StringFlag{
 					Name:        "nvidia-smi-query-command",
 					Usage:       "sets the nvidia-smi --query command (leave empty for default, useful for testing)",

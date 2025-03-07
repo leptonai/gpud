@@ -11,7 +11,6 @@ type Op struct {
 	dbRO                  *sql.DB
 	xidEventsStore        events_db.Store
 	hwslowdownEventsStore events_db.Store
-	nvidiaSMICommand      string
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 	debug                 bool
@@ -24,9 +23,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
-	if op.nvidiaSMICommand == "" {
-		op.nvidiaSMICommand = "nvidia-smi"
-	}
 	if op.nvidiaSMIQueryCommand == "" {
 		op.nvidiaSMIQueryCommand = "nvidia-smi --query"
 	}
@@ -58,13 +54,6 @@ func WithXidEventsStore(store events_db.Store) OpOption {
 func WithHWSlowdownEventsStore(store events_db.Store) OpOption {
 	return func(op *Op) {
 		op.hwslowdownEventsStore = store
-	}
-}
-
-// Specifies the nvidia-smi binary path to overwrite the default path.
-func WithNvidiaSMICommand(p string) OpOption {
-	return func(op *Op) {
-		op.nvidiaSMICommand = p
 	}
 }
 

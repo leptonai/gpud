@@ -207,7 +207,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			nvidia_query.WithDBRO(dbRO), // to deprecate in favor of events store
 			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
 			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
-			nvidia_query.WithNvidiaSMICommand(options.NvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(options.IbstatCommand),
 		)

@@ -51,13 +51,6 @@ func WithKubeletIgnoreConnectionErrors(b bool) OpOption {
 	}
 }
 
-// Specifies the nvidia-smi binary path to overwrite the default path.
-func WithNvidiaSMICommand(p string) OpOption {
-	return func(op *Op) {
-		op.NvidiaSMICommand = p
-	}
-}
-
 func WithNvidiaSMIQueryCommand(p string) OpOption {
 	return func(op *Op) {
 		op.NvidiaSMIQueryCommand = p

@@ -107,7 +107,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
-	p, err := file.LocateExecutable(strings.Split(op.nvidiaSMICommand, " ")[0])
+	p, err := file.LocateExecutable(strings.Split(op.nvidiaSMIQueryCommand, " ")[0])
 	smiExists := err == nil && p != ""
 
 	o := &Output{
@@ -199,15 +199,11 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		// call this with a timeout, as a broken GPU may block the command.
 		cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 		o.SMI, err = GetSMIOutput(cctx,
-			[]string{op.nvidiaSMICommand},
 			[]string{op.nvidiaSMIQueryCommand},
 		)
 		ccancel()
 		if err != nil {
 			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
-		}
-		if o.SMI != nil && o.SMI.SummaryFailure != nil {
-			o.SMIQueryErrors = append(o.SMIQueryErrors, o.SMI.SummaryFailure.Error())
 		}
 
 		if o.SMI != nil {

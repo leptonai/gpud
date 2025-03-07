@@ -1,7 +1,6 @@
 package diagnose
 
 type Op struct {
-	nvidiaSMICommand      string
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 
@@ -25,9 +24,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
-	if op.nvidiaSMICommand == "" {
-		op.nvidiaSMICommand = "nvidia-smi"
-	}
 	if op.nvidiaSMIQueryCommand == "" {
 		op.nvidiaSMIQueryCommand = "nvidia-smi --query"
 	}
@@ -36,13 +32,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 
 	return nil
-}
-
-// Specifies the nvidia-smi binary path to overwrite the default path.
-func WithNvidiaSMICommand(p string) OpOption {
-	return func(op *Op) {
-		op.nvidiaSMICommand = p
-	}
 }
 
 func WithNvidiaSMIQueryCommand(p string) OpOption {
