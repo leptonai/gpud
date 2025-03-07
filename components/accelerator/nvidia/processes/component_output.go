@@ -2,8 +2,6 @@ package processes
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
@@ -42,14 +40,6 @@ func (o *Output) YAML() ([]byte, error) {
 	return yaml.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameProcesses = "processes"
 
@@ -57,28 +47,6 @@ const (
 	StateKeyProcessesEncoding       = "encoding"
 	StateValueProcessesEncodingJSON = "json"
 )
-
-func ParseStateProcesses(m map[string]string) (*Output, error) {
-	data := m[StateKeyProcessesData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameProcesses:
-			o, err := ParseStateProcesses(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	yb, _ := o.YAML()

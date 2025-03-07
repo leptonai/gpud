@@ -2,7 +2,6 @@ package persistencemode
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -37,14 +36,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNamePersistenceMode = "persistence_mode"
 
@@ -52,28 +43,6 @@ const (
 	StateKeyPersistenceModeEncoding   = "encoding"
 	StateValueMemoryUsageEncodingJSON = "json"
 )
-
-func ParseStatePersistenceMode(m map[string]string) (*Output, error) {
-	data := m[StateKeyPersistenceModeData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNamePersistenceMode:
-			o, err := ParseStatePersistenceMode(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 // Returns the output evaluation reason and its healthy-ness.
 func (o *Output) Evaluate() (string, bool, error) {

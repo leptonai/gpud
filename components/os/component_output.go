@@ -2,10 +2,8 @@ package os
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -62,18 +60,6 @@ type Uptimes struct {
 	BootTimeHumanized   string `json:"boot_time_humanized"`
 }
 
-func (o *Output) JSON() ([]byte, error) {
-	return json.Marshal(o)
-}
-
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameVirtualizationEnvironment         = "virtualization_environment"
 	StateKeyVirtualizationEnvironmentType      = "type"
@@ -110,151 +96,6 @@ const (
 	StateNameProcessCountsByStatus      = "process_counts_by_status"
 	StateKeyProcessCountZombieProcesses = "process_count_zombie_processes"
 )
-
-func ParseStateVirtualizationEnvironment(m map[string]string) (pkg_host.VirtualizationEnvironment, error) {
-	virtEnv := pkg_host.VirtualizationEnvironment{}
-	virtEnv.Type = m[StateKeyVirtualizationEnvironmentType]
-	virtEnv.VM = m[StateKeyVirtualizationEnvironmentVM]
-	virtEnv.Container = m[StateKeyVirtualizationEnvironmentContainer]
-
-	var err error
-	virtEnv.IsKVM, err = strconv.ParseBool(m[StateKeyVirtualizationEnvironmentIsKVM])
-	return virtEnv, err
-}
-
-func ParseStateSystemManufacturer(m map[string]string) (string, error) {
-	return m[StateKeySystemManufacturer], nil
-}
-
-func ParseStateMachineMetadata(m map[string]string) (MachineMetadata, error) {
-	mm := MachineMetadata{}
-	mm.BootID = m[StateKeyMachineMetadataBootID]
-	mm.DmidecodeUUID = m[StateKeyMachineMetadataDmidecodeUUID]
-	mm.OSMachineID = m[StateKeyMachineMetadataOSMachineID]
-	return mm, nil
-}
-
-func ParseStateHost(m map[string]string) (Host, error) {
-	h := Host{}
-	h.ID = m[StateKeyHostID]
-	return h, nil
-}
-
-func ParseStateKernel(m map[string]string) (Kernel, error) {
-	k := Kernel{}
-	k.Arch = m[StateKeyKernelArch]
-	k.Version = m[StateKeyKernelVersion]
-	return k, nil
-}
-
-func ParseStatePlatform(m map[string]string) (Platform, error) {
-	p := Platform{}
-	p.Name = m[StateKeyPlatformName]
-	p.Family = m[StateKeyPlatformFamily]
-	p.Version = m[StateKeyPlatformVersion]
-	return p, nil
-}
-
-func ParseStateUptimes(m map[string]string) (Uptimes, error) {
-	u := Uptimes{}
-
-	var err error
-	u.Seconds, err = strconv.ParseUint(m[StateKeyUptimesSeconds], 10, 64)
-	if err != nil {
-		return Uptimes{}, err
-	}
-	u.SecondsHumanized = m[StateKeyUptimesHumanized]
-
-	u.BootTimeUnixSeconds, err = strconv.ParseUint(m[StateKeyUptimesBootTimeUnixSeconds], 10, 64)
-	if err != nil {
-		return Uptimes{}, err
-	}
-	u.BootTimeHumanized = m[StateKeyUptimesBootTimeHumanized]
-
-	return u, nil
-}
-
-func ParseStateProcessCountZombieProcesses(m map[string]string) (int, error) {
-	s, ok := m[StateKeyProcessCountZombieProcesses]
-	if ok {
-		count, err := strconv.Atoi(s)
-		if err != nil {
-			return 0, err
-		}
-		return count, nil
-	}
-	return 0, nil
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	o := &Output{}
-	for _, state := range states {
-		switch state.Name {
-		case os_id.Name:
-			// noop
-
-		case StateNameVirtualizationEnvironment:
-			virtEnv, err := ParseStateVirtualizationEnvironment(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.VirtualizationEnvironment = virtEnv
-
-		case StateNameSystemManufacturer:
-			manufacturer, err := ParseStateSystemManufacturer(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.SystemManufacturer = manufacturer
-
-		case StateNameMachineMetadata:
-			mm, err := ParseStateMachineMetadata(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.MachineMetadata = mm
-
-		case StateNameHost:
-			host, err := ParseStateHost(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Host = host
-
-		case StateNameKernel:
-			kernel, err := ParseStateKernel(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Kernel = kernel
-
-		case StateNamePlatform:
-			platform, err := ParseStatePlatform(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Platform = platform
-
-		case StateNameUptimes:
-			uptimes, err := ParseStateUptimes(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			o.Uptimes = uptimes
-
-		case StateNameProcessCountsByStatus:
-			var err error
-			o.ProcessCountZombieProcesses, err = ParseStateProcessCountZombieProcesses(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return o, nil
-}
 
 func (o *Output) States() ([]components.State, error) {
 	virtReason := fmt.Sprintf("type: %s, vm: %s, container: %s", o.VirtualizationEnvironment.Type, o.VirtualizationEnvironment.VM, o.VirtualizationEnvironment.Container)

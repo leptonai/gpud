@@ -2,7 +2,6 @@ package badenvs
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -34,14 +33,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameBadEnvs = "bad_envs"
 
@@ -49,28 +40,6 @@ const (
 	StateKeyUtilizationEncoding       = "encoding"
 	StateValueUtilizationEncodingJSON = "json"
 )
-
-func ParseStateBadEnvs(m map[string]string) (*Output, error) {
-	data := m[StateKeyUtilizationData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameBadEnvs:
-			o, err := ParseStateBadEnvs(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	reasons := []string{}

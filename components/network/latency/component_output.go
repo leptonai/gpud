@@ -3,7 +3,6 @@ package latency
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -27,14 +26,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameLatency = "network-latency"
 
@@ -42,29 +33,6 @@ const (
 	StateKeyLatencyEncoding     = "encoding"
 	StateKeyLatencyEncodingJSON = "json"
 )
-
-func ParseStateLatency(m map[string]string) (*Output, error) {
-	data := m[StateKeyLatencyData]
-	return ParseOutputJSON([]byte(data))
-
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameLatency:
-			o, err := ParseStateLatency(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no latency state found")
-}
 
 func (o *Output) States(cfg Config) ([]components.State, error) {
 	unhealthyReasons := []string{}

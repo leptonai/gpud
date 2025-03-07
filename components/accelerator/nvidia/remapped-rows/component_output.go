@@ -2,7 +2,6 @@ package remappedrows
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -77,14 +76,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameRemappedRows = "remapped_rows"
 
@@ -92,28 +83,6 @@ const (
 	StateKeyRemappedRowsEncoding       = "encoding"
 	StateValueRemappedRowsEncodingJSON = "json"
 )
-
-func ParseStateRemappedRows(m map[string]string) (*Output, error) {
-	data := m[StateKeyRemappedRowsData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameRemappedRows:
-			o, err := ParseStateRemappedRows(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) isRowRemappingSupported() bool {
 	// even for "NVIDIA GeForce RTX 4090", this returns no error

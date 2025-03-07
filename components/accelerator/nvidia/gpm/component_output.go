@@ -3,8 +3,6 @@ package gpm
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/leptonai/gpud/components"
@@ -12,8 +10,6 @@ import (
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/query"
-
-	"sigs.k8s.io/yaml"
 )
 
 type Output struct {
@@ -24,26 +20,6 @@ func (o *Output) JSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func ParseOutputJSON(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := json.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
-func (o *Output) YAML() ([]byte, error) {
-	return yaml.Marshal(o)
-}
-
-func ParseOutputYAML(data []byte) (*Output, error) {
-	o := new(Output)
-	if err := yaml.Unmarshal(data, o); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 const (
 	StateNameGPM = "gpm"
 
@@ -51,28 +27,6 @@ const (
 	StateKeyGPMEncoding       = "encoding"
 	StateValueGPMEncodingJSON = "json"
 )
-
-func ParseStateGPM(m map[string]string) (*Output, error) {
-	data := m[StateKeyGPMData]
-	return ParseOutputJSON([]byte(data))
-}
-
-func ParseStatesToOutput(states ...components.State) (*Output, error) {
-	for _, state := range states {
-		switch state.Name {
-		case StateNameGPM:
-			o, err := ParseStateGPM(state.ExtraInfo)
-			if err != nil {
-				return nil, err
-			}
-			return o, nil
-
-		default:
-			return nil, fmt.Errorf("unknown state name: %s", state.Name)
-		}
-	}
-	return nil, errors.New("no state found")
-}
 
 func (o *Output) States() ([]components.State, error) {
 	b, _ := o.JSON()
