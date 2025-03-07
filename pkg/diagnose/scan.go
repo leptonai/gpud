@@ -143,7 +143,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			nvidia_query.WithDBRO(db), // to deprecate in favor of events store
 			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
 			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
-			nvidia_query.WithNvidiaSMICommand(op.nvidiaSMICommand),
 			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
 		)

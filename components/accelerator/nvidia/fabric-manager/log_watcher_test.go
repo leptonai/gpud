@@ -376,9 +376,12 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("watch with failing command", func(t *testing.T) {
 		w, err := newWatcher([][]string{
 			{"cat", "nonexistent_file"}, // Will fail
+			{"sleep", "1"},
 		})
 		require.NoError(t, err, "watcher should be created even with command that will fail")
 		defer w.close()
+
+		time.Sleep(time.Second)
 
 		ch := w.watch()
 		require.NotNil(t, ch)

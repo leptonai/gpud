@@ -144,26 +144,6 @@ func TestWithKubeletIgnoreConnectionErrors(t *testing.T) {
 	}
 }
 
-func TestWithNvidiaSMICommand(t *testing.T) {
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-	}{
-		{"set custom path", "/usr/local/bin/nvidia-smi", "/usr/local/bin/nvidia-smi"},
-		{"set empty path", "", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op := &Op{}
-			opt := WithNvidiaSMICommand(tt.path)
-			opt(op)
-			assert.Equal(t, tt.expected, op.NvidiaSMICommand)
-		})
-	}
-}
-
 func TestWithNvidiaSMIQueryCommand(t *testing.T) {
 	tests := []struct {
 		name     string

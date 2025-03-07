@@ -111,7 +111,7 @@ func RunSMI(ctx context.Context, commandArgs []string) ([]byte, error) {
 // Make sure to call this with a timeout, as a broken GPU may block the command.
 // e.g.,
 // nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from pRmApi->Control(pRmApi, RES_GET_CLIENT_HANDLE(pKernelChannel), RES_GET_HANDLE(pKernelChannel),
-func GetSMIOutput(ctx context.Context, smiCmds []string, smiQueryCmds []string) (*SMIOutput, error) {
+func GetSMIOutput(ctx context.Context, smiQueryCmds []string) (*SMIOutput, error) {
 	qb, err := RunSMI(ctx, smiQueryCmds)
 	if err != nil {
 		return nil, err
@@ -120,21 +120,6 @@ func GetSMIOutput(ctx context.Context, smiCmds []string, smiQueryCmds []string) 
 	o, err := ParseSMIQueryOutput(qb)
 	if err != nil {
 		return nil, err
-	}
-
-	sb, err := RunSMI(ctx, smiCmds)
-	if err != nil {
-		if IsErrDeviceHandleUnknownError(err) {
-			o.SummaryFailure = err
-		} else {
-			return nil, err
-		}
-	} else {
-		if strings.Contains(string(sb), "Unknown Error") {
-			o.SummaryFailure = errors.New(string(sb))
-		} else {
-			o.Summary = string(sb)
-		}
 	}
 
 	return o, nil
@@ -159,9 +144,6 @@ type SMIOutput struct {
 	// Useful for error detecting, in case the new nvidia-smi
 	// version introduces breaking changes to its query output.
 	Summary string `json:"summary,omitempty"`
-
-	// Only set if "nvidia-smi" failed to run.
-	SummaryFailure error `json:"summary_failure,omitempty"`
 }
 
 // ref. "nvidia-smi --help-query-gpu"
@@ -391,23 +373,6 @@ func ParseSMIQueryOutput(b []byte) (*SMIOutput, error) {
 	return out, nil
 }
 
-// ref. https://forums.developer.nvidia.com/t/nvidia-smi-q-shows-several-unknown-error-gpu-ignored-by-pytorch/263881/2
-func FindSummaryErr(s string) []string {
-	errs := make([]string, 0)
-	lines := strings.Split(s, "\n")
-	for i, line := range lines {
-		if !strings.Contains(line, "ERR!") {
-			continue
-		}
-		if i > 0 {
-			errs = append(errs, lines[i-1]+"\n"+line)
-			continue
-		}
-		errs = append(errs, line)
-	}
-	return errs
-}
-
 func getKey(line []byte) []byte {
 	k := bytes.Split(line, []byte(":"))[0]
 	return bytes.TrimSpace(k)
@@ -422,14 +387,6 @@ func (o *SMIOutput) FindGPUErrs() []string {
 			continue
 		}
 		rs = append(rs, errs...)
-	}
-
-	if o.SummaryFailure != nil {
-		rs = append(rs, o.SummaryFailure.Error())
-	} else {
-		if serrs := FindSummaryErr(o.Summary); len(serrs) > 0 {
-			rs = append(rs, serrs...)
-		}
 	}
 
 	if o.AttachedGPUs != len(o.GPUs) {

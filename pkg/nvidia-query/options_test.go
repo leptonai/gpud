@@ -15,7 +15,6 @@ func TestOpOptions(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Check default values
-		assert.Equal(t, "nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "nvidia-smi --query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
 		assert.False(t, op.debug)
@@ -31,7 +30,6 @@ func TestOpOptions(t *testing.T) {
 			WithDBRO(mockDB),
 			WithXidEventsStore(mockStore),
 			WithHWSlowdownEventsStore(mockStore),
-			WithNvidiaSMICommand("/custom/nvidia-smi"),
 			WithNvidiaSMIQueryCommand("/custom/nvidia-smi-query"),
 			WithIbstatCommand("/custom/ibstat"),
 			WithDebug(true),
@@ -44,7 +42,6 @@ func TestOpOptions(t *testing.T) {
 		assert.Equal(t, mockDB, op.dbRO)
 		assert.Equal(t, mockStore, op.xidEventsStore)
 		assert.Equal(t, mockStore, op.hwslowdownEventsStore)
-		assert.Equal(t, "/custom/nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "/custom/nvidia-smi-query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
 		assert.True(t, op.debug)
@@ -53,14 +50,12 @@ func TestOpOptions(t *testing.T) {
 	t.Run("partial options", func(t *testing.T) {
 		op := &Op{}
 		err := op.applyOpts([]OpOption{
-			WithNvidiaSMICommand("/custom/nvidia-smi"),
 			WithDebug(true),
 		})
 
 		assert.NoError(t, err)
 
 		// Check mixed default and custom values
-		assert.Equal(t, "/custom/nvidia-smi", op.nvidiaSMICommand)
 		assert.Equal(t, "nvidia-smi --query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
 		assert.True(t, op.debug)

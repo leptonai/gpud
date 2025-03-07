@@ -30,7 +30,6 @@ func TestGetSMIOutput(t *testing.T) {
 	for _, queryFile := range matches {
 		o, err := GetSMIOutput(
 			ctx,
-			[]string{"cat", "testdata/nvidia-smi.550.90.07.out.0.valid"},
 			[]string{"cat", queryFile},
 		)
 		if err != nil {
@@ -53,7 +52,6 @@ func TestGetSMIOutputError(t *testing.T) {
 
 	_, err := GetSMIOutput(
 		ctx,
-		[]string{"echo", "invalid-output-is-here-should-fail"},
 		[]string{"echo", "invalid-output-is-here-should-fail"},
 	)
 	if !errors.Is(err, ErrNoGPUFoundFromSMIQuery) {
@@ -207,88 +205,6 @@ func TestParseMore(t *testing.T) {
 		if _, err := ParseSMIQueryOutput(data); err != nil {
 			t.Errorf("Parse returned an error: %v", err)
 		}
-	}
-}
-
-func TestFindSummaryErr(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected []string
-	}{
-		{
-			name:     "No errors",
-			input:    "This is a normal output\nwithout any errors",
-			expected: []string{},
-		},
-		{
-			name:     "Single error on first line",
-			input:    "ERR! This is an error\nNext line",
-			expected: []string{"ERR! This is an error"},
-		},
-		{
-			name:     "Single error with context",
-			input:    "Context line\nERR! This is an error\nNext line",
-			expected: []string{"Context line\nERR! This is an error"},
-		},
-		{
-			name:     "Multiple errors",
-			input:    "Context 1\nERR! Error 1\nContext 2\nERR! Error 2",
-			expected: []string{"Context 1\nERR! Error 1", "Context 2\nERR! Error 2"},
-		},
-		{
-			name:     "Error at the end",
-			input:    "Line 1\nLine 2\nERR! Last line error",
-			expected: []string{"Line 2\nERR! Last line error"},
-		},
-		{
-			name:     "Empty input",
-			input:    "",
-			expected: []string{},
-		},
-		{
-			name: "ERR!",
-			input: `
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 525.125.06   Driver Version: 525.125.06   CUDA Version: 12.0     |
-|-------------------------------+----------------------+----------------------+
-| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
-|                               |                      |               MIG M. |
-|===============================+======================+======================|
-|   0  NVIDIA GeForce ...  Off  | 00000000:01:00.0 Off |                    0 |
-|ERR!   38C    P5    49W / 450W |   2021MiB / 23028MiB |      0%   E. Process |
-|                               |                      |                  N/A |
-+-------------------------------+----------------------+----------------------+
-`,
-			expected: []string{"|   0  NVIDIA GeForce ...  Off  | 00000000:01:00.0 Off |                    0 |\n|ERR!   38C    P5    49W / 450W |   2021MiB / 23028MiB |      0%   E. Process |"},
-		},
-		{
-			name: "ERR!",
-			input: `
-| NVIDIA-SMI 535.98                 Driver Version: 535.98       CUDA Version: 12.2     |
-|-----------------------------------------+----------------------+----------------------+
-| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
-|                                         |                      |               MIG M. |
-|=========================================+======================+======================|
-|   0  NVIDIA T600 Laptop GPU         Off | 00000000:01:00.0 Off |                  N/A |
-| N/A   61C    P0              N/A / ERR! |      5MiB /  4096MiB |      0%      Default |
-|                                         |                      |                  N/A |
-+-----------------------------------------+----------------------+----------------------+
-
-`,
-			expected: []string{"|   0  NVIDIA T600 Laptop GPU         Off | 00000000:01:00.0 Off |                  N/A |\n| N/A   61C    P0              N/A / ERR! |      5MiB /  4096MiB |      0%      Default |"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := FindSummaryErr(tt.input)
-			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("FindSummaryErr() = %v, want %v", result, tt.expected)
-			}
-		})
 	}
 }
 
