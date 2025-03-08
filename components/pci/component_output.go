@@ -8,18 +8,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/pci/id"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/pci"
 	"github.com/leptonai/gpud/pkg/query"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/dustin/go-humanize"
 )
 
 var currentVirtEnv host.VirtualizationEnvironment
@@ -40,12 +40,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
+func setDefaultPoller(cfg Config, eventBucket eventstore.Bucket) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			id.Name,
 			cfg.Query,
-			CreateGet(eventsStore),
+			CreateGet(eventBucket),
 			nil,
 		)
 	})
@@ -57,7 +57,7 @@ func getDefaultPoller() query.Poller {
 
 var ErrNoEventStore = errors.New("no event store")
 
-func CreateGet(eventsStore events_db.Store) func(ctx context.Context) (_ any, e error) {
+func CreateGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -67,7 +67,7 @@ func CreateGet(eventsStore events_db.Store) func(ctx context.Context) (_ any, e 
 			}
 		}()
 
-		if eventsStore == nil {
+		if eventBucket == nil {
 			return nil, ErrNoEventStore
 		}
 
@@ -84,7 +84,7 @@ func CreateGet(eventsStore events_db.Store) func(ctx context.Context) (_ any, e 
 		}
 
 		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
-		lastEvent, err := eventsStore.Latest(cctx)
+		lastEvent, err := eventBucket.Latest(cctx)
 		ccancel()
 		if err != nil {
 			return nil, err
@@ -122,7 +122,7 @@ func CreateGet(eventsStore events_db.Store) func(ctx context.Context) (_ any, e 
 		// since we check once above
 
 		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		err = eventsStore.Insert(cctx, *ev)
+		err = eventBucket.Insert(cctx, *ev)
 		cancel()
 		if err != nil {
 			return nil, err

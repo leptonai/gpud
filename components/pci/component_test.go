@@ -10,6 +10,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/pci/id"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -17,6 +18,9 @@ import (
 func TestComponent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
 
 	ctx := context.Background()
 	cfg := Config{
@@ -29,7 +33,7 @@ func TestComponent(t *testing.T) {
 	}
 
 	// Test component creation
-	comp, err := New(ctx, cfg)
+	comp, err := New(ctx, cfg, store)
 	require.NoError(t, err)
 	require.NotNil(t, comp)
 
@@ -72,23 +76,6 @@ func TestComponent(t *testing.T) {
 		err := comp.Close()
 		assert.NoError(t, err)
 	})
-}
-
-// Test component creation with invalid config
-func TestNewComponentError(t *testing.T) {
-	ctx := context.Background()
-	cfg := Config{
-		Query: query_config.Config{
-			State: &query_config.State{
-				DBRW: nil,
-				DBRO: nil,
-			},
-		},
-	}
-
-	comp, err := New(ctx, cfg)
-	assert.Error(t, err)
-	assert.Nil(t, comp)
 }
 
 // Ensure component implements Component interface

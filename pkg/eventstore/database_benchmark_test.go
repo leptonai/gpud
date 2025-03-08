@@ -1,4 +1,4 @@
-package db
+package eventstore
 
 import (
 	"context"
@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/assert"
@@ -30,10 +31,13 @@ func TestSimulatedEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tableName := CreateDefaultTableName("hello")
-	store, err := NewStore(dbRW, dbRO, tableName, 0)
+	database, err := New(dbRW, dbRO)
 	assert.NoError(t, err)
-	defer store.Close()
+
+	tableName := defaultTableName("hello")
+	bucket, err := database.Bucket(tableName, 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 	daysToIngest := 3
 	eventsN := daysToIngest * 24 * 60 * 60
 
@@ -53,7 +57,7 @@ func TestSimulatedEvents(t *testing.T) {
 				},
 			},
 		}
-		if err := store.Insert(ctx, ev); err != nil {
+		if err := bucket.Insert(ctx, ev); err != nil {
 			t.Fatalf("failed to insert event: %v", err)
 		}
 	}

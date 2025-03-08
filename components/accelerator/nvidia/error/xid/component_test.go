@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -116,9 +117,11 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	component := New(ctx, store)
 	assert.NotNil(t, component)
-	err := component.SetHealthy()
+	err = component.SetHealthy()
 	assert.NoError(t, err)
 
 	select {
@@ -135,7 +138,9 @@ func TestXIDComponent_Events(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	component := New(ctx, store)
 	assert.NotNil(t, component)
 	watcher, err := pkg_dmesg.NewWatcher()
 	assert.NoError(t, err)
@@ -181,7 +186,9 @@ func TestXIDComponent_States(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	component := New(ctx, dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	component := New(ctx, store)
 	assert.NotNil(t, component)
 	watcher, err := pkg_dmesg.NewWatcher()
 	assert.NoError(t, err)

@@ -4,7 +4,6 @@ package fabricmanager
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"os/exec"
 	"time"
@@ -12,28 +11,23 @@ import (
 	"github.com/leptonai/gpud/components"
 	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	"github.com/leptonai/gpud/components/systemd"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
-func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) (components.Component, error) {
-	return newComponent(ctx, fabricManagerExists, defaultWatchCommands, dbRW, dbRO)
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+	return newComponent(ctx, fabricManagerExists, defaultWatchCommands, eventStore)
 }
 
-func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands [][]string, dbRW *sql.DB, dbRO *sql.DB) (*component, error) {
+func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands [][]string, eventStore eventstore.Store) (*component, error) {
 	cctx, ccancel := context.WithCancel(ctx)
 
-	var eventsStore events_db.Store
+	var eventBucket eventstore.Bucket
 	var llp *logLineProcessor
 	if checkFMExists() {
 		var err error
-		eventsStore, err = events_db.NewStore(
-			dbRW,
-			dbRO,
-			events_db.CreateDefaultTableName(fabric_manager_id.Name),
-			3*24*time.Hour,
-		)
+		eventBucket, err = eventStore.Bucket(fabric_manager_id.Name, 0)
 		if err != nil {
 			ccancel()
 			return nil, err
@@ -44,14 +38,14 @@ func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands 
 			ccancel()
 			return nil, err
 		}
-		llp = newLogLineProcessor(cctx, w, Match, eventsStore)
+		llp = newLogLineProcessor(cctx, w, Match, eventBucket)
 	}
 
 	return &component{
 		checkFMExists:    checkFMExists,
 		rootCtx:          cctx,
 		cancel:           ccancel,
-		eventsStore:      eventsStore,
+		eventBucket:      eventBucket,
 		logLineProcessor: llp,
 	}, nil
 }
@@ -62,7 +56,7 @@ type component struct {
 	checkFMExists    func() bool
 	rootCtx          context.Context
 	cancel           context.CancelFunc
-	eventsStore      events_db.Store
+	eventBucket      eventstore.Bucket
 	logLineProcessor *logLineProcessor
 }
 
@@ -140,8 +134,8 @@ func (c *component) Close() error {
 	if c.logLineProcessor != nil {
 		c.logLineProcessor.close()
 	}
-	if c.eventsStore != nil {
-		c.eventsStore.Close()
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
 	}
 
 	return nil

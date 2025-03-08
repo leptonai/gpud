@@ -8,26 +8,20 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		cfg.Query.State.DBRW,
-		cfg.Query.State.DBRO,
-		events_db.CreateDefaultTableName(nvidia_nccl_id.Name),
-		3*24*time.Hour,
-	)
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(nvidia_nccl_id.Name, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -43,7 +37,7 @@ func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, e
 		rootCtx:          ctx,
 		cancel:           ccancel,
 		logLineProcessor: logLineProcessor,
-		eventsStore:      eventsStore,
+		eventBucket:      eventBucket,
 		kmsgWatcher:      kmsgWatcher,
 	}, nil
 }
@@ -54,7 +48,7 @@ type component struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
 	logLineProcessor *dmesg.LogLineProcessor
-	eventsStore      events_db.Store
+	eventBucket      eventstore.Bucket
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
@@ -74,7 +68,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -88,7 +82,7 @@ func (c *component) Close() error {
 	c.cancel()
 
 	c.logLineProcessor.Close()
-	c.eventsStore.Close()
+	c.eventBucket.Close()
 
 	if c.kmsgWatcher != nil {
 		c.kmsgWatcher.Close()

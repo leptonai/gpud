@@ -7,15 +7,16 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/components"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/query"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Output struct {
@@ -28,12 +29,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
+func setDefaultPoller(cfg Config, eventBucket eventstore.Bucket) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			fuse_id.Name,
 			cfg.Query,
-			CreateGet(cfg, eventsStore),
+			CreateGet(cfg, eventBucket),
 			nil,
 		)
 	})
@@ -43,7 +44,7 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-func CreateGet(cfg Config, eventsStore events_db.Store) query.GetFunc {
+func CreateGet(cfg Config, eventBucket eventstore.Bucket) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -102,14 +103,14 @@ func CreateGet(cfg Config, eventsStore events_db.Store) query.GetFunc {
 				},
 			}
 
-			found, err := eventsStore.Find(ctx, ev)
+			found, err := eventBucket.Find(ctx, ev)
 			if err != nil {
 				return nil, err
 			}
 			if found == nil {
 				continue
 			}
-			if err := eventsStore.Insert(ctx, ev); err != nil {
+			if err := eventBucket.Insert(ctx, ev); err != nil {
 				return nil, err
 			}
 

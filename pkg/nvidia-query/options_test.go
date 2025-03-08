@@ -1,11 +1,11 @@
 package query
 
 import (
-	"database/sql"
 	"testing"
 
-	events_db "github.com/leptonai/gpud/pkg/events-db"
 	"github.com/stretchr/testify/assert"
+
+	events_db "github.com/leptonai/gpud/pkg/eventstore"
 )
 
 func TestOpOptions(t *testing.T) {
@@ -21,15 +21,12 @@ func TestOpOptions(t *testing.T) {
 	})
 
 	t.Run("custom values", func(t *testing.T) {
-		mockDB := &sql.DB{}
-		mockStore := &mockEventsStore{}
+		mockBucket := &mockEventsStore{}
 
 		op := &Op{}
 		err := op.applyOpts([]OpOption{
-			WithDBRW(mockDB),
-			WithDBRO(mockDB),
-			WithXidEventsStore(mockStore),
-			WithHWSlowdownEventsStore(mockStore),
+			WithXidEventBucket(mockBucket),
+			WithHWSlowdownEventBucket(mockBucket),
 			WithNvidiaSMIQueryCommand("/custom/nvidia-smi-query"),
 			WithIbstatCommand("/custom/ibstat"),
 			WithDebug(true),
@@ -38,10 +35,8 @@ func TestOpOptions(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Check custom values
-		assert.Equal(t, mockDB, op.dbRW)
-		assert.Equal(t, mockDB, op.dbRO)
-		assert.Equal(t, mockStore, op.xidEventsStore)
-		assert.Equal(t, mockStore, op.hwslowdownEventsStore)
+		assert.Equal(t, mockBucket, op.xidEventsBucket)
+		assert.Equal(t, mockBucket, op.hwslowdownEventsBucket)
 		assert.Equal(t, "/custom/nvidia-smi-query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
 		assert.True(t, op.debug)
@@ -64,5 +59,5 @@ func TestOpOptions(t *testing.T) {
 
 // mockEventsStore implements events_db.Store interface for testing
 type mockEventsStore struct {
-	events_db.Store
+	events_db.Bucket
 }

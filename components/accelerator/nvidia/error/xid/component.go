@@ -5,7 +5,6 @@ package xid
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,7 +18,7 @@ import (
 	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -27,11 +26,11 @@ import (
 const (
 	StateNameErrorXid = "error_xid"
 
-	EventNameErroXid    = "error_xid"
-	EventKeyErroXidData = "data"
-	EventKeyDeviceUUID  = "device_uuid"
+	EventNameErrorXid    = "error_xid"
+	EventKeyErrorXidData = "data"
+	EventKeyDeviceUUID   = "device_uuid"
 
-	DefaultRetentionPeriod   = 3 * 24 * time.Hour
+	DefaultRetentionPeriod   = eventstore.DefaultRetention
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
@@ -40,18 +39,18 @@ type XIDComponent struct {
 	cancel       context.CancelFunc
 	currState    components.State
 	extraEventCh chan *components.Event
-	store        events_db.Store
+	eventBucket  eventstore.Bucket
 	mu           sync.RWMutex
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
 }
 
-func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
+func New(ctx context.Context, eventStore eventstore.Store) *XIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
 
 	extraEventCh := make(chan *components.Event, 256)
-	localStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name), DefaultRetentionPeriod)
+	eventBucket, err := eventStore.Bucket(nvidia_component_error_xid_id.Name, DefaultRetentionPeriod)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()
@@ -74,7 +73,7 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) *XIDComponent {
 		rootCtx:      cctx,
 		cancel:       ccancel,
 		extraEventCh: extraEventCh,
-		store:        localStore,
+		eventBucket:  eventBucket,
 		kmsgWatcher:  kmsgWatcher,
 	}
 }
@@ -116,7 +115,7 @@ func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
 
 func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	var ret []components.Event
-	events, err := c.store.Get(ctx, since)
+	events, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
@@ -162,11 +161,11 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 			if newEvent == nil {
 				continue
 			}
-			if err := c.store.Insert(c.rootCtx, *newEvent); err != nil {
+			if err := c.eventBucket.Insert(c.rootCtx, *newEvent); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+			events, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 			if err != nil {
 				log.Logger.Errorw("failed to get all events", "error", err)
 				continue
@@ -184,13 +183,13 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 			}
 			event := components.Event{
 				Time: metav1.Time{Time: dmesgLine.Timestamp},
-				Name: EventNameErroXid,
+				Name: EventNameErrorXid,
 				ExtraInfo: map[string]string{
-					EventKeyErroXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
-					EventKeyDeviceUUID:  xidErr.DeviceUUID,
+					EventKeyErrorXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
+					EventKeyDeviceUUID:   xidErr.DeviceUUID,
 				},
 			}
-			currEvent, err := c.store.Find(c.rootCtx, event)
+			currEvent, err := c.eventBucket.Find(c.rootCtx, event)
 			if err != nil {
 				log.Logger.Errorw("failed to check event existence", "error", err)
 				continue
@@ -200,11 +199,11 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 				log.Logger.Debugw("no new events created")
 				continue
 			}
-			if err = c.store.Insert(c.rootCtx, event); err != nil {
+			if err = c.eventBucket.Insert(c.rootCtx, event); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+			events, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 			if err != nil {
 				log.Logger.Errorw("failed to get all events", "error", err)
 				continue
@@ -232,7 +231,7 @@ func (c *XIDComponent) updateCurrentState() error {
 	if err != nil {
 		return fmt.Errorf("failed to get reboot events: %w", err)
 	}
-	localEvents, err := c.store.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+	localEvents, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}

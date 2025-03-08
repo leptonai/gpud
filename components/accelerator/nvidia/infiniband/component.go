@@ -4,7 +4,6 @@ package infiniband
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -17,7 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
@@ -45,19 +44,14 @@ func SetDefaultExpectedPortStates(states infiniband.ExpectedPortStates) {
 	defaultExpectedPortStates = states
 }
 
-func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		dbRW,
-		dbRO,
-		events_db.CreateDefaultTableName(nvidia_infiniband_id.Name),
-		3*24*time.Hour,
-	)
+func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(nvidia_infiniband_id.Name, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -72,7 +66,7 @@ func New(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, toolOverwrites nvidia_
 	c := &component{
 		rootCtx:          cctx,
 		cancel:           ccancel,
-		eventsStore:      eventsStore,
+		eventBucket:      eventBucket,
 		logLineProcessor: logLineProcessor,
 		toolOverwrites:   toolOverwrites,
 		kmsgWatcher:      kmsgWatcher,
@@ -86,7 +80,7 @@ var _ components.Component = (*component)(nil)
 type component struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
-	eventsStore      events_db.Store
+	eventBucket      eventstore.Bucket
 	logLineProcessor *dmesg.LogLineProcessor
 	toolOverwrites   nvidia_common.ToolOverwrites
 
@@ -201,7 +195,7 @@ func (c *component) checkIbstatOnce(ts time.Time, thresholds infiniband.Expected
 
 	// lookup to prevent duplicate event insertions
 	cctx, ccancel = context.WithTimeout(c.rootCtx, 15*time.Second)
-	found, err := c.eventsStore.Find(cctx, ev)
+	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
 		return nil, err
@@ -212,7 +206,7 @@ func (c *component) checkIbstatOnce(ts time.Time, thresholds infiniband.Expected
 
 	// insert event
 	cctx, ccancel = context.WithTimeout(c.rootCtx, 15*time.Second)
-	err = c.eventsStore.Insert(cctx, ev)
+	err = c.eventBucket.Insert(cctx, ev)
 	ccancel()
 	if err != nil {
 		return nil, err
@@ -253,7 +247,7 @@ func (c *component) getStates(ctx context.Context, now time.Time, thresholds inf
 	if lastEvent == nil {
 		var err error
 		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-		lastEvent, err = c.eventsStore.Latest(cctx)
+		lastEvent, err = c.eventBucket.Latest(cctx)
 		ccancel()
 		if err != nil {
 			return nil, err
@@ -271,7 +265,7 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	if _, err := c.checkIbstatOnce(time.Now().UTC(), thresholds); err != nil {
 		return nil, err
 	}
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -284,7 +278,7 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
 
-	c.eventsStore.Close()
+	c.eventBucket.Close()
 
 	return nil
 }

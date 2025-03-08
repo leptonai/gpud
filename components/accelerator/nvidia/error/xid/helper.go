@@ -34,10 +34,10 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, xidRebootMap, lastXidErr)
-		if event.Name == EventNameErroXid {
+		if event.Name == EventNameErrorXid {
 			resolvedEvent := resolveXIDEvent(event)
 			var currXidErr xidErrorFromDmesg
-			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErroXidData]), &currXidErr); err != nil {
+			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
@@ -116,7 +116,7 @@ func translateToStateHealth(health int) string {
 func resolveXIDEvent(event components.Event) components.Event {
 	ret := event
 	if event.ExtraInfo != nil {
-		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErroXidData]); err == nil {
+		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
 			detail, ok := nvidia_query_xid.GetDetail(currXid)
 			if !ok {
 				return ret
@@ -135,7 +135,7 @@ func resolveXIDEvent(event components.Event) components.Event {
 			}
 
 			raw, _ := xidErr.JSON()
-			ret.ExtraInfo[EventKeyErroXidData] = string(raw)
+			ret.ExtraInfo[EventKeyErrorXidData] = string(raw)
 		}
 	}
 	return ret

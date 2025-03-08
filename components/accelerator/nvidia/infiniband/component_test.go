@@ -16,7 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -266,14 +266,16 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	c := &component{
 		rootCtx:     ctx,
 		cancel:      cancel,
-		eventsStore: eventsStore,
+		eventBucket: bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{
 			IbstatCommand: "cat " + filepath.Join("testdata", "ibstat.47.0.h100.all.active.1"),
 		},
@@ -363,14 +365,16 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-			require.NoError(t, err)
-			defer eventsStore.Close()
+			store, err := eventstore.New(dbRW, dbRO)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events", 0)
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			c := &component{
 				rootCtx:     ctx,
 				cancel:      cancel,
-				eventsStore: eventsStore,
+				eventBucket: bucket,
 			}
 
 			now := time.Now().UTC()
@@ -420,14 +424,16 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-			require.NoError(t, err)
-			defer eventsStore.Close()
+			store, err := eventstore.New(dbRW, dbRO)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events", 0)
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			c := &component{
 				rootCtx:     ctx,
 				cancel:      cancel,
-				eventsStore: eventsStore,
+				eventBucket: bucket,
 				toolOverwrites: nvidia_common.ToolOverwrites{
 					IbstatCommand: tc.ibstatCommand,
 				},
@@ -469,14 +475,16 @@ func TestCheckIbstatOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	c := &component{
 		rootCtx:        ctx,
 		cancel:         cancel,
-		eventsStore:    eventsStore,
+		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
@@ -541,14 +549,16 @@ func TestGetStates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	c := &component{
 		rootCtx:        ctx,
 		cancel:         cancel,
-		eventsStore:    eventsStore,
+		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
@@ -594,7 +604,7 @@ func TestGetStates(t *testing.T) {
 			},
 		},
 	}
-	err = c.eventsStore.Insert(ctx, testEvent)
+	err = c.eventBucket.Insert(ctx, testEvent)
 	assert.NoError(t, err)
 
 	// Set lastEvent to make sure we get the unhealthy state
@@ -646,7 +656,7 @@ func TestGetStates(t *testing.T) {
 	cNew := &component{
 		rootCtx:        canceledCtx,
 		cancel:         func() {}, // Empty cancel func since we already canceled
-		eventsStore:    eventsStore,
+		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
@@ -692,14 +702,16 @@ func TestEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	c := &component{
 		rootCtx:     ctx,
 		cancel:      cancel,
-		eventsStore: eventsStore,
+		eventBucket: bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{
 			IbstatCommand: "cat testdata/ibstat.47.0.h100.all.active.1",
 		},
@@ -719,7 +731,7 @@ func TestEvents(t *testing.T) {
 		Type:    common.EventTypeWarning,
 		Message: "test message",
 	}
-	err = c.eventsStore.Insert(ctx, testEvent)
+	err = c.eventBucket.Insert(ctx, testEvent)
 	assert.NoError(t, err)
 
 	events, err = c.Events(ctx, now.Add(-1*time.Hour))
@@ -755,13 +767,16 @@ func TestClose(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName("test_ibstat"), 3*24*time.Hour)
-	require.NoError(t, err)
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	c := &component{
 		rootCtx:     ctx,
 		cancel:      func() {},
-		eventsStore: eventsStore,
+		eventBucket: bucket,
 	}
 
 	err = c.Close()
@@ -791,19 +806,23 @@ func (m *MockWatcher) SendLogLine(line dmesg.LogLine) {
 	m.ch <- line
 }
 
-// MockEventsStore implements the events_db.Store interface for testing
-type MockEventsStore struct {
+// MockEventBucket implements the events_db.Store interface for testing
+type MockEventBucket struct {
 	events []components.Event
 	mu     sync.Mutex
 }
 
-func NewMockEventsStore() *MockEventsStore {
-	return &MockEventsStore{
+func NewMockEventBucket() *MockEventBucket {
+	return &MockEventBucket{
 		events: []components.Event{},
 	}
 }
 
-func (m *MockEventsStore) Insert(ctx context.Context, event components.Event) error {
+func (m *MockEventBucket) Name() string {
+	return "mock"
+}
+
+func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -816,7 +835,7 @@ func (m *MockEventsStore) Insert(ctx context.Context, event components.Event) er
 	return nil
 }
 
-func (m *MockEventsStore) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -835,7 +854,7 @@ func (m *MockEventsStore) Get(ctx context.Context, since time.Time) ([]component
 	return result, nil
 }
 
-func (m *MockEventsStore) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -853,7 +872,7 @@ func (m *MockEventsStore) Find(ctx context.Context, event components.Event) (*co
 	return nil, nil
 }
 
-func (m *MockEventsStore) Latest(ctx context.Context) (*components.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -876,7 +895,7 @@ func (m *MockEventsStore) Latest(ctx context.Context) (*components.Event, error)
 	return &latest, nil
 }
 
-func (m *MockEventsStore) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -901,11 +920,11 @@ func (m *MockEventsStore) Purge(ctx context.Context, beforeTimestamp int64) (int
 	return purgedCount, nil
 }
 
-func (m *MockEventsStore) Close() {
+func (m *MockEventBucket) Close() {
 	// No-op for mock
 }
 
-func (m *MockEventsStore) GetEvents() []components.Event {
+func (m *MockEventBucket) GetEvents() []components.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -963,7 +982,7 @@ func TestLogLineProcessor(t *testing.T) {
 	}
 
 	// Test with events store
-	mockStore := NewMockEventsStore()
+	mockStore := NewMockEventBucket()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -1012,29 +1031,27 @@ func TestNewWithLogLineProcessor(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Test successful creation
-	comp, err := New(ctx, dbRW, dbRO, nvidia_common.ToolOverwrites{})
+	comp, err := New(ctx, store, nvidia_common.ToolOverwrites{})
 	require.NoError(t, err)
 	defer comp.Close()
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
 	require.NotNil(t, c.logLineProcessor)
-
-	// Test with invalid DB connection (should fail)
-	_, err = New(ctx, nil, nil, nvidia_common.ToolOverwrites{})
-	assert.Error(t, err, "Expected error with nil DB connections")
 }
 
 // TestIntegrationWithLogLineProcessor tests that the component can process dmesg events
 func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	// We are not using t.Parallel() here because we need to mock some global functions
 
-	// Set up a mock events store
-	mockStore := NewMockEventsStore()
+	mockEventBucket := NewMockEventBucket()
 
 	// Create a component with mock store
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1043,7 +1060,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	comp := &component{
 		rootCtx:     ctx,
 		cancel:      cancel,
-		eventsStore: mockStore,
+		eventBucket: mockEventBucket,
 	}
 
 	// Directly test the Match function on a sample log line
@@ -1063,7 +1080,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 			"log_line": logLine,
 		},
 	}
-	err := mockStore.Insert(ctx, event)
+	err := mockEventBucket.Insert(ctx, event)
 	require.NoError(t, err)
 
 	// Now test the Events method and verify our event exists in the results
@@ -1091,7 +1108,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 			"log_line": "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
 		},
 	}
-	err = mockStore.Insert(ctx, olderEvent)
+	err = mockEventBucket.Insert(ctx, olderEvent)
 	require.NoError(t, err)
 
 	// Test filtering by time

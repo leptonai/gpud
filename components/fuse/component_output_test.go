@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -22,16 +22,16 @@ func TestGet(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	if err != nil {
-		t.Fatalf("failed to create events store: %v", err)
-	}
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	getFunc := CreateGet(Config{
 		CongestedPercentAgainstThreshold:     90,
 		MaxBackgroundPercentAgainstThreshold: 90,
-	}, eventsStore)
+	}, bucket)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -50,9 +50,11 @@ func TestCreateGetWithThresholds(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test with low thresholds to trigger events
 	cfg := Config{
@@ -60,7 +62,7 @@ func TestCreateGetWithThresholds(t *testing.T) {
 		MaxBackgroundPercentAgainstThreshold: 10, // Low threshold to trigger event
 	}
 
-	getFunc := CreateGet(cfg, eventsStore)
+	getFunc := CreateGet(cfg, bucket)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -74,7 +76,7 @@ func TestCreateGetWithThresholds(t *testing.T) {
 	assert.NotNil(t, output.ConnectionInfos)
 
 	// Check if events were created for exceeded thresholds
-	events, err := eventsStore.Get(ctx, time.Now().Add(-1*time.Hour))
+	events, err := bucket.Get(ctx, time.Now().Add(-1*time.Hour))
 	require.NoError(t, err)
 
 	for _, event := range events {
@@ -94,16 +96,18 @@ func TestCreateGetDeduplication(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	cfg := Config{
 		CongestedPercentAgainstThreshold:     90,
 		MaxBackgroundPercentAgainstThreshold: 90,
 	}
 
-	getFunc := CreateGet(cfg, eventsStore)
+	getFunc := CreateGet(cfg, bucket)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

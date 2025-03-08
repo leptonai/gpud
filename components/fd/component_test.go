@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -45,6 +46,9 @@ func createTestComponent(t *testing.T) (components.Component, context.Context, f
 	ctx := context.Background()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
+
 	cfg := Config{
 		Query: query_config.Config{
 			State: &query_config.State{
@@ -54,7 +58,7 @@ func createTestComponent(t *testing.T) (components.Component, context.Context, f
 		},
 	}
 
-	comp, err := New(ctx, cfg)
+	comp, err := New(ctx, cfg, store)
 	require.NoError(t, err)
 	require.NotNil(t, comp)
 	return comp, ctx, cleanup

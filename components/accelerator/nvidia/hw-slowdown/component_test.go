@@ -14,7 +14,7 @@ import (
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -350,13 +350,15 @@ func TestComponentStates(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
+			store, err := eventstore.New(dbRW, dbRO)
 			assert.NoError(t, err)
-			defer store.Close()
+			bucket, err := store.Bucket("test_events", 0)
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			if len(tc.insertedEvent) > 0 {
 				for _, event := range tc.insertedEvent {
-					err := store.Insert(ctx, event)
+					err := bucket.Insert(ctx, event)
 					assert.NoError(t, err)
 				}
 			}
@@ -364,7 +366,7 @@ func TestComponentStates(t *testing.T) {
 			c := &component{
 				stateHWSlowdownEvaluationWindow:                  tc.window,
 				stateHWSlowdownEventsThresholdFrequencyPerMinute: tc.thresholdPerMinute,
-				eventsStore: store,
+				eventBucket: bucket,
 			}
 
 			states, err := c.States(ctx)
@@ -397,7 +399,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 		name               string
 		window             time.Duration
 		thresholdPerMinute float64
-		setupStore         func(store events_db.Store, ctx context.Context) error
+		setupStore         func(bucket eventstore.Bucket, ctx context.Context) error
 		expectError        bool
 		expectedStates     int
 		expectHealthy      bool
@@ -406,7 +408,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "zero evaluation window",
 			window:             0,
 			thresholdPerMinute: 0.6,
-			setupStore:         func(store events_db.Store, ctx context.Context) error { return nil },
+			setupStore:         func(bucket eventstore.Bucket, ctx context.Context) error { return nil },
 			expectError:        false,
 			expectedStates:     1,
 			expectHealthy:      true,
@@ -415,7 +417,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "negative evaluation window",
 			window:             -10 * time.Minute,
 			thresholdPerMinute: 0.6,
-			setupStore:         func(store events_db.Store, ctx context.Context) error { return nil },
+			setupStore:         func(bucket eventstore.Bucket, ctx context.Context) error { return nil },
 			expectError:        false,
 			expectedStates:     1,
 			expectHealthy:      true,
@@ -424,7 +426,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "zero threshold",
 			window:             10 * time.Minute,
 			thresholdPerMinute: 0,
-			setupStore: func(store events_db.Store, ctx context.Context) error {
+			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
 				event := components.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
@@ -434,7 +436,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 						"gpu_uuid": "gpu-0",
 					},
 				}
-				return store.Insert(ctx, event)
+				return bucket.Insert(ctx, event)
 			},
 			expectError:    false,
 			expectedStates: 1,
@@ -444,7 +446,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "negative threshold",
 			window:             10 * time.Minute,
 			thresholdPerMinute: -0.6,
-			setupStore: func(store events_db.Store, ctx context.Context) error {
+			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
 				event := components.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
@@ -454,7 +456,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 						"gpu_uuid": "gpu-0",
 					},
 				}
-				return store.Insert(ctx, event)
+				return bucket.Insert(ctx, event)
 			},
 			expectError:    false,
 			expectedStates: 1,
@@ -471,17 +473,19 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
+			store, err := eventstore.New(dbRW, dbRO)
 			assert.NoError(t, err)
-			defer store.Close()
+			bucket, err := store.Bucket("test_events", 0)
+			assert.NoError(t, err)
+			defer bucket.Close()
 
-			err = tc.setupStore(store, ctx)
+			err = tc.setupStore(bucket, ctx)
 			assert.NoError(t, err)
 
 			c := &component{
 				stateHWSlowdownEvaluationWindow:                  tc.window,
 				stateHWSlowdownEventsThresholdFrequencyPerMinute: tc.thresholdPerMinute,
-				eventsStore: store,
+				eventBucket: bucket,
 			}
 
 			states, err := c.States(ctx)
@@ -520,9 +524,11 @@ func TestComponentEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
+	store, err := eventstore.New(dbRW, dbRO)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Insert test events
 	testEvents := []components.Event{
@@ -547,12 +553,12 @@ func TestComponentEvents(t *testing.T) {
 	}
 
 	for _, event := range testEvents {
-		err := store.Insert(ctx, event)
+		err := bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
 	c := &component{
-		eventsStore: store,
+		eventBucket: bucket,
 	}
 
 	// Test getting events since a specific time
@@ -831,13 +837,15 @@ func TestStatesWithDataSources(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := events_db.NewStore(dbRW, dbRO, "test_events", 0)
+	store, err := eventstore.New(dbRW, dbRO)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket("test_events", 0)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Insert test events
 	for _, event := range testEvents {
-		err := store.Insert(ctx, event)
+		err := bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
@@ -845,7 +853,7 @@ func TestStatesWithDataSources(t *testing.T) {
 	c := &component{
 		stateHWSlowdownEvaluationWindow:                  5 * time.Minute,
 		stateHWSlowdownEventsThresholdFrequencyPerMinute: 0.1, // Low threshold to ensure unhealthy state
-		eventsStore: store,
+		eventBucket: bucket,
 	}
 
 	// Get states

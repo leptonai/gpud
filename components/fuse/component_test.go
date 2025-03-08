@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
@@ -17,6 +20,9 @@ import (
 func TestComponent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
 
 	cfg := Config{
 		Query: query_config.Config{
@@ -30,7 +36,7 @@ func TestComponent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, cfg, store)
 	if err != nil {
 		t.Fatalf("Failed to create component: %v", err)
 	}
@@ -68,7 +74,7 @@ func TestComponent(t *testing.T) {
 			"encoding": "json",
 		},
 	}
-	if err := comp.eventsStore.Insert(ctx, ev); err != nil {
+	if err := comp.eventBucket.Insert(ctx, ev); err != nil {
 		t.Fatalf("Failed to insert event: %v", err)
 	}
 
@@ -108,28 +114,13 @@ func TestComponent(t *testing.T) {
 	}
 }
 
-// TestComponentWithInvalidDB tests component behavior with invalid database connections
-func TestComponentWithInvalidDB(t *testing.T) {
-	cfg := Config{
-		Query: query_config.Config{
-			State: &query_config.State{
-				DBRW: nil,
-				DBRO: nil,
-			},
-		},
-	}
-
-	ctx := context.Background()
-	_, err := New(ctx, cfg)
-	if err == nil {
-		t.Fatal("Expected error when creating component with nil DB, got nil")
-	}
-}
-
 // TestComponentMetricsWithInvalidTime tests metrics retrieval with invalid time range
 func TestComponentMetricsWithInvalidTime(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO)
+	assert.NoError(t, err)
 
 	cfg := Config{
 		Query: query_config.Config{
@@ -141,7 +132,7 @@ func TestComponentMetricsWithInvalidTime(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, cfg, store)
 	if err != nil {
 		t.Fatalf("Failed to create component: %v", err)
 	}

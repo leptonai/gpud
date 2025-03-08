@@ -15,7 +15,7 @@ import (
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
@@ -32,7 +32,7 @@ const (
 	DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute = 0.6
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config, eventsStore events_db.Store) (components.Component, error) {
+func New(ctx context.Context, cfg nvidia_common.Config, eventBucket eventstore.Bucket) (components.Component, error) {
 	if nvidia_query.GetDefaultPoller() == nil {
 		return nil, nvidia_query.ErrDefaultPollerNotSet
 	}
@@ -50,7 +50,7 @@ func New(ctx context.Context, cfg nvidia_common.Config, eventsStore events_db.St
 		cancel:  ccancel,
 		poller:  nvidia_query.GetDefaultPoller(),
 
-		eventsStore: eventsStore,
+		eventBucket: eventBucket,
 	}, nil
 }
 
@@ -65,7 +65,7 @@ type component struct {
 	poller   query.Poller
 	gatherer prometheus.Gatherer
 
-	eventsStore events_db.Store
+	eventBucket eventstore.Bucket
 }
 
 func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
@@ -89,7 +89,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	since := time.Now().UTC().Add(-c.stateHWSlowdownEvaluationWindow)
 
-	events, err := c.eventsStore.Get(ctx, since)
+	events, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +106,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	eventsByMinute := make(map[int]struct{})
 	for _, event := range events {
-		min := int(event.Time.Unix() / 60) // unix seconds to minutes
-		eventsByMinute[min] = struct{}{}
+		minute := int(event.Time.Unix() / 60) // unix seconds to minutes
+		eventsByMinute[minute] = struct{}{}
 	}
 
 	totalEvents := len(eventsByMinute)
@@ -167,7 +167,7 @@ func summarizeDataSources(events []components.Event) string {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
