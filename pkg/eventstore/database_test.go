@@ -1,4 +1,4 @@
-package db
+package eventstore
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestCreateDefaultTableName(t *testing.T) {
+func Test_defaultTableName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -66,7 +66,7 @@ func TestCreateDefaultTableName(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			result := CreateDefaultTableName(tc.input)
+			result := defaultTableName(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -83,9 +83,11 @@ func TestTableInsertsReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	first := time.Now().UTC()
 
@@ -104,10 +106,10 @@ func TestTableInsertsReads(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		assert.NoError(t, store.Insert(ctx, ev))
+		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
-	events, err = store.Get(ctx, first.Add(-30*time.Second))
+	events, err = bucket.Get(ctx, first.Add(-30*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, eventsN, len(events))
 
@@ -119,10 +121,6 @@ func TestTableInsertsReads(t *testing.T) {
 		expectedMsg := fmt.Sprintf("OOM event %d occurred", eventsN-(i+1))
 		assert.Equal(t, expectedMsg, events[i].Message, "messages should match in descending order")
 	}
-
-	deleted, err := store.Purge(ctx, first.Add(time.Duration(eventsN*2)*time.Second).Unix())
-	assert.NoError(t, err)
-	assert.Equal(t, eventsN, deleted)
 }
 
 func TestGetEventsTimeRange(t *testing.T) {
@@ -136,8 +134,11 @@ func TestGetEventsTimeRange(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -168,16 +169,16 @@ func TestGetEventsTimeRange(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		assert.NoError(t, db.Insert(ctx, ev))
+		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
 	// Test getting all events
-	allEvents, err := db.Get(ctx, baseTime.Add(-15*time.Minute))
+	allEvents, err := bucket.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(allEvents))
 
 	// Test getting recent events only
-	recentEvents, err := db.Get(ctx, baseTime.Add(-2*time.Minute))
+	recentEvents, err := bucket.Get(ctx, baseTime.Add(-2*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(recentEvents))
 	assert.Equal(t, "recent event", recentEvents[0].SuggestedActions.Descriptions[0])
@@ -194,19 +195,16 @@ func TestEmptyResults(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test getting events from empty table
-	events, err := store.Get(ctx, time.Now().Add(-1*time.Hour))
+	events, err := bucket.Get(ctx, time.Now().Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Nil(t, events)
-
-	// Test purging empty table
-	deleted, err := store.Purge(ctx, time.Now().Unix())
-	assert.NoError(t, err)
-	assert.Equal(t, 0, deleted)
 }
 
 func TestMultipleEventTypes(t *testing.T) {
@@ -220,9 +218,11 @@ func TestMultipleEventTypes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -253,11 +253,11 @@ func TestMultipleEventTypes(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		assert.NoError(t, store.Insert(ctx, ev))
+		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
 	// Get all events
-	results, err := store.Get(ctx, baseTime.Add(-1*time.Second))
+	results, err := bucket.Get(ctx, baseTime.Add(-1*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(results))
 
@@ -278,9 +278,11 @@ func TestPurgePartial(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -305,16 +307,16 @@ func TestPurgePartial(t *testing.T) {
 	}
 
 	for _, ev := range events {
-		assert.NoError(t, store.Insert(ctx, ev))
+		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
 	// Purge only old events
-	deleted, err := store.Purge(ctx, baseTime.Add(-5*time.Minute).Unix())
+	deleted, err := bucket.Purge(ctx, baseTime.Add(-5*time.Minute).Unix())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 
 	// Verify only recent event remains
-	remaining, err := store.Get(ctx, baseTime.Add(-15*time.Minute))
+	remaining, err := bucket.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
 	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
@@ -328,7 +330,7 @@ func TestPurgePartial(t *testing.T) {
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
-	found, err := store.Find(ctx, oldEvent)
+	found, err := bucket.Find(ctx, oldEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found, "Old event should not be found after purge")
 }
@@ -344,9 +346,11 @@ func TestFindEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
@@ -360,14 +364,14 @@ func TestFindEvent(t *testing.T) {
 	}
 
 	// Test finding non-existent event
-	found, err := store.Find(ctx, testEvent)
+	found, err := bucket.Find(ctx, testEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found)
 
 	// Insert and find the event
-	assert.NoError(t, store.Insert(ctx, testEvent))
+	assert.NoError(t, bucket.Insert(ctx, testEvent))
 
-	found, err = store.Find(ctx, testEvent)
+	found, err = bucket.Find(ctx, testEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, testEvent.Time.Unix(), found.Time.Unix())
@@ -388,9 +392,11 @@ func TestFindEventPartialMatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
@@ -403,7 +409,7 @@ func TestFindEventPartialMatch(t *testing.T) {
 		},
 	}
 
-	assert.NoError(t, store.Insert(ctx, testEvent))
+	assert.NoError(t, bucket.Insert(ctx, testEvent))
 
 	// Test finding with matching timestamp/source/type but different details
 	searchEvent := components.Event{
@@ -416,7 +422,7 @@ func TestFindEventPartialMatch(t *testing.T) {
 		},
 	}
 
-	found, err := store.Find(ctx, searchEvent)
+	found, err := bucket.Find(ctx, searchEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found)
 }
@@ -432,9 +438,11 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -460,7 +468,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 
 	// Insert multiple events with same timestamp/source/type
 	for _, ev := range events {
-		assert.NoError(t, store.Insert(ctx, ev))
+		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
 	// Search should return the first matching event
@@ -471,7 +479,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 		ExtraInfo: map[string]string{"a": "b"},
 	}
 
-	found, err := store.Find(ctx, searchEvent)
+	found, err := bucket.Find(ctx, searchEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 
@@ -497,9 +505,11 @@ func TestEventWithIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -516,10 +526,10 @@ func TestEventWithIDs(t *testing.T) {
 	}
 
 	// Test insert and find with ExtraInfo
-	err = store.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
-	found, err := store.Find(ctx, event)
+	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
@@ -531,7 +541,7 @@ func TestEventWithIDs(t *testing.T) {
 		Type: event.Type,
 	}
 
-	found, err = store.Find(ctx, partialEvent)
+	found, err = bucket.Find(ctx, partialEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found, "Should not find event with different ExtraInfo")
 
@@ -546,7 +556,7 @@ func TestEventWithIDs(t *testing.T) {
 		},
 	}
 
-	found, err = store.Find(ctx, differentEvent)
+	found, err = bucket.Find(ctx, differentEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found, "Should not find event with different ExtraInfo")
 }
@@ -562,9 +572,11 @@ func TestNullEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -578,10 +590,10 @@ func TestNullEventIDs(t *testing.T) {
 	}
 
 	// Test insert and find with null ExtraInfo
-	err = store.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
-	found, err := store.Find(ctx, event)
+	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, len(found.ExtraInfo), 0)
@@ -598,8 +610,11 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -624,17 +639,17 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	}
 
 	for _, event := range events {
-		err = db.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
-	// Purge old events
-	deleted, err := db.Purge(ctx, baseTime.Add(-5*time.Minute).Unix())
+	// purge old events
+	deleted, err := bucket.Purge(ctx, baseTime.Add(-5*time.Minute).Unix())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 
 	// Verify only new event remains with correct ExtraInfo
-	remaining, err := db.Get(ctx, baseTime.Add(-15*time.Minute))
+	remaining, err := bucket.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
 	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
@@ -648,7 +663,7 @@ func TestPurgeWithEventIDs(t *testing.T) {
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
-	found, err := db.Find(ctx, oldEvent)
+	found, err := bucket.Find(ctx, oldEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found, "Old event should not be found after purge")
 }
@@ -660,7 +675,9 @@ func TestInvalidTableName(t *testing.T) {
 	defer cleanup()
 
 	// Test with invalid table name
-	_, err := NewStore(dbRW, dbRO, "invalid;table;name", 0)
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+	_, err = store.Bucket("invalid;table;name")
 	assert.Error(t, err)
 }
 
@@ -672,9 +689,11 @@ func TestContextCancellation(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test with canceled context
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -689,13 +708,13 @@ func TestContextCancellation(t *testing.T) {
 		},
 	}
 
-	err = store.Insert(canceledCtx, event)
+	err = bucket.Insert(canceledCtx, event)
 	assert.Error(t, err)
 
-	_, err = store.Find(canceledCtx, event)
+	_, err = bucket.Find(canceledCtx, event)
 	assert.Error(t, err)
 
-	_, err = store.Get(canceledCtx, time.Now().Add(-1*time.Hour))
+	_, err = bucket.Get(canceledCtx, time.Now().Add(-1*time.Hour))
 	assert.Error(t, err)
 }
 
@@ -710,8 +729,11 @@ func TestConcurrentAccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	eventCount := 100
@@ -728,7 +750,7 @@ func TestConcurrentAccess(t *testing.T) {
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
-			assert.NoError(t, db.Insert(ctx, event))
+			assert.NoError(t, bucket.Insert(ctx, event))
 		}
 		done <- true
 	}()
@@ -736,7 +758,7 @@ func TestConcurrentAccess(t *testing.T) {
 	// Concurrent reads
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			_, err := db.Get(ctx, baseTime.Add(-1*time.Hour))
+			_, err := bucket.Get(ctx, baseTime.Add(-1*time.Hour))
 			assert.NoError(t, err)
 		}
 		done <- true
@@ -747,7 +769,7 @@ func TestConcurrentAccess(t *testing.T) {
 	<-done
 
 	// Verify final count
-	events, err := db.Get(ctx, baseTime.Add(-1*time.Hour))
+	events, err := bucket.Get(ctx, baseTime.Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Equal(t, eventCount, len(events))
 }
@@ -763,9 +785,11 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	events := []components.Event{
 		{
@@ -792,10 +816,10 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 
 	// Test insert and retrieval of events with special characters
 	for _, event := range events {
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 
-		found, err := store.Find(ctx, event)
+		found, err := bucket.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
 		assert.Equal(t, event.Name, found.Name)
@@ -817,8 +841,11 @@ func TestLargeEventDetails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	db, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Create a large event detail string (100KB)
 	largeDetail := make([]byte, 100*1024)
@@ -835,10 +862,10 @@ func TestLargeEventDetails(t *testing.T) {
 		},
 	}
 
-	err = db.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
-	found, err := db.Find(ctx, event)
+	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, event.SuggestedActions.Descriptions[0], found.SuggestedActions.Descriptions[0])
@@ -855,9 +882,11 @@ func TestTimestampBoundaries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	timestamps := []int64{
 		0,                  // Unix epoch
@@ -879,21 +908,21 @@ func TestTimestampBoundaries(t *testing.T) {
 			},
 		}
 
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 
-		found, err := store.Find(ctx, event)
+		found, err := bucket.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
 		assert.Equal(t, ts, found.Time.Unix())
 	}
 
 	// Test retrieval with various time ranges
-	events, err := store.Get(ctx, time.Unix(-(1<<63), 0)) // Get all events
+	events, err := bucket.Get(ctx, time.Unix(-(1<<63), 0)) // Get all events
 	assert.NoError(t, err)
 	assert.Equal(t, len(timestamps), len(events))
 
-	events, err = store.Get(ctx, time.Unix(1<<63-1, 0)) // Future time
+	events, err = bucket.Get(ctx, time.Unix(1<<63-1, 0)) // Future time
 	assert.NoError(t, err)
 	assert.Nil(t, events)
 }
@@ -909,9 +938,11 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	eventCount := 100
@@ -929,7 +960,7 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
-			assert.NoError(t, store.Insert(ctx, event))
+			assert.NoError(t, bucket.Insert(ctx, event))
 		}
 		done <- true
 	}()
@@ -943,7 +974,7 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 				Type:      common.EventTypeWarning,
 				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
-			found, err := store.Find(ctx, event)
+			found, err := bucket.Find(ctx, event)
 			if err == nil && found != nil {
 				assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 			}
@@ -956,7 +987,7 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	<-done
 
 	// Verify all events were inserted
-	events, err := store.Get(ctx, baseTime.Add(-1*time.Hour))
+	events, err := bucket.Get(ctx, baseTime.Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Equal(t, eventCount, len(events))
 
@@ -970,32 +1001,6 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	}
 }
 
-func TestNewStoreErrors(t *testing.T) {
-	t.Parallel()
-
-	testTableName := "test_table"
-
-	// Test case: nil write DB
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-	store, err := NewStore(nil, dbRO, testTableName, 0)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrNoDBRWSet)
-	assert.Nil(t, store)
-
-	// Test case: nil read DB
-	store, err = NewStore(dbRW, nil, testTableName, 0)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrNoDBROSet)
-	assert.Nil(t, store)
-
-	// Test case: both DBs nil
-	store, err = NewStore(nil, nil, testTableName, 0)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, ErrNoDBRWSet)
-	assert.Nil(t, store)
-}
-
 func TestEventMessage(t *testing.T) {
 	t.Parallel()
 
@@ -1007,9 +1012,11 @@ func TestEventMessage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -1041,10 +1048,10 @@ func TestEventMessage(t *testing.T) {
 
 	// Test insert and retrieval
 	for _, event := range events {
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 
-		found, err := store.Find(ctx, event)
+		found, err := bucket.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
 		assert.Equal(t, event.Message, found.Message)
@@ -1057,7 +1064,7 @@ func TestEventMessage(t *testing.T) {
 		Type:    common.EventTypeWarning,
 		Message: "Test message with normal text",
 	}
-	found, err := store.Find(ctx, searchEvent)
+	found, err := bucket.Find(ctx, searchEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, searchEvent.Message, found.Message)
@@ -1069,7 +1076,7 @@ func TestEventMessage(t *testing.T) {
 		Type:    common.EventTypeWarning,
 		Message: "",
 	}
-	found, err = store.Find(ctx, emptyMessageEvent)
+	found, err = bucket.Find(ctx, emptyMessageEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, "", found.Message)
@@ -1081,12 +1088,12 @@ func TestEventMessage(t *testing.T) {
 		Type:    common.EventTypeWarning,
 		Message: "Non-matching message",
 	}
-	found, err = store.Find(ctx, nonMatchingEvent)
+	found, err = bucket.Find(ctx, nonMatchingEvent)
 	assert.NoError(t, err)
 	assert.Nil(t, found)
 
 	// Test getting all events and verify messages
-	allEvents, err := store.Get(ctx, baseTime.Add(-1*time.Second))
+	allEvents, err := bucket.Get(ctx, baseTime.Add(-1*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, len(events), len(allEvents))
 
@@ -1108,9 +1115,11 @@ func TestNilSuggestedActions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	event := components.Event{
@@ -1123,10 +1132,10 @@ func TestNilSuggestedActions(t *testing.T) {
 	}
 
 	// Test insert and find with nil SuggestedActions
-	err = store.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
-	found, err := store.Find(ctx, event)
+	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Nil(t, found.SuggestedActions)
@@ -1143,9 +1152,11 @@ func TestInvalidJSONHandling(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Insert a valid event first
 	baseTime := time.Now().UTC()
@@ -1158,14 +1169,14 @@ func TestInvalidJSONHandling(t *testing.T) {
 			Descriptions: []string{"test action"},
 		},
 	}
-	err = store.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
 	// Manually insert invalid JSON into the database
 	_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
 		INSERT INTO %s (timestamp, name, type, extra_info, suggested_actions)
 		VALUES (?, ?, ?, ?, ?)`,
-		testTableName),
+		bucket.Name()),
 		baseTime.Add(time.Second).Unix(),
 		"test",
 		common.EventTypeWarning,
@@ -1175,21 +1186,9 @@ func TestInvalidJSONHandling(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Try to retrieve the events - should get error for invalid JSON
-	_, err = store.Get(ctx, baseTime.Add(-time.Hour))
+	_, err = bucket.Get(ctx, baseTime.Add(-time.Hour))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal")
-}
-
-func TestEmptyTableName(t *testing.T) {
-	t.Parallel()
-
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	// Test with empty table name
-	store, err := NewStore(dbRW, dbRO, "", 0)
-	assert.Error(t, err)
-	assert.Nil(t, store)
 }
 
 func TestLongEventFields(t *testing.T) {
@@ -1203,9 +1202,11 @@ func TestLongEventFields(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Create very long strings for various fields
 	longString := strings.Repeat("a", 10000)
@@ -1226,10 +1227,10 @@ func TestLongEventFields(t *testing.T) {
 	}
 
 	// Test insert and retrieval of event with very long fields
-	err = store.Insert(ctx, event)
+	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
-	found, err := store.Find(ctx, event)
+	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, event.Name, found.Name)
@@ -1255,9 +1256,11 @@ func TestConcurrentTableCreation(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			store, err := NewStore(dbRW, dbRO, tableName, 0)
+			store, err := New(dbRW, dbRO, 0)
 			assert.NoError(t, err)
-			defer store.Close()
+			bucket, err := store.Bucket(tableName)
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			stores[index] = store
 			errors[index] = err
@@ -1288,9 +1291,11 @@ func TestEventTypeValidation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test all valid event types
 	validTypes := []common.EventType{
@@ -1310,17 +1315,17 @@ func TestEventTypeValidation(t *testing.T) {
 			Message: fmt.Sprintf("Test message for %s", eventType),
 		}
 
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 
-		found, err := store.Find(ctx, event)
+		found, err := bucket.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
 		assert.Equal(t, eventType, found.Type)
 	}
 
 	// Verify all events can be retrieved
-	events, err := store.Get(ctx, baseTime.Add(-time.Hour))
+	events, err := bucket.Get(ctx, baseTime.Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.Equal(t, len(validTypes), len(events))
 }
@@ -1336,7 +1341,7 @@ func TestRetentionPurge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := newStore(
+	bucket, err := newTable(
 		dbRW,
 		dbRO,
 		testTableName,
@@ -1346,7 +1351,7 @@ func TestRetentionPurge(t *testing.T) {
 		50*time.Millisecond,
 	)
 	assert.NoError(t, err)
-	defer store.Close()
+	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
 	events := []components.Event{
@@ -1371,13 +1376,13 @@ func TestRetentionPurge(t *testing.T) {
 	}
 
 	for _, event := range events {
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
 	time.Sleep(time.Second)
 
-	remaining, err := store.Get(ctx, baseTime.Add(-20*time.Second))
+	remaining, err := bucket.Get(ctx, baseTime.Add(-20*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
 	assert.Equal(t, "new_event", remaining[0].ExtraInfo["id"])
@@ -1394,12 +1399,14 @@ func TestLatest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := NewStore(dbRW, dbRO, testTableName, 0)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	defer store.Close()
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test with empty store
-	latestEvent, err := store.Latest(ctx)
+	latestEvent, err := bucket.Latest(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, latestEvent, "Latest should return nil for empty store")
 
@@ -1446,12 +1453,12 @@ func TestLatest(t *testing.T) {
 
 	// Insert events in random order
 	for _, event := range events {
-		err = store.Insert(ctx, event)
+		err = bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
 	// Get latest event
-	latestEvent, err = store.Latest(ctx)
+	latestEvent, err = bucket.Latest(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, latestEvent)
 
@@ -1465,15 +1472,15 @@ func TestLatest(t *testing.T) {
 	// Test with canceled context
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
-	_, err = store.Latest(canceledCtx)
+	_, err = bucket.Latest(canceledCtx)
 	assert.Error(t, err)
 
 	// Test after purging all events
-	deleted, err := store.Purge(ctx, baseTime.Add(time.Hour).Unix())
+	deleted, err := bucket.Purge(ctx, baseTime.Add(time.Hour).Unix())
 	assert.NoError(t, err)
 	assert.Equal(t, 3, deleted)
 
-	latestEvent, err = store.Latest(ctx)
+	latestEvent, err = bucket.Latest(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, latestEvent, "Latest should return nil after purging all events")
 }

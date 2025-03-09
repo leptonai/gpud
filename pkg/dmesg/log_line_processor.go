@@ -8,7 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -16,19 +16,19 @@ type LogLineProcessor struct {
 	ctx          context.Context
 	dmesgWatcher Watcher
 	matchFunc    MatchFunc
-	eventsStore  events_db.Store
+	eventBucket  eventstore.Bucket
 }
 
 type MatchFunc func(line string) (eventName string, message string)
 
-// Creates a new log line processor where it streams logs from the dmesg watcher, uses the match function,
+// NewLogLineProcessor creates a new log line processor where it streams logs from the dmesg watcher, uses the match function,
 // and inserts the events into the events store.
-func NewLogLineProcessor(ctx context.Context, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
-	return newLogLineProcessor(ctx, nil, matchFunc, eventsStore)
+func NewLogLineProcessor(ctx context.Context, matchFunc MatchFunc, eventBucket eventstore.Bucket) (*LogLineProcessor, error) {
+	return newLogLineProcessor(ctx, nil, matchFunc, eventBucket)
 }
 
 // If the dmesg watcher is not provided, it will create a default one.
-func newLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventsStore events_db.Store) (*LogLineProcessor, error) {
+func newLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc MatchFunc, eventBucket eventstore.Bucket) (*LogLineProcessor, error) {
 	if dmesgWatcher == nil {
 		var err error
 		dmesgWatcher, err = NewWatcher()
@@ -41,7 +41,7 @@ func newLogLineProcessor(ctx context.Context, dmesgWatcher Watcher, matchFunc Ma
 		ctx:          ctx,
 		dmesgWatcher: dmesgWatcher,
 		matchFunc:    matchFunc,
-		eventsStore:  eventsStore,
+		eventBucket:  eventBucket,
 	}
 	go w.watch()
 	return w, nil
@@ -78,7 +78,7 @@ func (w *LogLineProcessor) watch() {
 
 			// lookup to prevent duplicate event insertions
 			cctx, ccancel := context.WithTimeout(w.ctx, 15*time.Second)
-			found, err := w.eventsStore.Find(
+			found, err := w.eventBucket.Find(
 				cctx,
 				components.Event{
 					Time:    ev.Time,
@@ -97,7 +97,7 @@ func (w *LogLineProcessor) watch() {
 
 			// insert event
 			cctx, ccancel = context.WithTimeout(w.ctx, 15*time.Second)
-			err = w.eventsStore.Insert(cctx, ev)
+			err = w.eventBucket.Insert(cctx, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to insert event", "error", err)
@@ -108,9 +108,9 @@ func (w *LogLineProcessor) watch() {
 	}
 }
 
-// Returns the event in the descending order of timestamp (latest event first).
+// Get returns the event in the descending order of timestamp (latest event first).
 func (w *LogLineProcessor) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return w.eventsStore.Get(ctx, since)
+	return w.eventBucket.Get(ctx, since)
 }
 
 func (w *LogLineProcessor) Close() {

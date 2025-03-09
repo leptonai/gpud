@@ -12,24 +12,19 @@ import (
 	"github.com/leptonai/gpud/components"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/fuse/metrics"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		cfg.Query.State.DBRW,
-		cfg.Query.State.DBRO,
-		events_db.CreateDefaultTableName(fuse_id.Name),
-		events_db.DefaultRetention,
-	)
+func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(fuse_id.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg, eventsStore)
+	setDefaultPoller(cfg, eventBucket)
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, fuse_id.Name)
@@ -39,7 +34,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		ctx:         cctx,
 		cancel:      ccancel,
 		poller:      getDefaultPoller(),
-		eventsStore: eventsStore,
+		eventBucket: eventBucket,
 	}, nil
 }
 
@@ -50,7 +45,7 @@ type component struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	poller      query.Poller
-	eventsStore events_db.Store
+	eventBucket eventstore.Bucket
 	gatherer    prometheus.Gatherer
 }
 
@@ -94,7 +89,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -127,7 +122,7 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	c.poller.Stop(fuse_id.Name)
 
-	c.eventsStore.Close()
+	c.eventBucket.Close()
 
 	return nil
 }

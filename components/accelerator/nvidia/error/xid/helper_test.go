@@ -22,9 +22,9 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType common.EventType,
 	}
 	xidData, _ := json.Marshal(xidErr)
 	ret := components.Event{
-		Name:      EventNameErroXid,
+		Name:      EventNameErrorXid,
 		Type:      eventType,
-		ExtraInfo: map[string]string{EventKeyErroXidData: string(xidData)},
+		ExtraInfo: map[string]string{EventKeyErrorXidData: string(xidData)},
 	}
 	if !eventTime.IsZero() {
 		ret.Time = metav1.Time{Time: eventTime}
@@ -98,9 +98,9 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("invalid xid", func(t *testing.T) {
 		events := []components.Event{
 			{
-				Name:      EventNameErroXid,
+				Name:      EventNameErrorXid,
 				Type:      common.EventTypeCritical,
-				ExtraInfo: map[string]string{EventKeyErroXidData: "invalid json"},
+				ExtraInfo: map[string]string{EventKeyErrorXidData: "invalid json"},
 			},
 		}
 		state := EvolveHealthyState(events)

@@ -13,25 +13,20 @@ import (
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		cfg.Query.State.DBRW,
-		cfg.Query.State.DBRO,
-		events_db.CreateDefaultTableName(fd_id.Name),
-		3*24*time.Hour,
-	)
+func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(fd_id.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -51,7 +46,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		rootCtx:          ctx,
 		cancel:           ccancel,
 		logLineProcessor: logLineProcessor,
-		eventsStore:      eventsStore,
+		eventBucket:      eventBucket,
 		kmsgWatcher:      kmsgWatcher,
 		poller:           getDefaultPoller(),
 	}, nil
@@ -63,7 +58,7 @@ type component struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
 	logLineProcessor *dmesg.LogLineProcessor
-	eventsStore      events_db.Store
+	eventBucket      eventstore.Bucket
 	poller           query.Poller
 	gatherer         prometheus.Gatherer
 
@@ -118,7 +113,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -173,7 +168,7 @@ func (c *component) Close() error {
 	c.poller.Stop(fd_id.Name)
 
 	c.logLineProcessor.Close()
-	c.eventsStore.Close()
+	c.eventBucket.Close()
 
 	if c.kmsgWatcher != nil {
 		c.kmsgWatcher.Close()

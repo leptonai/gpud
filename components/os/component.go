@@ -8,49 +8,44 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
 
 const (
-	DefaultRetentionPeriod = 3 * 24 * time.Hour
+	DefaultRetentionPeriod = eventstore.DefaultRetention
 )
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		cfg.Query.State.DBRW,
-		cfg.Query.State.DBRO,
-		events_db.CreateDefaultTableName(os_id.Name),
-		DefaultRetentionPeriod,
-	)
+func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(os_id.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg, eventsStore)
+	setDefaultPoller(cfg, eventBucket)
 
 	cctx, ccancel := context.WithCancel(ctx)
 	getDefaultPoller().Start(cctx, cfg.Query, os_id.Name)
 
 	return &component{
-		rootCtx:     ctx,
-		cancel:      ccancel,
-		poller:      getDefaultPoller(),
-		eventsStore: eventsStore,
-		cfg:         cfg,
+		rootCtx:      ctx,
+		cancel:       ccancel,
+		poller:       getDefaultPoller(),
+		eventsBucket: eventBucket,
+		cfg:          cfg,
 	}, nil
 }
 
 var _ components.Component = (*component)(nil)
 
 type component struct {
-	rootCtx     context.Context
-	cancel      context.CancelFunc
-	poller      query.Poller
-	eventsStore events_db.Store
-	cfg         Config
+	rootCtx      context.Context
+	cancel       context.CancelFunc
+	poller       query.Poller
+	eventsBucket eventstore.Bucket
+	cfg          Config
 }
 
 func (c *component) Name() string { return os_id.Name }
@@ -101,7 +96,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 // Returns the event in the descending order of timestamp (latest event first).
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventsBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -116,7 +111,7 @@ func (c *component) Close() error {
 	// safe to call stop multiple times
 	c.poller.Stop(os_id.Name)
 
-	c.eventsStore.Close()
+	c.eventsBucket.Close()
 
 	return nil
 }

@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	cache "github.com/patrickmn/go-cache"
+	"github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -22,7 +22,7 @@ type logLineProcessor struct {
 	ctx         context.Context
 	w           watcher
 	matchFunc   matchFunc
-	eventsStore events_db.Store
+	eventBucket eventstore.Bucket
 }
 
 type matchFunc func(line string) (eventName string, message string)
@@ -31,13 +31,13 @@ func newLogLineProcessor(
 	ctx context.Context,
 	w watcher,
 	matchFunc matchFunc,
-	eventsStore events_db.Store,
+	eventBucket eventstore.Bucket,
 ) *logLineProcessor {
 	llp := &logLineProcessor{
 		ctx:         ctx,
 		w:           w,
 		matchFunc:   matchFunc,
-		eventsStore: eventsStore,
+		eventBucket: eventBucket,
 	}
 	go llp.watch()
 	return llp
@@ -69,7 +69,7 @@ func (llp *logLineProcessor) watch() {
 
 			// lookup to prevent duplicate event insertions
 			cctx, ccancel := context.WithTimeout(llp.ctx, 15*time.Second)
-			found, err := llp.eventsStore.Find(
+			found, err := llp.eventBucket.Find(
 				cctx,
 				components.Event{
 					Time:    ev.Time,
@@ -88,7 +88,7 @@ func (llp *logLineProcessor) watch() {
 
 			// insert event
 			cctx, ccancel = context.WithTimeout(llp.ctx, 15*time.Second)
-			err = llp.eventsStore.Insert(cctx, ev)
+			err = llp.eventBucket.Insert(cctx, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to insert event", "error", err)
@@ -100,7 +100,7 @@ func (llp *logLineProcessor) watch() {
 }
 
 func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return llp.eventsStore.Get(ctx, since)
+	return llp.eventBucket.Get(ctx, since)
 }
 
 func (llp *logLineProcessor) close() {

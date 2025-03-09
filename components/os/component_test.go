@@ -12,7 +12,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -26,6 +26,9 @@ func TestComponentStates(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+
 	component, err := New(
 		ctx,
 		Config{
@@ -37,6 +40,7 @@ func TestComponentStates(t *testing.T) {
 				},
 			},
 		},
+		store,
 	)
 	if err != nil {
 		t.Fatalf("failed to create component: %v", err)
@@ -61,6 +65,9 @@ func TestComponentEvents(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+
 	c, err := New(
 		ctx,
 		Config{
@@ -72,6 +79,7 @@ func TestComponentEvents(t *testing.T) {
 				},
 			},
 		},
+		store,
 	)
 	if err != nil {
 		t.Fatalf("failed to create component: %v", err)
@@ -92,7 +100,7 @@ func TestComponentEvents(t *testing.T) {
 	cc, _ := c.(*component)
 
 	for i := 0; i < eventsN; i++ {
-		if err := cc.eventsStore.Insert(ctx, components.Event{
+		if err := cc.eventsBucket.Insert(ctx, components.Event{
 			Time:    metav1.Time{Time: now.Add(-time.Duration(i) * time.Second)},
 			Name:    "reboot",
 			Type:    common.EventTypeWarning,
@@ -114,13 +122,15 @@ func TestComponentEvents(t *testing.T) {
 func TestCreateRebootEvent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	eventStore, err := events_db.NewStore(dbRW, dbRO, events_db.CreateDefaultTableName(events_db.CreateDefaultTableName(os_id.Name)), DefaultRetentionPeriod)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket(os_id.Name)
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	now := time.Now().Truncate(time.Second)
-	err = eventStore.Insert(context.Background(), components.Event{
+	err = bucket.Insert(context.Background(), components.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    "reboot",
 		Type:    common.EventTypeWarning,
@@ -132,12 +142,12 @@ func TestCreateRebootEvent(t *testing.T) {
 
 	t.Run("Valid Old Reboot Event", func(t *testing.T) {
 		bootTime := now.Add(-1 * time.Hour)
-		err := createRebootEvent(context.Background(), eventStore, func(ctx context.Context) (time.Time, error) {
+		err := createRebootEvent(context.Background(), bucket, func(ctx context.Context) (time.Time, error) {
 			return bootTime, nil
 		})
 		assert.NoError(t, err)
 
-		latestEvent, err := eventStore.Latest(context.Background())
+		latestEvent, err := bucket.Latest(context.Background())
 		assert.NoError(t, err)
 		assert.NotNil(t, latestEvent)
 		assert.Equal(t, "reboot", latestEvent.Name)
@@ -146,15 +156,15 @@ func TestCreateRebootEvent(t *testing.T) {
 
 	t.Run("Skip Event Due to Retention", func(t *testing.T) {
 		bootTime := now.Add(-2 * DefaultRetentionPeriod)
-		err := createRebootEvent(context.Background(), eventStore, func(ctx context.Context) (time.Time, error) {
+		err := createRebootEvent(context.Background(), bucket, func(ctx context.Context) (time.Time, error) {
 			return bootTime, nil
 		})
 		assert.NoError(t, err)
-		latestEvent, err := eventStore.Latest(context.Background())
+		latestEvent, err := bucket.Latest(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, "reboot", latestEvent.Name)
 		assert.Equal(t, now, latestEvent.Time.Time)
-		latestEvent, err = eventStore.Find(context.Background(), components.Event{
+		latestEvent, err = bucket.Find(context.Background(), components.Event{
 			Time:    metav1.Time{Time: bootTime},
 			Name:    "reboot",
 			Type:    common.EventTypeWarning,
@@ -166,12 +176,12 @@ func TestCreateRebootEvent(t *testing.T) {
 
 	t.Run("Valid New Reboot Event", func(t *testing.T) {
 		bootTime := now.Add(1 * time.Hour)
-		err := createRebootEvent(context.Background(), eventStore, func(ctx context.Context) (time.Time, error) {
+		err := createRebootEvent(context.Background(), bucket, func(ctx context.Context) (time.Time, error) {
 			return bootTime, nil
 		})
 		assert.NoError(t, err)
 
-		latestEvent, err := eventStore.Latest(context.Background())
+		latestEvent, err := bucket.Latest(context.Background())
 		assert.NoError(t, err)
 		assert.NotNil(t, latestEvent)
 		assert.Equal(t, "reboot", latestEvent.Name)
@@ -180,7 +190,7 @@ func TestCreateRebootEvent(t *testing.T) {
 
 	t.Run("Skip Event if Latest Event Matches", func(t *testing.T) {
 		bootTime := now.Add(2 * time.Hour)
-		err = eventStore.Insert(context.Background(), components.Event{
+		err = bucket.Insert(context.Background(), components.Event{
 			Time:    metav1.Time{Time: bootTime},
 			Name:    "reboot",
 			Type:    common.EventTypeWarning,
@@ -188,13 +198,13 @@ func TestCreateRebootEvent(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		err = createRebootEvent(context.Background(), eventStore, func(ctx context.Context) (time.Time, error) {
+		err = createRebootEvent(context.Background(), bucket, func(ctx context.Context) (time.Time, error) {
 			return bootTime, nil
 		})
 		assert.NoError(t, err)
 
 		// Check that no new event was inserted (same timestamp)
-		latestEvent, err := eventStore.Get(context.Background(), now.Add(90*time.Minute))
+		latestEvent, err := bucket.Get(context.Background(), now.Add(90*time.Minute))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(latestEvent))
 		assert.Equal(t, bootTime, latestEvent[0].Time.Time)

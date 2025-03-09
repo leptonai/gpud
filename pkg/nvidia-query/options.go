@@ -1,19 +1,15 @@
 package query
 
 import (
-	"database/sql"
-
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
 type Op struct {
-	dbRW                  *sql.DB
-	dbRO                  *sql.DB
-	xidEventsStore        events_db.Store
-	hwslowdownEventsStore events_db.Store
-	nvidiaSMIQueryCommand string
-	ibstatCommand         string
-	debug                 bool
+	xidEventsBucket        eventstore.Bucket
+	hwSlowdownEventsBucket eventstore.Bucket
+	nvidiaSMIQueryCommand  string
+	ibstatCommand          string
+	debug                  bool
 }
 
 type OpOption func(*Op)
@@ -33,27 +29,15 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	return nil
 }
 
-func WithDBRW(db *sql.DB) OpOption {
+func WithXidEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
-		op.dbRW = db
+		op.xidEventsBucket = bucket
 	}
 }
 
-func WithDBRO(db *sql.DB) OpOption {
+func WithHWSlowdownEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
-		op.dbRO = db
-	}
-}
-
-func WithXidEventsStore(store events_db.Store) OpOption {
-	return func(op *Op) {
-		op.xidEventsStore = store
-	}
-}
-
-func WithHWSlowdownEventsStore(store events_db.Store) OpOption {
-	return func(op *Op) {
-		op.hwslowdownEventsStore = store
+		op.hwSlowdownEventsBucket = bucket
 	}
 }
 

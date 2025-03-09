@@ -1,4 +1,4 @@
-package db
+package eventstore
 
 import (
 	"context"
@@ -18,105 +18,80 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const schemaVersion = "v0_4_0"
-
-// Creates the default table name for the component.
-// The table name is in the format of "components_{component_name}_events_v0_4_0".
-// Suffix with the version, in case we change the table schema.
-func CreateDefaultTableName(componentName string) string {
-	c := strings.ReplaceAll(componentName, " ", "_")
-	c = strings.ReplaceAll(c, "-", "_")
-	c = strings.ReplaceAll(c, "__", "_")
-	c = strings.ToLower(c)
-	tableName := fmt.Sprintf("components_%s_events_%s", c, schemaVersion)
-	return tableName
-}
+const (
+	schemaVersion = "v0_4_0"
+)
 
 const (
-	// Event timestamp in unix seconds.
-	ColumnTimestamp = "timestamp"
+	// columnTimestamp represents the event timestamp in unix seconds.
+	columnTimestamp = "timestamp"
 
-	// event name
+	// columnName represents the event name
 	// e.g., "memory_oom", "memory_oom_kill_constraint", "memory_oom_cgroup", "memory_edac_correctable_errors".
-	ColumnName = "name"
+	columnName = "name"
 
-	// event type
+	// columnType represents event type
 	// e.g., "Unknown", "Info", "Warning", "Critical", "Fatal".
-	ColumnType = "type"
+	columnType = "type"
 
-	// event message
+	// columnMessage represents event message
 	// e.g., "VFS file-max limit reached"
-	ColumnMessage = "message"
+	columnMessage = "message"
 
-	// event extra info
+	// columnExtraInfo represents event extra info
 	// e.g.,
 	// data source: "dmesg", "nvml", "nvidia-smi".
 	// event target: "gpu_id", "gpu_uuid".
 	// log detail: "oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0".
-	ColumnExtraInfo = "extra_info"
+	columnExtraInfo = "extra_info"
 
-	// event suggested actions
+	// columnSuggestedActions represents event suggested actions
 	// e.g., "reboot"
-	ColumnSuggestedActions = "suggested_actions"
+	columnSuggestedActions = "suggested_actions"
 )
 
-type storeImpl struct {
-	rootCtx    context.Context
-	rootCancel context.CancelFunc
+var (
+	_ Store  = &database{}
+	_ Bucket = &table{}
+)
+
+type database struct {
+	dbRW      *sql.DB
+	dbRO      *sql.DB
+	retention time.Duration
+}
+
+type table struct {
+	rootCtx       context.Context
+	rootCancel    context.CancelFunc
+	retention     time.Duration
+	checkInterval time.Duration
 
 	table string
 	dbRW  *sql.DB
 	dbRO  *sql.DB
-
-	retention     time.Duration
-	checkInterval time.Duration
 }
 
-var (
-	ErrNoDBRWSet = errors.New("no writable db set")
-	ErrNoDBROSet = errors.New("no read-only db set")
-)
-
-type Store interface {
-	Insert(ctx context.Context, ev components.Event) error
-	Find(ctx context.Context, ev components.Event) (*components.Event, error)
-
-	// Returns the event in the descending order of timestamp (latest event first).
-	Get(ctx context.Context, since time.Time) ([]components.Event, error)
-
-	// Returns the latest event.
-	// Returns nil if no event found.
-	Latest(ctx context.Context) (*components.Event, error)
-
-	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
-	Close()
+func New(dbRW *sql.DB, dbRO *sql.DB, retention time.Duration) (Store, error) {
+	return &database{
+		dbRW:      dbRW,
+		dbRO:      dbRO,
+		retention: retention,
+	}, nil
 }
 
-const DefaultRetention = 3 * 24 * time.Hour // 3 days
-
-var _ Store = (*storeImpl)(nil)
-
-// Creates a new DB instance with the table created.
-// Requires write-only and read-only instances for minimize conflicting writes/reads.
-// ref. https://github.com/mattn/go-sqlite3/issues/1179#issuecomment-1638083995
-func NewStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration) (Store, error) {
+func (d *database) Bucket(name string) (Bucket, error) {
 	// actual check interval should be lower than the retention period
 	// in case of GPUd restarts
-	checkInterval := retention / 5
+	checkInterval := d.retention / 5
 	if checkInterval < time.Second {
 		checkInterval = time.Second
 	}
-	return newStore(dbRW, dbRO, tableName, retention, checkInterval)
+	return newTable(d.dbRW, d.dbRO, name, d.retention, checkInterval)
 }
 
-func newStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Duration, checkInterval time.Duration) (Store, error) {
-	if dbRW == nil {
-		return nil, ErrNoDBRWSet
-	}
-	if dbRO == nil {
-		return nil, ErrNoDBROSet
-	}
-
+func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, checkInterval time.Duration) (*table, error) {
+	tableName := defaultTableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
 	cancel()
@@ -125,7 +100,7 @@ func newStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Durat
 	}
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
-	s := &storeImpl{
+	t := &table{
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
 		table:         tableName,
@@ -134,64 +109,74 @@ func newStore(dbRW *sql.DB, dbRO *sql.DB, tableName string, retention time.Durat
 		retention:     retention,
 		checkInterval: checkInterval,
 	}
-	go s.runPurge()
-
-	return s, nil
+	if retention > time.Second {
+		go t.runPurge()
+	}
+	return t, nil
 }
 
-func (s *storeImpl) runPurge() {
-	if s.retention < time.Second {
-		return
-	}
+// defaultTableName creates the default table name for the component.
+// The table name is in the format of "components_{component_name}_events_v0_4_0".
+// Suffix with the version, in case we change the table schema.
+func defaultTableName(componentName string) string {
+	c := strings.ReplaceAll(componentName, " ", "_")
+	c = strings.ReplaceAll(c, "-", "_")
+	c = strings.ReplaceAll(c, "__", "_")
+	c = strings.ToLower(c)
+	tableName := fmt.Sprintf("components_%s_events_%s", c, schemaVersion)
+	return tableName
+}
 
-	checkInterval := s.checkInterval
+func (t *table) Name() string {
+	return t.table
+}
 
-	log.Logger.Infow("start purging", "table", s.table, "retention", s.retention)
+func (t *table) runPurge() {
+	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention, "checkInterval", t.checkInterval)
 	for {
 		select {
-		case <-s.rootCtx.Done():
+		case <-t.rootCtx.Done():
 			return
-		case <-time.After(checkInterval):
+		case <-time.After(t.checkInterval):
 		}
 
 		now := time.Now().UTC()
-		purged, err := s.Purge(s.rootCtx, now.Add(-s.retention).Unix())
+		purged, err := t.Purge(t.rootCtx, now.Add(-t.retention).Unix())
 		if err != nil {
-			log.Logger.Errorw("failed to purge data", "table", s.table, "retention", s.retention, "error", err)
+			log.Logger.Errorw("failed to purge data", "table", t.table, "retention", t.retention, "error", err)
 		} else {
-			log.Logger.Infow("purged data", "table", s.table, "retention", s.retention, "purged", purged)
+			log.Logger.Infow("purged data", "table", t.table, "retention", t.retention, "purged", purged)
 		}
 	}
 }
 
-func (s *storeImpl) Close() {
-	log.Logger.Infow("closing the store", "table", s.table)
-	if s.rootCancel != nil {
-		s.rootCancel()
+func (t *table) Close() {
+	log.Logger.Infow("closing the store", "table", t.table)
+	if t.rootCancel != nil {
+		t.rootCancel()
 	}
 }
 
-func (s *storeImpl) Insert(ctx context.Context, ev components.Event) error {
-	return insertEvent(ctx, s.dbRW, s.table, ev)
+func (t *table) Insert(ctx context.Context, ev components.Event) error {
+	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
-func (s *storeImpl) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
-	return findEvent(ctx, s.dbRO, s.table, ev)
+func (t *table) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
+	return findEvent(ctx, t.dbRO, t.table, ev)
 }
 
-// Returns the event in the descending order of timestamp (latest event first).
-func (s *storeImpl) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return getEvents(ctx, s.dbRO, s.table, since)
+// Get queries the event in the descending order of timestamp (latest event first).
+func (t *table) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+	return getEvents(ctx, t.dbRO, t.table, since)
 }
 
-// Returns the latest event.
-// Returns nil if no event found.
-func (s *storeImpl) Latest(ctx context.Context) (*components.Event, error) {
-	return lastEvent(ctx, s.dbRO, s.table)
+// Latest queries the latest event, returns nil if no event found.
+func (t *table) Latest(ctx context.Context) (*components.Event, error) {
+	return lastEvent(ctx, t.dbRO, t.table)
 }
 
-func (s *storeImpl) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
-	return purgeEvents(ctx, s.dbRW, s.table, beforeTimestamp)
+func (t *table) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	return purgeEvents(ctx, t.dbRW, t.table, beforeTimestamp)
 }
 
 func createTable(ctx context.Context, db *sql.DB, tableName string) error {
@@ -209,12 +194,12 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	%s TEXT,
 	%s TEXT
 );`, tableName,
-		ColumnTimestamp,
-		ColumnName,
-		ColumnType,
-		ColumnMessage,
-		ColumnExtraInfo,
-		ColumnSuggestedActions,
+		columnTimestamp,
+		columnName,
+		columnType,
+		columnMessage,
+		columnExtraInfo,
+		columnSuggestedActions,
 	))
 	if err != nil {
 		_ = tx.Rollback()
@@ -222,21 +207,21 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
-		tableName, ColumnTimestamp, tableName, ColumnTimestamp))
+		tableName, columnTimestamp, tableName, columnTimestamp))
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
-		tableName, ColumnName, tableName, ColumnName))
+		tableName, columnName, tableName, columnName))
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_%s ON %s(%s);`,
-		tableName, ColumnType, tableName, ColumnType))
+		tableName, columnType, tableName, columnType))
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -264,12 +249,12 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev component
 
 	_, err = db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
 		tableName,
-		ColumnTimestamp,
-		ColumnName,
-		ColumnType,
-		ColumnMessage,
-		ColumnExtraInfo,
-		ColumnSuggestedActions,
+		columnTimestamp,
+		columnName,
+		columnType,
+		columnMessage,
+		columnExtraInfo,
+		columnSuggestedActions,
 	),
 		ev.Time.Unix(),
 		ev.Name,
@@ -286,22 +271,22 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev component
 func findEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) (*components.Event, error) {
 	selectStatement := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
-		ColumnTimestamp,
-		ColumnName,
-		ColumnType,
-		ColumnMessage,
-		ColumnExtraInfo,
-		ColumnSuggestedActions,
+		columnTimestamp,
+		columnName,
+		columnType,
+		columnMessage,
+		columnExtraInfo,
+		columnSuggestedActions,
 		tableName,
-		ColumnTimestamp,
-		ColumnName,
-		ColumnType,
+		columnTimestamp,
+		columnName,
+		columnType,
 	)
 	if ev.Message != "" {
-		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnMessage)
+		selectStatement += fmt.Sprintf(" AND %s = ?", columnMessage)
 	}
 	if ev.SuggestedActions != nil {
-		selectStatement += fmt.Sprintf(" AND %s = ?", ColumnSuggestedActions)
+		selectStatement += fmt.Sprintf(" AND %s = ?", columnSuggestedActions)
 	}
 
 	params := []any{ev.Time.Unix(), ev.Name, ev.Type}
@@ -346,10 +331,10 @@ func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Tim
 FROM %s
 WHERE %s > ?
 ORDER BY %s DESC`,
-		ColumnTimestamp, ColumnName, ColumnType, ColumnMessage, ColumnExtraInfo, ColumnSuggestedActions,
+		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, columnSuggestedActions,
 		tableName,
-		ColumnTimestamp,
-		ColumnTimestamp,
+		columnTimestamp,
+		columnTimestamp,
 	)
 	params := []any{since.UTC().Unix()}
 
@@ -358,14 +343,14 @@ ORDER BY %s DESC`,
 	sqlite.RecordSelect(time.Since(start).Seconds())
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
 	defer rows.Close()
 
-	events := []components.Event{}
+	var events []components.Event
 	for rows.Next() {
 		event, err := scanRows(rows)
 		if err != nil {
@@ -381,7 +366,7 @@ ORDER BY %s DESC`,
 
 func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*components.Event, error) {
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s FROM %s ORDER BY %s DESC LIMIT 1`,
-		ColumnTimestamp, ColumnName, ColumnType, ColumnMessage, ColumnExtraInfo, ColumnSuggestedActions, tableName, ColumnTimestamp)
+		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, columnSuggestedActions, tableName, columnTimestamp)
 
 	start := time.Now()
 	row := db.QueryRowContext(ctx, query)
@@ -477,10 +462,7 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 }
 
 func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimestamp int64) (int, error) {
-	deleteStatement := fmt.Sprintf(`DELETE FROM %s WHERE %s < ?`,
-		tableName,
-		ColumnTimestamp,
-	)
+	deleteStatement := fmt.Sprintf(`DELETE FROM %s WHERE %s < ?`, tableName, columnTimestamp)
 
 	start := time.Now()
 	rs, err := db.ExecContext(ctx, deleteStatement, beforeTimestamp)

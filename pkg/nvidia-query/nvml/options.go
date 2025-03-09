@@ -5,14 +5,14 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 type Op struct {
 	dbRW                  *sql.DB
 	dbRO                  *sql.DB
-	hwslowdownEventsStore events_db.Store
+	hwSlowdownEventBucket eventstore.Bucket
 	gpmMetricsIDs         map[nvml.GpmMetricId]struct{}
 }
 
@@ -56,9 +56,9 @@ func WithDBRO(db *sql.DB) OpOption {
 	}
 }
 
-func WithHWSlowdownEventsStore(store events_db.Store) OpOption {
+func WithHWSlowdownEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
-		op.hwslowdownEventsStore = store
+		op.hwSlowdownEventBucket = bucket
 	}
 }
 

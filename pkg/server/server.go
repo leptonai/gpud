@@ -103,7 +103,7 @@ import (
 	gpud_config "github.com/leptonai/gpud/pkg/config"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
@@ -154,6 +154,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open events database: %w", err)
+	}
+
 	promReg := prometheus.NewRegistry()
 	if err := sqlite.Register(promReg); err != nil {
 		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
@@ -181,32 +186,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, err
 	}
-	var eventsStoreNvidiaErrorXid events_db.Store
-	var eventsStoreNvidiaHWSlowdown events_db.Store
+	var xidEventBucket eventstore.Bucket
+	var hwSlowdownEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		eventsStoreNvidiaErrorXid, err = events_db.NewStore(
-			dbRW,
-			dbRO,
-			events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name),
-			3*24*time.Hour,
-		)
+		xidEventBucket, err = eventStore.Bucket(nvidia_component_error_xid_id.Name)
 		if err != nil {
 			return nil, err
 		}
-		eventsStoreNvidiaHWSlowdown, err = events_db.NewStore(
-			dbRW,
-			dbRO,
-			events_db.CreateDefaultTableName(nvidia_hw_slowdown_id.Name),
-			3*24*time.Hour,
-		)
+		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
 		if err != nil {
 			return nil, err
 		}
 		nvidia_query.SetDefaultPoller(
-			nvidia_query.WithDBRW(dbRW), // to deprecate in favor of events store
-			nvidia_query.WithDBRO(dbRO), // to deprecate in favor of events store
-			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
-			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
+			nvidia_query.WithXidEventBucket(xidEventBucket),
+			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
 			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(options.IbstatCommand),
 		)
@@ -258,7 +251,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os_id.Name]; !ok {
-		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg})
+		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
 		}
@@ -279,7 +272,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := cpu.New(ctx, cfg)
+			c, err := cpu.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -315,7 +308,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := fuse.New(ctx, cfg)
+			c, err := fuse.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -330,7 +323,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				}
 				cfg = *parsed
 			}
-			c, err := pci.New(ctx, cfg)
+			c, err := pci.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -352,7 +345,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := fd.New(ctx, cfg)
+			c, err := fd.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -402,7 +395,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := memory.New(ctx, cfg)
+			c, err := memory.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -420,7 +413,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := os.New(ctx, cfg)
+			c, err := os.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -513,11 +506,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_component_error_xid_id.Name:
-			allComponents = append(allComponents, nvidia_xid.New(ctx, dbRW, dbRO))
+			allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
 
 		case nvidia_component_error_sxid_id.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_sxid.New(ctx, dbRW, dbRO))
+			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
 
 		case nvidia_hw_slowdown_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
@@ -531,7 +524,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := nvidia_hw_slowdown.New(ctx, cfg, eventsStoreNvidiaHWSlowdown)
+			c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -714,7 +707,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_fabric_manager_id.Name:
-			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, dbRW, dbRO)
+			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -739,7 +732,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_infiniband_id.Name:
-			c, err := nvidia_infiniband.New(ctx, dbRW, dbRO, options.ToolOverwrites)
+			c, err := nvidia_infiniband.New(ctx, eventStore, options.ToolOverwrites)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -757,7 +750,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := nvidia_peermem.New(ctx, cfg)
+			c, err := nvidia_peermem.New(ctx, cfg, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -793,7 +786,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
 			}
-			c, err := nvidia_nccl.New(ctx, cfg)
+			c, err := nvidia_nccl.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

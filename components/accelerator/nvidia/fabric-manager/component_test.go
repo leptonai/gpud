@@ -7,12 +7,13 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
-	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/components"
+	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestComponentEvents(t *testing.T) {
@@ -20,6 +21,8 @@ func TestComponentEvents(t *testing.T) {
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -31,8 +34,7 @@ func TestComponentEvents(t *testing.T) {
 			{"tail", "testdata/fabricmanager.log"},
 			{"sleep 1"},
 		},
-		dbRW,
-		dbRO,
+		store,
 	)
 	require.NoError(t, err)
 	defer comp.Close()
@@ -127,23 +129,20 @@ func TestEventsWithProcessor(t *testing.T) {
 	mockW := newMockWatcher()
 
 	// Create events store
-	eventsStore, err := events_db.NewStore(
-		dbRW,
-		dbRO,
-		events_db.CreateDefaultTableName(fabric_manager_id.Name),
-		3*24*time.Hour,
-	)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket(fabric_manager_id.Name)
 	require.NoError(t, err)
 
 	// Create a processor
-	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, eventsStore)
+	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, bucket)
 
 	// Create component with processor
 	comp := &component{
 		checkFMExists:    func() bool { return true },
 		rootCtx:          ctx,
 		cancel:           cancel,
-		eventsStore:      eventsStore,
+		eventBucket:      bucket,
 		logLineProcessor: llp,
 	}
 
@@ -157,7 +156,7 @@ func TestEventsWithProcessor(t *testing.T) {
 			"log_line": "test-error-line",
 		},
 	}
-	err = eventsStore.Insert(ctx, testEvent)
+	err = bucket.Insert(ctx, testEvent)
 	require.NoError(t, err)
 
 	// Call Events

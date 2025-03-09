@@ -19,7 +19,7 @@ import (
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/host"
@@ -117,32 +117,25 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 		defer db.Close()
 
-		eventsStoreNvidiaErrorXid, err := events_db.NewStore(
-			db,
-			db,
-			events_db.CreateDefaultTableName(nvidia_component_error_xid_id.Name),
-			3*24*time.Hour,
-		)
+		eventStore, err := eventstore.New(db, db, eventstore.DefaultRetention)
 		if err != nil {
-			log.Logger.Fatalw("failed to create events store", "error", err)
+			log.Logger.Fatalw("failed to open database", "error", err)
 		}
 
-		eventsStoreNvidiaHWSlowdown, err := events_db.NewStore(
-			db,
-			db,
-			events_db.CreateDefaultTableName(nvidia_hw_slowdown_id.Name),
-			3*24*time.Hour,
-		)
+		xidEventBucket, err := eventStore.Bucket(nvidia_component_error_xid_id.Name)
 		if err != nil {
-			log.Logger.Fatalw("failed to create events store", "error", err)
+			log.Logger.Fatalw("failed to create events bucket", "error", err)
+		}
+
+		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		if err != nil {
+			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}
 
 		outputRaw, err := nvidia_query.Get(
 			ctx,
-			nvidia_query.WithDBRW(db), // to deprecate in favor of events store
-			nvidia_query.WithDBRO(db), // to deprecate in favor of events store
-			nvidia_query.WithXidEventsStore(eventsStoreNvidiaErrorXid),
-			nvidia_query.WithHWSlowdownEventsStore(eventsStoreNvidiaHWSlowdown),
+			nvidia_query.WithXidEventBucket(xidEventBucket),
+			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
 			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
 		)

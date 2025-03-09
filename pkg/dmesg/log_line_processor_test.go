@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -29,9 +29,11 @@ func TestLogLineProcessor(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err, "failed to create events store")
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	w, err := newLogLineProcessor(
 		ctx,
@@ -39,7 +41,7 @@ func TestLogLineProcessor(t *testing.T) {
 		func(_ string) (string, string) {
 			return "test", ""
 		},
-		eventsStore,
+		bucket,
 	)
 	require.NoError(t, err, "failed to create log line processor")
 	defer w.Close()
@@ -81,9 +83,11 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err, "failed to create events store")
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Create a match function that only matches specific messages
 	matchFunc := func(content string) (string, string) {
@@ -101,7 +105,7 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 		ctx,
 		dmesgWatcher,
 		matchFunc,
-		eventsStore,
+		bucket,
 	)
 	require.NoError(t, err, "failed to create log line processor")
 	defer w.Close()
@@ -142,16 +146,18 @@ func TestNewLogLineProcessorDefaultWatcher(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err, "failed to create events store")
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	lp, err := NewLogLineProcessor(
 		ctx,
 		func(string) (string, string) {
 			return "test", "test"
 		},
-		eventsStore,
+		bucket,
 	)
 	require.NoError(t, err, "failed to create log line processor")
 	lp.Close()

@@ -11,7 +11,7 @@ import (
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
@@ -19,19 +19,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func New(ctx context.Context, cfg Config) (components.Component, error) {
-	eventsStore, err := events_db.NewStore(
-		cfg.Query.State.DBRW,
-		cfg.Query.State.DBRO,
-		events_db.CreateDefaultTableName(memory_id.Name),
-		3*24*time.Hour,
-	)
+func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(memory_id.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventsStore)
+	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -53,7 +48,7 @@ func New(ctx context.Context, cfg Config) (components.Component, error) {
 		poller:           getDefaultPoller(),
 		cfg:              cfg,
 		logLineProcessor: logLineProcessor,
-		eventsStore:      eventsStore,
+		eventBucket:      eventBucket,
 		kmsgWatcher:      kmsgWatcher,
 	}, nil
 }
@@ -66,7 +61,7 @@ type component struct {
 	poller           query.Poller
 	cfg              Config
 	logLineProcessor *dmesg.LogLineProcessor
-	eventsStore      events_db.Store
+	eventBucket      eventstore.Bucket
 	gatherer         prometheus.Gatherer
 
 	// experimental
@@ -120,7 +115,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventsStore.Get(ctx, since)
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -161,7 +156,7 @@ func (c *component) Close() error {
 	c.poller.Stop(memory_id.Name)
 
 	c.logLineProcessor.Close()
-	c.eventsStore.Close()
+	c.eventBucket.Close()
 
 	if c.kmsgWatcher != nil {
 		c.kmsgWatcher.Close()

@@ -12,7 +12,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -27,13 +27,13 @@ func TestGet(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	if err != nil {
-		t.Fatalf("failed to create events store: %v", err)
-	}
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -51,7 +51,7 @@ func TestCreateGet(t *testing.T) {
 	tests := []struct {
 		name          string
 		setupVirtEnv  func()
-		setupEvents   func(store events_db.Store) error
+		setupEvents   func(bucket eventstore.Bucket) error
 		expectedError bool
 		skipInsertion bool
 	}{
@@ -83,14 +83,14 @@ func TestCreateGet(t *testing.T) {
 					Type:  "none",
 				}
 			},
-			setupEvents: func(store events_db.Store) error {
+			setupEvents: func(bucket eventstore.Bucket) error {
 				event := components.Event{
 					Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 					Name:    "acs_enabled",
 					Type:    common.EventTypeWarning,
 					Message: "test event",
 				}
-				return store.Insert(context.Background(), event)
+				return bucket.Insert(context.Background(), event)
 			},
 			skipInsertion: true,
 		},
@@ -110,20 +110,22 @@ func TestCreateGet(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-			require.NoError(t, err)
-			defer eventsStore.Close()
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events")
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			if tt.setupVirtEnv != nil {
 				tt.setupVirtEnv()
 			}
 
 			if tt.setupEvents != nil {
-				err := tt.setupEvents(eventsStore)
+				err := tt.setupEvents(bucket)
 				require.NoError(t, err)
 			}
 
-			getFunc := CreateGet(eventsStore)
+			getFunc := CreateGet(bucket)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -137,7 +139,7 @@ func TestCreateGet(t *testing.T) {
 
 			if !tt.skipInsertion {
 				// Verify event insertion
-				lastEvent, err := eventsStore.Latest(ctx)
+				lastEvent, err := bucket.Latest(ctx)
 				assert.NoError(t, err)
 				if lastEvent != nil {
 					assert.Equal(t, "acs_enabled", lastEvent.Name)
@@ -152,9 +154,11 @@ func TestDefaultPoller(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Test initial state
 	assert.Nil(t, getDefaultPoller())
@@ -163,12 +167,12 @@ func TestDefaultPoller(t *testing.T) {
 	cfg := Config{
 		Query: query_config.Config{},
 	}
-	setDefaultPoller(cfg, eventsStore)
+	setDefaultPoller(cfg, bucket)
 	assert.NotNil(t, getDefaultPoller())
 
 	// Test that calling setDefaultPoller again doesn't change the poller (sync.Once)
 	originalPoller := getDefaultPoller()
-	setDefaultPoller(cfg, eventsStore)
+	setDefaultPoller(cfg, bucket)
 	assert.Equal(t, originalPoller, getDefaultPoller())
 }
 
@@ -187,13 +191,16 @@ func TestCreateGetWithFailedEventStore(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Close the database to force errors
 	cleanup()
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -209,11 +216,13 @@ func TestCreateGetWithContextTimeout(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 
 	// create an already canceled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -238,13 +247,16 @@ func TestCreateGetWithEventStoreInsertError(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Close the database to force errors on insert
 	cleanup()
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -260,9 +272,11 @@ func TestCreateGetWithOldEvent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// setup virtualization environment
 	currentVirtEnv = host.VirtualizationEnvironment{
@@ -277,10 +291,10 @@ func TestCreateGetWithOldEvent(t *testing.T) {
 		Type:    common.EventTypeWarning,
 		Message: "old test event",
 	}
-	err = eventsStore.Insert(context.Background(), oldEvent)
+	err = bucket.Insert(context.Background(), oldEvent)
 	require.NoError(t, err)
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -288,7 +302,7 @@ func TestCreateGetWithOldEvent(t *testing.T) {
 	_, err = getFunc(ctx)
 	assert.NoError(t, err)
 
-	lastEvent, err := eventsStore.Latest(ctx)
+	lastEvent, err := bucket.Latest(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, lastEvent)
 	assert.Equal(t, "acs_enabled", lastEvent.Name)
@@ -303,9 +317,11 @@ func TestCreateGetWithEmptyEventStore(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Setup virtualization environment
 	currentVirtEnv = host.VirtualizationEnvironment{
@@ -313,7 +329,7 @@ func TestCreateGetWithEmptyEventStore(t *testing.T) {
 		Type:  "none",
 	}
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -321,7 +337,7 @@ func TestCreateGetWithEmptyEventStore(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify that an event was created in empty store
-	lastEvent, err := eventsStore.Latest(ctx)
+	lastEvent, err := bucket.Latest(ctx)
 	assert.NoError(t, err)
 	if lastEvent != nil {
 		assert.Equal(t, "acs_enabled", lastEvent.Name)
@@ -337,9 +353,11 @@ func TestCreateGetWithMultipleEvents(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-	require.NoError(t, err)
-	defer eventsStore.Close()
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Setup virtualization environment
 	currentVirtEnv = host.VirtualizationEnvironment{
@@ -364,18 +382,18 @@ func TestCreateGetWithMultipleEvents(t *testing.T) {
 	}
 
 	for _, event := range events {
-		err = eventsStore.Insert(context.Background(), event)
+		err = bucket.Insert(context.Background(), event)
 		require.NoError(t, err)
 	}
 
-	getFunc := CreateGet(eventsStore)
+	getFunc := CreateGet(bucket)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	_, err = getFunc(ctx)
 	assert.NoError(t, err)
 
-	lastEvent, err := eventsStore.Latest(ctx)
+	lastEvent, err := bucket.Latest(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, lastEvent)
 	assert.Equal(t, "acs_enabled", lastEvent.Name)
@@ -429,16 +447,18 @@ func TestCreateGetWithDifferentVirtEnvTypes(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-			require.NoError(t, err)
-			defer eventsStore.Close()
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events")
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			currentVirtEnv = host.VirtualizationEnvironment{
 				IsKVM: tt.isKVM,
 				Type:  tt.virtType,
 			}
 
-			getFunc := CreateGet(eventsStore)
+			getFunc := CreateGet(bucket)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -446,7 +466,7 @@ func TestCreateGetWithDifferentVirtEnvTypes(t *testing.T) {
 			assert.NoError(t, err)
 
 			if tt.checkACS {
-				lastEvent, err := eventsStore.Latest(ctx)
+				lastEvent, err := bucket.Latest(ctx)
 				assert.NoError(t, err)
 				if lastEvent != nil {
 					assert.Equal(t, "acs_enabled", lastEvent.Name)
@@ -498,8 +518,10 @@ func TestCreateGetMetrics(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-			require.NoError(t, err)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events")
+			assert.NoError(t, err)
 
 			if tt.setupVirtEnv != nil {
 				tt.setupVirtEnv()
@@ -509,10 +531,10 @@ func TestCreateGetMetrics(t *testing.T) {
 				// Close DB to force error
 				cleanup()
 			} else {
-				defer eventsStore.Close()
+				defer bucket.Close()
 			}
 
-			getFunc := CreateGet(eventsStore)
+			getFunc := CreateGet(bucket)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -573,15 +595,17 @@ func TestCreateGetEarlyReturns(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			eventsStore, err := events_db.NewStore(dbRW, dbRO, "test", 0)
-			require.NoError(t, err)
-			defer eventsStore.Close()
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_events")
+			assert.NoError(t, err)
+			defer bucket.Close()
 
 			if tt.setupVirtEnv != nil {
 				tt.setupVirtEnv()
 			}
 
-			getFunc := CreateGet(eventsStore)
+			getFunc := CreateGet(bucket)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -590,7 +614,7 @@ func TestCreateGetEarlyReturns(t *testing.T) {
 
 			// For early returns, verify no events were created
 			if currentVirtEnv.IsKVM || currentVirtEnv.Type == "" {
-				lastEvent, err := eventsStore.Latest(ctx)
+				lastEvent, err := bucket.Latest(ctx)
 				assert.NoError(t, err)
 				assert.Nil(t, lastEvent, "Early return should not create events")
 			}

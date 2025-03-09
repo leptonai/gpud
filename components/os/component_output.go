@@ -15,7 +15,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/pkg/common"
-	events_db "github.com/leptonai/gpud/pkg/events-db"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
@@ -262,12 +262,12 @@ var (
 )
 
 // only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config, eventsStore events_db.Store) {
+func setDefaultPoller(cfg Config, eventBucket eventstore.Bucket) {
 	defaultPollerOnce.Do(func() {
 		defaultPoller = query.New(
 			os_id.Name,
 			cfg.Query,
-			createGet(cfg, eventsStore),
+			createGet(cfg, eventBucket),
 			nil,
 		)
 	})
@@ -279,7 +279,7 @@ func getDefaultPoller() query.Poller {
 
 var getSystemdDetectVirtFunc = pkg_host.SystemdDetectVirt
 
-func createGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context) (_ any, e error) {
+func createGet(cfg Config, eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		defer func() {
 			if e != nil {
@@ -312,7 +312,7 @@ func createGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context
 
 		o.MachineMetadata = currentMachineMetadata
 
-		if err = createRebootEvent(ctx, eventsStore, reboot.LastReboot); err != nil {
+		if err = createRebootEvent(ctx, eventBucket, reboot.LastReboot); err != nil {
 			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 
@@ -378,7 +378,7 @@ func createGet(cfg Config, eventsStore events_db.Store) func(ctx context.Context
 	}
 }
 
-func createRebootEvent(ctx context.Context, eventsStore events_db.Store, lastRebootTime func(ctx2 context.Context) (time.Time, error)) error {
+func createRebootEvent(ctx context.Context, eventBucket eventstore.Bucket, lastRebootTime func(ctx2 context.Context) (time.Time, error)) error {
 	// get uptime
 	bootTime, err := lastRebootTime(ctx)
 	if err != nil {
@@ -398,7 +398,7 @@ func createRebootEvent(ctx context.Context, eventsStore events_db.Store, lastReb
 	}
 	// get db latest
 	cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
-	lastEvent, err := eventsStore.Latest(cctx)
+	lastEvent, err := eventBucket.Latest(cctx)
 	ccancel()
 	if err != nil {
 		return err
@@ -409,7 +409,7 @@ func createRebootEvent(ctx context.Context, eventsStore events_db.Store, lastReb
 	}
 	// else insert event
 	cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-	if err = eventsStore.Insert(cctx, rebootEvent); err != nil {
+	if err = eventBucket.Insert(cctx, rebootEvent); err != nil {
 		ccancel()
 		return err
 	}
