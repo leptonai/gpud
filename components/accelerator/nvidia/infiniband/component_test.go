@@ -266,9 +266,9 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -365,9 +365,9 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -424,9 +424,9 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -475,9 +475,9 @@ func TestCheckIbstatOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -549,9 +549,9 @@ func TestGetStates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -702,9 +702,9 @@ func TestEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -767,9 +767,9 @@ func TestClose(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1031,7 +1031,7 @@ func TestNewWithLogLineProcessor(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -27,7 +27,7 @@ func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands 
 	var llp *logLineProcessor
 	if checkFMExists() {
 		var err error
-		eventBucket, err = eventStore.Bucket(fabric_manager_id.Name, 0)
+		eventBucket, err = eventStore.Bucket(fabric_manager_id.Name)
 		if err != nil {
 			ccancel()
 			return nil, err

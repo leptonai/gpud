@@ -118,7 +118,7 @@ func TestSXIDComponent_SetHealthy(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
 	component := New(ctx, store)
@@ -140,7 +140,7 @@ func TestSXIDComponent_Events(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 	component := New(ctx, store)
 	assert.NotNil(t, component)
@@ -188,7 +188,7 @@ func TestSXIDComponent_States(t *testing.T) {
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 	component := New(ctx, store)
 	assert.NotNil(t, component)

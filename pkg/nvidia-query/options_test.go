@@ -36,7 +36,7 @@ func TestOpOptions(t *testing.T) {
 
 		// Check custom values
 		assert.Equal(t, mockBucket, op.xidEventsBucket)
-		assert.Equal(t, mockBucket, op.hwslowdownEventsBucket)
+		assert.Equal(t, mockBucket, op.hwSlowdownEventsBucket)
 		assert.Equal(t, "/custom/nvidia-smi-query", op.nvidiaSMIQueryCommand)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
 		assert.True(t, op.debug)

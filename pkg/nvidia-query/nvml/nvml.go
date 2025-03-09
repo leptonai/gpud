@@ -86,7 +86,7 @@ type instance struct {
 	// read-only database instance
 	dbRO *sql.DB
 
-	hwslowdownEventBucket eventstore.Bucket
+	hwSlowdownEventBucket eventstore.Bucket
 
 	clockEventsSupported bool
 
@@ -260,7 +260,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
 
-		hwslowdownEventBucket: op.hwSlowdownEventBucket,
+		hwSlowdownEventBucket: op.hwSlowdownEventBucket,
 
 		clockEventsSupported: clockEventsSupported,
 
@@ -469,14 +469,14 @@ func (inst *instance) Get() (*Output, error) {
 					ev := createEventFromClockEvents(clockEvents)
 					if ev != nil {
 						cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
-						found, err := inst.hwslowdownEventBucket.Find(cctx, *ev)
+						found, err := inst.hwSlowdownEventBucket.Find(cctx, *ev)
 						ccancel()
 						if err != nil {
 							log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
 							joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
 						} else if found != nil {
 							cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
-							err = inst.hwslowdownEventBucket.Insert(cctx, *ev)
+							err = inst.hwSlowdownEventBucket.Insert(cctx, *ev)
 							ccancel()
 							if err != nil {
 								log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)

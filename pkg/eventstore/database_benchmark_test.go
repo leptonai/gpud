@@ -31,11 +31,11 @@ func TestSimulatedEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	database, err := New(dbRW, dbRO)
+	database, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
 
 	tableName := defaultTableName("hello")
-	bucket, err := database.Bucket(tableName, 0)
+	bucket, err := database.Bucket(tableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 	daysToIngest := 3

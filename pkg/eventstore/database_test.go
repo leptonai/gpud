@@ -83,9 +83,9 @@ func TestTableInsertsReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -134,9 +134,9 @@ func TestGetEventsTimeRange(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -195,9 +195,9 @@ func TestEmptyResults(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -218,9 +218,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -278,9 +278,9 @@ func TestPurgePartial(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -310,7 +310,7 @@ func TestPurgePartial(t *testing.T) {
 		assert.NoError(t, bucket.Insert(ctx, ev))
 	}
 
-	// purge only old events
+	// Purge only old events
 	deleted, err := bucket.Purge(ctx, baseTime.Add(-5*time.Minute).Unix())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, deleted)
@@ -346,9 +346,9 @@ func TestFindEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -392,9 +392,9 @@ func TestFindEventPartialMatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -438,9 +438,9 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -505,9 +505,9 @@ func TestEventWithIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -572,9 +572,9 @@ func TestNullEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -610,9 +610,9 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -675,9 +675,9 @@ func TestInvalidTableName(t *testing.T) {
 	defer cleanup()
 
 	// Test with invalid table name
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	_, err = store.Bucket("invalid;table;name", 0)
+	_, err = store.Bucket("invalid;table;name")
 	assert.Error(t, err)
 }
 
@@ -689,9 +689,9 @@ func TestContextCancellation(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -729,9 +729,9 @@ func TestConcurrentAccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -785,9 +785,9 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -841,9 +841,9 @@ func TestLargeEventDetails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -882,9 +882,9 @@ func TestTimestampBoundaries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -938,9 +938,9 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1012,9 +1012,9 @@ func TestEventMessage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1115,9 +1115,9 @@ func TestNilSuggestedActions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1152,9 +1152,9 @@ func TestInvalidJSONHandling(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1202,9 +1202,9 @@ func TestLongEventFields(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1256,9 +1256,9 @@ func TestConcurrentTableCreation(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			store, err := New(dbRW, dbRO)
+			store, err := New(dbRW, dbRO, 0)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket(tableName, 0)
+			bucket, err := store.Bucket(tableName)
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -1291,9 +1291,9 @@ func TestEventTypeValidation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -1399,9 +1399,9 @@ func TestLatest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := New(dbRW, dbRO)
+	store, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName, 0)
+	bucket, err := store.Bucket(testTableName)
 	assert.NoError(t, err)
 	defer bucket.Close()
 

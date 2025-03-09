@@ -21,7 +21,7 @@ func TestComponentEvents(t *testing.T) {
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -129,9 +129,9 @@ func TestEventsWithProcessor(t *testing.T) {
 	mockW := newMockWatcher()
 
 	// Create events store
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(fabric_manager_id.Name, 0)
+	bucket, err := store.Bucket(fabric_manager_id.Name)
 	require.NoError(t, err)
 
 	// Create a processor

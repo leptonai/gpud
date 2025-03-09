@@ -49,7 +49,7 @@ func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
 
 	extraEventCh := make(chan *components.Event, 256)
-	eventBucket, err := eventStore.Bucket(nvidia_component_error_sxid_id.Name, DefaultRetentionPeriod)
+	eventBucket, err := eventStore.Bucket(nvidia_component_error_sxid_id.Name)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()

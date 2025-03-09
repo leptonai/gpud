@@ -45,7 +45,7 @@ func SetDefaultExpectedPortStates(states infiniband.ExpectedPortStates) {
 }
 
 func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_infiniband_id.Name, 0)
+	eventBucket, err := eventStore.Bucket(nvidia_infiniband_id.Name)
 	if err != nil {
 		return nil, err
 	}

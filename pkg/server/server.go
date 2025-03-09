@@ -154,7 +154,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	eventStore, err := eventstore.New(dbRW, dbRO)
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
@@ -189,11 +189,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	var xidEventBucket eventstore.Bucket
 	var hwSlowdownEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		xidEventBucket, err = eventStore.Bucket(nvidia_component_error_xid_id.Name, 0)
+		xidEventBucket, err = eventStore.Bucket(nvidia_component_error_xid_id.Name)
 		if err != nil {
 			return nil, err
 		}
-		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name, 0)
+		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
 		if err != nil {
 			return nil, err
 		}

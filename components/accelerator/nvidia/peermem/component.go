@@ -19,7 +19,7 @@ import (
 )
 
 func New(ctx context.Context, cfg nvidia_common.Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_peermem_id.Name, 0)
+	eventBucket, err := eventStore.Bucket(nvidia_peermem_id.Name)
 	if err != nil {
 		return nil, err
 	}

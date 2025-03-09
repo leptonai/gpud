@@ -27,9 +27,9 @@ func TestGet(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -110,9 +110,9 @@ func TestCreateGet(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -154,9 +154,9 @@ func TestDefaultPoller(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -191,9 +191,9 @@ func TestCreateGetWithFailedEventStore(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -216,9 +216,9 @@ func TestCreateGetWithContextTimeout(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -247,9 +247,9 @@ func TestCreateGetWithEventStoreInsertError(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -272,9 +272,9 @@ func TestCreateGetWithOldEvent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -317,9 +317,9 @@ func TestCreateGetWithEmptyEventStore(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -353,9 +353,9 @@ func TestCreateGetWithMultipleEvents(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -447,9 +447,9 @@ func TestCreateGetWithDifferentVirtEnvTypes(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -518,9 +518,9 @@ func TestCreateGetMetrics(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 
 			if tt.setupVirtEnv != nil {
@@ -595,9 +595,9 @@ func TestCreateGetEarlyReturns(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 

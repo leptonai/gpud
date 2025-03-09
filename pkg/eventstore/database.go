@@ -51,45 +51,46 @@ const (
 )
 
 var (
-	_ Store  = &Database{}
-	_ Bucket = &tableImpl{}
+	_ Store  = &database{}
+	_ Bucket = &table{}
 )
 
-type Database struct {
-	dbRW *sql.DB
-	dbRO *sql.DB
+type database struct {
+	dbRW      *sql.DB
+	dbRO      *sql.DB
+	retention time.Duration
 }
 
-type tableImpl struct {
-	rootCtx    context.Context
-	rootCancel context.CancelFunc
+type table struct {
+	rootCtx       context.Context
+	rootCancel    context.CancelFunc
+	retention     time.Duration
+	checkInterval time.Duration
 
 	table string
 	dbRW  *sql.DB
 	dbRO  *sql.DB
-
-	retention     time.Duration
-	checkInterval time.Duration
 }
 
-func New(dbRW *sql.DB, dbRO *sql.DB) (*Database, error) {
-	return &Database{
-		dbRW: dbRW,
-		dbRO: dbRO,
+func New(dbRW *sql.DB, dbRO *sql.DB, retention time.Duration) (Store, error) {
+	return &database{
+		dbRW:      dbRW,
+		dbRO:      dbRO,
+		retention: retention,
 	}, nil
 }
 
-func (d *Database) Bucket(name string, retention time.Duration) (Bucket, error) {
+func (d *database) Bucket(name string) (Bucket, error) {
 	// actual check interval should be lower than the retention period
 	// in case of GPUd restarts
-	checkInterval := retention / 5
+	checkInterval := d.retention / 5
 	if checkInterval < time.Second {
 		checkInterval = time.Second
 	}
-	return newTable(d.dbRW, d.dbRO, name, retention, checkInterval)
+	return newTable(d.dbRW, d.dbRO, name, d.retention, checkInterval)
 }
 
-func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, checkInterval time.Duration) (Bucket, error) {
+func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, checkInterval time.Duration) (*table, error) {
 	tableName := defaultTableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
@@ -99,7 +100,7 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 	}
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
-	s := &tableImpl{
+	t := &table{
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
 		table:         tableName,
@@ -108,9 +109,10 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 		retention:     retention,
 		checkInterval: checkInterval,
 	}
-	go s.runPurge()
-
-	return s, nil
+	if retention > time.Second {
+		go t.runPurge()
+	}
+	return t, nil
 }
 
 // defaultTableName creates the default table name for the component.
@@ -125,23 +127,17 @@ func defaultTableName(componentName string) string {
 	return tableName
 }
 
-func (t *tableImpl) Name() string {
+func (t *table) Name() string {
 	return t.table
 }
 
-func (t *tableImpl) runPurge() {
-	if t.retention < time.Second {
-		return
-	}
-
-	checkInterval := t.checkInterval
-
-	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention)
+func (t *table) runPurge() {
+	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention, "checkInterval", t.checkInterval)
 	for {
 		select {
 		case <-t.rootCtx.Done():
 			return
-		case <-time.After(checkInterval):
+		case <-time.After(t.checkInterval):
 		}
 
 		now := time.Now().UTC()
@@ -154,32 +150,32 @@ func (t *tableImpl) runPurge() {
 	}
 }
 
-func (t *tableImpl) Close() {
+func (t *table) Close() {
 	log.Logger.Infow("closing the store", "table", t.table)
 	if t.rootCancel != nil {
 		t.rootCancel()
 	}
 }
 
-func (t *tableImpl) Insert(ctx context.Context, ev components.Event) error {
+func (t *table) Insert(ctx context.Context, ev components.Event) error {
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
-func (t *tableImpl) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
+func (t *table) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
 	return findEvent(ctx, t.dbRO, t.table, ev)
 }
 
 // Get queries the event in the descending order of timestamp (latest event first).
-func (t *tableImpl) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (t *table) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return getEvents(ctx, t.dbRO, t.table, since)
 }
 
 // Latest queries the latest event, returns nil if no event found.
-func (t *tableImpl) Latest(ctx context.Context) (*components.Event, error) {
+func (t *table) Latest(ctx context.Context) (*components.Event, error) {
 	return lastEvent(ctx, t.dbRO, t.table)
 }
 
-func (t *tableImpl) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (t *table) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	return purgeEvents(ctx, t.dbRW, t.table, beforeTimestamp)
 }
 

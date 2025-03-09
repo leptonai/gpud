@@ -18,7 +18,7 @@ const (
 )
 
 func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(os_id.Name, 0)
+	eventBucket, err := eventStore.Bucket(os_id.Name)
 	if err != nil {
 		return nil, err
 	}

@@ -89,7 +89,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithHWSlowdownEventBucket(op.hwslowdownEventsBucket),
+		nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,
@@ -212,7 +212,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
 			for _, event := range events {
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				found, err := op.hwslowdownEventsBucket.Find(cctx, event)
+				found, err := op.hwSlowdownEventsBucket.Find(cctx, event)
 				ccancel()
 				if err != nil {
 					log.Logger.Warnw("failed to find clock events from db", "error", err, "info", event.ExtraInfo)
@@ -225,7 +225,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 				log.Logger.Warnw("detected hw slowdown clock events", "info", event.ExtraInfo)
 				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				err = op.hwslowdownEventsBucket.Insert(cctx, event)
+				err = op.hwSlowdownEventsBucket.Insert(cctx, event)
 				ccancel()
 				if err != nil {
 					log.Logger.Warnw("failed to insert clock events to db", "error", err, "info", event.ExtraInfo)

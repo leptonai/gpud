@@ -15,7 +15,7 @@ import (
 )
 
 func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_nccl_id.Name, 0)
+	eventBucket, err := eventStore.Bucket(nvidia_nccl_id.Name)
 	if err != nil {
 		return nil, err
 	}

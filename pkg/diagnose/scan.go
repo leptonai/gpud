@@ -117,17 +117,17 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 		defer db.Close()
 
-		eventStore, err := eventstore.New(db, db)
+		eventStore, err := eventstore.New(db, db, eventstore.DefaultRetention)
 		if err != nil {
 			log.Logger.Fatalw("failed to open database", "error", err)
 		}
 
-		xidEventBucket, err := eventStore.Bucket(nvidia_component_error_xid_id.Name, 0)
+		xidEventBucket, err := eventStore.Bucket(nvidia_component_error_xid_id.Name)
 		if err != nil {
 			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}
 
-		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown_id.Name, 0)
+		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown_id.Name)
 		if err != nil {
 			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}

@@ -46,7 +46,7 @@ func createTestComponent(t *testing.T) (components.Component, context.Context, f
 	ctx := context.Background()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
 
 	cfg := Config{

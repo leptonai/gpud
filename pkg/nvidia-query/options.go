@@ -6,7 +6,7 @@ import (
 
 type Op struct {
 	xidEventsBucket        eventstore.Bucket
-	hwslowdownEventsBucket eventstore.Bucket
+	hwSlowdownEventsBucket eventstore.Bucket
 	nvidiaSMIQueryCommand  string
 	ibstatCommand          string
 	debug                  bool
@@ -37,7 +37,7 @@ func WithXidEventBucket(bucket eventstore.Bucket) OpOption {
 
 func WithHWSlowdownEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
-		op.hwslowdownEventsBucket = bucket
+		op.hwSlowdownEventsBucket = bucket
 	}
 }
 

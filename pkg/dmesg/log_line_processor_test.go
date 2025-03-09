@@ -29,9 +29,9 @@ func TestLogLineProcessor(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test", 0)
+	bucket, err := store.Bucket("test")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -83,9 +83,9 @@ func TestEventsWatcherSkipsEmptyNames(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test", 0)
+	bucket, err := store.Bucket("test")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -146,9 +146,9 @@ func TestNewLogLineProcessorDefaultWatcher(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test", 0)
+	bucket, err := store.Bucket("test")
 	assert.NoError(t, err)
 	defer bucket.Close()
 

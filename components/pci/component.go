@@ -23,7 +23,7 @@ type component struct {
 }
 
 func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(id.Name, 0)
+	eventBucket, err := eventStore.Bucket(id.Name)
 	if err != nil {
 		return nil, err
 	}

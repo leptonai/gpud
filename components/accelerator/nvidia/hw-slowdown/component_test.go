@@ -350,9 +350,9 @@ func TestComponentStates(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -473,9 +473,9 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO)
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events", 0)
+			bucket, err := store.Bucket("test_events")
 			assert.NoError(t, err)
 			defer bucket.Close()
 
@@ -524,9 +524,9 @@ func TestComponentEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
@@ -837,9 +837,9 @@ func TestStatesWithDataSources(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO)
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events", 0)
+	bucket, err := store.Bucket("test_events")
 	assert.NoError(t, err)
 	defer bucket.Close()
 
