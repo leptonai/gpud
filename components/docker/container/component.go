@@ -12,7 +12,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 // Name is the ID of the Docker container component.
@@ -25,6 +25,9 @@ type component struct {
 	cancel context.CancelFunc
 
 	checkDependencyInstalled func() bool
+
+	// return true if the systemd service is active, otherwise false
+	checkServiceActive func(context.Context) (bool, error)
 
 	// In case the docker daemon is not running, we ignore such errors as
 	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
@@ -39,8 +42,16 @@ func New(ctx context.Context, ignoreConnectionErrors bool) components.Component 
 	c := &component{
 		ctx:                      cctx,
 		cancel:                   cancel,
-		ignoreConnectionErrors:   ignoreConnectionErrors,
 		checkDependencyInstalled: checkDockerInstalled,
+		checkServiceActive: func(ctx context.Context) (bool, error) {
+			conn, err := systemd.NewDbusConn(ctx)
+			if err != nil {
+				return false, err
+			}
+			defer conn.Close()
+			return conn.IsActive(ctx, "docker")
+		},
+		ignoreConnectionErrors: ignoreConnectionErrors,
 	}
 	return c
 }
@@ -117,9 +128,16 @@ func (c *component) CheckOnce() {
 		return
 	}
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	d.DockerPidFound = process.CheckRunningByPid(cctx, "docker")
-	ccancel()
+	if c.checkServiceActive != nil {
+		var err error
+		cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+		d.DockerServiceActive, err = c.checkServiceActive(cctx)
+		ccancel()
+		if !d.DockerServiceActive || err != nil {
+			d.err = fmt.Errorf("docker is installed but docker service is not active or failed to check (error %v)", err)
+			return
+		}
+	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
 	d.Containers, d.err = listContainers(cctx)
@@ -133,8 +151,9 @@ func (c *component) CheckOnce() {
 }
 
 type Data struct {
-	// DockerPidFound is true if the docker pid is found.
-	DockerPidFound bool `json:"docker_pid_found,omitempty"`
+	// DockerServiceActive is true if the docker service is active.
+	DockerServiceActive bool `json:"docker_service_active"`
+
 	// Containers is the list of containers.
 	Containers []DockerContainer `json:"containers,omitempty"`
 

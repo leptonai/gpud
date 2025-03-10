@@ -159,21 +159,21 @@ func Test_marshalJSON(t *testing.T) {
 		{
 			name:     "empty data",
 			data:     Data{},
-			expected: `{"kubelet_pid_found":false}`,
+			expected: `{"kubelet_service_active":false}`,
 		},
 		{
 			name: "with node name",
 			data: Data{
-				KubeletPidFound: true,
-				NodeName:        "test-node",
+				KubeletServiceActive: true,
+				NodeName:             "test-node",
 			},
-			expected: `{"kubelet_pid_found":true,"node_name":"test-node"}`,
+			expected: `{"kubelet_service_active":true,"node_name":"test-node"}`,
 		},
 		{
 			name: "with pods",
 			data: Data{
-				KubeletPidFound: true,
-				NodeName:        "test-node",
+				KubeletServiceActive: true,
+				NodeName:             "test-node",
 				Pods: []PodStatus{
 					{
 						Name:      "test-pod",
@@ -182,7 +182,7 @@ func Test_marshalJSON(t *testing.T) {
 					},
 				},
 			},
-			expected: `{"kubelet_pid_found":true,"node_name":"test-node","pods":[{"name":"test-pod","namespace":"default","phase":"Running"}]}`,
+			expected: `{"kubelet_service_active":true,"node_name":"test-node","pods":[{"name":"test-pod","namespace":"default","phase":"Running"}]}`,
 		},
 	}
 
@@ -937,6 +937,7 @@ func Test_componentCheckOnce(t *testing.T) {
 		cancel:                   cancel,
 		checkDependencyInstalled: func() bool { return true },
 		kubeletReadOnlyPort:      int(port),
+		checkServiceActive:       func(ctx context.Context) (bool, error) { return true, nil },
 		ignoreConnectionErrors:   false,
 	}
 

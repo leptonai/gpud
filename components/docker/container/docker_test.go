@@ -164,7 +164,7 @@ func TestConvertToDockerContainer(t *testing.T) {
 
 func TestDataMarshalJSON(t *testing.T) {
 	d := &Data{
-		DockerPidFound: true,
+		DockerServiceActive: true,
 		Containers: []DockerContainer{
 			{
 				ID:    "test-id",
@@ -182,6 +182,6 @@ func TestDataMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(json), "test-id")
 	assert.Contains(t, string(json), "test-name")
 	assert.Contains(t, string(json), "test-image")
-	assert.Contains(t, string(json), "docker_pid_found")
+	assert.Contains(t, string(json), "docker_service_active")
 	assert.Contains(t, string(json), "containers")
 }

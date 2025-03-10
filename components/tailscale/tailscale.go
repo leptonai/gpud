@@ -1,13 +1,16 @@
 package tailscale
 
 import (
-	"os/exec"
+	pkg_file "github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
-func TailscaleExists() bool {
-	p, err := exec.LookPath("tailscale")
-	if err != nil {
-		return false
+func checkTailscaledInstalled() bool {
+	p, err := pkg_file.LocateExecutable("tailscaled")
+	if err == nil {
+		log.Logger.Debugw("tailscaled found in PATH", "path", p)
+		return true
 	}
-	return p != ""
+	log.Logger.Debugw("tailscaled not found in PATH", "error", err)
+	return false
 }

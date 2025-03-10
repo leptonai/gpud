@@ -11,7 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 // Name is the ID of the kubernetes pod component.
@@ -25,6 +25,9 @@ type component struct {
 
 	checkDependencyInstalled func() bool
 	kubeletReadOnlyPort      int
+
+	// return true if the systemd service is active, otherwise false
+	checkServiceActive func(context.Context) (bool, error)
 
 	// In case the kubelet does not open the read-only port, we ignore such errors as
 	// 'Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused'.
@@ -41,7 +44,15 @@ func New(ctx context.Context, kubeletReadOnlyPort int, ignoreConnectionErrors bo
 		cancel:                   cancel,
 		checkDependencyInstalled: checkKubeletInstalled,
 		kubeletReadOnlyPort:      kubeletReadOnlyPort,
-		ignoreConnectionErrors:   ignoreConnectionErrors,
+		checkServiceActive: func(ctx context.Context) (bool, error) {
+			conn, err := systemd.NewDbusConn(ctx)
+			if err != nil {
+				return false, err
+			}
+			defer conn.Close()
+			return conn.IsActive(ctx, "kubelet")
+		},
+		ignoreConnectionErrors: ignoreConnectionErrors,
 	}
 	return c
 }
@@ -118,9 +129,16 @@ func (c *component) CheckOnce() {
 		return
 	}
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	d.KubeletPidFound = process.CheckRunningByPid(cctx, "kubelet")
-	ccancel()
+	if c.checkServiceActive != nil {
+		var err error
+		cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+		d.KubeletServiceActive, err = c.checkServiceActive(cctx)
+		ccancel()
+		if !d.KubeletServiceActive || err != nil {
+			d.err = fmt.Errorf("kubelet is installed but kubelet service is not active or failed to check (error %v)", err)
+			return
+		}
+	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
 	d.NodeName, d.Pods, d.err = listPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
@@ -130,8 +148,8 @@ func (c *component) CheckOnce() {
 }
 
 type Data struct {
-	// KubeletPidFound is true if the kubelet pid is found.
-	KubeletPidFound bool `json:"kubelet_pid_found"`
+	// KubeletServiceActive is true if the kubelet service is active.
+	KubeletServiceActive bool `json:"kubelet_service_active"`
 	// NodeName is the name of the node.
 	NodeName string `json:"node_name,omitempty"`
 	// Pods is the list of pods on the node.

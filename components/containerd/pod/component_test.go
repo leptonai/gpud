@@ -289,7 +289,7 @@ func TestDataMarshalJSON(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, jsonData)
 		// Empty data should marshal to an empty JSON object
-		assert.Equal(t, "{}", string(jsonData))
+		assert.Equal(t, "{\"containerd_service_active\":false}", string(jsonData))
 	})
 
 	t.Run("data with pods", func(t *testing.T) {

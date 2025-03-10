@@ -95,7 +95,6 @@ import (
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
-	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
@@ -428,19 +427,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case tailscale_id.Name:
-			cfg := tailscale.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := tailscale.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, tailscale.New(ctx, cfg))
+		case tailscale.Name:
+			allComponents = append(allComponents, tailscale.New(ctx))
 
 		case nvidia_info.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}

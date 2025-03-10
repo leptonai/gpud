@@ -48,7 +48,6 @@ import (
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
-	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
@@ -162,32 +161,14 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			}
 
 			log.Logger.Debugw("auto-detected systemd -- configuring systemd component")
-
-			systemdCfg := component_systemd.DefaultConfig()
-
-			if active, err := pkd_systemd.IsActive("kubelet"); err == nil && active {
-				systemdCfg.Units = append(systemdCfg.Units, "kubelet")
-			}
-
-			if active, err := pkd_systemd.IsActive("docker"); err == nil && active {
-				systemdCfg.Units = append(systemdCfg.Units, "docker")
-			}
-
-			if active, err := pkd_systemd.IsActive("tailscaled"); err == nil && active {
-				systemdCfg.Units = append(systemdCfg.Units, "tailscaled")
-			}
-
-			cfg.Components[component_systemd_id.Name] = systemdCfg
+			cfg.Components[component_systemd_id.Name] = component_systemd.DefaultConfig()
 		}
 	} else {
 		log.Logger.Debugw("auto-detect systemd not supported -- skipping", "os", runtime.GOOS)
 	}
 
 	if runtime.GOOS == "linux" {
-		if tailscale.TailscaleExists() {
-			log.Logger.Debugw("auto-detected tailscale -- configuring tailscale component")
-			cfg.Components[tailscale_id.Name] = nil
-		}
+		cfg.Components[tailscale.Name] = nil
 	} else {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}

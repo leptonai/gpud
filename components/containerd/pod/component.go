@@ -14,6 +14,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 // Name is the ID of the containerd pod component.
@@ -27,7 +28,11 @@ type component struct {
 
 	// returns true if the dependency is installed, thus requires the component checks
 	checkDependencyInstalled func() bool
-	endpoint                 string
+
+	// return true if the systemd service is active, otherwise false
+	checkServiceActive func(context.Context) (bool, error)
+
+	endpoint string
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -39,7 +44,15 @@ func New(ctx context.Context) components.Component {
 		ctx:                      cctx,
 		cancel:                   cancel,
 		checkDependencyInstalled: checkContainerdInstalled,
-		endpoint:                 defaultContainerRuntimeEndpoint,
+		checkServiceActive: func(ctx context.Context) (bool, error) {
+			conn, err := systemd.NewDbusConn(ctx)
+			if err != nil {
+				return false, err
+			}
+			defer conn.Close()
+			return conn.IsActive(ctx, "containerd")
+		},
+		endpoint: defaultContainerRuntimeEndpoint,
 	}
 	return c
 }
@@ -121,12 +134,26 @@ func (c *component) CheckOnce() {
 		return
 	}
 
+	if c.checkServiceActive != nil {
+		var err error
+		cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+		d.ContainerdServiceActive, err = c.checkServiceActive(cctx)
+		ccancel()
+		if !d.ContainerdServiceActive || err != nil {
+			d.err = fmt.Errorf("containerd is installed but containerd service is not active or failed to check (error %v)", err)
+			return
+		}
+	}
+
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
 	d.Pods, d.err = listSandboxStatus(cctx, c.endpoint)
 	ccancel()
 }
 
 type Data struct {
+	// ContainerdServiceActive is true if the containerd service is active.
+	ContainerdServiceActive bool `json:"containerd_service_active"`
+
 	// Pods is the list of pods on the node.
 	Pods []PodSandbox `json:"pods,omitempty"`
 
