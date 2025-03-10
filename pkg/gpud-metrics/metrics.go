@@ -37,15 +37,6 @@ var (
 		},
 		[]string{"component"},
 	)
-	componentsGet = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "gpud",
-			Subsystem: "components",
-			Name:      "get",
-			Help:      "current get success/failed status of components",
-		},
-		[]string{"component", "status"},
-	)
 )
 
 func Register(reg *prometheus.Registry) error {
@@ -56,9 +47,6 @@ func Register(reg *prometheus.Registry) error {
 		return err
 	}
 	if err := reg.Register(componentsUnhealthy); err != nil {
-		return err
-	}
-	if err := reg.Register(componentsGet); err != nil {
 		return err
 	}
 	return nil
@@ -76,14 +64,6 @@ func SetHealthy(componentName string) {
 func SetUnhealthy(componentName string) {
 	componentsHealthy.With(prometheus.Labels{"component": componentName}).Set(0.0)
 	componentsUnhealthy.With(prometheus.Labels{"component": componentName}).Set(1.0)
-}
-
-func SetGetSuccess(componentName string) {
-	componentsGet.With(prometheus.Labels{"component": componentName, "status": "success"}).Inc()
-}
-
-func SetGetFailed(componentName string) {
-	componentsGet.With(prometheus.Labels{"component": componentName, "status": "failed"}).Inc()
 }
 
 func ReadRegisteredTotal(gatherer prometheus.Gatherer) (int64, error) {

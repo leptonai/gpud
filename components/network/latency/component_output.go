@@ -11,7 +11,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/network/latency/metrics"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	"github.com/leptonai/gpud/pkg/query"
@@ -99,14 +98,6 @@ func createGetFunc(cfg Config) query.GetFunc {
 	}
 
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(network_latency_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(network_latency_id.Name)
-			}
-		}()
-
 		now := time.Now().UTC()
 		nowUTC := float64(now.Unix())
 		metrics.SetLastUpdateUnixSeconds(nowUTC)

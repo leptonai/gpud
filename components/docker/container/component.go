@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -130,12 +129,6 @@ func (c *component) CheckOnce() {
 	// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 	if d.err != nil && (strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running")) {
 		d.connErr = true
-	}
-
-	if d.err != nil {
-		components_metrics.SetGetFailed(Name)
-	} else {
-		components_metrics.SetGetSuccess(Name)
 	}
 }
 

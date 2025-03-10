@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/leptonai/gpud/components"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -125,12 +124,6 @@ func (c *component) CheckOnce() {
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
 	d.Pods, d.err = listSandboxStatus(cctx, c.endpoint)
 	ccancel()
-
-	if d.err != nil {
-		components_metrics.SetGetFailed(Name)
-	} else {
-		components_metrics.SetGetSuccess(Name)
-	}
 }
 
 type Data struct {

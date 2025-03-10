@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -128,12 +127,6 @@ func (c *component) CheckOnce() {
 	ccancel()
 
 	d.connErr = isConnectionRefusedError(d.err)
-
-	if d.err != nil {
-		components_metrics.SetGetFailed(Name)
-	} else {
-		components_metrics.SetGetSuccess(Name)
-	}
 }
 
 type Data struct {

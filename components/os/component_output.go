@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -281,14 +280,6 @@ var getSystemdDetectVirtFunc = pkg_host.SystemdDetectVirt
 
 func createGet(cfg Config, eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(os_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(os_id.Name)
-			}
-		}()
-
 		o := &Output{}
 
 		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)

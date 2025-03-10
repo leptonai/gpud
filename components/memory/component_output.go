@@ -11,7 +11,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
 	"github.com/leptonai/gpud/components/memory/metrics"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/dustin/go-humanize"
@@ -125,14 +124,6 @@ func getDefaultPoller() query.Poller {
 }
 
 func Get(ctx context.Context) (_ any, e error) {
-	defer func() {
-		if e != nil {
-			components_metrics.SetGetFailed(memory_id.Name)
-		} else {
-			components_metrics.SetGetSuccess(memory_id.Name)
-		}
-	}()
-
 	vm, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
 		return nil, err

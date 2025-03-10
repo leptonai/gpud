@@ -10,7 +10,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	systemd_id "github.com/leptonai/gpud/components/systemd/id"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -95,14 +94,6 @@ func getDefaultPoller() query.Poller {
 
 func CreateGet(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(systemd_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(systemd_id.Name)
-			}
-		}()
-
 		ver, _, err := systemd.CheckVersion()
 		if err != nil {
 			return nil, err

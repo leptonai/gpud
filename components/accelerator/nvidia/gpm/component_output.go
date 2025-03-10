@@ -7,7 +7,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/query"
 )
@@ -70,14 +69,6 @@ func getDefaultPoller() query.Poller {
 // the query.GetFunc is already called periodically in a loop by the poller
 func CreateGet() query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(Name)
-			} else {
-				components_metrics.SetGetSuccess(Name)
-			}
-		}()
-
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

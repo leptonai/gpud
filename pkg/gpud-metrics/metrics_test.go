@@ -149,30 +149,6 @@ func TestSetAndReadFunctions(t *testing.T) {
 	unhealthyTotal, err = ReadUnhealthyTotal(registry)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), unhealthyTotal, "Should have 2 unhealthy components")
-
-	// Test Get Success/Failure behavior
-	SetGetSuccess("test_set_1")
-	SetGetSuccess("test_set_2")
-	SetGetFailed("test_set_3")
-
-	successTotal, err := ReadGetSuccessTotal(registry)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2), successTotal, "Should have 2 get-success components")
-
-	failedTotal, err := ReadGetFailedTotal(registry)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(1), failedTotal, "Should have 1 get-failed component")
-
-	// Test changing from success to failed
-	SetGetFailed("test_set_1")
-
-	successTotal, err = ReadGetSuccessTotal(registry)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2), successTotal, "Should have 2 get-success component")
-
-	failedTotal, err = ReadGetFailedTotal(registry)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2), failedTotal, "Should have 2 get-failed components")
 }
 
 func TestReadFunctionsWithErrorGatherer(t *testing.T) {
