@@ -144,9 +144,9 @@ func TestDataGetStates(t *testing.T) {
 		{
 			name: "No containers",
 			data: Data{
-				DockerPidFound: true,
-				Containers:     []DockerContainer{},
-				err:            nil,
+				DockerServiceActive: true,
+				Containers:          []DockerContainer{},
+				err:                 nil,
 			},
 			ignoreConnErr: false,
 			expectError:   false,
@@ -155,9 +155,9 @@ func TestDataGetStates(t *testing.T) {
 		{
 			name: "With containers",
 			data: Data{
-				DockerPidFound: true,
-				Containers:     []DockerContainer{{ID: "test-id"}},
-				err:            nil,
+				DockerServiceActive: true,
+				Containers:          []DockerContainer{{ID: "test-id"}},
+				err:                 nil,
 			},
 			ignoreConnErr: false,
 			expectError:   false,
@@ -240,11 +240,11 @@ func TestComponentStates(t *testing.T) {
 
 	// Test with empty data
 	comp.lastData = &Data{
-		DockerPidFound: true,
-		Containers:     []DockerContainer{},
-		ts:             time.Now(),
-		err:            nil,
-		connErr:        false,
+		DockerServiceActive: true,
+		Containers:          []DockerContainer{},
+		ts:                  time.Now(),
+		err:                 nil,
+		connErr:             false,
 	}
 
 	states, err := comp.States(ctx)
@@ -256,7 +256,7 @@ func TestComponentStates(t *testing.T) {
 
 	// Test with containers
 	comp.lastData = &Data{
-		DockerPidFound: true,
+		DockerServiceActive: true,
 		Containers: []DockerContainer{
 			{ID: "test-id", Name: "test-name"},
 		},
@@ -272,11 +272,11 @@ func TestComponentStates(t *testing.T) {
 
 	// Test with error but ignoreConnectionErrors is true
 	comp.lastData = &Data{
-		DockerPidFound: false,
-		Containers:     []DockerContainer{},
-		ts:             time.Now(),
-		err:            errors.New("Cannot connect to the Docker daemon"),
-		connErr:        true,
+		DockerServiceActive: false,
+		Containers:          []DockerContainer{},
+		ts:                  time.Now(),
+		err:                 errors.New("Cannot connect to the Docker daemon"),
+		connErr:             true,
 	}
 
 	states, err = comp.States(ctx)
@@ -296,11 +296,11 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Test with connection error
 	mockData := &Data{
-		DockerPidFound: false,
-		Containers:     []DockerContainer{},
-		ts:             time.Now(),
-		err:            errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
-		connErr:        true,
+		DockerServiceActive: false,
+		Containers:          []DockerContainer{},
+		ts:                  time.Now(),
+		err:                 errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
+		connErr:             true,
 	}
 
 	comp.lastMu.Lock()
@@ -326,7 +326,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Test with client version newer than daemon error
 	mockData = &Data{
-		DockerPidFound: false,
+		DockerServiceActive: false,
 		Containers: []DockerContainer{
 			{ID: "test-id"},
 		},
@@ -458,7 +458,7 @@ func TestCheckOnceMetrics(t *testing.T) {
 
 		// Set up test data with no error
 		mockData := &Data{
-			DockerPidFound: true,
+			DockerServiceActive: true,
 			Containers: []DockerContainer{
 				{ID: "test-id"},
 			},
@@ -491,11 +491,11 @@ func TestCheckOnceMetrics(t *testing.T) {
 
 		// Set up test data with error
 		mockData := &Data{
-			DockerPidFound: true,
-			Containers:     []DockerContainer{},
-			ts:             time.Now(),
-			err:            errors.New("some error"), // Error should trigger failure metric
-			connErr:        false,
+			DockerServiceActive: true,
+			Containers:          []DockerContainer{},
+			ts:                  time.Now(),
+			err:                 errors.New("some error"), // Error should trigger failure metric
+			connErr:             false,
 		}
 
 		comp.lastMu.Lock()
