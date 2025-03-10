@@ -3,7 +3,6 @@ package tailscale
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -24,7 +23,6 @@ type component struct {
 
 	checkDependencyInstalled func() bool
 
-	// return true if the systemd service is active, otherwise false
 	checkServiceActive func(context.Context) (bool, error)
 
 	lastMu   sync.RWMutex
@@ -38,12 +36,7 @@ func New(ctx context.Context) components.Component {
 		cancel:                   cancel,
 		checkDependencyInstalled: checkTailscaledInstalled,
 		checkServiceActive: func(ctx context.Context) (bool, error) {
-			conn, err := systemd.NewDbusConn(ctx)
-			if err != nil {
-				return false, err
-			}
-			defer conn.Close()
-			return conn.IsActive(ctx, "tailscaled")
+			return systemd.CheckServiceActive(ctx, "tailscaled")
 		},
 	}
 	return c
@@ -166,11 +159,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		Reason: d.getReason(),
 	}
 	state.Health, state.Healthy = d.getHealth()
-
-	b, _ := json.Marshal(d)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
 	return []components.State{state}, nil
 }

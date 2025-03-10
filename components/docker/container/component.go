@@ -25,9 +25,7 @@ type component struct {
 	cancel context.CancelFunc
 
 	checkDependencyInstalled func() bool
-
-	// return true if the systemd service is active, otherwise false
-	checkServiceActive func(context.Context) (bool, error)
+	checkServiceActive       func(context.Context) (bool, error)
 
 	// In case the docker daemon is not running, we ignore such errors as
 	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
@@ -44,12 +42,7 @@ func New(ctx context.Context, ignoreConnectionErrors bool) components.Component 
 		cancel:                   cancel,
 		checkDependencyInstalled: checkDockerInstalled,
 		checkServiceActive: func(ctx context.Context) (bool, error) {
-			conn, err := systemd.NewDbusConn(ctx)
-			if err != nil {
-				return false, err
-			}
-			defer conn.Close()
-			return conn.IsActive(ctx, "docker")
+			return systemd.CheckServiceActive(ctx, "docker")
 		},
 		ignoreConnectionErrors: ignoreConnectionErrors,
 	}

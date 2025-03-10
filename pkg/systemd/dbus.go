@@ -73,3 +73,12 @@ func checkActiveState(props map[string]interface{}, unitName string) (bool, erro
 	}
 	return s == "active", nil
 }
+
+func CheckServiceActive(ctx context.Context, name string) (bool, error) {
+	conn, err := NewDbusConn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	return conn.IsActive(ctx, name)
+}

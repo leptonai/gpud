@@ -25,9 +25,7 @@ type component struct {
 
 	checkDependencyInstalled func() bool
 	kubeletReadOnlyPort      int
-
-	// return true if the systemd service is active, otherwise false
-	checkServiceActive func(context.Context) (bool, error)
+	checkServiceActive       func(context.Context) (bool, error)
 
 	// In case the kubelet does not open the read-only port, we ignore such errors as
 	// 'Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused'.
@@ -45,12 +43,7 @@ func New(ctx context.Context, kubeletReadOnlyPort int, ignoreConnectionErrors bo
 		checkDependencyInstalled: checkKubeletInstalled,
 		kubeletReadOnlyPort:      kubeletReadOnlyPort,
 		checkServiceActive: func(ctx context.Context) (bool, error) {
-			conn, err := systemd.NewDbusConn(ctx)
-			if err != nil {
-				return false, err
-			}
-			defer conn.Close()
-			return conn.IsActive(ctx, "kubelet")
+			return systemd.CheckServiceActive(ctx, "kubelet")
 		},
 		ignoreConnectionErrors: ignoreConnectionErrors,
 	}

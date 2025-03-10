@@ -26,11 +26,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// returns true if the dependency is installed, thus requires the component checks
 	checkDependencyInstalled func() bool
-
-	// return true if the systemd service is active, otherwise false
-	checkServiceActive func(context.Context) (bool, error)
+	checkServiceActive       func(context.Context) (bool, error)
 
 	endpoint string
 
@@ -45,12 +42,7 @@ func New(ctx context.Context) components.Component {
 		cancel:                   cancel,
 		checkDependencyInstalled: checkContainerdInstalled,
 		checkServiceActive: func(ctx context.Context) (bool, error) {
-			conn, err := systemd.NewDbusConn(ctx)
-			if err != nil {
-				return false, err
-			}
-			defer conn.Close()
-			return conn.IsActive(ctx, "containerd")
+			return systemd.CheckServiceActive(ctx, "containerd")
 		},
 		endpoint: defaultContainerRuntimeEndpoint,
 	}
