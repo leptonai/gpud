@@ -36,11 +36,6 @@ import (
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
-	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
-	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
@@ -63,8 +58,11 @@ import (
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
+	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
@@ -179,7 +177,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	var xidEventBucket eventstore.Bucket
 	var hwSlowdownEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		xidEventBucket, err = eventStore.Bucket(nvidia_component_error_xid_id.Name)
+		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +188,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		nvidia_query.SetDefaultPoller(
 			nvidia_query.WithXidEventBucket(xidEventBucket),
 			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithNvidiaSMIQueryCommand(config.NvidiaToolOverwrites.NvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 	}
@@ -466,28 +463,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_error.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_error.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case nvidia_component_error_xid_id.Name:
+		case nvidia_xid.Name:
 			allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
 
-		case nvidia_component_error_sxid_id.Name:
+		case nvidia_sxid.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
 

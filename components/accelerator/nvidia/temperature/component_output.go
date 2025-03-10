@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
@@ -28,26 +27,11 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			if g.Temperature == nil {
-				continue
-			}
-			parsed, err := g.Temperature.Parse()
-			if err != nil {
-				log.Logger.Warnw("failed to parse temperature", "error", err)
-				continue
-			}
-			o.UsagesSMI = append(o.UsagesSMI, parsed)
-		}
-	}
-
 	return o
 }
 
 type Output struct {
-	UsagesSMI  []nvidia_query.ParsedTemperature `json:"usages_smi"`
-	UsagesNVML []nvidia_query_nvml.Temperature  `json:"usages_nvml"`
+	UsagesNVML []nvidia_query_nvml.Temperature `json:"usages_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {

@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock-speed"
@@ -105,12 +103,9 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
 
-	p, err := file.LocateExecutable(strings.Split(op.nvidiaSMIQueryCommand, " ")[0])
-	smiExists := err == nil && p != ""
-
 	o := &Output{
 		Time:      time.Now().UTC(),
-		SMIExists: smiExists,
+		SMIExists: SMIExists(),
 	}
 
 	log.Logger.Debugw("counting gpu devices")
@@ -189,58 +184,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	}
 	o.MemoryErrorManagementCapabilities.Message = fmt.Sprintf("GPU product name: %q", productName)
 
-	// check "nvidia-smi" later as fallback,
-	// in order to check NVML first given its context timeout
-	// at some point, we will deprecate "nvidia-smi" parsing
-	// as the NVML API provides all the data we need
-	if o.SMIExists {
-		// call this with a timeout, as a broken GPU may block the command.
-		cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
-		o.SMI, err = GetSMIOutput(cctx,
-			[]string{op.nvidiaSMIQueryCommand},
-		)
-		ccancel()
-		if err != nil {
-			o.SMIQueryErrors = append(o.SMIQueryErrors, err.Error())
-		}
-
-		if o.SMI != nil {
-			// nvidia-smi polling happens periodically
-			// so we truncate the timestamp to the nearest minute
-			truncNowUTC := time.Now().UTC().Truncate(time.Minute)
-
-			events := o.SMI.HWSlowdownEvents(truncNowUTC.Unix())
-			for _, event := range events {
-				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				found, err := op.hwSlowdownEventsBucket.Find(cctx, event)
-				ccancel()
-				if err != nil {
-					log.Logger.Warnw("failed to find clock events from db", "error", err, "info", event.ExtraInfo)
-					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to find clock events: %v", err))
-					continue
-				}
-				if found != nil {
-					continue
-				}
-
-				log.Logger.Warnw("detected hw slowdown clock events", "info", event.ExtraInfo)
-				cctx, ccancel = context.WithTimeout(ctx, time.Minute)
-				err = op.hwSlowdownEventsBucket.Insert(cctx, event)
-				ccancel()
-				if err != nil {
-					log.Logger.Warnw("failed to insert clock events to db", "error", err, "info", event.ExtraInfo)
-					o.SMIQueryErrors = append(o.SMIQueryErrors, fmt.Sprintf("failed to persist clock events: %v", err))
-				}
-			}
-		}
-
-		// fail the whole get operation if nvidia-smi check failed
-		// because nvidia-smi provides data for all GPU components
-		if len(o.SMIQueryErrors) > 0 {
-			return o, fmt.Errorf("nvidia-smi check failed with %d error(s); %v", len(o.SMIQueryErrors), o.SMIQueryErrors)
-		}
-	}
-
 	return o, nil
 }
 
@@ -273,9 +216,7 @@ type Output struct {
 
 	// at some point, we will deprecate "nvidia-smi" parsing
 	// as the NVML API provides all the data we need
-	SMIExists      bool       `json:"smi_exists"`
-	SMI            *SMIOutput `json:"smi,omitempty"`
-	SMIQueryErrors []string   `json:"smi_query_errors,omitempty"`
+	SMIExists bool `json:"smi_exists"`
 }
 
 func (o *Output) YAML() ([]byte, error) {
@@ -288,12 +229,7 @@ func (o *Output) GPUCount() int {
 	}
 
 	cnts := 0
-	if o.SMI != nil {
-		cnts = o.SMI.AttachedGPUs
-	}
-
-	// in case of "nvidia-smi" failure
-	if cnts == 0 && o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
+	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 {
 		cnts = len(o.NVML.DeviceInfos)
 	}
 
@@ -317,10 +253,6 @@ func (o *Output) GPUProductName() string {
 
 	if o.NVML != nil && len(o.NVML.DeviceInfos) > 0 && o.NVML.DeviceInfos[0].Name != "" {
 		return o.NVML.DeviceInfos[0].Name
-	}
-
-	if o.SMI != nil && len(o.SMI.GPUs) > 0 && o.SMI.GPUs[0].ProductName != "" {
-		return o.SMI.GPUs[0].ProductName
 	}
 
 	return ""
@@ -348,15 +280,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	options := &Op{}
 	if err := options.applyOpts(opts); err != nil {
 		log.Logger.Warnw("failed to apply options", "error", err)
-	}
-
-	if len(o.SMIQueryErrors) > 0 {
-		fmt.Printf("%s nvidia-smi check failed with %d error(s)\n", warningSign, len(o.SMIQueryErrors))
-		for _, err := range o.SMIQueryErrors {
-			fmt.Println(err)
-		}
-	} else {
-		fmt.Printf("%s successfully checked nvidia-smi\n", checkMark)
 	}
 
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
@@ -390,6 +313,9 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	}
 
 	if o.NVML != nil {
+		fmt.Printf("%s driver version: %s\n", checkMark, o.NVML.DriverVersion)
+		fmt.Printf("%s CUDA version: %s\n", checkMark, o.NVML.CUDAVersion)
+
 		if len(o.NVML.DeviceInfos) > 0 {
 			fmt.Printf("%s name: %s (NVML)\n", checkMark, o.NVML.DeviceInfos[0].Name)
 		}
@@ -463,32 +389,8 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 		}
 	}
 
-	if o.SMI != nil {
-		if errs := o.SMI.FindGPUErrs(); len(errs) > 0 {
-			fmt.Printf("%s scanned nvidia-smi -- found %d error(s)\n", warningSign, len(errs))
-			for _, err := range errs {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s scanned nvidia-smi -- found no error\n", checkMark)
-		}
-
-		if errs := o.SMI.FindHWSlowdownErrs(); len(errs) > 0 {
-			fmt.Printf("%s scanned nvidia-smi -- found %d hardware slowdown error(s)\n", warningSign, len(errs))
-			for _, err := range errs {
-				fmt.Println(err)
-			}
-		} else {
-			fmt.Printf("%s scanned nvidia-smi -- found no hardware slowdown error\n", checkMark)
-		}
-	}
-
 	if options.debug {
 		copied := *o
-		if copied.SMI != nil {
-			copied.SMI.Summary = ""
-			copied.SMI.Raw = ""
-		}
 		yb, err := copied.YAML()
 		if err != nil {
 			log.Logger.Warnw("failed to marshal output", "error", err)

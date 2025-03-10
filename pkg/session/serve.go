@@ -13,12 +13,12 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
-	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
@@ -104,8 +104,8 @@ func (s *Session) serve() {
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
 				switch componentName {
-				case nvidia_component_error_xid_id.Name:
-					rawComponent, err := components.GetComponent(nvidia_component_error_xid_id.Name)
+				case nvidia_xid.Name:
+					rawComponent, err := components.GetComponent(nvidia_xid.Name)
 					if err != nil {
 						log.Logger.Errorw("failed to get component", "error", err)
 						continue
@@ -121,8 +121,8 @@ func (s *Session) serve() {
 					} else {
 						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
 					}
-				case nvidia_component_error_sxid_id.Name:
-					rawComponent, err := components.GetComponent(nvidia_component_error_sxid_id.Name)
+				case nvidia_sxid.Name:
+					rawComponent, err := components.GetComponent(nvidia_sxid.Name)
 					if err != nil {
 						log.Logger.Errorw("failed to get component", "error", err)
 						continue

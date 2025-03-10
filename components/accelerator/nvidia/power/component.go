@@ -76,21 +76,6 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
 	}
 
-	if allOutput.SMIExists && len(allOutput.SMIQueryErrors) > 0 {
-		cs := make([]components.State, 0)
-		for _, e := range allOutput.SMIQueryErrors {
-			cs = append(cs, components.State{
-				Name:    nvidia_power_id.Name,
-				Healthy: false,
-				Error:   e,
-				Reason:  "nvidia-smi query failed with " + e,
-				ExtraInfo: map[string]string{
-					nvidia_query.StateKeySMIExists: fmt.Sprintf("%v", allOutput.SMIExists),
-				},
-			})
-		}
-		return cs, nil
-	}
 	output := ToOutput(allOutput)
 	return output.States()
 }

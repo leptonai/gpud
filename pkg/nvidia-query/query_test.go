@@ -33,33 +33,6 @@ func TestOutput_GPUProductName(t *testing.T) {
 			},
 			expected: "NVIDIA A100",
 		},
-		{
-			name: "SMI name available when NVML empty",
-			output: &Output{
-				NVML: &nvml.Output{
-					DeviceInfos: []*nvml.DeviceInfo{
-						{Name: ""},
-					},
-				},
-				SMI: &SMIOutput{
-					GPUs: []NvidiaSMIGPU{
-						{ProductName: "NVIDIA A100"},
-					},
-				},
-			},
-			expected: "NVIDIA A100",
-		},
-		{
-			name: "SMI name available when NVML nil",
-			output: &Output{
-				SMI: &SMIOutput{
-					GPUs: []NvidiaSMIGPU{
-						{ProductName: "NVIDIA A100"},
-					},
-				},
-			},
-			expected: "NVIDIA A100",
-		},
 	}
 
 	for _, tt := range tests {

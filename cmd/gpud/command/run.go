@@ -44,7 +44,6 @@ func cmdRun(cliContext *cli.Context) error {
 		config.WithFilesToCheck(filesToCheck...),
 		config.WithDockerIgnoreConnectionErrors(dockerIgnoreConnectionErrors),
 		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
-		config.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
 		config.WithIbstatCommand(ibstatCommand),
 	}
 

@@ -14,8 +14,7 @@ type Config struct {
 }
 
 type ToolOverwrites struct {
-	NvidiaSMIQueryCommand string `json:"nvidia_smi_query_command"`
-	IbstatCommand         string `json:"ibstat_command"`
+	IbstatCommand string `json:"ibstat_command"`
 }
 
 func ParseConfig(b any, dbRW *sql.DB, dbRO *sql.DB) (*Config, error) {

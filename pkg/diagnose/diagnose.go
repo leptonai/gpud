@@ -269,33 +269,6 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 			Error:   "nvidia-smi is not installed",
 		})
 	} else {
-		fmt.Printf("%s checking nvidia-smi output\n", inProgress)
-		nout, err := nvidia_query.GetSMIOutput(
-			ctx,
-			[]string{"nvidia-smi", "--query"},
-		)
-		if err != nil {
-			o.Results = append(o.Results, CommandResult{
-				Command: "nvidia-smi -q",
-				Error:   err.Error(),
-			})
-		}
-
-		if gerrs := nout.FindGPUErrs(); len(gerrs) > 0 {
-			for _, g := range gerrs {
-				o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("nvidia-smi error check failed: %s", g))
-			}
-		} else {
-			o.CheckSummary = append(o.CheckSummary, "nvidia-smi error check passed")
-		}
-		if herrs := nout.FindHWSlowdownErrs(); len(herrs) > 0 {
-			for _, g := range herrs {
-				o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("nvidia hw slowdown error check failed: %s", g))
-			}
-		} else {
-			o.CheckSummary = append(o.CheckSummary, "nvidia hw slowdown error check passed")
-		}
-
 		if _, err := os.Stat("nvidia-bug-report.sh"); err == nil {
 			if err := o.runCommand(ctx, "nvidia", "nvidia-bug-report.sh", "--query", "--verbose"); err != nil {
 				return err

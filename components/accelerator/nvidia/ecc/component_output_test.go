@@ -22,7 +22,6 @@ func TestToOutput(t *testing.T) {
 		{
 			name: "Empty input",
 			input: &nvidia_query.Output{
-				SMI:  &nvidia_query.SMIOutput{},
 				NVML: &nvidia_query_nvml.Output{},
 			},
 			expected: &Output{},
@@ -92,7 +91,6 @@ func TestToOutputECCMode(t *testing.T) {
 		{
 			name: "Empty input",
 			input: &nvidia_query.Output{
-				SMI:  &nvidia_query.SMIOutput{},
 				NVML: &nvidia_query_nvml.Output{},
 			},
 			expected: &Output{},
