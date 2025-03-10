@@ -54,7 +54,7 @@ func New(ctx context.Context, cfg nvidia_common.Config, eventBucket eventstore.B
 	}, nil
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	stateHWSlowdownEvaluationWindow                  time.Duration

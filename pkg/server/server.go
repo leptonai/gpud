@@ -83,8 +83,8 @@ import (
 	info_id "github.com/leptonai/gpud/components/info/id"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
-	k8s_pod "github.com/leptonai/gpud/components/kubelet/pod"
-	k8s_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
+	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
+	kubelet_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
 	"github.com/leptonai/gpud/components/library"
 	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/components/memory"
@@ -100,7 +100,6 @@ import (
 	"github.com/leptonai/gpud/components/tailscale"
 	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
 	_ "github.com/leptonai/gpud/docs/apis"
-	gpud_config "github.com/leptonai/gpud/pkg/config"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -131,12 +130,33 @@ type Server struct {
 	autoUpdateExitCode    int
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpud_manager.Manager, opts ...gpud_config.OpOption) (_ *Server, retErr error) {
-	options := &gpud_config.Op{}
-	if err := options.ApplyOpts(opts); err != nil {
-		return nil, err
-	}
+type createComponentFunc func(context.Context, *lepconfig.Config) components.Component
 
+var newComponentFuncMap = map[string]createComponentFunc{
+	containerd_pod_id.Name: func(ctx context.Context, _ *lepconfig.Config) components.Component {
+		exists := containerd_pod.CheckContainerdRunning(ctx)
+		if !exists {
+			return nil
+		}
+		return containerd_pod.New(ctx)
+	},
+	docker_container_id.Name: func(ctx context.Context, config *lepconfig.Config) components.Component {
+		exists := docker_container.CheckDockerRunning(ctx)
+		if !exists {
+			return nil
+		}
+		return docker_container.New(ctx, config.DockerIgnoreConnectionErrors)
+	},
+	kubelet_pod_id.Name: func(ctx context.Context, config *lepconfig.Config) components.Component {
+		exists := kubelet_pod.CheckKubeletReadOnlyPortListening(ctx, kubelet_pod.DefaultKubeletReadOnlyPort)
+		if !exists {
+			return nil
+		}
+		return kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors)
+	},
+}
+
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpud_manager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -200,8 +220,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		nvidia_query.SetDefaultPoller(
 			nvidia_query.WithXidEventBucket(xidEventBucket),
 			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithNvidiaSMIQueryCommand(options.NvidiaSMIQueryCommand),
-			nvidia_query.WithIbstatCommand(options.IbstatCommand),
+			nvidia_query.WithNvidiaSMIQueryCommand(config.NvidiaToolOverwrites.NvidiaSMIQueryCommand),
+			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 	}
 
@@ -452,7 +472,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, tailscale.New(ctx, cfg))
 
 		case nvidia_info.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -470,7 +490,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_badenvs_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -488,7 +508,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_error.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -513,7 +533,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
 
 		case nvidia_hw_slowdown_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -531,7 +551,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_clock_speed_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -549,7 +569,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_ecc_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -567,7 +587,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_memory.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -585,7 +605,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_gpm.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -599,7 +619,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
 
 		case nvidia_nvlink.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -617,7 +637,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_power_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -635,7 +655,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_temperature.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -653,7 +673,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_utilization.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -671,7 +691,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_processes.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -689,7 +709,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_remapped_rows.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -714,7 +734,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, fabricManagerLogComponent)
 
 		case nvidia_gsp_firmware_mode_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -732,14 +752,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_infiniband_id.Name:
-			c, err := nvidia_infiniband.New(ctx, eventStore, options.ToolOverwrites)
+			c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
 			allComponents = append(allComponents, c)
 
 		case nvidia_peermem_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -757,7 +777,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_persistence_mode_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -775,7 +795,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_nccl_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: options.ToolOverwrites}
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
 				if err != nil {
@@ -796,32 +816,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, containerd_pod.New(ctx))
 
 		case docker_container_id.Name:
-			cfg := docker_container.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := docker_container.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, docker_container.New(ctx, cfg))
+			allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
 
-		case k8s_pod_id.Name:
-			cfg := k8s_pod.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := k8s_pod.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, k8s_pod.New(ctx, cfg))
+		case kubelet_pod_id.Name:
+			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
 
 		case network_latency_id.Name:
 			cfg := network_latency.Config{
@@ -1098,52 +1096,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				componentsToAdd := make([]components.Component, 0)
 
 				// NOTE: systemd unit update still requires gpud restarts
-				for _, name := range []string{
-					containerd_pod_id.Name,
-					docker_container_id.Name,
-					k8s_pod_id.Name,
-				} {
+				for name, createFn := range newComponentFuncMap {
 					if _, ok := componentSet[name]; ok {
 						continue
 					}
-
-					if exists := containerd_pod.CheckContainerdRunning(ctx); exists {
-						componentsToAdd = append(componentsToAdd, containerd_pod.New(ctx))
+					comp := createFn(ctx, config)
+					if comp == nil {
+						continue
 					}
-
-					if cc, exists := lepconfig.DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
-						ccfg := docker_container.Config{Query: defaultQueryCfg}
-						if cc != nil {
-							parsed, err := docker_container.ParseConfig(cc, dbRW, dbRO)
-							if err != nil {
-								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
-								continue
-							}
-							ccfg = *parsed
-						}
-						if err := ccfg.Validate(); err != nil {
-							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
-							continue
-						}
-						componentsToAdd = append(componentsToAdd, docker_container.New(ctx, ccfg))
-					}
-
-					if cc, exists := lepconfig.DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
-						ccfg := k8s_pod.Config{Query: defaultQueryCfg}
-						if cc != nil {
-							parsed, err := k8s_pod.ParseConfig(cc, dbRW, dbRO)
-							if err != nil {
-								log.Logger.Errorw("failed to parse component %s config: %w", name, err)
-								continue
-							}
-							ccfg = *parsed
-						}
-						if err := ccfg.Validate(); err != nil {
-							log.Logger.Errorw("failed to validate component %s config: %w", name, err)
-							continue
-						}
-						componentsToAdd = append(componentsToAdd, k8s_pod.New(ctx, ccfg))
-					}
+					componentsToAdd = append(componentsToAdd, comp)
 				}
 
 				if len(componentsToAdd) == 0 {

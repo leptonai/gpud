@@ -18,7 +18,7 @@ func New(modulesToCheck []string) components.Component {
 	return &component{modulesToCheck: modulesToCheck}
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	modulesToCheck []string

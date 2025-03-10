@@ -12,7 +12,7 @@ import (
 	"github.com/leptonai/gpud/pkg/query"
 )
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	cfg         Config
