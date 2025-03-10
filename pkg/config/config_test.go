@@ -37,12 +37,11 @@ func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				RetentionPeriod:           metav1.Duration{Duration: time.Hour},
-				CompactPeriod:             metav1.Duration{Duration: time.Hour},
-				RefreshComponentsInterval: metav1.Duration{Duration: time.Hour},
-				Address:                   "localhost:8080", // Add a valid address to pass other validations
-				EnableAutoUpdate:          tt.enableAutoUpdate,
-				AutoUpdateExitCode:        tt.autoUpdateExitCode,
+				RetentionPeriod:    metav1.Duration{Duration: time.Hour},
+				CompactPeriod:      metav1.Duration{Duration: time.Hour},
+				Address:            "localhost:8080", // Add a valid address to pass other validations
+				EnableAutoUpdate:   tt.enableAutoUpdate,
+				AutoUpdateExitCode: tt.autoUpdateExitCode,
 			}
 
 			err := cfg.Validate()

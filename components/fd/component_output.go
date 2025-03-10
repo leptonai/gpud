@@ -13,7 +13,6 @@ import (
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/pkg/file"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/query"
 )
@@ -173,14 +172,6 @@ func getDefaultPoller() query.Poller {
 
 func CreateGet(cfg Config) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(fd_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(fd_id.Name)
-			}
-		}()
-
 		now := time.Now().UTC()
 		nowUTC := float64(now.Unix())
 		metrics.SetLastUpdateUnixSeconds(nowUTC)

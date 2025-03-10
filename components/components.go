@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // WatchableComponent wraps the component with a watchable interface.

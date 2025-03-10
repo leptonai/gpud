@@ -4,87 +4,71 @@ package pod
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/leptonai/gpud/components"
-	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// Name is the ID of the containerd pod component.
+const Name = "containerd-pod"
+
+var _ components.Component = &component{}
+
+type component struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// returns true if the dependency is installed, thus requires the component checks
+	checkDependencyInstalled func() bool
+	endpoint                 string
+
+	lastMu   sync.RWMutex
+	lastData *Data
+}
+
 func New(ctx context.Context) components.Component {
-	_, cancel := context.WithCancel(ctx)
+	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
-		rootCtx:  ctx,
-		cancel:   cancel,
-		endpoint: defaultContainerRuntimeEndpoint,
+		ctx:                      cctx,
+		cancel:                   cancel,
+		checkDependencyInstalled: checkContainerdInstalled,
+		endpoint:                 defaultContainerRuntimeEndpoint,
 	}
-	go func() {
-		ticker := time.NewTicker(1)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ticker.Reset(time.Minute)
-			}
-
-			c.checkOnce(time.Now().UTC())
-		}
-	}()
 	return c
 }
 
-var _ components.Component = (*component)(nil)
+func (c *component) Name() string { return Name }
 
-type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
 
-	endpoint string
+		for {
+			c.CheckOnce()
 
-	lastMu      sync.RWMutex
-	lastPodTime time.Time
-	lastPods    []PodSandbox
-	lastErr     string
-	lastReason  string
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
 }
-
-func (c *component) Name() string { return containerd_pod_id.Name }
-
-func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
-	lastPods := c.lastPods
-	lastErr := c.lastErr
-	lastReason := c.lastReason
+	lastData := c.lastData
 	c.lastMu.RUnlock()
-
-	if lastErr != "" {
-		return []components.State{
-			{
-				Name:    containerd_pod_id.Name,
-				Health:  components.StateUnhealthy,
-				Healthy: false,
-				Error:   lastErr,
-				Reason:  lastReason,
-			},
-		}, nil
-	}
-
-	o := &Output{
-		Pods: lastPods,
-	}
-	return o.States()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -100,221 +84,106 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
+	c.cancel()
+
 	return nil
 }
 
-// checkOnce checks the current pods
+// CheckOnce checks the current pods
 // run this periodically
-func (c *component) checkOnce(ts time.Time) {
+func (c *component) CheckOnce() {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
-
-	// "rootCtx" here is the root level, create one with shorter timeouts
-	// to not block on this checks
-	cctx, ccancel := context.WithTimeout(c.rootCtx, 30*time.Second)
-	ss, err := listSandboxStatus(cctx, c.endpoint)
-	ccancel()
-	if err != nil {
-		// this is the error from "ListSandboxStatus"
-		//
-		// e.g.,
-		// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
-		reason := "failed gRPC call to the containerd socket"
-		st, ok := status.FromError(err)
-		if ok {
-			if st.Code() == codes.Unimplemented {
-				reason += "; no CRI configured for containerd"
-			}
-		}
-
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
 		c.lastMu.Lock()
-		c.lastPodTime = ts
-		c.lastPods = nil
-		c.lastErr = err.Error()
-		c.lastReason = reason
+		c.lastData = &d
 		c.lastMu.Unlock()
+	}()
+
+	// assume "containerd" is not installed, thus not needed to check its activeness
+	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		return
 	}
 
-	pods := make([]PodSandbox, 0, len(ss))
-	for _, s := range ss {
-		pods = append(pods, convertToPodSandbox(s))
+	// below are the checks in case "containerd" is installed, thus requires activeness checks
+	if !checkSocketExists() {
+		d.err = errors.New("containerd is installed but containerd socket file does not exist")
+		return
 	}
 
-	c.lastMu.Lock()
-	defer c.lastMu.Unlock()
-	c.lastPodTime = ts
-	c.lastPods = pods
-	c.lastErr = ""
-	c.lastReason = ""
+	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+	running := checkContainerdRunning(cctx)
+	ccancel()
+	if !running {
+		d.err = errors.New("containerd is installed but containerd is not running")
+		return
+	}
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
+	d.Pods, d.err = listSandboxStatus(cctx, c.endpoint)
+	ccancel()
 }
 
-type Output struct {
+type Data struct {
+	// Pods is the list of pods on the node.
 	Pods []PodSandbox `json:"pods,omitempty"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
 }
 
-func (o *Output) JSON() ([]byte, error) {
-	return json.Marshal(o)
-}
-
-func (o *Output) describeReason() string {
-	return fmt.Sprintf("total %d pod sandboxes", len(o.Pods))
-}
-
-func (o *Output) States() ([]components.State, error) {
-	if len(o.Pods) == 0 {
-		return []components.State{{
-			Name:    containerd_pod_id.Name,
-			Health:  components.StateHealthy,
-			Healthy: true,
-			Reason:  "no output",
-		}}, nil
+func (d *Data) getReason() string {
+	if d == nil || len(d.Pods) == 0 {
+		return "no pod sandbox found or containerd is not running"
 	}
 
-	b, _ := o.JSON()
-	return []components.State{{
-		Name:    containerd_pod_id.Name,
-		Health:  components.StateHealthy,
-		Healthy: true,
-		Reason:  o.describeReason(),
-		ExtraInfo: map[string]string{
-			"data":     string(b),
-			"encoding": "json",
-		},
-	}}, nil
-}
+	reason := fmt.Sprintf("total %d pod sandboxe(s)", len(d.Pods))
 
-const (
-	defaultSocketFile               = "/run/containerd/containerd.sock"
-	defaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
-)
-
-func listSandboxStatus(ctx context.Context, endpoint string) ([]*runtimeapi.PodSandboxStatusResponse, error) {
-	client, imageClient, conn, err := createConn(ctx, endpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	resp, err := client.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{Filter: &runtimeapi.PodSandboxFilter{}})
-	if err != nil {
-		return nil, err
-	}
-	rs := make([]*runtimeapi.PodSandboxStatusResponse, 0, len(resp.Items))
-	for _, sandbox := range resp.Items {
-		r, err := client.PodSandboxStatus(
-			ctx,
-			&runtimeapi.PodSandboxStatusRequest{
-				PodSandboxId: sandbox.Id,
-
-				// extra info such as process info (not that useful)
-				// e.g., "overlayfs\",\"runtimeHandler\":\"\",\"runtimeType\":\"io.containerd.runc.v2\",\"runtimeOptions
-				Verbose: false,
-			},
-		)
-		if err != nil {
-			// can be safely ignored for current loop if sandbox status fails (e.g., deleted pod)
-			log.Logger.Debugw("PodSandboxStatus failed", "error", err)
-			continue
-		}
-		rs = append(rs, r)
-		response, err := client.ListContainers(ctx, &runtimeapi.ListContainersRequest{
-			Filter: &runtimeapi.ContainerFilter{
-				PodSandboxId: sandbox.Id,
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range response.Containers {
-			image := c.Image
-			if imageStatus, err := imageClient.ImageStatus(ctx, &runtimeapi.ImageStatusRequest{
-				Image: &runtimeapi.ImageSpec{
-					Image:       c.ImageRef,
-					Annotations: nil,
-				},
-				Verbose: false,
-			}); err == nil && imageStatus.Image != nil {
-				if len(imageStatus.Image.RepoTags) > 0 {
-					image.UserSpecifiedImage = strings.Join(imageStatus.Image.RepoTags, ",")
-				} else {
-					image.UserSpecifiedImage = strings.Join(imageStatus.Image.RepoDigests, ",")
-				}
+	if d.err != nil {
+		st, ok := status.FromError(d.err)
+		if ok {
+			// this is the error from "ListSandboxStatus"
+			// e.g.,
+			// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
+			if st.Code() == codes.Unimplemented {
+				reason = "containerd didn't enable CRI"
+			} else {
+				reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
 			}
-			r.ContainersStatuses = append(r.ContainersStatuses, &runtimeapi.ContainerStatus{
-				Id:          c.Id,
-				Metadata:    c.Metadata,
-				State:       c.State,
-				CreatedAt:   c.CreatedAt,
-				Image:       c.Image,
-				ImageRef:    c.ImageRef,
-				Labels:      c.Labels,
-				Annotations: c.Annotations,
-				ImageId:     c.ImageId,
-			})
-
+		} else {
+			reason = fmt.Sprintf("failed to list pod sandbox status %v", d.err)
 		}
 	}
-	return rs, nil
+
+	return reason
 }
 
-// the original "PodSandboxStatusResponse" has a lot of fields, we only need a few of them
-func convertToPodSandbox(resp *runtimeapi.PodSandboxStatusResponse) PodSandbox {
-	status := resp.GetStatus()
-	pod := PodSandbox{
-		ID:        status.Id,
-		Name:      status.Metadata.Name,
-		Namespace: status.Metadata.Namespace,
-		State:     status.State.String(),
-		Info:      resp.GetInfo(),
+func (d *Data) getHealth() (string, bool) {
+	if d != nil && d.err != nil {
+		return components.StateUnhealthy, false
 	}
-	for _, c := range resp.ContainersStatuses {
-		pod.Containers = append(pod.Containers, convertContainerStatus(c))
+	return components.StateHealthy, true
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   Name,
+		Reason: d.getReason(),
 	}
-	return pod
-}
+	state.Health, state.Healthy = d.getHealth()
 
-func convertContainerStatus(c *runtimeapi.ContainerStatus) PodSandboxContainerStatus {
-	ret := PodSandboxContainerStatus{
-		ID:        c.Id,
-		Name:      c.Metadata.Name,
-		CreatedAt: c.CreatedAt,
-		State:     c.State.String(),
-		LogPath:   c.LogPath,
-		ExitCode:  c.ExitCode,
-		Reason:    c.Reason,
-		Message:   c.Message,
+	if d == nil || len(d.Pods) == 0 { // no pod found yet
+		return []components.State{state}, nil
 	}
-	if c.Image != nil {
-		ret.Image = c.Image.UserSpecifiedImage
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
 	}
-	return ret
-}
-
-// PodSandbox represents the pod information fetched from the local container runtime.
-// Simplified version of k8s.io/cri-api/pkg/apis/runtime/v1.PodSandbox.
-// ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ListPodSandboxResponse
-type PodSandbox struct {
-	ID         string                      `json:"id,omitempty"`
-	Namespace  string                      `json:"namespace,omitempty"`
-	Name       string                      `json:"name,omitempty"`
-	State      string                      `json:"state,omitempty"`
-	Info       map[string]string           `json:"info,omitempty"`
-	Containers []PodSandboxContainerStatus `json:"containers,omitempty"`
-}
-
-func (s PodSandbox) JSON() ([]byte, error) {
-	return json.Marshal(s)
-}
-
-// ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ContainerStatus
-type PodSandboxContainerStatus struct {
-	ID        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Image     string `json:"image,omitempty"`
-	CreatedAt int64  `json:"created_at,omitempty"`
-	State     string `json:"state,omitempty"`
-	LogPath   string `json:"logPath,omitempty"`
-	ExitCode  int32  `json:"exitCode,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	Message   string `json:"message,omitempty"`
+	return []components.State{state}, nil
 }

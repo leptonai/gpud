@@ -15,7 +15,6 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/query"
 )
 
@@ -46,14 +45,6 @@ func getDefaultPoller() query.Poller {
 
 func CreateGet(cfg Config, eventBucket eventstore.Bucket) query.GetFunc {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(fuse_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(fuse_id.Name)
-			}
-		}()
-
 		infos, err := fuse.ListConnections()
 		if err != nil {
 			return nil, err

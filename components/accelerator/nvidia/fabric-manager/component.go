@@ -50,7 +50,7 @@ func newComponent(ctx context.Context, checkFMExists func() bool, watchCommands 
 	}, nil
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	checkFMExists    func() bool

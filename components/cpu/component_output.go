@@ -18,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/cpu/metrics"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -175,14 +174,6 @@ func getPrevTimeStat() *cpu.TimesStat {
 }
 
 func Get(ctx context.Context) (_ any, e error) {
-	defer func() {
-		if e != nil {
-			components_metrics.SetGetFailed(cpu_id.Name)
-		} else {
-			components_metrics.SetGetSuccess(cpu_id.Name)
-		}
-	}()
-
 	o := &Output{}
 
 	arch, err := host.KernelArch()

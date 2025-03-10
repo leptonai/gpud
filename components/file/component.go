@@ -16,7 +16,7 @@ func New(filesToCheck []string) components.Component {
 	return &component{filesToCheck: filesToCheck}
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	filesToCheck []string

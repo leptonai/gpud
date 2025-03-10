@@ -37,24 +37,6 @@ var (
 		},
 		[]string{"component"},
 	)
-	componentsGetSuccess = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "gpud",
-			Subsystem: "components",
-			Name:      "get_success",
-			Help:      "current get success components",
-		},
-		[]string{"component"},
-	)
-	componentsGetFailed = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "gpud",
-			Subsystem: "components",
-			Name:      "get_failed",
-			Help:      "current get failed components",
-		},
-		[]string{"component"},
-	)
 )
 
 func Register(reg *prometheus.Registry) error {
@@ -65,12 +47,6 @@ func Register(reg *prometheus.Registry) error {
 		return err
 	}
 	if err := reg.Register(componentsUnhealthy); err != nil {
-		return err
-	}
-	if err := reg.Register(componentsGetSuccess); err != nil {
-		return err
-	}
-	if err := reg.Register(componentsGetFailed); err != nil {
 		return err
 	}
 	return nil
@@ -88,16 +64,6 @@ func SetHealthy(componentName string) {
 func SetUnhealthy(componentName string) {
 	componentsHealthy.With(prometheus.Labels{"component": componentName}).Set(0.0)
 	componentsUnhealthy.With(prometheus.Labels{"component": componentName}).Set(1.0)
-}
-
-func SetGetSuccess(componentName string) {
-	componentsGetSuccess.With(prometheus.Labels{"component": componentName}).Set(1.0)
-	componentsGetFailed.With(prometheus.Labels{"component": componentName}).Set(0.0)
-}
-
-func SetGetFailed(componentName string) {
-	componentsGetSuccess.With(prometheus.Labels{"component": componentName}).Set(0.0)
-	componentsGetFailed.With(prometheus.Labels{"component": componentName}).Set(1.0)
 }
 
 func ReadRegisteredTotal(gatherer prometheus.Gatherer) (int64, error) {
@@ -143,40 +109,6 @@ func ReadUnhealthyTotal(gatherer prometheus.Gatherer) (int64, error) {
 	total := int64(0)
 	for _, mf := range metricFamilies {
 		if mf.GetName() == "gpud_components_unhealthy" {
-			for _, m := range mf.GetMetric() {
-				total += int64(m.GetGauge().GetValue())
-			}
-		}
-	}
-	return total, nil
-}
-
-func ReadGetSuccessTotal(gatherer prometheus.Gatherer) (int64, error) {
-	metricFamilies, err := gatherer.Gather()
-	if err != nil {
-		return 0, err
-	}
-
-	total := int64(0)
-	for _, mf := range metricFamilies {
-		if mf.GetName() == "gpud_components_get_success" {
-			for _, m := range mf.GetMetric() {
-				total += int64(m.GetGauge().GetValue())
-			}
-		}
-	}
-	return total, nil
-}
-
-func ReadGetFailedTotal(gatherer prometheus.Gatherer) (int64, error) {
-	metricFamilies, err := gatherer.Gather()
-	if err != nil {
-		return 0, err
-	}
-
-	total := int64(0)
-	for _, mf := range metricFamilies {
-		if mf.GetName() == "gpud_components_get_failed" {
 			for _, m := range mf.GetMetric() {
 				total += int64(m.GetGauge().GetValue())
 			}

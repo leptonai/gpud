@@ -15,7 +15,6 @@ import (
 	"github.com/leptonai/gpud/components/pci/id"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/pci"
@@ -59,14 +58,6 @@ var ErrNoEventStore = errors.New("no event store")
 
 func CreateGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(id.Name)
-			} else {
-				components_metrics.SetGetSuccess(id.Name)
-			}
-		}()
-
 		if eventBucket == nil {
 			return nil, ErrNoEventStore
 		}

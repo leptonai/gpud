@@ -5,155 +5,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/leptonai/gpud/components"
-	k8s_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
-	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/process"
-	"github.com/leptonai/gpud/pkg/query"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	pkg_file "github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/log"
 )
-
-type Output struct {
-	NodeName string      `json:"node_name,omitempty"`
-	Pods     []PodStatus `json:"pods,omitempty"`
-
-	KubeletPidFound bool   `json:"kubelet_pid_found"`
-	ConnectionError string `json:"connection_error,omitempty"`
-	Message         string `json:"message,omitempty"`
-}
-
-func (o *Output) JSON() ([]byte, error) {
-	return json.Marshal(o)
-}
-
-const (
-	StateNamePod = "pod"
-
-	StateKeyPodData           = "data"
-	StateKeyPodEncoding       = "encoding"
-	StateValuePodEncodingJSON = "json"
-)
-
-func (o *Output) describeReason() string {
-	if o.ConnectionError != "" {
-		// e.g.,
-		// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
-		return fmt.Sprintf("connection error to node %q -- %s", o.NodeName, o.ConnectionError)
-	}
-	return fmt.Sprintf("total %d pods (node %s)", len(o.Pods), o.NodeName)
-}
-
-func (o *Output) States(cfg Config) ([]components.State, error) {
-	healthy := o.ConnectionError == ""
-	if cfg.IgnoreConnectionErrors {
-		healthy = true
-	}
-
-	b, _ := o.JSON()
-
-	return []components.State{{
-		Name:    StateNamePod,
-		Healthy: healthy,
-		Reason:  o.describeReason(),
-		ExtraInfo: map[string]string{
-			StateKeyPodData:     string(b),
-			StateKeyPodEncoding: StateValuePodEncodingJSON,
-		},
-	}}, nil
-}
-
-var (
-	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
-
-	defaultPollerCloseOnce sync.Once
-	defaultPollerc         = make(chan any)
-)
-
-// only set once since it relies on the kube client and specific port
-func setDefaultPoller(cfg Config) {
-	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
-			k8s_pod_id.Name,
-			cfg.Query,
-			CreateGet(cfg),
-			nil,
-		)
-	})
-}
-
-func GetDefaultPoller() query.Poller {
-	return defaultPoller
-}
-
-func DefaultPollerReady() <-chan any {
-	return defaultPollerc
-}
-
-func CreateGet(cfg Config) query.GetFunc {
-	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(k8s_pod_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(k8s_pod_id.Name)
-			}
-		}()
-
-		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-		kubeletRunning := process.CheckRunningByPid(cctx, "kubelet")
-		ccancel()
-
-		// "ctx" here is the root level, create one with shorter timeouts
-		// to not block on this checks
-		cctx, ccancel = context.WithTimeout(ctx, 30*time.Second)
-		pods, err := ListFromKubeletReadOnlyPort(cctx, cfg.Port)
-		ccancel()
-		if err != nil {
-			o := &Output{
-				KubeletPidFound: kubeletRunning,
-				Message:         "failed to list pods from kubelet read-only port (maybe readOnlyPort not set in kubelet config file) -- " + err.Error(),
-			}
-
-			// e.g.,
-			// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
-			// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
-			if strings.Contains(err.Error(), "connection refused") {
-				o.ConnectionError = err.Error()
-			}
-
-			return o, nil
-		}
-		log.Logger.Debugw("listed pods", "pods", len(pods.Items))
-
-		nodeName := ""
-		pss := make([]PodStatus, 0)
-		for _, pod := range pods.Items {
-			if nodeName == "" {
-				nodeName = pod.Spec.NodeName
-			}
-			pss = append(pss, ConvertToPodsStatus(pod)...)
-		}
-
-		return &Output{
-			NodeName:        nodeName,
-			Pods:            pss,
-			KubeletPidFound: kubeletRunning,
-		}, nil
-	}
-}
 
 const DefaultKubeletReadOnlyPort = 10255
 
-func CheckKubeletReadOnlyPort(ctx context.Context, port int) error {
+// isConnectionRefusedError checks if an error contains "connection refused".
+// e.g.,
+// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
+// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
+func isConnectionRefusedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "connection refused")
+}
+
+func checkKubeletReadOnlyPortHealthz(ctx context.Context, port int) error {
 	u := fmt.Sprintf("http://localhost:%d/healthz", port)
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -184,21 +61,73 @@ func CheckKubeletReadOnlyPort(ctx context.Context, port int) error {
 	return nil
 }
 
-func ListFromKubeletReadOnlyPort(ctx context.Context, port int) (*corev1.PodList, error) {
+func checkKubeletInstalled() bool {
+	p, err := pkg_file.LocateExecutable("kubelet")
+	if err == nil {
+		log.Logger.Debugw("kubelet found in PATH", "path", p)
+		return true
+	}
+	log.Logger.Debugw("kubelet not found in PATH", "error", err)
+	return false
+}
+
+// checkKubeletReadOnlyPortListening checks if the kubelet read-only port is listening.
+// It first checks if the kubelet is running and then checks if the port is open.
+func checkKubeletReadOnlyPortListening(ctx context.Context, port int) bool {
+	// check if the TCP port is open/used
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 3*time.Second)
+	if err != nil {
+		log.Logger.Debugw("tcp port is not open", "port", port, "error", err)
+	} else {
+		log.Logger.Debugw("tcp port is open", "port", port)
+		conn.Close()
+
+		kerr := checkKubeletReadOnlyPortHealthz(ctx, port)
+		// check
+		if kerr != nil {
+			log.Logger.Debugw("kubelet readonly port is not open", "port", port, "error", kerr)
+		} else {
+			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", port)
+
+			// "kubelet_pod" requires kubelet read-only port
+			// assume if kubelet is running, it opens the most common read-only port 10255
+			return true
+		}
+	}
+
+	return false
+}
+
+// returns the node name and the list of pods
+func listPodsFromKubeletReadOnlyPort(ctx context.Context, port int) (string, []PodStatus, error) {
 	url := fmt.Sprintf("http://localhost:%d/pods", port)
 	req, rerr := http.NewRequest(http.MethodGet, url, nil)
 	if rerr != nil {
-		return nil, rerr
+		return "", nil, rerr
 	}
 	req = req.WithContext(ctx)
 
 	resp, err := defaultHTTPClient().Do(req)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
-	return parsePodsFromKubeletReadOnlyPort(resp.Body)
+	pods, err := parsePodsFromKubeletReadOnlyPort(resp.Body)
+	if err != nil {
+		return "", nil, err
+	}
+	log.Logger.Debugw("listed pods", "pods", len(pods.Items))
+
+	nodeName := ""
+	pss := make([]PodStatus, 0)
+	for _, pod := range pods.Items {
+		if nodeName == "" {
+			nodeName = pod.Spec.NodeName
+		}
+		pss = append(pss, convertToPodsStatus(pod)...)
+	}
+	return nodeName, pss, nil
 }
 
 func parsePodsFromKubeletReadOnlyPort(r io.Reader) (*corev1.PodList, error) {
@@ -221,7 +150,7 @@ func defaultHTTPClient() *http.Client {
 }
 
 // Converts the original pod status to the simpler one.
-func ConvertToPodsStatus(pods ...corev1.Pod) []PodStatus {
+func convertToPodsStatus(pods ...corev1.Pod) []PodStatus {
 	statuses := make([]PodStatus, 0, len(pods))
 	for _, pod := range pods {
 		statuses = append(statuses, convertToPodStatus(pod))

@@ -34,7 +34,7 @@ func New(annotations map[string]string, dbRO *sql.DB, gatherer prometheus.Gather
 	}
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	annotations map[string]string

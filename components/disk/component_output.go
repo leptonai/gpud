@@ -14,7 +14,6 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/disk/metrics"
 	"github.com/leptonai/gpud/pkg/disk"
-	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/query"
 )
@@ -188,14 +187,6 @@ func CreateGet(cfg Config) query.GetFunc {
 	}
 
 	return func(ctx context.Context) (_ any, e error) {
-		defer func() {
-			if e != nil {
-				components_metrics.SetGetFailed(disk_id.Name)
-			} else {
-				components_metrics.SetGetSuccess(disk_id.Name)
-			}
-		}()
-
 		o := &Output{}
 
 		prevFailed := false
