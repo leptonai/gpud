@@ -75,7 +75,7 @@ func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia
 	return c, nil
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	rootCtx          context.Context

@@ -38,7 +38,7 @@ func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (componen
 	}, nil
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	rootCtx      context.Context
