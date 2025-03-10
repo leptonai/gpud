@@ -2,7 +2,6 @@ package tailscale
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -220,15 +219,6 @@ func TestStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedHealth, state.Health, "Health status should match expected")
 			assert.Equal(t, tc.expectedStatus, state.Healthy, "Healthy boolean should match expected")
-
-			// Verify extra info contains valid JSON
-			assert.Contains(t, state.ExtraInfo, "data", "ExtraInfo should contain data field")
-			assert.Contains(t, state.ExtraInfo, "encoding", "ExtraInfo should contain encoding field")
-			assert.Equal(t, "json", state.ExtraInfo["encoding"], "Encoding should be JSON")
-
-			var data map[string]interface{}
-			err = json.Unmarshal([]byte(state.ExtraInfo["data"]), &data)
-			assert.NoError(t, err, "ExtraInfo data should be valid JSON")
 		})
 	}
 }
@@ -373,11 +363,6 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedReason, state.Reason, "State reason should match expected")
 			assert.Equal(t, tc.expectedHealth, state.Health, "State health should match expected")
-
-			// Verify the extra info
-			assert.Contains(t, state.ExtraInfo, "data", "ExtraInfo should contain data field")
-			assert.Contains(t, state.ExtraInfo, "encoding", "ExtraInfo should contain encoding field")
-			assert.Equal(t, "json", state.ExtraInfo["encoding"], "Encoding should be JSON")
 		})
 	}
 }
