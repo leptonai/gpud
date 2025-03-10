@@ -117,48 +117,6 @@ func ReadUnhealthyTotal(gatherer prometheus.Gatherer) (int64, error) {
 	return total, nil
 }
 
-func ReadGetSuccessTotal(gatherer prometheus.Gatherer) (int64, error) {
-	metricFamilies, err := gatherer.Gather()
-	if err != nil {
-		return 0, err
-	}
-
-	total := int64(0)
-	for _, mf := range metricFamilies {
-		if mf.GetName() == "gpud_components_get" {
-			for _, m := range mf.GetMetric() {
-				for _, label := range m.GetLabel() {
-					if label.GetName() == "status" && label.GetValue() == "success" {
-						total += int64(m.GetGauge().GetValue())
-					}
-				}
-			}
-		}
-	}
-	return total, nil
-}
-
-func ReadGetFailedTotal(gatherer prometheus.Gatherer) (int64, error) {
-	metricFamilies, err := gatherer.Gather()
-	if err != nil {
-		return 0, err
-	}
-
-	total := int64(0)
-	for _, mf := range metricFamilies {
-		if mf.GetName() == "gpud_components_get" {
-			for _, m := range mf.GetMetric() {
-				for _, label := range m.GetLabel() {
-					if label.GetName() == "status" && label.GetValue() == "failed" {
-						total += int64(m.GetGauge().GetValue())
-					}
-				}
-			}
-		}
-	}
-	return total, nil
-}
-
 func NewWatchableComponent(c components.Component) components.WatchableComponent {
 	return &WatchableComponentStruct{
 		Component: c,

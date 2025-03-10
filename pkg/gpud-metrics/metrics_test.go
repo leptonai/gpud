@@ -163,12 +163,6 @@ func TestReadFunctionsWithErrorGatherer(t *testing.T) {
 
 	_, err = ReadUnhealthyTotal(errorGatherer)
 	assert.Error(t, err)
-
-	_, err = ReadGetSuccessTotal(errorGatherer)
-	assert.Error(t, err)
-
-	_, err = ReadGetFailedTotal(errorGatherer)
-	assert.Error(t, err)
 }
 
 // Separate tests for WatchableComponent function - each using a fresh metrics state

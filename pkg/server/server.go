@@ -849,24 +849,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				continue
 			}
 
-			getSuccess, err := metrics.ReadGetSuccessTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get success total", "error", err)
-				continue
-			}
-
-			getFailed, err := metrics.ReadGetFailedTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get failed total", "error", err)
-				continue
-			}
-
 			log.Logger.Debugw("components status",
 				"inflight_components", total,
 				"evaluated_healthy_states", healthy,
 				"evaluated_unhealthy_states", unhealthy,
-				"data_collect_success", getSuccess,
-				"data_collect_failed", getFailed,
 			)
 		}
 	}()
