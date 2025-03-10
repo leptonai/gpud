@@ -7,6 +7,8 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 )
 
 // Config provides gpud configuration data for the server
@@ -33,10 +35,6 @@ type Config struct {
 	// Interval at which to compact the state database.
 	CompactPeriod metav1.Duration `json:"compact_period"`
 
-	// Interval at which to refresh selected components.
-	// Disables refresh if not set.
-	RefreshComponentsInterval metav1.Duration `json:"refresh_components_interval"`
-
 	// Set true to enable profiler.
 	Pprof bool `json:"pprof"`
 
@@ -53,6 +51,21 @@ type Config struct {
 	// Only valid when the auto update is enabled.
 	// Set -1 to disable the auto update by exit code.
 	AutoUpdateExitCode int `json:"auto_update_exit_code"`
+
+	// Set false to disable the docker connection errors
+	DockerIgnoreConnectionErrors bool `json:"docker_ignore_connection_errors"`
+
+	// Set false to disable the kubelet connection errors
+	KubeletIgnoreConnectionErrors bool `json:"kubelet_ignore_connection_errors"`
+
+	// A list of files to check for its existence.
+	FilesToCheck []string `json:"files_to_check"`
+
+	// A list of kernel modules to check for its existence.
+	KernelModulesToCheck []string `json:"kernel_modules_to_check"`
+
+	// A list of nvidia tool command paths to overwrite the default paths.
+	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
 }
 
 // Configures the local web configuration.
@@ -71,7 +84,6 @@ type Web struct {
 }
 
 type ToolOverwriteOptions struct {
-	NvidiaSMICommand      string `json:"nvidia_smi_command"`
 	NvidiaSMIQueryCommand string `json:"nvidia_smi_query_command"`
 	IbstatCommand         string `json:"ibstat_command"`
 }
@@ -84,9 +96,6 @@ func (config *Config) Validate() error {
 	}
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
-	}
-	if config.RefreshComponentsInterval.Duration < time.Minute {
-		return fmt.Errorf("refresh_components_interval must be at least 1 minute, got %d", config.RefreshComponentsInterval.Duration)
 	}
 	if config.Web != nil && config.Web.RefreshPeriod.Duration < time.Minute {
 		return fmt.Errorf("web_refresh_period must be at least 1 minute, got %d", config.Web.RefreshPeriod.Duration)

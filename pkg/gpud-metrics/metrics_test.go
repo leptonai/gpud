@@ -168,7 +168,7 @@ func TestSetAndReadFunctions(t *testing.T) {
 
 	successTotal, err = ReadGetSuccessTotal(registry)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), successTotal, "Should have 1 get-success component")
+	assert.Equal(t, int64(2), successTotal, "Should have 2 get-success component")
 
 	failedTotal, err = ReadGetFailedTotal(registry)
 	assert.NoError(t, err)

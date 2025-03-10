@@ -80,5 +80,5 @@ func TestComponent(t *testing.T) {
 
 // Ensure component implements Component interface
 func TestComponentInterface(t *testing.T) {
-	var _ components.Component = (*component)(nil)
+	var _ components.Component = &component{}
 }

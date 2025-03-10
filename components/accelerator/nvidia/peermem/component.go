@@ -56,7 +56,7 @@ func New(ctx context.Context, cfg nvidia_common.Config, eventStore eventstore.St
 	}, nil
 }
 
-var _ components.Component = (*component)(nil)
+var _ components.Component = &component{}
 
 type component struct {
 	rootCtx          context.Context

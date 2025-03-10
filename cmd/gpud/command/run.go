@@ -42,10 +42,8 @@ func cmdRun(cliContext *cli.Context) error {
 
 	configOpts := []config.OpOption{
 		config.WithFilesToCheck(filesToCheck...),
-		config.WithFilesToCheck(filesToCheck...),
 		config.WithDockerIgnoreConnectionErrors(dockerIgnoreConnectionErrors),
 		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
-
 		config.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
 		config.WithIbstatCommand(ibstatCommand),
 	}
@@ -111,7 +109,7 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	m.Start(rootCtx)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m, configOpts...)
+	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
 	if err != nil {
 		return err
 	}

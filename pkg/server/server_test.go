@@ -34,27 +34,16 @@ func TestServerConfigValidation(t *testing.T) {
 		{
 			name: "retention period too short",
 			config: &config.Config{
-				Address:                   "localhost:8080",
-				RetentionPeriod:           metav1.Duration{Duration: 30 * time.Second},
-				RefreshComponentsInterval: metav1.Duration{Duration: time.Minute},
+				Address:         "localhost:8080",
+				RetentionPeriod: metav1.Duration{Duration: 30 * time.Second},
 			},
 			expectedErr: "retention_period must be at least 1 minute",
 		},
 		{
-			name: "refresh components interval too short",
-			config: &config.Config{
-				Address:                   "localhost:8080",
-				RetentionPeriod:           metav1.Duration{Duration: time.Hour},
-				RefreshComponentsInterval: metav1.Duration{Duration: 30 * time.Second},
-			},
-			expectedErr: "refresh_components_interval must be at least 1 minute",
-		},
-		{
 			name: "web refresh period too short",
 			config: &config.Config{
-				Address:                   "localhost:8080",
-				RetentionPeriod:           metav1.Duration{Duration: time.Hour},
-				RefreshComponentsInterval: metav1.Duration{Duration: time.Minute},
+				Address:         "localhost:8080",
+				RetentionPeriod: metav1.Duration{Duration: time.Hour},
 				Web: &config.Web{
 					Enable:        true,
 					RefreshPeriod: metav1.Duration{Duration: 30 * time.Second},
@@ -66,9 +55,8 @@ func TestServerConfigValidation(t *testing.T) {
 		{
 			name: "web metrics since period too short",
 			config: &config.Config{
-				Address:                   "localhost:8080",
-				RetentionPeriod:           metav1.Duration{Duration: time.Hour},
-				RefreshComponentsInterval: metav1.Duration{Duration: time.Minute},
+				Address:         "localhost:8080",
+				RetentionPeriod: metav1.Duration{Duration: time.Hour},
 				Web: &config.Web{
 					Enable:        true,
 					RefreshPeriod: metav1.Duration{Duration: time.Minute},
@@ -80,11 +68,10 @@ func TestServerConfigValidation(t *testing.T) {
 		{
 			name: "invalid auto update exit code",
 			config: &config.Config{
-				Address:                   "localhost:8080",
-				RetentionPeriod:           metav1.Duration{Duration: time.Hour},
-				RefreshComponentsInterval: metav1.Duration{Duration: time.Minute},
-				EnableAutoUpdate:          false,
-				AutoUpdateExitCode:        1,
+				Address:            "localhost:8080",
+				RetentionPeriod:    metav1.Duration{Duration: time.Hour},
+				EnableAutoUpdate:   false,
+				AutoUpdateExitCode: 1,
 			},
 			expectedErr: "auto_update_exit_code is only valid when auto_update is enabled",
 		},

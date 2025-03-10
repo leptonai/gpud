@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"net"
 	stdos "os"
 	"path/filepath"
 	"runtime"
@@ -30,19 +29,16 @@ import (
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
-	containerd_pod_id "github.com/leptonai/gpud/components/containerd/pod/id"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
-	docker_container_id "github.com/leptonai/gpud/components/docker/container/id"
 	fd_id "github.com/leptonai/gpud/components/fd/id"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	info_id "github.com/leptonai/gpud/components/info/id"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
-	kubelet_pod_id "github.com/leptonai/gpud/components/kubelet/pod/id"
 	"github.com/leptonai/gpud/components/library"
 	library_id "github.com/leptonai/gpud/components/library/id"
 	memory_id "github.com/leptonai/gpud/components/memory/id"
@@ -53,12 +49,11 @@ import (
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
 	tailscale_id "github.com/leptonai/gpud/components/tailscale/id"
-	pkg_file "github.com/leptonai/gpud/pkg/file"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	query_config "github.com/leptonai/gpud/pkg/query/config"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 
@@ -81,8 +76,6 @@ var (
 	// but necessary to keep the state database from growing indefinitely
 	// TODO: disabled for now, until we have a better way to detect the performance issue
 	DefaultCompactPeriod = metav1.Duration{Duration: 0}
-
-	DefaultRefreshComponentsInterval = metav1.Duration{Duration: time.Minute}
 )
 
 func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
@@ -115,8 +108,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		RetentionPeriod: DefaultRetentionPeriod,
 		CompactPeriod:   DefaultCompactPeriod,
 
-		RefreshComponentsInterval: DefaultRefreshComponentsInterval,
-		Pprof:                     false,
+		Pprof: false,
 
 		Web: &Web{
 			Enable:        true,
@@ -131,24 +123,31 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 
 		EnableAutoUpdate: true,
+
+		DockerIgnoreConnectionErrors:  options.DockerIgnoreConnectionErrors,
+		KubeletIgnoreConnectionErrors: options.KubeletIgnoreConnectionErrors,
+
+		FilesToCheck:         options.FilesToCheck,
+		KernelModulesToCheck: options.KernelModulesToCheck,
+
+		NvidiaToolOverwrites: nvidia_common.ToolOverwrites{
+			NvidiaSMIQueryCommand: options.NvidiaSMIQueryCommand,
+			IbstatCommand:         options.IbstatCommand,
+		},
 	}
 
-	if len(options.FilesToCheck) > 0 {
-		cfg.Components[file_id.Name] = options.FilesToCheck
+	if len(cfg.FilesToCheck) > 0 {
+		cfg.Components[file_id.Name] = cfg.FilesToCheck
 	}
-	if len(options.KernelModulesToCheck) > 0 {
-		cfg.Components[kernel_module_id.Name] = options.KernelModulesToCheck
+	if len(cfg.KernelModulesToCheck) > 0 {
+		cfg.Components[kernel_module_id.Name] = cfg.KernelModulesToCheck
 	}
 
-	if cc, exists := DefaultDockerContainerComponent(ctx, options.DockerIgnoreConnectionErrors); exists {
-		cfg.Components[docker_container_id.Name] = cc
-	}
-	if exists := containerd_pod.CheckContainerdRunning(ctx); exists {
-		cfg.Components[containerd_pod_id.Name] = nil
-	}
-	if cc, exists := DefaultK8sPodComponent(ctx, options.KubeletIgnoreConnectionErrors); exists {
-		cfg.Components[kubelet_pod_id.Name] = cc
-	}
+	// regardless of its dependency activeness, we always enable these components
+	// and dynamically checks its activeness
+	cfg.Components[docker_container.Name] = nil
+	cfg.Components[containerd_pod.Name] = nil
+	cfg.Components[kubelet_pod.Name] = nil
 
 	cfg.Components[network_latency_id.Name] = nil
 
@@ -325,69 +324,4 @@ func DefaultFifoFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(f, "gpud.fifo"), nil
-}
-
-func DefaultDockerContainerComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
-	p, err := pkg_file.LocateExecutable("docker")
-	if err == nil {
-		log.Logger.Debugw("docker found in PATH", "path", p)
-		return docker_container.Config{
-			Query: query_config.DefaultConfig(),
-		}, true
-	}
-	log.Logger.Debugw("docker not found in PATH -- fallback to docker run checks", "error", err)
-
-	if docker_container.IsDockerRunning() {
-		log.Logger.Debugw("auto-detected docker -- configuring docker container component")
-		return docker_container.Config{
-			Query:                  query_config.DefaultConfig(),
-			IgnoreConnectionErrors: ignoreConnectionErrors,
-		}, true
-	}
-	return nil, false
-}
-
-func DefaultK8sPodComponent(ctx context.Context, ignoreConnectionErrors bool) (any, bool) {
-	if runtime.GOOS != "linux" {
-		log.Logger.Debugw("ignoring default kubelet checking since it's not linux", "os", runtime.GOOS)
-		return nil, false
-	}
-
-	p, err := pkg_file.LocateExecutable("kubelet")
-	if err == nil {
-		log.Logger.Debugw("kubelet found in PATH", "path", p)
-		return kubelet_pod.Config{
-			Query:                  query_config.DefaultConfig(),
-			Port:                   kubelet_pod.DefaultKubeletReadOnlyPort,
-			IgnoreConnectionErrors: ignoreConnectionErrors,
-		}, true
-	}
-	log.Logger.Debugw("kubelet not found in PATH -- fallback to kubelet run checks", "error", err)
-
-	// check if the TCP port is open/used
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", kubelet_pod.DefaultKubeletReadOnlyPort), 3*time.Second)
-	if err != nil {
-		log.Logger.Debugw("tcp port is not open", "port", kubelet_pod.DefaultKubeletReadOnlyPort, "error", err)
-	} else {
-		log.Logger.Debugw("tcp port is open", "port", kubelet_pod.DefaultKubeletReadOnlyPort)
-		conn.Close()
-
-		kerr := kubelet_pod.CheckKubeletReadOnlyPort(ctx, kubelet_pod.DefaultKubeletReadOnlyPort)
-		// check
-		if kerr != nil {
-			log.Logger.Debugw("kubelet readonly port is not open", "port", kubelet_pod.DefaultKubeletReadOnlyPort, "error", kerr)
-		} else {
-			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", kubelet_pod.DefaultKubeletReadOnlyPort)
-
-			// "kubelet_pod" requires kubelet read-only port
-			// assume if kubelet is running, it opens the most common read-only port 10255
-			return kubelet_pod.Config{
-				Query:                  query_config.DefaultConfig(),
-				Port:                   kubelet_pod.DefaultKubeletReadOnlyPort,
-				IgnoreConnectionErrors: ignoreConnectionErrors,
-			}, true
-		}
-	}
-
-	return nil, false
 }
