@@ -31,13 +31,13 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
-				msg := fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
+				msg := fmt.Sprintf("GPU %s needs reset (detected pending row remapping)", device.UUID)
 				needRebootMsgs = append(needRebootMsgs, msg)
 			}
 
 			rma := device.RemappedRows.QualifiesForRMA()
 			if rma {
-				msg := fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
+				msg := fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred)", device.UUID)
 				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}
@@ -110,7 +110,7 @@ func (o *Output) Evaluate() (string, bool, error) {
 			}
 			if r.RequiresReset() {
 				healthy = false
-				reasons = append(reasons, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", r.UUID, r.RemappingPending))
+				reasons = append(reasons, fmt.Sprintf("GPU %s needs reset (detected pending row remapping)", r.UUID))
 			}
 		}
 
