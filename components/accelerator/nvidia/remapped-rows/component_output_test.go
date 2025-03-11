@@ -156,7 +156,7 @@ func TestOutput_Evaluate(t *testing.T) {
 					},
 				},
 			},
-			wantReason:  `GPU GPU-456 qualifies for RMA (remapping failure occurred true, remapped due to uncorrectable errors 1)`,
+			wantReason:  `GPU GPU-456 qualifies for RMA (row remapping failed, remapped due to 1 uncorrectable error(s))`,
 			wantHealthy: false,
 			wantErr:     false,
 		},
