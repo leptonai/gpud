@@ -43,21 +43,18 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if len(needRebootMsgs) > 0 {
-		if o.SuggestedActions == nil {
-			o.SuggestedActions = &common.SuggestedActions{}
-		}
-
-		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(needRebootMsgs, ", "))
-		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
-	}
+	// TODO: clean up the code below
+	// for now, hw inspection takes priority over reboot
 	if len(rmaMsgs) > 0 {
 		if o.SuggestedActions == nil {
 			o.SuggestedActions = &common.SuggestedActions{}
 		}
-
-		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(rmaMsgs, ", "))
 		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeHardwareInspection)
+	} else if len(needRebootMsgs) > 0 {
+		if o.SuggestedActions == nil {
+			o.SuggestedActions = &common.SuggestedActions{}
+		}
+		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
 	}
 
 	return o
