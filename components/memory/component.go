@@ -176,16 +176,9 @@ func (c *component) CheckOnce() {
 	d.TotalBytes = vm.Total
 	d.AvailableBytes = vm.Available
 	d.UsedBytes = vm.Used
-	d.UsedPercent = fmt.Sprintf("%.2f", vm.UsedPercent)
 	d.FreeBytes = vm.Free
 	d.VMAllocTotalBytes = vm.VmallocTotal
 	d.VMAllocUsedBytes = vm.VmallocUsed
-	vmAllocUsedPercent := 0.0
-	if vm.VmallocTotal > 0 {
-		vmAllocUsedPercent = float64(vm.VmallocUsed) / float64(vm.VmallocTotal)
-		vmAllocUsedPercent *= 100
-	}
-	d.VMAllocUsedPercent = fmt.Sprintf("%.2f", vmAllocUsedPercent)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	err = metrics.SetTotalBytes(cctx, float64(vm.Total), d.ts)
@@ -229,12 +222,10 @@ type Data struct {
 	TotalBytes     uint64 `json:"total_bytes"`
 	AvailableBytes uint64 `json:"available_bytes"`
 	UsedBytes      uint64 `json:"used_bytes"`
-	UsedPercent    string `json:"used_percent"`
 	FreeBytes      uint64 `json:"free_bytes"`
 
-	VMAllocTotalBytes  uint64 `json:"vm_alloc_total_bytes"`
-	VMAllocUsedBytes   uint64 `json:"vm_alloc_used_bytes"`
-	VMAllocUsedPercent string `json:"vm_alloc_used_percent"`
+	VMAllocTotalBytes uint64 `json:"vm_alloc_total_bytes"`
+	VMAllocUsedBytes  uint64 `json:"vm_alloc_used_bytes"`
 
 	// Represents the current BPF JIT buffer size in bytes.
 	// ref. "cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'"
@@ -253,7 +244,7 @@ func (d *Data) getReason() string {
 	if d.err != nil {
 		return fmt.Sprintf("failed to get memory data -- %s", d.err)
 	}
-	return fmt.Sprintf("using %s out of total %s (%s %%)", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes), d.UsedPercent)
+	return fmt.Sprintf("using %s out of total %s", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes))
 }
 
 func (d *Data) getHealth() (string, bool) {

@@ -19,9 +19,8 @@ func TestDataGetReason(t *testing.T) {
 
 	// Test with valid data
 	d = &Data{
-		TotalBytes:  16 * 1024 * 1024 * 1024,
-		UsedBytes:   8 * 1024 * 1024 * 1024,
-		UsedPercent: "50.00",
+		TotalBytes: 16 * 1024 * 1024 * 1024,
+		UsedBytes:  8 * 1024 * 1024 * 1024,
 	}
 	assert.Contains(t, d.getReason(), "8.6")
 	assert.Contains(t, d.getReason(), "17")
@@ -39,37 +38,19 @@ func TestDataGetHealth(t *testing.T) {
 	health, healthy = d.getHealth()
 	assert.Equal(t, "Unhealthy", health)
 	assert.False(t, healthy)
-
-	// Test with valid data - normal usage
-	d = &Data{
-		UsedPercent: "50.00",
-	}
-	health, healthy = d.getHealth()
-	assert.Equal(t, "Healthy", health)
-	assert.True(t, healthy)
-
-	// Test with valid data - high usage
-	d = &Data{
-		UsedPercent: "95.00",
-	}
-	health, healthy = d.getHealth()
-	assert.Equal(t, "Healthy", health) // Memory usage alone doesn't trigger unhealthy state
-	assert.True(t, healthy)
 }
 
 func TestDataGetStates(t *testing.T) {
 	d := &Data{
-		TotalBytes:  16 * 1024 * 1024 * 1024, // 16GB
-		UsedBytes:   8 * 1024 * 1024 * 1024,  // 8GB
-		UsedPercent: "50.00",
+		TotalBytes: 16 * 1024 * 1024 * 1024, // 16GB
+		UsedBytes:  8 * 1024 * 1024 * 1024,  // 8GB
 
 		AvailableBytes: 8 * 1024 * 1024 * 1024, // 8GB
 
 		FreeBytes: 7 * 1024 * 1024 * 1024, // 7GB
 
-		VMAllocTotalBytes:  32 * 1024 * 1024 * 1024, // 32GB
-		VMAllocUsedBytes:   16 * 1024 * 1024 * 1024, // 16GB
-		VMAllocUsedPercent: "50.00",
+		VMAllocTotalBytes: 32 * 1024 * 1024 * 1024, // 32GB
+		VMAllocUsedBytes:  16 * 1024 * 1024 * 1024, // 16GB
 
 		BPFJITBufferBytes: 1024 * 1024, // 1MB
 
@@ -93,5 +74,4 @@ func TestDataGetStates(t *testing.T) {
 	var decodedData Data
 	err = json.Unmarshal([]byte(jsonData), &decodedData)
 	assert.NoError(t, err)
-	assert.Equal(t, "50.00", decodedData.UsedPercent)
 }
