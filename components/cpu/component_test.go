@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/leptonai/gpud/pkg/common"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestInfoGetReason(t *testing.T) {
@@ -402,120 +403,71 @@ func findStateByName(states []components.State, name string) *components.State {
 	return nil
 }
 
-func TestCalculateCPUUsage(t *testing.T) {
+func TestComponentEvents(t *testing.T) {
+	// Create a mock event bucket
+	now := time.Now()
+	mockEvents := []components.Event{
+		{
+			Time:    metav1.Time{Time: now.Add(-time.Hour)},
+			Name:    "cpu_event",
+			Type:    common.EventTypeWarning,
+			Message: "Test CPU event 1",
+		},
+		{
+			Time:    metav1.Time{Time: now.Add(-30 * time.Minute)},
+			Name:    "cpu_event",
+			Type:    common.EventTypeInfo,
+			Message: "Test CPU event 2",
+		},
+	}
+
+	// Create a mock bucket that satisfies the eventstore.Bucket interface
+	mockBucket := &mockEventBucket{events: mockEvents}
+
+	// Create a test component with the mock event bucket
+	comp := &component{
+		eventBucket: mockBucket,
+	}
+
+	// Call Events method with a time from 2 hours ago
 	ctx := context.Background()
+	since := now.Add(-2 * time.Hour)
+	events, err := comp.Events(ctx, since)
 
-	// Test case 1: When prevStat is nil, should use getUsedPct
-	t.Run("with nil prevStat", func(t *testing.T) {
-		expectedCPUStat := cpu.TimesStat{
-			User:   100,
-			System: 50,
-			Idle:   200,
-		}
-		expectedUsage := 42.5
+	// Verify results
+	assert.NoError(t, err)
+	assert.Equal(t, mockEvents, events)
+}
 
-		// Mock the getTimeStat function
-		getTimeStatMock := func(ctx context.Context) (cpu.TimesStat, error) {
-			return expectedCPUStat, nil
-		}
+// mockEventBucket implements the eventstore.Bucket interface for testing
+type mockEventBucket struct {
+	events []components.Event
+}
 
-		// Mock the getUsedPct function
-		getUsedPctMock := func(ctx context.Context) (float64, error) {
-			return expectedUsage, nil
-		}
+func (m *mockEventBucket) Name() string {
+	return "mock"
+}
 
-		// Call the function with nil prevStat
-		curStat, usedPercent, err := calculateCPUUsage(ctx, nil, getTimeStatMock, getUsedPctMock)
+func (m *mockEventBucket) Insert(ctx context.Context, event components.Event) error {
+	return nil
+}
 
-		// Verify results
-		assert.NoError(t, err)
-		assert.Equal(t, expectedCPUStat, curStat)
-		assert.Equal(t, expectedUsage, usedPercent)
-	})
+func (m *mockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+	return nil, nil
+}
 
-	// Test case 2: When prevStat is not nil, should calculate busy percentage
-	t.Run("with non-nil prevStat", func(t *testing.T) {
-		prevCPUStat := cpu.TimesStat{
-			User:   100,
-			System: 50,
-			Idle:   200,
-		}
-		currentCPUStat := cpu.TimesStat{
-			User:   150, // +50
-			System: 75,  // +25
-			Idle:   225, // +25
-		}
-		// Total time diff: 100, busy time diff: 75, so busy percentage should be 75%
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+	return m.events, nil
+}
 
-		// Mock the getTimeStat function
-		getTimeStatMock := func(ctx context.Context) (cpu.TimesStat, error) {
-			return currentCPUStat, nil
-		}
+func (m *mockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+	return nil, nil
+}
 
-		// Mock the getUsedPct function - should not be called in this case
-		getUsedPctMock := func(ctx context.Context) (float64, error) {
-			t.Fatal("getUsedPct should not be called when prevStat is not nil")
-			return 0, nil
-		}
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	return 0, nil
+}
 
-		// Call the function with non-nil prevStat
-		curStat, usedPercent, err := calculateCPUUsage(ctx, &prevCPUStat, getTimeStatMock, getUsedPctMock)
-
-		// Verify results
-		assert.NoError(t, err)
-		assert.Equal(t, currentCPUStat, curStat)
-		// We're not checking the exact value here because calculateBusy is a separate function
-		// with its own tests, but the result should be a reasonable percentage
-		assert.True(t, usedPercent >= 0 && usedPercent <= 100)
-	})
-
-	// Test case 3: When getTimeStat returns an error
-	t.Run("with getTimeStat error", func(t *testing.T) {
-		expectedErr := fmt.Errorf("failed to get time stats")
-
-		// Mock the getTimeStat function to return an error
-		getTimeStatMock := func(ctx context.Context) (cpu.TimesStat, error) {
-			return cpu.TimesStat{}, expectedErr
-		}
-
-		// Mock the getUsedPct function - should not be called in this case
-		getUsedPctMock := func(ctx context.Context) (float64, error) {
-			t.Fatal("getUsedPct should not be called when getTimeStat fails")
-			return 0, nil
-		}
-
-		// Call the function
-		_, _, err := calculateCPUUsage(ctx, nil, getTimeStatMock, getUsedPctMock)
-
-		// Verify results
-		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-	})
-
-	// Test case 4: When getUsedPct returns an error (with nil prevStat)
-	t.Run("with getUsedPct error", func(t *testing.T) {
-		expectedCPUStat := cpu.TimesStat{
-			User:   100,
-			System: 50,
-			Idle:   200,
-		}
-		expectedErr := fmt.Errorf("failed to get usage percentage")
-
-		// Mock the getTimeStat function
-		getTimeStatMock := func(ctx context.Context) (cpu.TimesStat, error) {
-			return expectedCPUStat, nil
-		}
-
-		// Mock the getUsedPct function to return an error
-		getUsedPctMock := func(ctx context.Context) (float64, error) {
-			return 0, expectedErr
-		}
-
-		// Call the function with nil prevStat
-		_, _, err := calculateCPUUsage(ctx, nil, getTimeStatMock, getUsedPctMock)
-
-		// Verify results
-		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-	})
+func (m *mockEventBucket) Close() {
+	// No-op
 }
