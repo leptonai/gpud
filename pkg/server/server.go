@@ -65,12 +65,10 @@ import (
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
-	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/file"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/fuse"
@@ -83,7 +81,6 @@ import (
 	"github.com/leptonai/gpud/components/library"
 	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/components/memory"
-	memory_id "github.com/leptonai/gpud/components/memory/id"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
@@ -247,19 +244,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	for k, configValue := range config.Components {
 		switch k {
-		case cpu_id.Name:
-			cfg := cpu.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := cpu.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := cpu.New(ctx, cfg, eventStore)
+		case cpu.Name:
+			c, err := cpu.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -316,23 +302,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case fd_id.Name:
-			cfg := fd.Config{
-				Query:                         defaultQueryCfg,
-				ThresholdAllocatedFileHandles: fd.DefaultThresholdAllocatedFileHandles,
-				ThresholdRunningPIDs:          fd.DefaultThresholdRunningPIDs,
-			}
-			if configValue != nil {
-				parsed, err := fd.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := fd.New(ctx, cfg, eventStore)
+		case fd.Name:
+			c, err := fd.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -370,19 +341,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case info_id.Name:
 			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
 
-		case memory_id.Name:
-			cfg := memory.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := memory.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := memory.New(ctx, cfg, eventStore)
+		case memory.Name:
+			c, err := memory.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

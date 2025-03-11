@@ -4,27 +4,75 @@ package fd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	fd_id "github.com/leptonai/gpud/components/fd/id"
 	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/query"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
-func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(fd_id.Name)
+const (
+	Name = "file-descriptor"
+
+	// DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
+	DefaultThresholdAllocatedFileHandles = 10000000
+
+	// DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
+	DefaultThresholdRunningPIDs = 900000
+
+	WarningFileHandlesAllocationPercent    = 80.0
+	ErrFileHandlesAllocationExceedsWarning = "file handles allocation exceeds its threshold (80%)"
+)
+
+var _ components.Component = &component{}
+
+type component struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// thresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
+	// at which we consider the system to be under high file descriptor usage.
+	thresholdAllocatedFileHandles uint64
+	// thresholdRunningPIDs is the number of running pids at which
+	// we consider the system to be under high file descriptor usage.
+	// This is useful for triggering alerts when the system is under high load.
+	// And useful when the actual system fd-max is set to unlimited.
+	thresholdRunningPIDs uint64
+
+	logLineProcessor *dmesg.LogLineProcessor
+	eventBucket      eventstore.Bucket
+	gatherer         prometheus.Gatherer
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
+
+	lastMu   sync.RWMutex
+	lastData *Data
+}
+
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
 
+	kmsgWatcher, err := kmsg.StartWatch(Match)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: deprecate
 	cctx, ccancel := context.WithCancel(ctx)
 	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
 	if err != nil {
@@ -32,84 +80,45 @@ func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (componen
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.StartWatch(Match)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
-	getDefaultPoller().Start(cctx, cfg.Query, fd_id.Name)
-
 	return &component{
-		rootCtx:          ctx,
-		cancel:           ccancel,
+		ctx:    ctx,
+		cancel: ccancel,
+
+		thresholdAllocatedFileHandles: DefaultThresholdAllocatedFileHandles,
+		thresholdRunningPIDs:          DefaultThresholdRunningPIDs,
+
 		logLineProcessor: logLineProcessor,
 		eventBucket:      eventBucket,
-		kmsgWatcher:      kmsgWatcher,
-		poller:           getDefaultPoller(),
+
+		kmsgWatcher: kmsgWatcher,
 	}, nil
 }
 
-var _ components.Component = &component{}
+func (c *component) Name() string { return Name }
 
-type component struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	logLineProcessor *dmesg.LogLineProcessor
-	eventBucket      eventstore.Bucket
-	poller           query.Poller
-	gatherer         prometheus.Gatherer
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
 
-	// experimental
-	kmsgWatcher kmsg.Watcher
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
 }
 
-func (c *component) Name() string { return fd_id.Name }
-
-func (c *component) Start() error { return nil }
-
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", fd_id.Name)
-		return []components.State{
-			{
-				Name:    fd_id.Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Name:    fd_id.Name,
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Name:    fd_id.Name,
-				Healthy: true,
-				Reason:  "no output",
-			},
-		}, nil
-	}
-
-	output, ok := last.Output.(*Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -164,9 +173,6 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
 
-	// safe to call stop multiple times
-	c.poller.Stop(fd_id.Name)
-
 	c.logLineProcessor.Close()
 	c.eventBucket.Close()
 
@@ -182,4 +188,246 @@ var _ components.PromRegisterer = (*component)(nil)
 func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
 	return metrics.Register(reg, dbRW, dbRO, tableName)
+}
+
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking file descriptors")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
+
+	allocatedFileHandles, _, err := file.GetFileHandles()
+	if err != nil {
+		d.err = err
+		return
+	}
+	d.AllocatedFileHandles = allocatedFileHandles
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetAllocatedFileHandles(cctx, float64(allocatedFileHandles), d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	runningPIDs, err := process.CountRunningPids()
+	if err != nil {
+		d.err = err
+		return
+	}
+	d.RunningPIDs = runningPIDs
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetRunningPIDs(cctx, float64(runningPIDs), d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	// may fail for mac
+	// e.g.,
+	// stat /proc: no such file or directory
+	usage, uerr := file.GetUsage()
+	if uerr != nil {
+		d.err = uerr
+		return
+	}
+	d.Usage = usage
+
+	limit, err := file.GetLimit()
+	if err != nil {
+		d.err = err
+		return
+	}
+	d.Limit = limit
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetLimit(cctx, float64(limit), d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	allocatedFileHandlesPct := calcUsagePct(allocatedFileHandles, limit)
+	d.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetAllocatedFileHandlesPercent(cctx, allocatedFileHandlesPct, d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	usageVal := runningPIDs // for mac
+	if usage > 0 {
+		usageVal = usage
+	}
+	usedPct := calcUsagePct(usageVal, limit)
+	d.UsedPercent = fmt.Sprintf("%.2f", usedPct)
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetUsedPercent(cctx, usedPct, d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	fileHandlesSupported := file.CheckFileHandlesSupported()
+	d.FileHandlesSupported = fileHandlesSupported
+
+	var thresholdAllocatedFileHandlesPct float64
+	if c.thresholdAllocatedFileHandles > 0 {
+		thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(c.thresholdAllocatedFileHandles, limit))
+	}
+	d.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
+	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetThresholdAllocatedFileHandles(cctx, float64(c.thresholdAllocatedFileHandles))
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetThresholdAllocatedFileHandlesPercent(cctx, thresholdAllocatedFileHandlesPct, d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	fdLimitSupported := file.CheckFDLimitSupported()
+	d.FDLimitSupported = fdLimitSupported
+
+	var thresholdRunningPIDsPct float64
+	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
+		thresholdRunningPIDsPct = calcUsagePct(usage, c.thresholdRunningPIDs)
+	}
+	d.ThresholdRunningPIDs = c.thresholdRunningPIDs
+	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetThresholdRunningPIDs(cctx, float64(c.thresholdRunningPIDs))
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	err = metrics.SetThresholdRunningPIDsPercent(cctx, thresholdRunningPIDsPct, d.ts)
+	ccancel()
+	if err != nil {
+		d.err = err
+		return
+	}
+}
+
+type Data struct {
+	// The number of file descriptors currently allocated on the host (not per process).
+	AllocatedFileHandles uint64 `json:"allocated_file_handles"`
+	// The number of running PIDs returned by https://pkg.go.dev/github.com/shirou/gopsutil/v4/process#Pids.
+	RunningPIDs uint64 `json:"running_pids"`
+	Usage       uint64 `json:"usage"`
+	Limit       uint64 `json:"limit"`
+
+	// AllocatedFileHandlesPercent is the percentage of file descriptors that are currently allocated,
+	// based on the current file descriptor limit and the current number of file descriptors allocated on the host (not per process).
+	AllocatedFileHandlesPercent string `json:"allocated_file_handles_percent"`
+	// UsedPercent is the percentage of file descriptors that are currently in use,
+	// based on the current file descriptor limit on the host (not per process).
+	UsedPercent string `json:"used_percent"`
+
+	ThresholdAllocatedFileHandles        uint64 `json:"threshold_allocated_file_handles"`
+	ThresholdAllocatedFileHandlesPercent string `json:"threshold_allocated_file_handles_percent"`
+
+	ThresholdRunningPIDs        uint64 `json:"threshold_running_pids"`
+	ThresholdRunningPIDsPercent string `json:"threshold_running_pids_percent"`
+
+	// Set to true if the file handles are supported.
+	FileHandlesSupported bool `json:"file_handles_supported"`
+	// Set to true if the file descriptor limit is supported.
+	FDLimitSupported bool `json:"fd_limit_supported"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no file descriptors data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get file descriptors data -- %s", d.err)
+	}
+	reason := fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
+		d.Usage,
+		d.ThresholdAllocatedFileHandles,
+		d.ThresholdAllocatedFileHandlesPercent,
+	)
+
+	if thresholdAllocatedPercent, err := d.getThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
+		reason += "; " + ErrFileHandlesAllocationExceedsWarning
+	}
+	return reason
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+
+	if thresholdAllocatedPercent, err := d.getThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
+		healthy = false
+		health = components.StateDegraded
+	}
+
+	return health, healthy
+}
+
+func (d *Data) getThresholdAllocatedFileHandlesPercent() (float64, error) {
+	if d == nil {
+		return 0, nil
+	}
+	return strconv.ParseFloat(d.ThresholdAllocatedFileHandlesPercent, 64)
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   "file_descriptors",
+		Reason: d.getReason(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
+}
+
+func calcUsagePct(usage, limit uint64) float64 {
+	if limit > 0 {
+		return float64(usage) / float64(limit) * 100
+	}
+	return 0
 }

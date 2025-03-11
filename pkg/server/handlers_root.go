@@ -19,10 +19,10 @@ import (
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
-	cpu_id "github.com/leptonai/gpud/components/cpu/id"
+	"github.com/leptonai/gpud/components/cpu"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
-	fd_id "github.com/leptonai/gpud/components/fd/id"
-	memory_id "github.com/leptonai/gpud/components/memory/id"
+	"github.com/leptonai/gpud/components/fd"
+	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/pkg/config"
@@ -60,15 +60,15 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 	}
 
 	cpuChart := false
-	if c, err := components.GetComponent(cpu_id.Name); c != nil && err == nil {
+	if c, err := components.GetComponent(cpu.Name); c != nil && err == nil {
 		cpuChart = true
 	}
 	memoryChart := false
-	if c, err := components.GetComponent(memory_id.Name); c != nil && err == nil {
+	if c, err := components.GetComponent(memory.Name); c != nil && err == nil {
 		memoryChart = true
 	}
 	fdChart := false
-	if c, err := components.GetComponent(fd_id.Name); c != nil && err == nil {
+	if c, err := components.GetComponent(fd.Name); c != nil && err == nil {
 		fdChart = true
 	}
 	diskChart := false
@@ -130,13 +130,13 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 
 	components := []string{}
 	if cpuChart {
-		components = append(components, cpu_id.Name)
+		components = append(components, cpu.Name)
 	}
 	if memoryChart {
-		components = append(components, memory_id.Name)
+		components = append(components, memory.Name)
 	}
 	if fdChart {
-		components = append(components, fd_id.Name)
+		components = append(components, fd.Name)
 	}
 	if diskChart {
 		components = append(components, disk_id.Name)
