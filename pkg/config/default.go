@@ -28,11 +28,11 @@ import (
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
-	cpu_id "github.com/leptonai/gpud/components/cpu/id"
+	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
-	fd_id "github.com/leptonai/gpud/components/fd/id"
+	"github.com/leptonai/gpud/components/fd"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	info_id "github.com/leptonai/gpud/components/info/id"
@@ -40,7 +40,7 @@ import (
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	library_id "github.com/leptonai/gpud/components/library/id"
-	memory_id "github.com/leptonai/gpud/components/memory/id"
+	"github.com/leptonai/gpud/components/memory"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
@@ -93,12 +93,12 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// default components that work both in mac/linux
 		Components: map[string]any{
-			cpu_id.Name:           nil,
+			cpu.Name:              nil,
 			disk_id.Name:          disk.DefaultConfig(),
 			fuse_id.Name:          nil,
-			fd_id.Name:            nil,
+			fd.Name:               nil,
 			info_id.Name:          nil,
-			memory_id.Name:        nil,
+			memory.Name:           nil,
 			os_id.Name:            nil,
 			kernel_module_id.Name: nil,
 		},

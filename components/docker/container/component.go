@@ -191,6 +191,17 @@ func (d *Data) getHealth(ignoreConnErr bool) (string, bool) {
 }
 
 func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
 		Reason: d.getReason(),
