@@ -15,6 +15,10 @@ var MockInstance = &nvmlmock.Interface{
 		return "535.161.08", nvml.SUCCESS
 	},
 
+	SystemGetCudaDriverVersion_v2Func: func() (int, nvml.Return) {
+		return 12000, nvml.SUCCESS // CUDA 12.0 version
+	},
+
 	DeviceGetCountFunc: func() (int, nvml.Return) {
 		return 1, nvml.SUCCESS
 	},
