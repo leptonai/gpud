@@ -174,18 +174,12 @@ func (c *component) CheckOnce() {
 	}
 
 	d.TotalBytes = vm.Total
-	d.TotalHumanized = humanize.Bytes(vm.Total)
 	d.AvailableBytes = vm.Available
-	d.AvailableHumanized = humanize.Bytes(vm.Available)
 	d.UsedBytes = vm.Used
-	d.UsedHumanized = humanize.Bytes(vm.Used)
 	d.UsedPercent = fmt.Sprintf("%.2f", vm.UsedPercent)
 	d.FreeBytes = vm.Free
-	d.FreeHumanized = humanize.Bytes(vm.Free)
 	d.VMAllocTotalBytes = vm.VmallocTotal
-	d.VMAllocTotalHumanized = humanize.Bytes(vm.VmallocTotal)
 	d.VMAllocUsedBytes = vm.VmallocUsed
-	d.VMAllocUsedHumanized = humanize.Bytes(vm.VmallocUsed)
 	vmAllocUsedPercent := 0.0
 	if vm.VmallocTotal > 0 {
 		vmAllocUsedPercent = float64(vm.VmallocUsed) / float64(vm.VmallocTotal)
@@ -229,34 +223,22 @@ func (c *component) CheckOnce() {
 		return
 	}
 	d.BPFJITBufferBytes = bpfJITBufferBytes
-	d.BPFJITBufferHumanized = humanize.Bytes(bpfJITBufferBytes)
 }
 
 type Data struct {
 	TotalBytes     uint64 `json:"total_bytes"`
-	TotalHumanized string `json:"total_humanized"`
+	AvailableBytes uint64 `json:"available_bytes"`
+	UsedBytes      uint64 `json:"used_bytes"`
+	UsedPercent    string `json:"used_percent"`
+	FreeBytes      uint64 `json:"free_bytes"`
 
-	AvailableBytes     uint64 `json:"available_bytes"`
-	AvailableHumanized string `json:"available_humanized"`
-
-	UsedBytes     uint64 `json:"used_bytes"`
-	UsedHumanized string `json:"used_humanized"`
-
-	UsedPercent string `json:"used_percent"`
-
-	FreeBytes     uint64 `json:"free_bytes"`
-	FreeHumanized string `json:"free_humanized"`
-
-	VMAllocTotalBytes     uint64 `json:"vm_alloc_total_bytes"`
-	VMAllocTotalHumanized string `json:"vm_alloc_total_humanized"`
-	VMAllocUsedBytes      uint64 `json:"vm_alloc_used_bytes"`
-	VMAllocUsedHumanized  string `json:"vm_alloc_used_humanized"`
-	VMAllocUsedPercent    string `json:"vm_alloc_used_percent"`
+	VMAllocTotalBytes  uint64 `json:"vm_alloc_total_bytes"`
+	VMAllocUsedBytes   uint64 `json:"vm_alloc_used_bytes"`
+	VMAllocUsedPercent string `json:"vm_alloc_used_percent"`
 
 	// Represents the current BPF JIT buffer size in bytes.
 	// ref. "cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'"
-	BPFJITBufferBytes     uint64 `json:"bpf_jit_buffer_bytes"`
-	BPFJITBufferHumanized string `json:"bpf_jit_buffer_humanized"`
+	BPFJITBufferBytes uint64 `json:"bpf_jit_buffer_bytes"`
 
 	// timestamp of the last check
 	ts time.Time `json:"-"`
@@ -271,7 +253,7 @@ func (d *Data) getReason() string {
 	if d.err != nil {
 		return fmt.Sprintf("failed to get memory data -- %s", d.err)
 	}
-	return fmt.Sprintf("using %s out of total %s (%s %%)", d.UsedHumanized, d.TotalHumanized, d.UsedPercent)
+	return fmt.Sprintf("using %s out of total %s (%s %%)", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes), d.UsedPercent)
 }
 
 func (d *Data) getHealth() (string, bool) {
