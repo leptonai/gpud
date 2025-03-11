@@ -21,9 +21,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	client_v1 "github.com/leptonai/gpud/client/v1"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
-	mocknvidiasmi "github.com/leptonai/gpud/e2e/mock/nvidia-smi"
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/server"
@@ -61,10 +59,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		By("mock lspci")
 		err = mocklspci.Mock(mocklspci.NormalOutput)
 		Expect(err).ToNot(HaveOccurred(), "failed to mock lspci")
-
-		By("mock nvidia-smi")
-		err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalQueryOutput)
-		Expect(err).ToNot(HaveOccurred(), "failed to mock nvidia-smi")
 
 		By("start gpud scan")
 		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
@@ -313,33 +307,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			})
 		}
 	})
-
-	Describe("HW Slowdown test", func() {
-
-		// TODO: fix the hw slowdown cases for events interval
-
-		It("should report healthy for normal case", func() {
-			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent(nvidia_hw_slowdown_id.Name))
-			Expect(err).NotTo(HaveOccurred(), "failed to get hw slowdown states")
-
-			GinkgoLogr.Info("got states", "states", states)
-		})
-
-		It("should report unhealthy for slowdown case", func() {
-			err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.HWSlowdownQueryOutput)
-			Expect(err).NotTo(HaveOccurred())
-			defer func() {
-				err = mocknvidiasmi.Mock(mocknvidiasmi.NormalSMIOutput, mocknvidiasmi.NormalQueryOutput)
-				Expect(err).NotTo(HaveOccurred())
-			}()
-
-			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent(nvidia_hw_slowdown_id.Name))
-			Expect(err).NotTo(HaveOccurred(), "failed to get hw slowdown states")
-
-			GinkgoLogr.Info("got states", "states", states)
-		})
-	})
-
 })
 
 func randStr(length int) (string, error) {

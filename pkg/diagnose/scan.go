@@ -8,12 +8,11 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid"
-	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid"
-	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/memory"
@@ -122,7 +121,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Fatalw("failed to open database", "error", err)
 		}
 
-		xidEventBucket, err := eventStore.Bucket(nvidia_component_error_xid_id.Name)
+		xidEventBucket, err := eventStore.Bucket(nvidia_xid.Name)
 		if err != nil {
 			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}
@@ -136,7 +135,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			ctx,
 			nvidia_query.WithXidEventBucket(xidEventBucket),
 			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithNvidiaSMIQueryCommand(op.nvidiaSMIQueryCommand),
 			nvidia_query.WithIbstatCommand(op.ibstatCommand),
 		)
 		if err != nil {

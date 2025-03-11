@@ -84,8 +84,7 @@ type Web struct {
 }
 
 type ToolOverwriteOptions struct {
-	NvidiaSMIQueryCommand string `json:"nvidia_smi_query_command"`
-	IbstatCommand         string `json:"ibstat_command"`
+	IbstatCommand string `json:"ibstat_command"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

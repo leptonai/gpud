@@ -7,7 +7,6 @@ import (
 type Op struct {
 	xidEventsBucket        eventstore.Bucket
 	hwSlowdownEventsBucket eventstore.Bucket
-	nvidiaSMIQueryCommand  string
 	ibstatCommand          string
 	debug                  bool
 }
@@ -19,9 +18,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
-	if op.nvidiaSMIQueryCommand == "" {
-		op.nvidiaSMIQueryCommand = "nvidia-smi --query"
-	}
 	if op.ibstatCommand == "" {
 		op.ibstatCommand = "ibstat"
 	}
@@ -38,12 +34,6 @@ func WithXidEventBucket(bucket eventstore.Bucket) OpOption {
 func WithHWSlowdownEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
 		op.hwSlowdownEventsBucket = bucket
-	}
-}
-
-func WithNvidiaSMIQueryCommand(p string) OpOption {
-	return func(op *Op) {
-		op.nvidiaSMIQueryCommand = p
 	}
 }
 

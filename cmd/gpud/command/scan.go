@@ -23,7 +23,6 @@ func cmdScan(cliContext *cli.Context) error {
 		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),
 		diagnose.WithDmesgCheck(dmesgCheck),
-		diagnose.WithNvidiaSMIQueryCommand(nvidiaSMIQueryCommand),
 		diagnose.WithIbstatCommand(ibstatCommand),
 		diagnose.WithCheckInfiniband(checkInfiniBand),
 	}

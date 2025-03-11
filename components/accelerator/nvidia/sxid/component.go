@@ -14,13 +14,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
+
+const Name = "accelerator-nvidia-error-sxid"
 
 const (
 	StateNameErrorSXid = "error_sxid"
@@ -49,7 +50,7 @@ func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
 
 	extraEventCh := make(chan *components.Event, 256)
-	eventBucket, err := eventStore.Bucket(nvidia_component_error_sxid_id.Name)
+	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
 		ccancel()
@@ -79,7 +80,7 @@ func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
 
 var _ components.Component = (*SXIDComponent)(nil)
 
-func (c *SXIDComponent) Name() string { return nvidia_component_error_sxid_id.Name }
+func (c *SXIDComponent) Name() string { return Name }
 
 func (c *SXIDComponent) Start() error {
 	initializeBackoff := 1 * time.Second

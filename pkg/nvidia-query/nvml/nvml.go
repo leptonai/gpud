@@ -42,8 +42,12 @@ func NewNVInfo(nvmlLib nvml.Interface, deviceLib device.Interface) nvinfo.Interf
 }
 
 type Output struct {
-	Exists      bool          `json:"exists"`
-	Message     string        `json:"message"`
+	Exists  bool   `json:"exists"`
+	Message string `json:"message"`
+
+	DriverVersion string `json:"driver_version"`
+	CUDAVersion   string `json:"cuda_version"`
+
 	DeviceInfos []*DeviceInfo `json:"device_infos"`
 }
 
@@ -67,6 +71,7 @@ type instance struct {
 	mu sync.RWMutex
 
 	driverVersion string
+	cudaVersion   string
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -188,6 +193,28 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 	return major, minor, patch, nil
 }
 
+func GetCUDAVersion() (string, error) {
+	nvmlLib := NewNVML()
+	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	}
+
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g1d12b603a42805ee7e4160557ffc2128
+	ver, ret := nvmlLib.SystemGetCudaDriverVersion_v2()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
+	}
+
+	// #define NVML_CUDA_DRIVER_VERSION_MAJOR ( v ) ((v)/1000)
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g40a4eb255d9766f6bc4c9402ce9102c2
+	major := ver / 1000
+
+	// #define NVML_CUDA_DRIVER_VERSION_MINOR ( v ) (((v) % 1000) / 10)
+	minor := (ver % 1000) / 10
+
+	return fmt.Sprintf("%d.%d", major, minor), nil
+}
+
 // clock events are supported in versions 535 and above
 // otherwise, CGO call just exits with
 // undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
@@ -222,6 +249,10 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	if err != nil {
 		return nil, err
 	}
+	cudaVersion, err := GetCUDAVersion()
+	if err != nil {
+		return nil, err
+	}
 
 	log.Logger.Infow("checking if clock events are supported")
 	clockEventsSupported := ClockEventsSupportedVersion(major)
@@ -249,6 +280,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		rootCancel: rootCancel,
 
 		driverVersion: driverVersion,
+		cudaVersion:   cudaVersion,
 
 		nvmlLib:   nvmlLib,
 		deviceLib: deviceLib,
@@ -416,8 +448,10 @@ func (inst *instance) Get() (*Output, error) {
 	}
 
 	st := &Output{
-		Exists:  inst.nvmlExists,
-		Message: inst.nvmlExistsMsg,
+		Exists:        inst.nvmlExists,
+		Message:       inst.nvmlExistsMsg,
+		DriverVersion: inst.driverVersion,
+		CUDAVersion:   inst.cudaVersion,
 	}
 
 	// nvidia-smi polling happens periodically

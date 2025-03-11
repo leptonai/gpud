@@ -51,12 +51,6 @@ func WithKubeletIgnoreConnectionErrors(b bool) OpOption {
 	}
 }
 
-func WithNvidiaSMIQueryCommand(p string) OpOption {
-	return func(op *Op) {
-		op.NvidiaSMIQueryCommand = p
-	}
-}
-
 // Specifies the ibstat binary path to overwrite the default path.
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {

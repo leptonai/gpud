@@ -26,25 +26,11 @@ func ToOutput(i *nvidia_query.Output) *Output {
 		}
 	}
 
-	if i.SMI != nil {
-		for _, g := range i.SMI.GPUs {
-			if g.GPUPowerReadings == nil {
-				continue
-			}
-			parsed, err := g.GPUPowerReadings.Parse()
-			if err != nil {
-				continue
-			}
-			o.UsagesSMI = append(o.UsagesSMI, parsed)
-		}
-	}
-
 	return o
 }
 
 type Output struct {
-	UsagesSMI  []nvidia_query.ParsedSMIPowerReading `json:"usages_smi"`
-	UsagesNVML []nvidia_query_nvml.Power            `json:"usages_nvml"`
+	UsagesNVML []nvidia_query_nvml.Power `json:"usages_nvml"`
 }
 
 func (o *Output) JSON() ([]byte, error) {

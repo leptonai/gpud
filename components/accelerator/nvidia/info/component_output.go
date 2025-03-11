@@ -18,12 +18,9 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 	var totalMem uint64
 	var totalMemHumanized string
-
-	if i.SMI != nil && len(i.SMI.GPUs) > 0 {
-		if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
-			totalMem = i.NVML.DeviceInfos[0].Memory.TotalBytes
-			totalMemHumanized = humanize.Bytes(i.NVML.DeviceInfos[0].Memory.TotalBytes)
-		}
+	if i.NVML != nil && len(i.NVML.DeviceInfos) > 0 {
+		totalMem = i.NVML.DeviceInfos[0].Memory.TotalBytes
+		totalMemHumanized = humanize.Bytes(i.NVML.DeviceInfos[0].Memory.TotalBytes)
 	}
 
 	o := &Output{
@@ -35,20 +32,12 @@ func ToOutput(i *nvidia_query.Output) *Output {
 			TotalBytes:     totalMem,
 			TotalHumanized: totalMemHumanized,
 		},
-	}
-
-	if i.SMI != nil {
-		o.Driver.Version = i.SMI.DriverVersion
-		o.CUDA.Version = i.SMI.CUDAVersion
-
-		for _, g := range i.SMI.GPUs {
-			o.Product = Product{
-				Name:         g.ProductName,
-				Brand:        g.ProductBrand,
-				Architecture: g.ProductArchitecture,
-			}
-			break
-		}
+		Driver: Driver{
+			Version: i.NVML.DriverVersion,
+		},
+		CUDA: CUDA{
+			Version: i.NVML.CUDAVersion,
+		},
 	}
 
 	return o

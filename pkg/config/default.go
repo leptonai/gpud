@@ -10,9 +10,6 @@ import (
 
 	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
-	nvidia_error "github.com/leptonai/gpud/components/accelerator/nvidia/error"
-	nvidia_component_error_sxid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/sxid/id"
-	nvidia_component_error_xid_id "github.com/leptonai/gpud/components/accelerator/nvidia/error/xid/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
@@ -26,8 +23,10 @@ import (
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
+	nvidia_component_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
+	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	cpu_id "github.com/leptonai/gpud/components/cpu/id"
 	"github.com/leptonai/gpud/components/disk"
@@ -117,8 +116,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 
 		ToolOverwriteOptions: ToolOverwriteOptions{
-			NvidiaSMIQueryCommand: options.NvidiaSMIQueryCommand,
-			IbstatCommand:         options.IbstatCommand,
+			IbstatCommand: options.IbstatCommand,
 		},
 
 		EnableAutoUpdate: true,
@@ -130,8 +128,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		KernelModulesToCheck: options.KernelModulesToCheck,
 
 		NvidiaToolOverwrites: nvidia_common.ToolOverwrites{
-			NvidiaSMIQueryCommand: options.NvidiaSMIQueryCommand,
-			IbstatCommand:         options.IbstatCommand,
+			IbstatCommand: options.IbstatCommand,
 		},
 	}
 
@@ -207,9 +204,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		}
 
 		cfg.Components[nvidia_ecc_id.Name] = nil
-		cfg.Components[nvidia_error.Name] = nil
-		cfg.Components[nvidia_component_error_xid_id.Name] = nil
-		cfg.Components[nvidia_component_error_sxid_id.Name] = nil
+		cfg.Components[nvidia_component_xid.Name] = nil
+		cfg.Components[nvidia_component_sxid.Name] = nil
 		cfg.Components[nvidia_info.Name] = nil
 
 		cfg.Components[nvidia_clock_speed_id.Name] = nil
