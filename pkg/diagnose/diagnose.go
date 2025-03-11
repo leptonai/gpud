@@ -263,7 +263,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 		})
 	}
 
-	if !nvidia_query.SMIExists() {
+	if exists, err := nvidia_query.GPUsInstalled(ctx); !exists || err != nil {
 		o.Results = append(o.Results, CommandResult{
 			Command: "nvidia-smi",
 			Error:   "nvidia-smi is not installed",

@@ -14,21 +14,8 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-// Returns true if the local machine runs on Nvidia GPU
-// by running "nvidia-smi".
-func SMIExists() bool {
-	_, err := file.LocateExecutable("nvidia-smi")
-	return err == nil
-}
-
 // Returns true if the local machine has NVIDIA GPUs installed.
 func GPUsInstalled(ctx context.Context) (bool, error) {
-	smiInstalled := SMIExists()
-	if !smiInstalled {
-		return false, nil
-	}
-	log.Logger.Debugw("nvidia-smi installed")
-
 	// now that nvidia-smi installed,
 	// check the NVIDIA GPU presence via PCI bus
 	pciDevices, err := ListNVIDIAPCIs(ctx)

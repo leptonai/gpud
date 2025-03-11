@@ -104,8 +104,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	}
 
 	o := &Output{
-		Time:      time.Now().UTC(),
-		SMIExists: SMIExists(),
+		Time: time.Now().UTC(),
 	}
 
 	log.Logger.Debugw("counting gpu devices")
@@ -189,7 +188,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 const (
 	StateKeyGPUProductName      = "gpu_product_name"
-	StateKeySMIExists           = "smi_exists"
 	StateKeyFabricManagerExists = "fabric_manager_exists"
 	StateKeyIbstatExists        = "ibstat_exists"
 )
@@ -213,10 +211,6 @@ type Output struct {
 	NVMLErrors []string     `json:"nvml_errors,omitempty"`
 
 	MemoryErrorManagementCapabilities MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities,omitempty"`
-
-	// at some point, we will deprecate "nvidia-smi" parsing
-	// as the NVML API provides all the data we need
-	SMIExists bool `json:"smi_exists"`
 }
 
 func (o *Output) YAML() ([]byte, error) {
