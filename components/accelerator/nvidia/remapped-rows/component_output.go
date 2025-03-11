@@ -31,13 +31,13 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
-				msg := fmt.Sprintf("NVML indicates GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
+				msg := fmt.Sprintf("GPU %s needs reset (pending remapping %v)", device.UUID, requiresReset)
 				needRebootMsgs = append(needRebootMsgs, msg)
 			}
 
 			rma := device.RemappedRows.QualifiesForRMA()
 			if rma {
-				msg := fmt.Sprintf("NVML indicates GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
+				msg := fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v)", device.UUID, device.RemappedRows.RemappingFailed)
 				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}
@@ -106,11 +106,11 @@ func (o *Output) Evaluate() (string, bool, error) {
 		for _, r := range o.RemappedRowsNVML {
 			if r.QualifiesForRMA() {
 				healthy = false
-				reasons = append(reasons, fmt.Sprintf("nvml GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
+				reasons = append(reasons, fmt.Sprintf("GPU %s qualifies for RMA (remapping failure occurred %v, remapped due to uncorrectable errors %d)", r.UUID, r.RemappingFailed, r.RemappedDueToUncorrectableErrors))
 			}
 			if r.RequiresReset() {
 				healthy = false
-				reasons = append(reasons, fmt.Sprintf("nvml GPU %s needs reset (pending remapping %v)", r.UUID, r.RemappingPending))
+				reasons = append(reasons, fmt.Sprintf("GPU %s needs reset (pending remapping %v)", r.UUID, r.RemappingPending))
 			}
 		}
 
