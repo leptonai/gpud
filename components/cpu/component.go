@@ -364,10 +364,12 @@ func (d *Data) getStates() ([]components.State, error) {
 		Reason: d.Info.getReason(),
 	}
 	stateInfo.Health, stateInfo.Healthy = d.Info.getHealth()
-	b, _ := json.Marshal(d)
-	stateInfo.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
+	if d.Info != nil {
+		b, _ := json.Marshal(d.Info)
+		stateInfo.ExtraInfo = map[string]string{
+			"data":     string(b),
+			"encoding": "json",
+		}
 	}
 
 	stateCores := components.State{
@@ -375,10 +377,12 @@ func (d *Data) getStates() ([]components.State, error) {
 		Reason: d.Cores.getReason(),
 	}
 	stateCores.Health, stateCores.Healthy = d.Cores.getHealth()
-	b, _ = json.Marshal(d)
-	stateCores.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
+	if d.Cores != nil {
+		b, _ := json.Marshal(d.Cores)
+		stateCores.ExtraInfo = map[string]string{
+			"data":     string(b),
+			"encoding": "json",
+		}
 	}
 
 	stateUsage := components.State{
@@ -386,10 +390,12 @@ func (d *Data) getStates() ([]components.State, error) {
 		Reason: d.Usage.getReason(),
 	}
 	stateUsage.Health, stateUsage.Healthy = d.Usage.getHealth()
-	b, _ = json.Marshal(d)
-	stateUsage.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
+	if d.Usage != nil {
+		b, _ := json.Marshal(d.Usage)
+		stateUsage.ExtraInfo = map[string]string{
+			"data":     string(b),
+			"encoding": "json",
+		}
 	}
 
 	return []components.State{
