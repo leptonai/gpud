@@ -68,10 +68,8 @@ func TestCoresGetReason(t *testing.T) {
 
 	// Test with valid cores
 	c = &Cores{
-		Physical: 4,
-		Logical:  8,
+		Logical: 8,
 	}
-	assert.Contains(t, c.getReason(), "physical: 4 cores")
 	assert.Contains(t, c.getReason(), "logical: 8 cores")
 }
 
@@ -90,8 +88,7 @@ func TestCoresGetHealth(t *testing.T) {
 
 	// Test with valid cores
 	c = &Cores{
-		Physical: 4,
-		Logical:  8,
+		Logical: 8,
 	}
 	health, healthy = c.getHealth()
 	assert.Equal(t, "Healthy", health)
@@ -152,8 +149,7 @@ func TestDataGetStates(t *testing.T) {
 			ModelName: "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz",
 		},
 		Cores: &Cores{
-			Physical: 4,
-			Logical:  8,
+			Logical: 8,
 		},
 		Usage: &Usage{
 			UsedPercent:  "25.50",
@@ -196,7 +192,6 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 	t.Run("nil Info", func(t *testing.T) {
 		d := &Data{
 			Info:  nil,
-			Cores: &Cores{Physical: 4, Logical: 8},
 			Usage: &Usage{UsedPercent: "25.50"},
 			ts:    time.Now(),
 		}
@@ -238,7 +233,6 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 	t.Run("nil Usage", func(t *testing.T) {
 		d := &Data{
 			Info:  &Info{Arch: "x86_64"},
-			Cores: &Cores{Physical: 4, Logical: 8},
 			Usage: nil,
 			ts:    time.Now(),
 		}
@@ -261,7 +255,6 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 	t.Run("Info with error", func(t *testing.T) {
 		d := &Data{
 			Info:  &Info{err: fmt.Errorf("info error")},
-			Cores: &Cores{Physical: 4, Logical: 8},
 			Usage: &Usage{UsedPercent: "25.50"},
 			ts:    time.Now(),
 		}
@@ -303,7 +296,6 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 	t.Run("Usage with error", func(t *testing.T) {
 		d := &Data{
 			Info:  &Info{Arch: "x86_64"},
-			Cores: &Cores{Physical: 4, Logical: 8},
 			Usage: &Usage{err: fmt.Errorf("usage error")},
 			ts:    time.Now(),
 		}
@@ -331,8 +323,7 @@ func TestDataJSONMarshaling(t *testing.T) {
 			ModelName: "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz",
 		},
 		Cores: &Cores{
-			Physical: 4,
-			Logical:  8,
+			Logical: 8,
 		},
 		Usage: &Usage{
 			UsedPercent:  "25.50",
@@ -355,7 +346,6 @@ func TestDataJSONMarshaling(t *testing.T) {
 	assert.Contains(t, jsonStr, `"family":"6"`)
 	assert.Contains(t, jsonStr, `"model":"142"`)
 	assert.Contains(t, jsonStr, `"model_name":"Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz"`)
-	assert.Contains(t, jsonStr, `"physical":4`)
 	assert.Contains(t, jsonStr, `"logical":8`)
 	assert.Contains(t, jsonStr, `"used_percent":"25.50"`)
 	assert.Contains(t, jsonStr, `"load_avg_1min":"1.25"`)
@@ -378,7 +368,6 @@ func TestDataJSONMarshaling(t *testing.T) {
 	assert.Equal(t, d.Info.Family, newData.Info.Family)
 	assert.Equal(t, d.Info.Model, newData.Info.Model)
 	assert.Equal(t, d.Info.ModelName, newData.Info.ModelName)
-	assert.Equal(t, d.Cores.Physical, newData.Cores.Physical)
 	assert.Equal(t, d.Cores.Logical, newData.Cores.Logical)
 	assert.Equal(t, d.Usage.UsedPercent, newData.Usage.UsedPercent)
 	assert.Equal(t, d.Usage.LoadAvg1Min, newData.Usage.LoadAvg1Min)

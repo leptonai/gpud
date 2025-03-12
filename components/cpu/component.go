@@ -280,8 +280,7 @@ func (i *Info) getHealth() (string, bool) {
 }
 
 type Cores struct {
-	Physical int `json:"physical"`
-	Logical  int `json:"logical"`
+	Logical int `json:"logical"`
 
 	// error from the last check
 	err error `json:"-"`
@@ -295,7 +294,7 @@ func (c *Cores) getReason() string {
 		return fmt.Sprintf("failed to get CPU cores -- %s", c.err)
 	}
 
-	return fmt.Sprintf("physical: %d cores, logical: %d cores", c.Physical, c.Logical)
+	return fmt.Sprintf("logical: %d cores", c.Logical)
 }
 
 func (c *Cores) getHealth() (string, bool) {
