@@ -86,8 +86,8 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		reason = "XIDComponent is healthy"
 	} else {
 		reason = fmt.Sprintf("xid %d detected by %s", lastXidErr.Xid, lastXidErr.DataSource)
-		if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 {
-			stateError += fmt.Sprintf("Suggestion: %s", lastSuggestedAction.RepairActions[0])
+		if xidDetail, ok := nvidia_query_xid.GetDetail(int(lastXidErr.Xid)); ok {
+			stateError = xidDetail.Name
 		}
 	}
 	return components.State{
