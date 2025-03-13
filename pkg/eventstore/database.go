@@ -161,7 +161,7 @@ func (t *table) Insert(ctx context.Context, ev components.Event) error {
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
-// Returns nil if the event is not found.
+// Find returns nil if the event is not found.
 func (t *table) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
 	return findEvent(ctx, t.dbRO, t.table, ev)
 }
