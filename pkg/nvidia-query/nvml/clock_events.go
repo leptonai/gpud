@@ -150,11 +150,11 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	hwReasons, otherReasons := getClockEventReasons(reasons)
 	for _, reason := range hwReasons {
 		clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons,
-			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+			fmt.Sprintf("%s: %s", uuid, reason))
 	}
 	for _, reason := range otherReasons {
 		clockEvents.Reasons = append(clockEvents.Reasons,
-			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+			fmt.Sprintf("%s: %s", uuid, reason))
 	}
 
 	return clockEvents, nil

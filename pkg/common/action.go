@@ -30,7 +30,7 @@ type SuggestedActions struct {
 	References []string `json:"references,omitempty"`
 
 	// A list of reasons and descriptions for the suggested actions.
-	Descriptions []string `json:"descriptions"`
+	Descriptions []string `json:"descriptions,omitempty"`
 
 	// A list of repair actions to mitigate the issue.
 	RepairActions []RepairActionType `json:"repair_actions"`
@@ -42,4 +42,34 @@ func (sa *SuggestedActions) DescribeActions() string {
 		acts = append(acts, string(act))
 	}
 	return strings.Join(acts, ", ")
+}
+
+// Simplify simplifies the suggested actions by removing duplicate actions and
+// keeping only the most severe actions.
+// And it also removes the descriptions and references.
+// HW inspection takes priority over reboot.
+func (sa *SuggestedActions) Simplify() *SuggestedActions {
+	simplified := &SuggestedActions{
+		References:   nil,
+		Descriptions: nil,
+	}
+
+	actionsToKeep := make(map[RepairActionType]bool)
+	for _, act := range sa.RepairActions {
+		actionsToKeep[act] = true
+	}
+	if _, ok := actionsToKeep[RepairActionTypeHardwareInspection]; ok {
+		delete(actionsToKeep, RepairActionTypeRebootSystem)
+	}
+
+	simplified.RepairActions = make([]RepairActionType, 0)
+	for _, act := range sa.RepairActions {
+		if _, ok := actionsToKeep[act]; !ok {
+			continue
+		}
+		simplified.RepairActions = append(simplified.RepairActions, act)
+		delete(actionsToKeep, act)
+	}
+
+	return simplified
 }

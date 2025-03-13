@@ -90,6 +90,9 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 			stateError = xidDetail.Name
 		}
 	}
+	if lastSuggestedAction != nil {
+		lastSuggestedAction = lastSuggestedAction.Simplify()
+	}
 	return components.State{
 		Name:             StateNameErrorXid,
 		Healthy:          lastHealth == StateHealthy,

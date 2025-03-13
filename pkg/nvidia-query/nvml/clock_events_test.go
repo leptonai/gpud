@@ -164,7 +164,7 @@ func TestGetClockEvents(t *testing.T) {
 				ReasonsBitmask: reasonHWSlowdown,
 				HWSlowdown:     true,
 				HWSlowdownReasons: []string{
-					"GPU-5678: HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query) (nvml)",
+					"GPU-5678: HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
 				},
 			},
 		},
@@ -178,7 +178,7 @@ func TestGetClockEvents(t *testing.T) {
 				ReasonsBitmask:    reasonHWSlowdownThermal,
 				HWSlowdownThermal: true,
 				HWSlowdownReasons: []string{
-					"GPU-ABCD: HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query) (nvml)",
+					"GPU-ABCD: HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
 				},
 			},
 		},

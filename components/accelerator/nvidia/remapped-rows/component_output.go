@@ -31,30 +31,35 @@ func ToOutput(i *nvidia_query.Output) *Output {
 
 			requiresReset := device.RemappedRows.RequiresReset()
 			if requiresReset {
-				msg := fmt.Sprintf("GPU %s needs reset (detected pending row remapping)", device.UUID)
+				msg := fmt.Sprintf("%s needs reset (detected pending row remapping)", device.UUID)
 				needRebootMsgs = append(needRebootMsgs, msg)
 			}
 
 			rma := device.RemappedRows.QualifiesForRMA()
 			if rma {
-				msg := fmt.Sprintf("GPU %s qualifies for RMA (row remapping failed)", device.UUID)
+				msg := fmt.Sprintf("%s qualifies for RMA (row remapping failed)", device.UUID)
 				rmaMsgs = append(rmaMsgs, msg)
 			}
 		}
 	}
 
-	// TODO: clean up the code below
-	// for now, hw inspection takes priority over reboot
+	if len(needRebootMsgs) > 0 {
+		if o.SuggestedActions == nil {
+			o.SuggestedActions = &common.SuggestedActions{}
+		}
+		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(needRebootMsgs, ", "))
+		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
+	}
+
 	if len(rmaMsgs) > 0 {
 		if o.SuggestedActions == nil {
 			o.SuggestedActions = &common.SuggestedActions{}
 		}
+		o.SuggestedActions.Descriptions = append(o.SuggestedActions.Descriptions, strings.Join(rmaMsgs, ", "))
 		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeHardwareInspection)
-	} else if len(needRebootMsgs) > 0 {
-		if o.SuggestedActions == nil {
-			o.SuggestedActions = &common.SuggestedActions{}
-		}
-		o.SuggestedActions.RepairActions = append(o.SuggestedActions.RepairActions, common.RepairActionTypeRebootSystem)
+	}
+	if o.SuggestedActions != nil {
+		o.SuggestedActions = o.SuggestedActions.Simplify()
 	}
 
 	return o
@@ -103,11 +108,11 @@ func (o *Output) Evaluate() (string, bool, error) {
 		for _, r := range o.RemappedRowsNVML {
 			if r.QualifiesForRMA() {
 				healthy = false
-				reasons = append(reasons, fmt.Sprintf("GPU %s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", r.UUID, r.RemappedDueToUncorrectableErrors))
+				reasons = append(reasons, fmt.Sprintf("%s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", r.UUID, r.RemappedDueToUncorrectableErrors))
 			}
 			if r.RequiresReset() {
 				healthy = false
-				reasons = append(reasons, fmt.Sprintf("GPU %s needs reset (detected pending row remapping)", r.UUID))
+				reasons = append(reasons, fmt.Sprintf("%s needs reset (detected pending row remapping)", r.UUID))
 			}
 		}
 
