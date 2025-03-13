@@ -6,6 +6,7 @@ package xid
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -183,7 +184,7 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 				continue
 			}
 			event := components.Event{
-				Time: metav1.Time{Time: dmesgLine.Timestamp},
+				Time: metav1.Time{Time: dmesgLine.Timestamp.Add(time.Duration(rand.Intn(1000)) * time.Millisecond)},
 				Name: EventNameErrorXid,
 				ExtraInfo: map[string]string{
 					EventKeyErrorXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
