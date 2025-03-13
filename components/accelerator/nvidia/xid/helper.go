@@ -62,6 +62,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 						currXidErr.SuggestedActionsByGPUd.RepairActions[0] = common.RepairActionTypeHardwareInspection
 					}
 				}
+				currXidErr.SuggestedActionsByGPUd.RepairActions = currXidErr.SuggestedActionsByGPUd.RepairActions[:1]
 				lastSuggestedAction = currXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
