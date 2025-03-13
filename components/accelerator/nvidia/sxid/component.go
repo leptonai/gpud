@@ -5,6 +5,7 @@ package sxid
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -178,7 +179,7 @@ func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durat
 				continue
 			}
 			event := components.Event{
-				Time: metav1.Time{Time: dmesgLine.Timestamp},
+				Time: metav1.Time{Time: dmesgLine.Timestamp.Add(time.Duration(rand.Intn(1000)) * time.Millisecond)},
 				Name: EventNameErroSXid,
 				ExtraInfo: map[string]string{
 					EventKeyErroSXidData: strconv.FormatInt(int64(sxidErr.SXid), 10),
