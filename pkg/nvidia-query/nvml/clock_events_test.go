@@ -14,8 +14,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/pkg/common"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvml_lib_mock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -392,17 +393,16 @@ func TestClockEventsSupported(t *testing.T) {
 				},
 			}
 
-			// Set up mock NVML environment
-			err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+			err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
 			if err != nil {
 				t.Fatalf("failed to set mock NVML environment: %v", err)
 			}
-			defer os.Unsetenv(mocknvml.EnvNVMLMock)
+			defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
 
 			// Replace the mock instance
-			originalMockInstance := mocknvml.MockInstance
-			mocknvml.MockInstance = mockNVML
-			defer func() { mocknvml.MockInstance = originalMockInstance }()
+			originalMockInstance := nvml_lib_mock.AllSuccessInterface
+			nvml_lib_mock.AllSuccessInterface = mockNVML
+			defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
 
 			result, err := ClockEventsSupported()
 			if tt.expectError {
@@ -663,12 +663,11 @@ func TestClockEventsWithNilPointer(t *testing.T) {
 func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 	// Test with initialization failure
 	t.Run("nvml initialization failure", func(t *testing.T) {
-		// Set up mock NVML environment
-		err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+		err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
 		if err != nil {
 			t.Fatalf("failed to set mock NVML environment: %v", err)
 		}
-		defer os.Unsetenv(mocknvml.EnvNVMLMock)
+		defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
 
 		// Mock NVML with init failure
 		mockNVML := &mock.Interface{
@@ -678,9 +677,9 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 		}
 
 		// Replace the mock instance
-		originalMockInstance := mocknvml.MockInstance
-		mocknvml.MockInstance = mockNVML
-		defer func() { mocknvml.MockInstance = originalMockInstance }()
+		originalMockInstance := nvml_lib_mock.AllSuccessInterface
+		nvml_lib_mock.AllSuccessInterface = mockNVML
+		defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
 
 		// Call function
 		result, err := ClockEventsSupported()
@@ -691,12 +690,11 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 
 	// Test with device initialization but GetDevices failure
 	t.Run("device get failure", func(t *testing.T) {
-		// Set up mock NVML environment
-		err := os.Setenv(mocknvml.EnvNVMLMock, "true")
+		err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
 		if err != nil {
 			t.Fatalf("failed to set mock NVML environment: %v", err)
 		}
-		defer os.Unsetenv(mocknvml.EnvNVMLMock)
+		defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
 
 		// Mock NVML with device get failure
 		mockNVML := &mock.Interface{
@@ -709,9 +707,9 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 		}
 
 		// Replace the mock instance
-		originalMockInstance := mocknvml.MockInstance
-		mocknvml.MockInstance = mockNVML
-		defer func() { mocknvml.MockInstance = originalMockInstance }()
+		originalMockInstance := nvml_lib_mock.AllSuccessInterface
+		nvml_lib_mock.AllSuccessInterface = mockNVML
+		defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
 
 		// Call function
 		result, err := ClockEventsSupported()

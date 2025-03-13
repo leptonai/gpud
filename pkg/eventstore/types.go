@@ -18,6 +18,7 @@ type Store interface {
 type Bucket interface {
 	Name() string
 	Insert(ctx context.Context, ev components.Event) error
+	// Returns nil if the event is not found.
 	Find(ctx context.Context, ev components.Event) (*components.Event, error)
 	// Get queries the event in the descending order of timestamp (latest event first).
 	Get(ctx context.Context, since time.Time) ([]components.Event, error)

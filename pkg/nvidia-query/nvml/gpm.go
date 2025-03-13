@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_gpm "github.com/leptonai/gpud/pkg/nvidia-query/metrics/gpm"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -18,7 +19,7 @@ import (
 // Returns true if GPM is supported by all devices.
 // Returns false if any device does not support GPM.
 func GPMSupported() (bool, error) {
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if ret := nvmlLib.NVML().Init(); ret != nvml.SUCCESS {
 		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}

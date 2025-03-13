@@ -15,13 +15,14 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 // Returns true if clock events is supported by all devices.
 // Returns false if any device does not support clock events.
 // ref. undefined symbol: nvmlDeviceGetCurrentClocksEventReasons for older nvidia drivers
 func ClockEventsSupported() (bool, error) {
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if ret := nvmlLib.NVML().Init(); ret != nvml.SUCCESS {
 		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}

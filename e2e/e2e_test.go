@@ -22,8 +22,8 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	client_v1 "github.com/leptonai/gpud/client/v1"
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
-	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/server"
 )
 
@@ -53,8 +53,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	gCtx, gCancel := context.WithTimeout(context.Background(), time.Minute*8)
 
 	BeforeAll(func() {
-		err = os.Setenv(mocknvml.EnvNVMLMock, "true")
-		Expect(err).NotTo(HaveOccurred(), "failed to set GPUD_MOCK_NVML")
+		err = os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
+		Expect(err).NotTo(HaveOccurred(), "failed to set "+nvml_lib.EnvMockAllSuccess)
 
 		By("mock lspci")
 		err = mocklspci.Mock(mocklspci.NormalOutput)
