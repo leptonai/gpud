@@ -58,9 +58,10 @@ func New(opts ...OpOption) Library {
 
 	devLib := device.New(nvInterface.Interface)
 	nvInterface.dev = &devInterface{
-		Interface:       devLib,
-		devices:         options.devicesToReturn,
-		getRemappedRows: options.devGetRemappedRows,
+		Interface:                              devLib,
+		devices:                                options.devicesToReturn,
+		getRemappedRowsForAllDevs:              options.devGetRemappedRowsForAllDevs,
+		getCurrentClocksEventReasonsForAllDevs: options.devGetCurrentClocksEventReasonsForAllDevs,
 	}
 
 	infoOpts := []nvinfo.Option{
@@ -86,8 +87,9 @@ var _ device.Interface = &devInterface{}
 
 type devInterface struct {
 	device.Interface
-	devices         []device.Device
-	getRemappedRows func() (int, int, bool, bool, nvml.Return)
+	devices                                []device.Device
+	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
+	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
 
 func (d *devInterface) GetDevices() ([]device.Device, error) {
@@ -105,8 +107,9 @@ func (d *devInterface) GetDevices() ([]device.Device, error) {
 	updated := make([]device.Device, len(devs))
 	for i, dev := range devs {
 		updated[i] = &devDevInterface{
-			Device:          dev,
-			getRemappedRows: d.getRemappedRows,
+			Device:                                 dev,
+			getRemappedRowsForAllDevs:              d.getRemappedRowsForAllDevs,
+			getCurrentClocksEventReasonsForAllDevs: d.getCurrentClocksEventReasonsForAllDevs,
 		}
 	}
 
@@ -117,14 +120,24 @@ var _ device.Device = &devDevInterface{}
 
 type devDevInterface struct {
 	device.Device
-	getRemappedRows func() (int, int, bool, bool, nvml.Return)
+	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
+	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
 
 func (d *devDevInterface) GetRemappedRows() (int, int, bool, bool, nvml.Return) {
 	// no injected remapped rows
 	// thus just passthrough to call the underlying device.Device.GetRemappedRows()
-	if d.getRemappedRows == nil {
+	if d.getRemappedRowsForAllDevs == nil {
 		return d.Device.GetRemappedRows()
 	}
-	return d.getRemappedRows()
+	return d.getRemappedRowsForAllDevs()
+}
+
+func (d *devDevInterface) GetCurrentClocksEventReasons() (uint64, nvml.Return) {
+	// no injected current clocks event reasons
+	// thus just passthrough to call the underlying device.Device.GetCurrentClocksEventReasons()
+	if d.getCurrentClocksEventReasonsForAllDevs == nil {
+		return d.Device.GetCurrentClocksEventReasons()
+	}
+	return d.getCurrentClocksEventReasonsForAllDevs()
 }

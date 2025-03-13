@@ -1,4 +1,4 @@
-package nvml
+package mock
 
 import (
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
@@ -6,7 +6,9 @@ import (
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
 
-var MockInstance = &nvmlmock.Interface{
+var _ nvml.Interface = &nvmlmock.Interface{}
+
+var AllSuccessInterface = &nvmlmock.Interface{
 	InitFunc: func() nvml.Return {
 		return nvml.SUCCESS
 	},
@@ -128,7 +130,9 @@ var MockInstance = &nvmlmock.Interface{
 	},
 }
 
-var MockNVInfoExtractor = &nvinfo.PropertyExtractorMock{
+var _ nvinfo.PropertyExtractor = &nvinfo.PropertyExtractorMock{}
+
+var HasNvmlPropertyExtractor = &nvinfo.PropertyExtractorMock{
 	HasDXCoreFunc: func() (bool, string) {
 		return false, ""
 	},

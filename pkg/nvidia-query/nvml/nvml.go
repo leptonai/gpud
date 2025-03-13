@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,30 +18,10 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
-
-func NewNVML() nvml_lib.Library {
-	opts := []nvml_lib.OpOption{}
-	if mocknvml.IsMockedNVML() {
-		opts = append(opts,
-			nvml_lib.WithNVML(mocknvml.MockInstance),
-			nvml_lib.WithPropertyExtractor(mocknvml.MockNVInfoExtractor),
-		)
-	}
-	if os.Getenv("GPUD_NVML_REMAPPED_ROWS_INJECT_PENDING") == "true" {
-		opts = append(opts,
-			nvml_lib.WithDeviceGetRemappedRows(func() (corrRows int, uncRows int, isPending bool, failureOccurred bool, ret nvml.Return) {
-				log.Logger.Infow("injecting remapped rows pending", "corrRows", 0, "uncRows", 10, "isPending", true, "failureOccurred", false)
-				return 0, 10, true, false, nvml.SUCCESS
-			}),
-		)
-	}
-	return nvml_lib.New(opts...)
-}
 
 var _ Instance = &instance{}
 
@@ -102,7 +81,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return nil, err
 	}
@@ -362,6 +341,8 @@ func (inst *instance) Get() (*Output, error) {
 				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
 			} else {
 				if len(clockEvents.HWSlowdownReasons) > 0 {
+					log.Logger.Infow("detected hw slowdown clock events", "gpu_uuid", devInfo.UUID, "reasons", clockEvents.HWSlowdownReasons)
+
 					// overwrite timestamp to the nearest minute
 					clockEvents.Time = metav1.Time{Time: truncNowUTC}
 
@@ -369,19 +350,25 @@ func (inst *instance) Get() (*Output, error) {
 
 					ev := createEventFromClockEvents(clockEvents)
 					if ev != nil {
+						log.Logger.Infow("inserting clock events to db", "gpu_uuid", devInfo.UUID)
+
 						cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
 						found, err := inst.hwSlowdownEventBucket.Find(cctx, *ev)
 						ccancel()
 						if err != nil {
 							log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
 							joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-						} else if found != nil {
+						} else if found == nil {
 							cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
 							err = inst.hwSlowdownEventBucket.Insert(cctx, *ev)
 							ccancel()
 							if err != nil {
 								log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
+							} else {
+								log.Logger.Infow("inserted clock events to db", "gpu_uuid", devInfo.UUID)
 							}
+						} else {
+							log.Logger.Infow("clock event already found in db", "gpu_uuid", devInfo.UUID)
 						}
 					}
 				}
@@ -518,7 +505,7 @@ type DeviceInfo struct {
 }
 
 func GetDriverVersion() (string, error) {
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
@@ -570,7 +557,7 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 }
 
 func GetCUDAVersion() (string, error) {
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
@@ -607,7 +594,7 @@ func ClockEventsSupportedVersion(major int) bool {
 
 // Loads the product name of the NVIDIA GPU device.
 func LoadGPUDeviceName() (string, error) {
-	nvmlLib := NewNVML()
+	nvmlLib := nvml_lib.NewDefault()
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
