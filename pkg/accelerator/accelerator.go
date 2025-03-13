@@ -1,10 +1,8 @@
 package accelerator
 
 import (
-	"context"
-
 	"github.com/leptonai/gpud/pkg/file"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 type Type string
@@ -15,9 +13,9 @@ const (
 )
 
 // Returns the GPU type (e.g., "NVIDIA") and product name (e.g., "A100")
-func DetectTypeAndProductName(ctx context.Context) (Type, string, error) {
+func DetectTypeAndProductName() (Type, string, error) {
 	if _, err := file.LocateExecutable("nvidia-smi"); err == nil {
-		productName, err := nvidia_query.LoadGPUDeviceName(ctx)
+		productName, err := nvml.LoadGPUDeviceName()
 		if err != nil {
 			return TypeNVIDIA, "unknown", err
 		}

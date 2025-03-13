@@ -54,7 +54,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("error parsing cpu: %w", err)
 	}
 
-	_, productName, err := accelerator.DetectTypeAndProductName(rootCtx)
+	_, productName, err := accelerator.DetectTypeAndProductName()
 	if err != nil {
 		return err
 	}
