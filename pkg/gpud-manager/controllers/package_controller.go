@@ -56,7 +56,7 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 		select {
 		case packageInfo := <-c.fileWatcher:
 			c.Lock()
-			log.Logger.Infof("[package controller]: received package info: %v", packageInfo)
+			log.Logger.Infof("received package info: %v", packageInfo)
 			if _, ok := c.packageStatus[packageInfo.Name]; !ok {
 				c.packageStatus[packageInfo.Name] = &packages.PackageStatus{
 					Name:           packageInfo.Name,
@@ -99,10 +99,10 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			var version string
 			err := runCommand(ctx, pkg.ScriptPath, "version", &version)
 			if err != nil || version == "" {
-				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
+				log.Logger.Errorf("%v unexpected version failure: %v, version: %s", pkg.Name, err, version)
 				continue
 			}
-			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
+			log.Logger.Infof("%v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
 			c.Lock()
 			c.packageStatus[pkg.Name].CurrentVersion = version
 			c.Unlock()
@@ -142,7 +142,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			c.packageStatus[pkg.Name].Progress = 100
 			c.Unlock()
 			if err != nil {
-				log.Logger.Errorf("[package controller]: %v unexpected upgrade failure: %v", pkg.Name, err)
+				log.Logger.Errorf("%v unexpected upgrade failure: %v", pkg.Name, err)
 			}
 		}
 	}
@@ -162,17 +162,17 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			var skipCheck bool
 			for _, dep := range pkg.Dependency {
 				if _, ok := c.packageStatus[dep[0]]; !ok {
-					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
+					log.Logger.Infof("%v dependency %v not found, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
 				if !c.packageStatus[dep[0]].IsInstalled {
-					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
+					log.Logger.Infof("%v dependency %v not installed, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
 				if c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1] {
-					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
+					log.Logger.Infof("%v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
 					skipCheck = true
 					break
 				}
@@ -181,7 +181,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				continue
 			}
 			if pkg.Installing {
-				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
+				log.Logger.Infof("%v installing...", pkg.Name)
 				continue
 			}
 			// if installing, then skip
@@ -191,10 +191,10 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Progress = 100
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
-				log.Logger.Infof("[package controller]: %v already installed", pkg.Name)
+				log.Logger.Infof("%v already installed", pkg.Name)
 				continue
 			}
-			log.Logger.Errorf("[package controller]: %v not installed, installing", pkg.Name)
+			log.Logger.Errorf("%v not installed, installing", pkg.Name)
 			go func() {
 				var eta time.Duration
 				c.Lock()
@@ -225,10 +225,10 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				err = runCommand(ctx, pkg.ScriptPath, "install", nil)
 				close(done)
 				if err != nil {
-					log.Logger.Errorf("[package controller]: %v unexpected install failure: %v", pkg.Name, err)
+					log.Logger.Errorf("%v unexpected install failure: %v", pkg.Name, err)
 				} else {
 					if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
-						log.Logger.Errorf("[package controller]: %v failed to start after installing: %v", pkg.Name, err)
+						log.Logger.Errorf("%v failed to start after installing: %v", pkg.Name, err)
 					}
 				}
 				c.Lock()
@@ -256,7 +256,7 @@ func (c *PackageController) deleteRunner(ctx context.Context) {
 			}
 			err := runCommand(ctx, pkg.ScriptPath, "delete", nil)
 			if err != nil {
-				log.Logger.Infof("[package controller]: %v failed to delete: %v", pkg.Name, err)
+				log.Logger.Infof("%v failed to delete: %v", pkg.Name, err)
 			}
 		}
 	}
@@ -281,16 +281,16 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				c.Lock()
 				c.packageStatus[pkg.Name].Status = true
 				c.Unlock()
-				log.Logger.Infof("[package controller]: %v status ok", pkg.Name)
+				log.Logger.Infof("%v status ok", pkg.Name)
 				continue
 			}
-			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)
+			log.Logger.Errorf("%v status not ok, restarting", pkg.Name)
 			if err = runCommand(ctx, pkg.ScriptPath, "stop", nil); err != nil {
-				log.Logger.Errorf("[package controller]: %v unexpected stop failure: %v", pkg.Name, err)
+				log.Logger.Errorf("%v unexpected stop failure: %v", pkg.Name, err)
 				continue
 			}
 			if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
-				log.Logger.Errorf("[package controller]: %v unexpected start failure: %v", pkg.Name, err)
+				log.Logger.Errorf("%v unexpected start failure: %v", pkg.Name, err)
 			}
 		}
 	}
