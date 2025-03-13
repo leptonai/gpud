@@ -1,19 +1,15 @@
 package command
 
 import (
-	"context"
 	"fmt"
-	"time"
-
-	"github.com/leptonai/gpud/pkg/accelerator"
 
 	"github.com/urfave/cli"
+
+	"github.com/leptonai/gpud/pkg/accelerator"
 )
 
 func cmdAccelerator(cliContext *cli.Context) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	acceleratorType, productName, err := accelerator.DetectTypeAndProductName(ctx)
+	acceleratorType, productName, err := accelerator.DetectTypeAndProductName()
 	if err != nil {
 		return err
 	}

@@ -1,12 +1,7 @@
 package nvml
 
 import (
-	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-
-	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 )
 
 func TestParseDriverVersion(t *testing.T) {
@@ -128,15 +123,4 @@ func TestParseDriverVersion(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestNewNVML(t *testing.T) {
-	nvmlLib := NewNVML()
-	assert.NotEqual(t, mocknvml.MockInstance, nvmlLib)
-
-	err := os.Setenv(mocknvml.EnvNVMLMock, "true")
-	assert.NoError(t, err)
-	defer os.Unsetenv(mocknvml.EnvNVMLMock)
-	nvmlLib = NewNVML()
-	assert.Equal(t, mocknvml.MockInstance, nvmlLib)
 }

@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
-	nvmlquery "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -29,7 +26,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 
 	// now that we have the NVIDIA PCI devices,
 	// call NVML C-based API for NVML API
-	gpuDeviceName, err := LoadGPUDeviceName(ctx)
+	gpuDeviceName, err := nvml.LoadGPUDeviceName()
 	if err != nil {
 		if IsErrDeviceHandleUnknownError(err) {
 			log.Logger.Warnw("nvidia device handler failed for unknown error -- likely GPU has fallen off the bus or other Xid error", "error", err)
@@ -40,42 +37,6 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	log.Logger.Debugw("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
 
 	return true, nil
-}
-
-// Loads the product name of the NVIDIA GPU device.
-func LoadGPUDeviceName(ctx context.Context) (string, error) {
-	nvmlLib := nvmlquery.NewNVML()
-	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
-	}
-
-	deviceLib := device.New(nvmlLib)
-
-	// do not check nvml lib if it is mocked
-	infoLib := nvmlquery.NewNVInfo(nvmlLib, deviceLib)
-	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
-	if !nvmlExists {
-		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
-	}
-
-	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
-	// "error getting device handle for index '6': Unknown Error"
-	devices, err := deviceLib.GetDevices()
-	if err != nil {
-		return "", err
-	}
-
-	for _, d := range devices {
-		name, ret := d.GetName()
-		if ret != nvml.SUCCESS {
-			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
-		}
-		if name != "" {
-			return name, nil
-		}
-	}
-
-	return "", nil
 }
 
 // Lists all PCI devices that are compatible with NVIDIA.

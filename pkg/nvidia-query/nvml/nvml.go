@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,51 +22,29 @@ import (
 	mocknvml "github.com/leptonai/gpud/e2e/mock/nvml"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-func NewNVML() nvml.Interface {
+func NewNVML() nvml_lib.Library {
+	opts := []nvml_lib.OpOption{}
 	if mocknvml.IsMockedNVML() {
-		return mocknvml.MockInstance
+		opts = append(opts,
+			nvml_lib.WithNVML(mocknvml.MockInstance),
+			nvml_lib.WithPropertyExtractor(mocknvml.MockNVInfoExtractor),
+		)
 	}
-	return nvml.New()
-}
-
-func NewNVInfo(nvmlLib nvml.Interface, deviceLib device.Interface) nvinfo.Interface {
-	opts := []nvinfo.Option{
-		nvinfo.WithNvmlLib(nvmlLib),
-		nvinfo.WithDeviceLib(deviceLib),
+	if os.Getenv("GPUD_NVML_REMAPPED_ROWS_INJECT_PENDING") == "true" {
+		opts = append(opts,
+			nvml_lib.WithDeviceGetRemappedRows(func() (corrRows int, uncRows int, isPending bool, failureOccurred bool, ret nvml.Return) {
+				log.Logger.Infow("injecting remapped rows pending", "corrRows", 0, "uncRows", 10, "isPending", true, "failureOccurred", false)
+				return 0, 10, true, false, nvml.SUCCESS
+			}),
+		)
 	}
-	if mocknvml.IsMockedNVML() {
-		opts = append(opts, nvinfo.WithPropertyExtractor(mocknvml.MockNVInfoExtractor))
-	}
-	return nvinfo.New(opts...)
+	return nvml_lib.New(opts...)
 }
 
-type Output struct {
-	Exists  bool   `json:"exists"`
-	Message string `json:"message"`
-
-	DriverVersion string `json:"driver_version"`
-	CUDAVersion   string `json:"cuda_version"`
-
-	DeviceInfos []*DeviceInfo `json:"device_infos"`
-}
-
-type Instance interface {
-	NVMLExists() bool
-
-	Start() error
-
-	ClockEventsSupported() bool
-
-	GPMMetricsSupported() bool
-	RecvGPMEvents() <-chan *GPMEvent
-
-	Shutdown() error
-	Get() (*Output, error)
-}
-
-var _ Instance = (*instance)(nil)
+var _ Instance = &instance{}
 
 type instance struct {
 	mu sync.RWMutex
@@ -103,123 +82,18 @@ type instance struct {
 	gpmEventChCloseOnce sync.Once
 }
 
-// TODO
-// Track if the device is a fabric-attached GPU.
-// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
-// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
-// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
-// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
-// ref. https://github.com/NVIDIA/k8s-dra-driver/issues/2#issuecomment-2346638506
-// ref. https://github.com/NVIDIA/go-nvlib/pull/44
+type Instance interface {
+	NVMLExists() bool
 
-type DeviceInfo struct {
-	// Note that k8s-device-plugin has a different logic for MIG devices.
-	// TODO: implement MIG device UUID fetching using NVML.
-	UUID string `json:"uuid"`
+	Start() error
 
-	// MinorNumberID is the minor number ID of the device.
-	MinorNumberID int `json:"minor_number_id"`
-	// BusID is the bus ID from PCI info API.
-	BusID uint32 `json:"bus_id"`
-	// DeviceID is the device ID from PCI info API.
-	DeviceID uint32 `json:"device_id"`
+	ClockEventsSupported() bool
 
-	Name            string `json:"name"`
-	GPUCores        int    `json:"gpu_cores"`
-	SupportedEvents uint64 `json:"supported_events"`
+	GPMMetricsSupported() bool
+	RecvGPMEvents() <-chan *GPMEvent
 
-	// Set true if the device supports GPM metrics.
-	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
-
-	GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
-	PersistenceMode PersistenceMode `json:"persistence_mode"`
-	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
-	ClockSpeed      ClockSpeed      `json:"clock_speed"`
-	Memory          Memory          `json:"memory"`
-	NVLink          NVLink          `json:"nvlink"`
-	Power           Power           `json:"power"`
-	Temperature     Temperature     `json:"temperature"`
-	Utilization     Utilization     `json:"utilization"`
-	Processes       Processes       `json:"processes"`
-	ECCMode         ECCMode         `json:"ecc_mode"`
-	ECCErrors       ECCErrors       `json:"ecc_errors"`
-	RemappedRows    RemappedRows    `json:"remapped_rows"`
-
-	device device.Device `json:"-"`
-}
-
-func GetDriverVersion() (string, error) {
-	nvmlLib := NewNVML()
-	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
-	}
-
-	ver, ret := nvmlLib.SystemGetDriverVersion()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
-	}
-
-	// e.g.,
-	// 525.85.12  == does not support clock events
-	// 535.161.08 == supports clock events
-	return ver, nil
-}
-
-func ParseDriverVersion(version string) (major, minor, patch int, err error) {
-	splits := strings.Split(version, ".")
-	if len(splits) < 2 {
-		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at least 2 parts): %v", version)
-	}
-	if len(splits) > 3 {
-		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at most 3 parts): %v", version)
-	}
-
-	major, err = strconv.Atoi(splits[0])
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse driver version (major): %v", err)
-	}
-	minor, err = strconv.Atoi(splits[1])
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse driver version (minor): %v", err)
-	}
-	patch = 0
-	if len(splits) > 2 {
-		patch, err = strconv.Atoi(splits[2])
-		if err != nil {
-			return 0, 0, 0, fmt.Errorf("failed to parse driver version (patch): %v", err)
-		}
-	}
-
-	return major, minor, patch, nil
-}
-
-func GetCUDAVersion() (string, error) {
-	nvmlLib := NewNVML()
-	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
-	}
-
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g1d12b603a42805ee7e4160557ffc2128
-	ver, ret := nvmlLib.SystemGetCudaDriverVersion_v2()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
-	}
-
-	// #define NVML_CUDA_DRIVER_VERSION_MAJOR ( v ) ((v)/1000)
-	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g40a4eb255d9766f6bc4c9402ce9102c2
-	major := ver / 1000
-
-	// #define NVML_CUDA_DRIVER_VERSION_MINOR ( v ) (((v) % 1000) / 10)
-	minor := (ver % 1000) / 10
-
-	return fmt.Sprintf("%d.%d", major, minor), nil
-}
-
-// clock events are supported in versions 535 and above
-// otherwise, CGO call just exits with
-// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
-func ClockEventsSupportedVersion(major int) bool {
-	return major >= 535
+	Shutdown() error
+	Get() (*Output, error)
 }
 
 func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
@@ -228,28 +102,19 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 
-	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
-	for id := range op.gpmMetricsIDs {
-		gpmMetricsIDs = append(gpmMetricsIDs, id)
-	}
-
 	nvmlLib := NewNVML()
-
-	log.Logger.Infow("initializing nvml library")
-	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+		return nil, err
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := GetDriverVersion()
+	driverVersion, err := getDriverVersion(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
 	}
+	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion)
+
 	major, _, _, err := ParseDriverVersion(driverVersion)
-	if err != nil {
-		return nil, err
-	}
-	cudaVersion, err := GetCUDAVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -260,18 +125,20 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 	}
 
-	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion)
-
-	log.Logger.Infow("creating device library")
-	deviceLib := device.New(nvmlLib)
-
-	log.Logger.Infow("creating info library")
-	infoLib := NewNVInfo(nvmlLib, deviceLib)
+	cudaVersion, err := getCUDAVersion(nvmlLib.NVML())
+	if err != nil {
+		return nil, err
+	}
 
 	log.Logger.Infow("checking if nvml exists from info library")
-	nvmlExists, nvmlExistsMsg := infoLib.HasNvml()
+	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
 	if !nvmlExists {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
+	}
+
+	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
+	for id := range op.gpmMetricsIDs {
+		gpmMetricsIDs = append(gpmMetricsIDs, id)
 	}
 
 	rootCtx, rootCancel := context.WithCancel(ctx)
@@ -282,9 +149,9 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		driverVersion: driverVersion,
 		cudaVersion:   cudaVersion,
 
-		nvmlLib:   nvmlLib,
-		deviceLib: deviceLib,
-		infoLib:   infoLib,
+		nvmlLib:   nvmlLib.NVML(),
+		deviceLib: nvmlLib.Device(),
+		infoLib:   nvmlLib.Info(),
 
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
@@ -581,6 +448,196 @@ func (inst *instance) Get() (*Output, error) {
 		joinedErr = errors.Join(joinedErrs...)
 	}
 	return st, joinedErr
+}
+
+func initAndCheckNVMLSupported(nvmlLib nvml.Interface) (bool, error) {
+	log.Logger.Infow("initializing nvml library")
+	ret := nvmlLib.Init()
+	if ret == nvml.SUCCESS {
+		return true, nil
+	}
+	if ret == nvml.ERROR_LIBRARY_NOT_FOUND {
+		return false, nil
+	}
+	return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+}
+
+type Output struct {
+	Exists  bool   `json:"exists"`
+	Message string `json:"message"`
+
+	DriverVersion string `json:"driver_version"`
+	CUDAVersion   string `json:"cuda_version"`
+
+	DeviceInfos []*DeviceInfo `json:"device_infos"`
+}
+
+// TODO
+// Track if the device is a fabric-attached GPU.
+// On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
+// Upon successful registration, the GPU is added to the NVLink fabric to enable peer-to-peer communication.
+// This API reports the current state of the GPU in the NVLink fabric along with other useful information.
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8be35e477d73cd616e57f8ad02e34154
+// ref. https://github.com/NVIDIA/k8s-dra-driver/issues/2#issuecomment-2346638506
+// ref. https://github.com/NVIDIA/go-nvlib/pull/44
+
+type DeviceInfo struct {
+	// Note that k8s-device-plugin has a different logic for MIG devices.
+	// TODO: implement MIG device UUID fetching using NVML.
+	UUID string `json:"uuid"`
+
+	// MinorNumberID is the minor number ID of the device.
+	MinorNumberID int `json:"minor_number_id"`
+	// BusID is the bus ID from PCI info API.
+	BusID uint32 `json:"bus_id"`
+	// DeviceID is the device ID from PCI info API.
+	DeviceID uint32 `json:"device_id"`
+
+	Name            string `json:"name"`
+	GPUCores        int    `json:"gpu_cores"`
+	SupportedEvents uint64 `json:"supported_events"`
+
+	// Set true if the device supports GPM metrics.
+	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
+
+	GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
+	PersistenceMode PersistenceMode `json:"persistence_mode"`
+	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
+	ClockSpeed      ClockSpeed      `json:"clock_speed"`
+	Memory          Memory          `json:"memory"`
+	NVLink          NVLink          `json:"nvlink"`
+	Power           Power           `json:"power"`
+	Temperature     Temperature     `json:"temperature"`
+	Utilization     Utilization     `json:"utilization"`
+	Processes       Processes       `json:"processes"`
+	ECCMode         ECCMode         `json:"ecc_mode"`
+	ECCErrors       ECCErrors       `json:"ecc_errors"`
+	RemappedRows    RemappedRows    `json:"remapped_rows"`
+
+	device device.Device `json:"-"`
+}
+
+func GetDriverVersion() (string, error) {
+	nvmlLib := NewNVML()
+	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
+
+	return getDriverVersion(nvmlLib.NVML())
+}
+
+func getDriverVersion(nvmlLib nvml.Interface) (string, error) {
+	ver, ret := nvmlLib.SystemGetDriverVersion()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
+	}
+
+	// e.g.,
+	// 525.85.12  == does not support clock events
+	// 535.161.08 == supports clock events
+	return ver, nil
+}
+
+func ParseDriverVersion(version string) (major, minor, patch int, err error) {
+	splits := strings.Split(version, ".")
+	if len(splits) < 2 {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at least 2 parts): %v", version)
+	}
+	if len(splits) > 3 {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (expected at most 3 parts): %v", version)
+	}
+
+	major, err = strconv.Atoi(splits[0])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (major): %v", err)
+	}
+	minor, err = strconv.Atoi(splits[1])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to parse driver version (minor): %v", err)
+	}
+	patch = 0
+	if len(splits) > 2 {
+		patch, err = strconv.Atoi(splits[2])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("failed to parse driver version (patch): %v", err)
+		}
+	}
+
+	return major, minor, patch, nil
+}
+
+func GetCUDAVersion() (string, error) {
+	nvmlLib := NewNVML()
+	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
+
+	return getCUDAVersion(nvmlLib.NVML())
+}
+
+func getCUDAVersion(nvmlLib nvml.Interface) (string, error) {
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g1d12b603a42805ee7e4160557ffc2128
+	ver, ret := nvmlLib.SystemGetCudaDriverVersion_v2()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
+	}
+
+	// #define NVML_CUDA_DRIVER_VERSION_MAJOR ( v ) ((v)/1000)
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g40a4eb255d9766f6bc4c9402ce9102c2
+	major := ver / 1000
+
+	// #define NVML_CUDA_DRIVER_VERSION_MINOR ( v ) (((v) % 1000) / 10)
+	minor := (ver % 1000) / 10
+
+	return fmt.Sprintf("%d.%d", major, minor), nil
+}
+
+// clock events are supported in versions 535 and above
+// otherwise, CGO call just exits with
+// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
+func ClockEventsSupportedVersion(major int) bool {
+	return major >= 535
+}
+
+// Loads the product name of the NVIDIA GPU device.
+func LoadGPUDeviceName() (string, error) {
+	nvmlLib := NewNVML()
+	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
+
+	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
+	if !nvmlExists {
+		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
+	}
+
+	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+	// "error getting device handle for index '6': Unknown Error"
+	devices, err := nvmlLib.Device().GetDevices()
+	if err != nil {
+		return "", err
+	}
+
+	for _, d := range devices {
+		name, ret := d.GetName()
+		if ret != nvml.SUCCESS {
+			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+		}
+		if name != "" {
+			return name, nil
+		}
+	}
+
+	return "", nil
 }
 
 var (
