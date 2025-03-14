@@ -2,11 +2,9 @@
 package state
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
-	"text/template"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -274,79 +272,6 @@ WHERE %s = ? AND %s = ? AND %s >= ?;`,
 	}
 
 	return avg.Float64, nil
-}
-
-const emaQueryTempl = `
-WITH ranked_metrics AS (
-	SELECT {{.ColumnUnixSeconds}}, {{.ColumnMetricValue}},
-		ROW_NUMBER() OVER (ORDER BY {{.ColumnUnixSeconds}} ASC) AS row_num
-	FROM {{.TableName}}
-	WHERE {{.ColumnMetricName}} = ? AND {{.ColumnMetricSecondaryName}} = ? AND {{.ColumnUnixSeconds}} >= ?
-	ORDER BY {{.ColumnUnixSeconds}} ASC
-),
-ema_calc AS (
-	SELECT {{.ColumnUnixSeconds}},
-		{{.ColumnMetricValue}},
-		row_num,
-		CASE
-			WHEN row_num = 1 THEN {{.ColumnMetricValue}}
-			ELSE (? * {{.ColumnMetricValue}}) + ((1 - ?) * LAG({{.ColumnMetricValue}}, 1) OVER (ORDER BY {{.ColumnUnixSeconds}}))
-		END AS ema
-	FROM ranked_metrics
-)
-SELECT ema
-FROM ema_calc
-ORDER BY {{.ColumnUnixSeconds}} DESC
-LIMIT 1;
-`
-
-type emaQueryTemplInput struct {
-	TableName                 string
-	ColumnUnixSeconds         string
-	ColumnMetricValue         string
-	ColumnMetricName          string
-	ColumnMetricSecondaryName string
-}
-
-// EMASince calculates the Exponential Moving Average since a given time
-func EMASince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, period time.Duration, since time.Time) (float64, error) {
-	tmpl, err := template.New("query").Parse(emaQueryTempl)
-	if err != nil {
-		return 0.0, fmt.Errorf("failed to parse query template: %w", err)
-	}
-
-	data := emaQueryTemplInput{
-		TableName:                 tableName,
-		ColumnUnixSeconds:         ColumnUnixSeconds,
-		ColumnMetricValue:         ColumnMetricValue,
-		ColumnMetricName:          ColumnMetricName,
-		ColumnMetricSecondaryName: ColumnMetricSecondaryName,
-	}
-	var query bytes.Buffer
-	if err := tmpl.Execute(&query, data); err != nil {
-		return 0.0, fmt.Errorf("failed to execute query template: %w", err)
-	}
-
-	// calculate alpha (smoothing factor)
-	alpha := 2.0 / (period.Minutes() + 1)
-
-	start := time.Now()
-	var ema sql.NullFloat64
-	err = db.QueryRowContext(ctx, query.String(), name, secondaryName, since.Unix(), alpha, alpha).Scan(&ema)
-	sqlite.RecordSelect(time.Since(start).Seconds())
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return 0.0, nil
-		}
-		return 0.0, err
-	}
-
-	if !ema.Valid {
-		return 0.0, nil
-	}
-
-	return ema.Float64, nil
 }
 
 func PurgeMetrics(ctx context.Context, db *sql.DB, tableName string, before time.Time) (int, error) {

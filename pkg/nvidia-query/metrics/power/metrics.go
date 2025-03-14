@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "accelerator_nvidia_power"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -46,15 +46,6 @@ var (
 		},
 		[]string{"gpu_id", "last_period"},
 	)
-	currentUsageMilliWattsEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "current_usage_milli_watts_ema",
-			Help:      "tracks the current power in milliwatts with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
-	)
 
 	enforcedLimitMilliWatts = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,15 +76,6 @@ var (
 			Help:      "tracks the used power in percent with average for the last period",
 		},
 		[]string{"gpu_id", "last_period"},
-	)
-	usedPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_percent_ema",
-			Help:      "tracks the percentage of power used with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
 	)
 )
 
@@ -141,16 +123,6 @@ func SetUsageMilliWatts(ctx context.Context, gpuID string, milliWatts float64, c
 			return err
 		}
 		currentUsageMilliWattsAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := currentUsageMilliWattsAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		currentUsageMilliWattsEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -193,16 +165,6 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 			return err
 		}
 		usedPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := usedPercentAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		usedPercentEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -220,9 +182,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(currentUsageMilliWattsAverage); err != nil {
 		return err
 	}
-	if err := reg.Register(currentUsageMilliWattsEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(enforcedLimitMilliWatts); err != nil {
 		return err
 	}
@@ -230,9 +189,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 		return err
 	}
 	if err := reg.Register(usedPercentAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(usedPercentEMA); err != nil {
 		return err
 	}
 	return nil

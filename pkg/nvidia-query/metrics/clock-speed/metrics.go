@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "accelerator_nvidia_clock_speed"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -46,15 +46,6 @@ var (
 		},
 		[]string{"gpu_id", "last_period"},
 	)
-	graphicsMHzEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "graphics_mhz_ema",
-			Help:      "tracks the GPU clock speeds in MHz with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
-	)
 
 	memoryMHz = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -74,15 +65,6 @@ var (
 			Help:      "tracks the GPU memory clock speed in MHz with average for the last period",
 		},
 		[]string{"gpu_id", "last_period"},
-	)
-	memoryMHzEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "memory_mhz_ema",
-			Help:      "tracks the GPU memory clock speed in MHz with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
 	)
 )
 
@@ -125,16 +107,6 @@ func SetGraphicsMHz(ctx context.Context, gpuID string, pct uint32, currentTime t
 			return err
 		}
 		graphicsMHzAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := graphicsMHzAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		graphicsMHzEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -162,16 +134,6 @@ func SetMemoryMHz(ctx context.Context, gpuID string, pct uint32, currentTime tim
 			return err
 		}
 		memoryMHzAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := memoryMHzAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		memoryMHzEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -189,16 +151,10 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(graphicsMHzAverage); err != nil {
 		return err
 	}
-	if err := reg.Register(graphicsMHzEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(memoryMHz); err != nil {
 		return err
 	}
 	if err := reg.Register(memoryMHzAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(memoryMHzEMA); err != nil {
 		return err
 	}
 	return nil

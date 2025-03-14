@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "accelerator_nvidia_memory"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -67,15 +67,6 @@ var (
 		},
 		[]string{"gpu_id", "last_period"},
 	)
-	usedBytesEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_bytes_ema",
-			Help:      "tracks the used memory in bytes with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
-	)
 
 	freeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -105,15 +96,6 @@ var (
 			Help:      "tracks the percentage of memory used with average for the last period",
 		},
 		[]string{"gpu_id", "last_period"},
-	)
-	usedPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_percent_ema",
-			Help:      "tracks the percentage of memory used with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
 	)
 )
 
@@ -180,16 +162,6 @@ func SetUsedBytes(ctx context.Context, gpuID string, bytes float64, currentTime 
 			return err
 		}
 		usedBytesAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := usedBytesAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		usedBytesEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -221,16 +193,6 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 			return err
 		}
 		usedPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := usedPercentAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		usedPercentEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -254,9 +216,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(usedBytesAverage); err != nil {
 		return err
 	}
-	if err := reg.Register(usedBytesEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(freeBytes); err != nil {
 		return err
 	}
@@ -264,9 +223,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 		return err
 	}
 	if err := reg.Register(usedPercentAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(usedPercentEMA); err != nil {
 		return err
 	}
 	return nil
