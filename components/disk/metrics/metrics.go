@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "disk"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (

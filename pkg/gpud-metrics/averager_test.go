@@ -74,49 +74,11 @@ func TestAveragerObserve(t *testing.T) {
 		t.Errorf("AvgSince() returned error: %v", err)
 	}
 
-	// test EMA
-	start = time.Now()
-	emaResult, err := a.EMA(ctx, WithEMAPeriod(time.Minute))
-	emaLatency := time.Since(start)
-	t.Logf("EMA latency: %v", emaLatency)
-	if err != nil {
-		t.Errorf("EMA() returned error: %v", err)
-	}
-
-	// EMA should be closer to recent values, so it should be higher than the average
-	if emaResult <= avgResult {
-		t.Errorf("EMA() = %f; expected to be greater than AvgSince() = %f", emaResult, avgResult)
-	}
-
 	t.Logf("AvgSince result: %f", avgResult)
-	t.Logf("EMA result: %f", emaResult)
 
 	expectedAvg := 250.5 // (1 + 500) / 2
 	if avgResult != expectedAvg {
 		t.Errorf("AvgSince() = %f; want %f", avgResult, expectedAvg)
-	}
-
-	// test EMA with different time ranges
-	testRanges := []struct {
-		name     string
-		duration time.Duration
-	}{
-		{"Last 1 minute", time.Minute},
-		{"Last 5 minutes", 5 * time.Minute},
-		{"Last 10 minutes", 10 * time.Minute},
-	}
-
-	for _, tr := range testRanges {
-		since := now.Add(-tr.duration)
-		emaResult, err := a.EMA(ctx, WithEMAPeriod(time.Minute), WithSince(since))
-		if err != nil {
-			t.Errorf("EMA() for %s returned error: %v", tr.name, err)
-		}
-		avgResult, err := a.Avg(ctx, WithSince(since))
-		if err != nil {
-			t.Errorf("AvgSince() for %s returned error: %v", tr.name, err)
-		}
-		t.Logf("%s - AvgSince: %f, EMA: %f", tr.name, avgResult, emaResult)
 	}
 
 	allMetrics, err := a.Read(ctx)
@@ -234,141 +196,6 @@ func TestEmptyAverager(t *testing.T) {
 	}
 }
 
-func TestContinuousAveragerRead(t *testing.T) {
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := metrics_state.CreateTableMetrics(ctx, dbRW, "test_table"); err != nil {
-		t.Fatalf("failed to create table: %v", err)
-	}
-
-	createTime := func(minutes int) time.Time {
-		return time.Date(2025, 1, 1, 0, minutes, 0, 0, time.UTC)
-	}
-
-	tests := []struct {
-		name     string
-		setup    func() *continuousAverager
-		since    time.Time
-		expected float64
-	}{
-		{
-			name: "empty averager",
-			setup: func() *continuousAverager {
-				return NewAverager(dbRW, dbRO, "test_table", "empty averager").(*continuousAverager)
-			},
-			since:    time.Time{},
-			expected: 0.0,
-		},
-		{
-			name: "all values",
-			setup: func() *continuousAverager {
-				a := NewAverager(dbRW, dbRO, "test_table", "all values").(*continuousAverager)
-				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
-					t.Fatalf("Observe(1.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 2.0, WithCurrentTime(createTime(2))); err != nil {
-					t.Fatalf("Observe(2.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 3.0, WithCurrentTime(createTime(3))); err != nil {
-					t.Fatalf("Observe(3.0) returned error: %v", err)
-				}
-				return a
-			},
-			since:    time.Time{},
-			expected: 2.0,
-		},
-		{
-			name: "since middle",
-			setup: func() *continuousAverager {
-				a := NewAverager(dbRW, dbRO, "test_table", "since middle").(*continuousAverager)
-				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
-					t.Fatalf("Observe(1.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 2.0, WithCurrentTime(createTime(2))); err != nil {
-					t.Fatalf("Observe(2.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 3.0, WithCurrentTime(createTime(3))); err != nil {
-					t.Fatalf("Observe(3.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 4.0, WithCurrentTime(createTime(4))); err != nil {
-					t.Fatalf("Observe(4.0) returned error: %v", err)
-				}
-				return a
-			},
-			since:    createTime(2),
-			expected: 3.0,
-		},
-		{
-			name: "since before all values",
-			setup: func() *continuousAverager {
-				a := NewAverager(dbRW, dbRO, "test_table", "since before all values").(*continuousAverager)
-				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(2))); err != nil {
-					t.Fatalf("Observe(1.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 2.0, WithCurrentTime(createTime(3))); err != nil {
-					t.Fatalf("Observe(2.0) returned error: %v", err)
-				}
-				return a
-			},
-			since:    createTime(1),
-			expected: 1.5,
-		},
-		{
-			name: "since after all values",
-			setup: func() *continuousAverager {
-				a := NewAverager(dbRW, dbRO, "test_table", "since after all values").(*continuousAverager)
-				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
-					t.Fatalf("Observe(1.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 2.0, WithCurrentTime(createTime(2))); err != nil {
-					t.Fatalf("Observe(2.0) returned error: %v", err)
-				}
-				return a
-			},
-			since:    createTime(3),
-			expected: 0.0,
-		},
-		{
-			name: "wrapped buffer",
-			setup: func() *continuousAverager {
-				a := NewAverager(dbRW, dbRO, "test_table", "wrapped buffer").(*continuousAverager)
-				if err := a.Observe(ctx, 1.0, WithCurrentTime(createTime(1))); err != nil {
-					t.Fatalf("Observe(1.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 2.0, WithCurrentTime(createTime(2))); err != nil {
-					t.Fatalf("Observe(2.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 3.0, WithCurrentTime(createTime(3))); err != nil {
-					t.Fatalf("Observe(3.0) returned error: %v", err)
-				}
-				if err := a.Observe(ctx, 4.0, WithCurrentTime(createTime(4))); err != nil {
-					t.Fatalf("Observe(4.0) returned error: %v", err)
-				}
-				return a
-			},
-			since:    createTime(2),
-			expected: 3.0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := tt.setup()
-			result, err := a.Avg(ctx, WithSince(tt.since))
-			if err != nil {
-				t.Errorf("Read() returned error: %v", err)
-			}
-			if result != tt.expected {
-				t.Errorf("Read() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestNoOpAverager(t *testing.T) {
 	t.Parallel()
 
@@ -430,24 +257,6 @@ func TestNoOpAverager(t *testing.T) {
 	}
 	if avg != 0 {
 		t.Errorf("Avg() with options returned %f, want 0", avg)
-	}
-
-	// Test EMA - should return zero and nil error
-	ema, err := a.EMA(ctx)
-	if err != nil {
-		t.Errorf("EMA() returned error: %v", err)
-	}
-	if ema != 0 {
-		t.Errorf("EMA() returned %f, want 0", ema)
-	}
-
-	// Test EMA with options - should still return zero and nil error
-	ema, err = a.EMA(ctx, WithSince(time.Now()), WithEMAPeriod(time.Minute))
-	if err != nil {
-		t.Errorf("EMA() with options returned error: %v", err)
-	}
-	if ema != 0 {
-		t.Errorf("EMA() with options returned %f, want 0", ema)
 	}
 
 	// Test Read - should return empty metrics and nil error

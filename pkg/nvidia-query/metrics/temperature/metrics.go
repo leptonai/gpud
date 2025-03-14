@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "accelerator_nvidia_temperature"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -46,15 +46,6 @@ var (
 		},
 		[]string{"gpu_id", "last_period"},
 	)
-	currentCelsiusEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "current_celsius_ema",
-			Help:      "tracks the current temperature in celsius with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
-	)
 
 	thresholdSlowdownCelsius = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,15 +76,6 @@ var (
 			Help:      "tracks the percentage of slowdown used with average for the last period",
 		},
 		[]string{"gpu_id", "last_period"},
-	)
-	slowdownUsedPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "slowdown_used_percent_ema",
-			Help:      "tracks the percentage of slowdown used with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
 	)
 )
 
@@ -141,16 +123,6 @@ func SetCurrentCelsius(ctx context.Context, gpuID string, temp float64, currentT
 			return err
 		}
 		currentCelsiusAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := currentCelsiusAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		currentCelsiusEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -193,16 +165,6 @@ func SetSlowdownUsedPercent(ctx context.Context, gpuID string, pct float64, curr
 			return err
 		}
 		slowdownUsedPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := slowdownUsedPercentAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		slowdownUsedPercentEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -220,9 +182,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(currentCelsiusAverage); err != nil {
 		return err
 	}
-	if err := reg.Register(currentCelsiusEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(thresholdSlowdownCelsius); err != nil {
 		return err
 	}
@@ -230,9 +189,6 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 		return err
 	}
 	if err := reg.Register(slowdownUsedPercentAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(slowdownUsedPercentEMA); err != nil {
 		return err
 	}
 	return nil

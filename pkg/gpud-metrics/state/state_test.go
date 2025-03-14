@@ -45,16 +45,6 @@ func TestState(t *testing.T) {
 		t.Errorf("expected average 0 with no rows, got %f", avg)
 	}
 
-	// test EMASince with no rows
-	period := 1 * time.Minute
-	ema, err := EMASince(ctx, db, tableName, "test_metric", "", period, since)
-	if err != nil {
-		t.Errorf("EMASince failed with no rows: %v", err)
-	}
-	if ema != 0 {
-		t.Errorf("expected EMA 0 with no rows, got %f", ema)
-	}
-
 	now := time.Now()
 	metrics := []Metric{
 		{UnixSeconds: now.Unix(), MetricName: "test_metric", Value: 10.0},
@@ -93,20 +83,6 @@ func TestState(t *testing.T) {
 		t.Errorf("expected average %f, got %f", expectedAvg, avg)
 	}
 	t.Logf("expected avg: %f, avg: %f", expectedAvg, avg)
-
-	// test EMASince with a period parameter
-	period = 1 * time.Minute
-	ema, err = EMASince(ctx, db, tableName, "test_metric", "", period, since)
-	if err != nil {
-		t.Errorf("failed to get EMA: %v", err)
-	}
-	t.Logf("ema: %f", ema)
-
-	// test if EMA value is approximately 10.000
-	expectedEMA := 10.000
-	if math.Abs(ema-expectedEMA) > 0.001 {
-		t.Errorf("expected EMA %f, got %f", expectedEMA, ema)
-	}
 }
 
 func TestStateMoreDataPoints(t *testing.T) {
@@ -139,16 +115,6 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 	if avg != 0 {
 		t.Errorf("expected average 0 with no rows, got %f", avg)
-	}
-
-	// test EMASince with no rows
-	period := 1 * time.Minute
-	ema, err := EMASince(ctx, db, tableName, "test_metric", "", period, since)
-	if err != nil {
-		t.Errorf("EMASince failed with no rows: %v", err)
-	}
-	if ema != 0 {
-		t.Errorf("expected EMA 0 with no rows, got %f", ema)
 	}
 
 	now := time.Now()
@@ -208,20 +174,6 @@ func TestStateMoreDataPoints(t *testing.T) {
 				t.Errorf("Average for %s doesn't match: expected %.3f, got %.3f", metricName, expectedAvg, avg)
 			} else {
 				t.Logf("Average for %s: %.3f", metricName, avg)
-			}
-		}
-
-		ema, err := EMASince(ctx, db, tableName, metricName, "", time.Minute, since)
-		if err != nil {
-			t.Errorf("failed to get EMA for %s since %v: %v", metricName, since, err)
-		} else {
-			t.Logf("1-minute EMA for %s: %.3f", metricName, ema)
-
-			// Compare EMA to simple average
-			if math.Abs(ema-avg) < 0.001 {
-				t.Errorf("EMA and simple average for %s are too close: EMA %.3f, Avg %.3f", metricName, ema, avg)
-			} else {
-				t.Logf("EMA differs from simple average for %s: EMA %.3f, Avg %.3f", metricName, ema, avg)
 			}
 		}
 	}
@@ -289,19 +241,6 @@ func TestStateMoreDataPoints(t *testing.T) {
 			t.Errorf("Average with secondary ID doesn't match: expected %.3f, got %.3f", expectedAvg, secondaryAvg)
 		} else {
 			t.Logf("Average with secondary ID: %.3f", secondaryAvg)
-		}
-	}
-
-	// Test EMASince with secondary ID
-	secondaryEMA, err := EMASince(ctx, db, tableName, "test_metric", secondaryID, time.Minute, secondarySince)
-	if err != nil {
-		t.Errorf("EMASince failed with secondary ID: %v", err)
-	} else {
-		t.Logf("1-minute EMA with secondary ID: %.3f", secondaryEMA)
-		if math.Abs(secondaryEMA-secondaryAvg) < 0.001 {
-			t.Errorf("EMA and simple average with secondary ID are too close: EMA %.3f, Avg %.3f", secondaryEMA, secondaryAvg)
-		} else {
-			t.Logf("EMA differs from simple average with secondary ID: EMA %.3f, Avg %.3f", secondaryEMA, secondaryAvg)
 		}
 	}
 }

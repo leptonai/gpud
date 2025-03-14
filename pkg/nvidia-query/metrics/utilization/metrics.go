@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "accelerator_nvidia_utilization"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -46,15 +46,6 @@ var (
 		},
 		[]string{"gpu_id", "last_period"},
 	)
-	gpuUtilPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "gpu_util_percent_ema",
-			Help:      "tracks the GPU utilization percentage with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
-	)
 
 	memoryUtilPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -74,15 +65,6 @@ var (
 			Help:      "tracks the GPU memory utilization percentage with average for the last period",
 		},
 		[]string{"gpu_id", "last_period"},
-	)
-	memoryUtilPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "memory_util_percent_ema",
-			Help:      "tracks the GPU memory utilization percentage with exponential moving average",
-		},
-		[]string{"gpu_id", "ema_period"},
 	)
 )
 
@@ -125,16 +107,6 @@ func SetGPUUtilPercent(ctx context.Context, gpuID string, pct uint32, currentTim
 			return err
 		}
 		gpuUtilPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := gpuUtilPercentAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		gpuUtilPercentEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -162,16 +134,6 @@ func SetMemoryUtilPercent(ctx context.Context, gpuID string, pct uint32, current
 			return err
 		}
 		memoryUtilPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
-
-		ema, err := memoryUtilPercentAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-			components_metrics.WithMetricSecondaryName(gpuID),
-		)
-		if err != nil {
-			return err
-		}
-		memoryUtilPercentEMA.WithLabelValues(gpuID, duration.String()).Set(ema)
 	}
 
 	return nil
@@ -189,16 +151,10 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(gpuUtilPercentAverage); err != nil {
 		return err
 	}
-	if err := reg.Register(gpuUtilPercentEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(memoryUtilPercent); err != nil {
 		return err
 	}
 	if err := reg.Register(memoryUtilPercentAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(memoryUtilPercentEMA); err != nil {
 		return err
 	}
 	return nil

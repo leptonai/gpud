@@ -14,7 +14,7 @@ import (
 
 const SubSystem = "memory"
 
-// Used for tracking the past x-minute averages + EMAs.
+// Used for tracking the past x-minute averages.
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
@@ -64,15 +64,6 @@ var (
 		},
 		[]string{"last_period"},
 	)
-	usedBytesEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_bytes_ema",
-			Help:      "tracks the used memory in bytes with exponential moving average",
-		},
-		[]string{"ema_period"},
-	)
 
 	usedPercent = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -91,15 +82,6 @@ var (
 			Help:      "tracks the percentage of memory used with average for the last period",
 		},
 		[]string{"last_period"},
-	)
-	usedPercentEMA = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_percent_ema",
-			Help:      "tracks the percentage of memory used with exponential moving average",
-		},
-		[]string{"ema_period"},
 	)
 
 	freeBytes = prometheus.NewGauge(
@@ -172,15 +154,6 @@ func SetUsedBytes(ctx context.Context, bytes float64, currentTime time.Time) err
 			return err
 		}
 		usedBytesAverage.WithLabelValues(duration.String()).Set(avg)
-
-		ema, err := usedBytesAverager.EMA(
-			ctx,
-			components_metrics.WithEMAPeriod(duration),
-		)
-		if err != nil {
-			return err
-		}
-		usedBytesEMA.WithLabelValues(duration.String()).Set(ema)
 	}
 
 	return nil
@@ -199,12 +172,6 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 			return err
 		}
 		usedPercentAverage.WithLabelValues(duration.String()).Set(avg)
-
-		ema, err := usedPercentAverager.EMA(ctx, components_metrics.WithEMAPeriod(duration))
-		if err != nil {
-			return err
-		}
-		usedPercentEMA.WithLabelValues(duration.String()).Set(ema)
 	}
 
 	return nil
@@ -229,13 +196,7 @@ func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName st
 	if err := reg.Register(usedBytes); err != nil {
 		return err
 	}
-	if err := reg.Register(usedBytesEMA); err != nil {
-		return err
-	}
 	if err := reg.Register(usedPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(usedPercentEMA); err != nil {
 		return err
 	}
 	if err := reg.Register(freeBytes); err != nil {

@@ -27,11 +27,6 @@ type Averager interface {
 	// If since is zero, returns the average value for all data points.
 	Avg(ctx context.Context, opts ...OpOption) (float64, error)
 
-	// EMA returns the EMA value from the "since" time.
-	// If since is zero, returns the EMA value for all data points.
-	// If the ema period is zero, returns the 1-minute EMA value.
-	EMA(ctx context.Context, opts ...OpOption) (float64, error)
-
 	// Returns all the data points since the given time.
 	// If since is zero, returns all metrics.
 	Read(ctx context.Context, opts ...OpOption) (state.Metrics, error)
@@ -58,10 +53,6 @@ func (n *noOpAverager) Observe(ctx context.Context, value float64, opts ...OpOpt
 }
 
 func (n *noOpAverager) Avg(ctx context.Context, opts ...OpOption) (float64, error) {
-	return 0, nil
-}
-
-func (n *noOpAverager) EMA(ctx context.Context, opts ...OpOption) (float64, error) {
 	return 0, nil
 }
 
@@ -153,16 +144,6 @@ func (c *continuousAverager) Avg(ctx context.Context, opts ...OpOption) (float64
 	return state.AvgSince(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName, op.since)
 }
 
-// EMA returns the EMA value from the "since" time.
-// If since is zero, returns the EMA value for all data points.
-func (c *continuousAverager) EMA(ctx context.Context, opts ...OpOption) (float64, error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return 0.0, err
-	}
-	return state.EMASince(ctx, c.dbRO, c.tableName, c.metricName, op.metricSecondaryName, op.emaPeriod, op.since)
-}
-
 func (c *continuousAverager) Read(ctx context.Context, opts ...OpOption) (state.Metrics, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -174,7 +155,6 @@ func (c *continuousAverager) Read(ctx context.Context, opts ...OpOption) (state.
 type Op struct {
 	currentTime         time.Time
 	since               time.Time
-	emaPeriod           time.Duration
 	metricSecondaryName string
 }
 
@@ -187,9 +167,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 
 	if op.currentTime.IsZero() {
 		op.currentTime = time.Now().UTC()
-	}
-	if op.emaPeriod == 0 {
-		op.emaPeriod = time.Minute
 	}
 
 	return nil
@@ -204,12 +181,6 @@ func WithCurrentTime(t time.Time) OpOption {
 func WithSince(t time.Time) OpOption {
 	return func(op *Op) {
 		op.since = t
-	}
-}
-
-func WithEMAPeriod(period time.Duration) OpOption {
-	return func(op *Op) {
-		op.emaPeriod = period
 	}
 }
 
