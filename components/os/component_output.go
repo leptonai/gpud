@@ -2,6 +2,7 @@ package os
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -266,7 +267,7 @@ func setDefaultPoller(cfg Config, eventBucket eventstore.Bucket) {
 		defaultPoller = query.New(
 			os_id.Name,
 			cfg.Query,
-			createGet(cfg, eventBucket),
+			createGet(eventBucket),
 			nil,
 		)
 	})
@@ -278,7 +279,7 @@ func getDefaultPoller() query.Poller {
 
 var getSystemdDetectVirtFunc = pkg_host.SystemdDetectVirt
 
-func createGet(cfg Config, eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
+func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		o := &Output{}
 
@@ -286,7 +287,11 @@ func createGet(cfg Config, eventBucket eventstore.Bucket) func(ctx context.Conte
 		virtEnv, err := getSystemdDetectVirtFunc(cctx)
 		ccancel()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get virtualization environment using 'systemd-detect-virt': %w", err)
+			// ignore "context.DeadlineExceeded" since it's not a critical error and it's non-actionable
+			if !errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed to get virtualization environment using 'systemd-detect-virt': %w", err)
+			}
+			log.Logger.Warnw("failed to get virtualization environment using 'systemd-detect-virt'", "error", err)
 		}
 		o.VirtualizationEnvironment = virtEnv
 

@@ -134,7 +134,12 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
 	ccancel()
 	if err != nil {
-		o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
+		// ignore "context.DeadlineExceeded" since it's not a critical error and it's non-actionable
+		if !errors.Is(err, context.DeadlineExceeded) {
+			o.LsmodPeermemErrors = append(o.LsmodPeermemErrors, err.Error())
+		} else {
+			log.Logger.Warnw("lsmod peermem check timed out", "error", err)
+		}
 	}
 
 	log.Logger.Infow("waiting for default nvml instance")
