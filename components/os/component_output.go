@@ -308,7 +308,7 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 
 		o.MachineMetadata = currentMachineMetadata
 
-		if err = createRebootEvent(ctx, eventBucket, reboot.LastReboot); err != nil {
+		if err = createRebootEvent(ctx, eventBucket, time.Now().UTC(), reboot.FirstBoot, reboot.LastReboot); err != nil {
 			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 
@@ -374,24 +374,41 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 	}
 }
 
-func createRebootEvent(ctx context.Context, eventBucket eventstore.Bucket, lastRebootTime func(ctx2 context.Context) (time.Time, error)) error {
-	// get uptime
-	bootTime, err := lastRebootTime(ctx)
+func createRebootEvent(
+	ctx context.Context,
+	eventBucket eventstore.Bucket,
+	now time.Time,
+	getFirstBootTime func() (time.Time, error),
+	getLastRebootTime func(context.Context) (time.Time, error),
+) error {
+	lastBoot, err := getLastRebootTime(ctx)
 	if err != nil {
 		return err
 	}
-	// if now - event time > retention, then skip
-	if time.Since(bootTime) >= DefaultRetentionPeriod {
-		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(bootTime), "retention", DefaultRetentionPeriod)
+
+	// if now - event time > retention, then skip (too old)
+	if now.Sub(lastBoot) >= DefaultRetentionPeriod {
+		log.Logger.Debugw("skipping old reboot event", "time_since", time.Since(lastBoot), "retention", DefaultRetentionPeriod)
 		return nil
 	}
+
+	firstBoot, err := getFirstBootTime()
+	if err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("system reboot detected %v", lastBoot)
+	if firstBoot.Equal(lastBoot) || firstBoot.Before(lastBoot) {
+		msg = fmt.Sprintf("system boot detected %v", firstBoot)
+	}
+
 	// calculate event
 	rebootEvent := components.Event{
-		Time:    metav1.Time{Time: bootTime},
+		Time:    metav1.Time{Time: lastBoot},
 		Name:    "reboot",
 		Type:    common.EventTypeWarning,
-		Message: fmt.Sprintf("system reboot detected %v", bootTime),
+		Message: msg,
 	}
+
 	// get db latest
 	cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
 	lastEvent, err := eventBucket.Latest(cctx)
@@ -399,10 +416,12 @@ func createRebootEvent(ctx context.Context, eventBucket eventstore.Bucket, lastR
 	if err != nil {
 		return err
 	}
+
 	// if latest != "" and latest.timestamp == current event, skip
-	if lastEvent != nil && lastEvent.Time.Time.Sub(bootTime).Abs() < time.Minute {
+	if lastEvent != nil && lastEvent.Time.Time.Sub(lastBoot).Abs() < time.Minute {
 		return nil
 	}
+
 	// else insert event
 	cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
 	if err = eventBucket.Insert(cctx, rebootEvent); err != nil {
