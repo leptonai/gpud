@@ -385,6 +385,7 @@ func createRebootEvent(
 	if err != nil {
 		return err
 	}
+	fmt.Println(time.Now().UTC(), "lastBoot", lastBoot)
 
 	// if now - event time > retention, then skip (too old)
 	if now.Sub(lastBoot) >= DefaultRetentionPeriod {
@@ -396,6 +397,8 @@ func createRebootEvent(
 	if err != nil {
 		return err
 	}
+	fmt.Println(time.Now().UTC(), "firstBoot", firstBoot)
+
 	msg := fmt.Sprintf("system reboot detected %v", lastBoot)
 	if firstBoot.Equal(lastBoot) || firstBoot.Before(lastBoot) {
 		msg = fmt.Sprintf("system boot detected %v", firstBoot)
