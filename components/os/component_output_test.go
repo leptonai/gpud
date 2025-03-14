@@ -18,13 +18,9 @@ func TestGet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	getFunc := createGet(Config{}, nil)
+	getFunc := createGet(nil)
 	_, err := getFunc(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	expectedError := "failed to get virtualization environment using 'systemd-detect-virt': context deadline exceeded"
-	if err.Error() != expectedError {
-		t.Fatalf("expected error: %s, got: %s", expectedError, err.Error())
+	if err != nil {
+		t.Fatalf("expected nil")
 	}
 }
