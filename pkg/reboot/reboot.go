@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	stdos "os"
 	"os/exec"
 	"time"
@@ -125,6 +126,17 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 		"command", cmd,
 	)
 	return nil
+}
+func FirstBoot() (time.Time, error) {
+	fi, err := os.Stat("/etc/machine-id")
+	if err != nil {
+		return time.Time{}, err
+	}
+	// Get the file creation time
+	// Note: ModTime() returns the modification time, which is the closest
+	// we can get to creation time using standard Go fs interfaces
+	// On most systems, for /etc/machine-id, this will be the installation time
+	return fi.ModTime(), nil
 }
 
 func LastReboot(ctx context.Context) (time.Time, error) {
