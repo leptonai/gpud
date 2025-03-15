@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"time"
 
 	pkg_file "github.com/leptonai/gpud/pkg/file"
@@ -228,6 +229,13 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 	for _, s := range podSandboxes {
 		pods = append(pods, s)
 	}
+
+	sort.Slice(pods, func(i, j int) bool {
+		if pods[i].Namespace == pods[j].Namespace {
+			return pods[i].Name < pods[j].Name
+		}
+		return pods[i].Namespace < pods[j].Namespace
+	})
 	return pods, nil
 }
 
