@@ -86,7 +86,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	if lastSXidErr == nil {
 		reason = "SXIDComponent is healthy"
 	} else {
-		reason = fmt.Sprintf("sxid %d detected by %s", lastSXidErr.SXid, lastSXidErr.DataSource)
+		reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
 		if sxidDetail, ok := nvidia_query_sxid.GetDetail(int(lastSXidErr.SXid)); ok {
 			stateError = sxidDetail.Name
 		}
