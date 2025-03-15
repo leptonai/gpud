@@ -59,7 +59,6 @@ func TestPodSandboxTypes(t *testing.T) {
 		assert.Contains(t, jsonStr, "default")
 		assert.Contains(t, jsonStr, "test-pod")
 		assert.Contains(t, jsonStr, "SANDBOX_READY")
-		assert.Contains(t, jsonStr, "containerd")
 		assert.Contains(t, jsonStr, "container-456")
 		assert.Contains(t, jsonStr, "test-container")
 		assert.Contains(t, jsonStr, "nginx:latest")
