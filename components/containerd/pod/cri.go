@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strings"
+	"sort"
 	"time"
 
 	pkg_file "github.com/leptonai/gpud/pkg/file"
@@ -164,110 +164,79 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 	}
 	defer conn.Close()
 
-	client, imageClient, err := createClient(ctx, conn)
+	client, _, err := createClient(ctx, conn)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{Filter: &runtimeapi.PodSandboxFilter{}})
+	podSandboxResp, err := client.ListPodSandbox(
+		ctx,
+		&runtimeapi.ListPodSandboxRequest{
+			Filter: &runtimeapi.PodSandboxFilter{},
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	rs := make([]*runtimeapi.PodSandboxStatusResponse, 0, len(resp.Items))
-	for _, sandbox := range resp.Items {
-		r, err := client.PodSandboxStatus(
-			ctx,
-			&runtimeapi.PodSandboxStatusRequest{
-				PodSandboxId: sandbox.Id,
 
-				// extra info such as process info (not that useful)
-				// e.g., "overlayfs\",\"runtimeHandler\":\"\",\"runtimeType\":\"io.containerd.runc.v2\",\"runtimeOptions
-				Verbose: false,
-			},
-		)
-		if err != nil {
-			// can be safely ignored for current loop if sandbox status fails (e.g., deleted pod)
-			log.Logger.Debugw("PodSandboxStatus failed", "error", err)
+	podSandboxes := make(map[string]PodSandbox, len(podSandboxResp.Items))
+	for _, podSandbox := range podSandboxResp.Items {
+		podSandboxes[podSandbox.Id] = PodSandbox{
+			ID:        podSandbox.Id,
+			Name:      podSandbox.Metadata.Name,
+			Namespace: podSandbox.Metadata.Namespace,
+			State:     podSandbox.State.String(),
+
+			// to be filled in later
+			Containers: nil,
+		}
+	}
+
+	listContainersResp, err := client.ListContainers(
+		ctx,
+		&runtimeapi.ListContainersRequest{
+			Filter: &runtimeapi.ContainerFilter{},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, container := range listContainersResp.Containers {
+		podSandboxID := container.PodSandboxId
+		podSandbox, ok := podSandboxes[podSandboxID]
+		if !ok {
+			log.Logger.Warnw("container found but pod sandbox not found", "container", container)
 			continue
 		}
-		rs = append(rs, r)
-		response, err := client.ListContainers(ctx, &runtimeapi.ListContainersRequest{
-			Filter: &runtimeapi.ContainerFilter{
-				PodSandboxId: sandbox.Id,
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range response.Containers {
-			image := c.Image
-			if imageStatus, err := imageClient.ImageStatus(ctx, &runtimeapi.ImageStatusRequest{
-				Image: &runtimeapi.ImageSpec{
-					Image:       c.ImageRef,
-					Annotations: nil,
-				},
-				Verbose: false,
-			}); err == nil && imageStatus.Image != nil {
-				if len(imageStatus.Image.RepoTags) > 0 {
-					image.UserSpecifiedImage = strings.Join(imageStatus.Image.RepoTags, ",")
-				} else {
-					image.UserSpecifiedImage = strings.Join(imageStatus.Image.RepoDigests, ",")
-				}
-			}
-			r.ContainersStatuses = append(r.ContainersStatuses, &runtimeapi.ContainerStatus{
-				Id:          c.Id,
-				Metadata:    c.Metadata,
-				State:       c.State,
-				CreatedAt:   c.CreatedAt,
-				Image:       c.Image,
-				ImageRef:    c.ImageRef,
-				Labels:      c.Labels,
-				Annotations: c.Annotations,
-				ImageId:     c.ImageId,
-			})
 
+		c := PodSandboxContainerStatus{
+			ID:        container.Id,
+			Name:      container.Metadata.Name,
+			CreatedAt: container.CreatedAt,
+			State:     container.State.String(),
 		}
-	}
-	log.Logger.Debugw("listed pods", "pods", len(rs))
+		if container.Image != nil {
+			c.Image = container.Image.UserSpecifiedImage
+		}
+		podSandbox.Containers = append(podSandbox.Containers, c)
 
-	pods := make([]PodSandbox, 0, len(rs))
-	for _, s := range rs {
-		pods = append(pods, convertToPodSandbox(s))
+		podSandboxes[podSandboxID] = podSandbox
 	}
+	log.Logger.Debugw("listed pods", "pods", len(podSandboxes))
+
+	pods := make([]PodSandbox, 0, len(podSandboxes))
+	for _, s := range podSandboxes {
+		pods = append(pods, s)
+	}
+
+	sort.Slice(pods, func(i, j int) bool {
+		if pods[i].Namespace == pods[j].Namespace {
+			return pods[i].Name < pods[j].Name
+		}
+		return pods[i].Namespace < pods[j].Namespace
+	})
 	return pods, nil
-}
-
-// the original "PodSandboxStatusResponse" has a lot of fields, we only need a few of them
-func convertToPodSandbox(resp *runtimeapi.PodSandboxStatusResponse) PodSandbox {
-	status := resp.GetStatus()
-	pod := PodSandbox{
-		ID:        status.Id,
-		Name:      status.Metadata.Name,
-		Namespace: status.Metadata.Namespace,
-		State:     status.State.String(),
-		Info:      resp.GetInfo(),
-	}
-	for _, c := range resp.ContainersStatuses {
-		pod.Containers = append(pod.Containers, convertContainerStatus(c))
-	}
-	return pod
-}
-
-func convertContainerStatus(c *runtimeapi.ContainerStatus) PodSandboxContainerStatus {
-	ret := PodSandboxContainerStatus{
-		ID:        c.Id,
-		Name:      c.Metadata.Name,
-		CreatedAt: c.CreatedAt,
-		State:     c.State.String(),
-		LogPath:   c.LogPath,
-		ExitCode:  c.ExitCode,
-		Reason:    c.Reason,
-		Message:   c.Message,
-	}
-	if c.Image != nil {
-		ret.Image = c.Image.UserSpecifiedImage
-	}
-	return ret
 }
 
 // PodSandbox represents the pod information fetched from the local container runtime.
@@ -278,7 +247,6 @@ type PodSandbox struct {
 	Namespace  string                      `json:"namespace,omitempty"`
 	Name       string                      `json:"name,omitempty"`
 	State      string                      `json:"state,omitempty"`
-	Info       map[string]string           `json:"info,omitempty"`
 	Containers []PodSandboxContainerStatus `json:"containers,omitempty"`
 }
 
@@ -289,8 +257,4 @@ type PodSandboxContainerStatus struct {
 	Image     string `json:"image,omitempty"`
 	CreatedAt int64  `json:"created_at,omitempty"`
 	State     string `json:"state,omitempty"`
-	LogPath   string `json:"logPath,omitempty"`
-	ExitCode  int32  `json:"exitCode,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	Message   string `json:"message,omitempty"`
 }

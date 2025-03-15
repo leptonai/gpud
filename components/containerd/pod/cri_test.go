@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestDialUnix(t *testing.T) {
@@ -39,9 +38,6 @@ func TestPodSandboxTypes(t *testing.T) {
 			Namespace: "default",
 			Name:      "test-pod",
 			State:     "SANDBOX_READY",
-			Info: map[string]string{
-				"runtime": "containerd",
-			},
 			Containers: []PodSandboxContainerStatus{
 				{
 					ID:        "container-456",
@@ -63,7 +59,6 @@ func TestPodSandboxTypes(t *testing.T) {
 		assert.Contains(t, jsonStr, "default")
 		assert.Contains(t, jsonStr, "test-pod")
 		assert.Contains(t, jsonStr, "SANDBOX_READY")
-		assert.Contains(t, jsonStr, "containerd")
 		assert.Contains(t, jsonStr, "container-456")
 		assert.Contains(t, jsonStr, "test-container")
 		assert.Contains(t, jsonStr, "nginx:latest")
@@ -78,10 +73,6 @@ func TestPodSandboxTypes(t *testing.T) {
 			Image:     "busybox:latest",
 			CreatedAt: 9876543210,
 			State:     "CONTAINER_EXITED",
-			LogPath:   "/var/log/pods/test-pod/sidecar.log",
-			ExitCode:  137,
-			Reason:    "OOMKilled",
-			Message:   "Out of memory",
 		}
 
 		// Test JSON marshaling
@@ -95,10 +86,6 @@ func TestPodSandboxTypes(t *testing.T) {
 		assert.Contains(t, jsonStr, "busybox:latest")
 		assert.Contains(t, jsonStr, "9876543210")
 		assert.Contains(t, jsonStr, "CONTAINER_EXITED")
-		assert.Contains(t, jsonStr, "/var/log/pods/test-pod/sidecar.log")
-		assert.Contains(t, jsonStr, "137")
-		assert.Contains(t, jsonStr, "OOMKilled")
-		assert.Contains(t, jsonStr, "Out of memory")
 	})
 }
 
@@ -140,88 +127,6 @@ func TestListSandboxStatus(t *testing.T) {
 		pods, err := listSandboxStatus(ctx, "unix:///nonexistent/socket/path")
 		assert.Error(t, err)
 		assert.Empty(t, pods)
-	})
-}
-
-func TestConversionFunctions(t *testing.T) {
-	t.Run("convertContainerStatus", func(t *testing.T) {
-		cs := &runtimeapi.ContainerStatus{
-			Id: "container1",
-			Metadata: &runtimeapi.ContainerMetadata{
-				Name: "test-container",
-			},
-			State:     runtimeapi.ContainerState_CONTAINER_RUNNING,
-			CreatedAt: 1234567890,
-			Image: &runtimeapi.ImageSpec{
-				UserSpecifiedImage: "test-image",
-			},
-			LogPath:  "/var/log/containers/test.log",
-			ExitCode: 0,
-			Reason:   "Started",
-			Message:  "Container started successfully",
-		}
-
-		result := convertContainerStatus(cs)
-
-		assert.Equal(t, "container1", result.ID)
-		assert.Equal(t, "test-container", result.Name)
-		assert.Equal(t, "test-image", result.Image)
-		assert.Equal(t, int64(1234567890), result.CreatedAt)
-		assert.Equal(t, "CONTAINER_RUNNING", result.State)
-		assert.Equal(t, "/var/log/containers/test.log", result.LogPath)
-		assert.Equal(t, int32(0), result.ExitCode)
-		assert.Equal(t, "Started", result.Reason)
-		assert.Equal(t, "Container started successfully", result.Message)
-	})
-
-	t.Run("convertContainerStatus with nil image", func(t *testing.T) {
-		cs := &runtimeapi.ContainerStatus{
-			Id: "container1",
-			Metadata: &runtimeapi.ContainerMetadata{
-				Name: "test-container",
-			},
-		}
-
-		result := convertContainerStatus(cs)
-
-		assert.Equal(t, "container1", result.ID)
-		assert.Equal(t, "", result.Image)
-	})
-
-	t.Run("convertToPodSandbox", func(t *testing.T) {
-		resp := &runtimeapi.PodSandboxStatusResponse{
-			Status: &runtimeapi.PodSandboxStatus{
-				Id: "pod1",
-				Metadata: &runtimeapi.PodSandboxMetadata{
-					Name:      "test-pod",
-					Namespace: "default",
-				},
-				State: runtimeapi.PodSandboxState_SANDBOX_READY,
-			},
-			Info: map[string]string{
-				"key": "value",
-			},
-		}
-
-		// Add a container status
-		containerStatus := &runtimeapi.ContainerStatus{
-			Id: "container1",
-			Metadata: &runtimeapi.ContainerMetadata{
-				Name: "test-container",
-			},
-			State: runtimeapi.ContainerState_CONTAINER_RUNNING,
-		}
-		resp.ContainersStatuses = append(resp.ContainersStatuses, containerStatus)
-
-		result := convertToPodSandbox(resp)
-
-		assert.Equal(t, "pod1", result.ID)
-		assert.Equal(t, "test-pod", result.Name)
-		assert.Equal(t, "default", result.Namespace)
-		assert.Equal(t, "SANDBOX_READY", result.State)
-		assert.Equal(t, map[string]string{"key": "value"}, result.Info)
-		assert.Len(t, result.Containers, 1)
-		assert.Equal(t, "container1", result.Containers[0].ID)
 	})
 }
 
