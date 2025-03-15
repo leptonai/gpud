@@ -38,9 +38,6 @@ func TestPodSandboxTypes(t *testing.T) {
 			Namespace: "default",
 			Name:      "test-pod",
 			State:     "SANDBOX_READY",
-			Info: map[string]string{
-				"runtime": "containerd",
-			},
 			Containers: []PodSandboxContainerStatus{
 				{
 					ID:        "container-456",

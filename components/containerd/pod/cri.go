@@ -187,7 +187,6 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 			State:     podSandbox.State.String(),
 
 			// to be filled in later
-			Info:       nil,
 			Containers: nil,
 		}
 	}
@@ -223,27 +222,6 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 
 		podSandboxes[podSandboxID] = podSandbox
 	}
-
-	for sandboxID, sandbox := range podSandboxes {
-		status, err := client.PodSandboxStatus(
-			ctx,
-			&runtimeapi.PodSandboxStatusRequest{
-				PodSandboxId: sandboxID,
-
-				// extra info such as process info (not that useful)
-				// e.g., "overlayfs\",\"runtimeHandler\":\"\",\"runtimeType\":\"io.containerd.runc.v2\",\"runtimeOptions
-				Verbose: false,
-			},
-		)
-		if err != nil {
-			// can be safely ignored for current loop if sandbox status fails (e.g., deleted pod)
-			log.Logger.Debugw("PodSandboxStatus failed", "error", err)
-			continue
-		}
-		sandbox.Info = status.GetInfo()
-
-		podSandboxes[sandboxID] = sandbox
-	}
 	log.Logger.Debugw("listed pods", "pods", len(podSandboxes))
 
 	pods := make([]PodSandbox, 0, len(podSandboxes))
@@ -261,7 +239,6 @@ type PodSandbox struct {
 	Namespace  string                      `json:"namespace,omitempty"`
 	Name       string                      `json:"name,omitempty"`
 	State      string                      `json:"state,omitempty"`
-	Info       map[string]string           `json:"info,omitempty"`
 	Containers []PodSandboxContainerStatus `json:"containers,omitempty"`
 }
 

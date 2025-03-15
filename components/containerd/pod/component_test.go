@@ -300,9 +300,6 @@ func TestDataMarshalJSON(t *testing.T) {
 					Namespace: "default",
 					Name:      "test-pod",
 					State:     "SANDBOX_READY",
-					Info: map[string]string{
-						"runtime": "containerd",
-					},
 					Containers: []PodSandboxContainerStatus{
 						{
 							ID:    "container-456",
@@ -331,10 +328,6 @@ func TestDataMarshalJSON(t *testing.T) {
 		badPod := PodSandbox{
 			ID:   "bad-pod",
 			Name: "bad-pod",
-		}
-		// Set a field that will cause marshaling to fail
-		badPod.Info = map[string]string{
-			"badField": string([]byte{0xff, 0xfe}), // Invalid UTF-8
 		}
 
 		d := Data{
@@ -532,9 +525,6 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		badPod := PodSandbox{
 			ID:   "bad-pod",
 			Name: "bad-pod",
-			Info: map[string]string{
-				"badField": string([]byte{0xff, 0xfe}), // Invalid UTF-8
-			},
 		}
 
 		d := Data{
