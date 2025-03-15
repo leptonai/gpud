@@ -272,7 +272,8 @@ func (o *Output) GPUProductNameFromNVML() string {
 const (
 	inProgress  = "\033[33m⌛\033[0m"
 	checkMark   = "\033[32m✔\033[0m"
-	warningSign = "\033[31m✘\033[0m"
+	wrongSign   = "\033[31m✘\033[0m"
+	warningSign = "\033[33m⚠️\033[0m"
 )
 
 func (o *Output) PrintInfo(opts ...OpOption) {
@@ -287,14 +288,14 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 
 	if len(o.BadEnvVarsForCUDA) > 0 {
 		for k, v := range o.BadEnvVarsForCUDA {
-			fmt.Printf("%s bad cuda env var: %s=%s\n", warningSign, k, v)
+			fmt.Printf("%s bad cuda env var: %s=%s\n", wrongSign, k, v)
 		}
 	} else {
 		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
 	}
 
 	if len(o.LsmodPeermemErrors) > 0 {
-		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", warningSign, len(o.LsmodPeermemErrors))
+		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", wrongSign, len(o.LsmodPeermemErrors))
 		for _, err := range o.LsmodPeermemErrors {
 			fmt.Println(err)
 		}
@@ -303,7 +304,7 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	}
 
 	if len(o.NVMLErrors) > 0 {
-		fmt.Printf("%s Check failed with %d error(s)\n", warningSign, len(o.NVMLErrors))
+		fmt.Printf("%s Check failed with %d error(s)\n", wrongSign, len(o.NVMLErrors))
 		for _, err := range o.NVMLErrors {
 			fmt.Println(err)
 		}
@@ -330,12 +331,12 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 			if dev.PersistenceMode.Enabled {
 				fmt.Printf("%s Persistence mode is enabled\n", checkMark)
 			} else {
-				fmt.Printf("%s Persistence mode is disabled\n", warningSign)
+				fmt.Printf("%s Persistence mode is disabled\n", wrongSign)
 			}
 
 			if dev.ClockEvents != nil {
 				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
-					fmt.Printf("%s Found hw slowdown error(s)\n", warningSign)
+					fmt.Printf("%s Found hw slowdown error(s)\n", wrongSign)
 					yb, err := dev.ClockEvents.YAML()
 					if err != nil {
 						log.Logger.Warnw("failed to marshal clock events", "error", err)
@@ -350,18 +351,18 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 			if dev.RemappedRows.Supported {
 				fmt.Printf("%s Remapped rows supported\n", checkMark)
 				if dev.RemappedRows.RequiresReset() {
-					fmt.Printf("%s Found that the GPU needs a reset\n", warningSign)
+					fmt.Printf("%s Found that the GPU needs a reset\n", wrongSign)
 				}
 				if dev.RemappedRows.QualifiesForRMA() {
-					fmt.Printf("%s Found that the GPU qualifies for RMA\n", warningSign)
+					fmt.Printf("%s Found that the GPU qualifies for RMA\n", wrongSign)
 				}
 			} else {
-				fmt.Printf("%s Remapped rows are not supported\n", warningSign)
+				fmt.Printf("%s Remapped rows are not supported\n", wrongSign)
 			}
 
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
 			if len(uncorrectedErrs) > 0 {
-				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", warningSign, len(uncorrectedErrs))
+				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", wrongSign, len(uncorrectedErrs))
 				yb, err := dev.ECCErrors.YAML()
 				if err != nil {
 					log.Logger.Warnw("failed to marshal ecc errors", "error", err)
