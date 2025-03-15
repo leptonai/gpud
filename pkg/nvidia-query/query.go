@@ -282,8 +282,8 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	}
 
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
-	fmt.Printf("%s GPU count '%d' (from NVML)\n", checkMark, o.GPUCountFromNVML())
-	fmt.Printf("%s GPU product name '%s' (from NVML)\n", checkMark, o.GPUProductNameFromNVML())
+	fmt.Printf("%s GPU count '%d'\n", checkMark, o.GPUCountFromNVML())
+	fmt.Printf("%s GPU product name '%s'\n", checkMark, o.GPUProductNameFromNVML())
 
 	if len(o.BadEnvVarsForCUDA) > 0 {
 		for k, v := range o.BadEnvVarsForCUDA {
@@ -303,12 +303,10 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	}
 
 	if len(o.NVMLErrors) > 0 {
-		fmt.Printf("%s nvml check failed with %d error(s)\n", warningSign, len(o.NVMLErrors))
+		fmt.Printf("%s Check failed with %d error(s)\n", warningSign, len(o.NVMLErrors))
 		for _, err := range o.NVMLErrors {
 			fmt.Println(err)
 		}
-	} else {
-		fmt.Printf("%s successfully checked nvml\n", checkMark)
 	}
 
 	if o.NVML != nil {
@@ -316,28 +314,28 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 		fmt.Printf("%s CUDA version: %s\n", checkMark, o.NVML.CUDAVersion)
 
 		if len(o.NVML.DeviceInfos) > 0 {
-			fmt.Printf("%s name: %s (NVML)\n", checkMark, o.NVML.DeviceInfos[0].Name)
+			fmt.Printf("%s name: %s\n", checkMark, o.NVML.DeviceInfos[0].Name)
 		}
 
 		for _, dev := range o.NVML.DeviceInfos {
-			fmt.Printf("\n\n##################\nNVML %s\n\n", dev.UUID)
+			fmt.Printf("\n\n##################\n %s\n\n", dev.UUID)
 
 			if dev.GSPFirmwareMode.Enabled {
-				fmt.Printf("%s NVML GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
+				fmt.Printf("%s GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
 			} else {
-				fmt.Printf("%s NVML GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
+				fmt.Printf("%s GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
 			}
 
 			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
 			if dev.PersistenceMode.Enabled {
-				fmt.Printf("%s NVML persistence mode is enabled\n", checkMark)
+				fmt.Printf("%s Persistence mode is enabled\n", checkMark)
 			} else {
-				fmt.Printf("%s NVML persistence mode is disabled\n", warningSign)
+				fmt.Printf("%s Persistence mode is disabled\n", warningSign)
 			}
 
 			if dev.ClockEvents != nil {
 				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
-					fmt.Printf("%s NVML found hw slowdown error(s)\n", warningSign)
+					fmt.Printf("%s Found hw slowdown error(s)\n", warningSign)
 					yb, err := dev.ClockEvents.YAML()
 					if err != nil {
 						log.Logger.Warnw("failed to marshal clock events", "error", err)
@@ -345,25 +343,25 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 						fmt.Printf("clock events:\n%s\n\n", string(yb))
 					}
 				} else {
-					fmt.Printf("%s NVML found no hw slowdown error\n", checkMark)
+					fmt.Printf("%s Found no hw slowdown error\n", checkMark)
 				}
 			}
 
 			if dev.RemappedRows.Supported {
-				fmt.Printf("%s NVML remapped rows supported\n", checkMark)
+				fmt.Printf("%s Remapped rows supported\n", checkMark)
 				if dev.RemappedRows.RequiresReset() {
-					fmt.Printf("%s NVML found that the GPU needs a reset\n", warningSign)
+					fmt.Printf("%s Found that the GPU needs a reset\n", warningSign)
 				}
 				if dev.RemappedRows.QualifiesForRMA() {
-					fmt.Printf("%s NVML found that the GPU qualifies for RMA\n", warningSign)
+					fmt.Printf("%s Found that the GPU qualifies for RMA\n", warningSign)
 				}
 			} else {
-				fmt.Printf("%s NVML remapped rows are not supported\n", warningSign)
+				fmt.Printf("%s Remapped rows are not supported\n", warningSign)
 			}
 
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
 			if len(uncorrectedErrs) > 0 {
-				fmt.Printf("%s NVML found %d ecc volatile uncorrected error(s)\n", warningSign, len(uncorrectedErrs))
+				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", warningSign, len(uncorrectedErrs))
 				yb, err := dev.ECCErrors.YAML()
 				if err != nil {
 					log.Logger.Warnw("failed to marshal ecc errors", "error", err)
@@ -371,11 +369,11 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 					fmt.Printf("ecc errors:\n%s\n\n", string(yb))
 				}
 			} else {
-				fmt.Printf("%s NVML found no ecc volatile uncorrected error\n", checkMark)
+				fmt.Printf("%s Found no ecc volatile uncorrected error\n", checkMark)
 			}
 
 			if len(dev.Processes.RunningProcesses) > 0 {
-				fmt.Printf("%s NVML found %d running process\n", checkMark, len(dev.Processes.RunningProcesses))
+				fmt.Printf("%s Found %d running process\n", checkMark, len(dev.Processes.RunningProcesses))
 				yb, err := dev.Processes.YAML()
 				if err != nil {
 					log.Logger.Warnw("failed to marshal processes", "error", err)
@@ -383,7 +381,7 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 					fmt.Printf("\n%s\n\n", string(yb))
 				}
 			} else {
-				fmt.Printf("%s NVML found no running process\n", checkMark)
+				fmt.Printf("%s Found no running process\n", checkMark)
 			}
 		}
 	}

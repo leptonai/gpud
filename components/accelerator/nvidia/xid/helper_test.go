@@ -16,6 +16,7 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType common.EventType,
 	xidErr := xidErrorFromDmesg{
 		Xid:        xid,
 		DataSource: "test",
+		DeviceUUID: "PCI:0000:9b:00",
 		SuggestedActionsByGPUd: &common.SuggestedActions{
 			RepairActions: []common.RepairActionType{suggestedAction},
 		},
@@ -47,7 +48,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
 		assert.Equal(t, components.StateDegraded, state.Health)
-		assert.Contains(t, state.Reason, "xid 123")
+		assert.Equal(t, "XID 123 detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
 		assert.Equal(t, components.StateUnhealthy, state.Health)
-		assert.Contains(t, state.Reason, "xid 456")
+		assert.Equal(t, "XID 456 detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("reboot recover", func(t *testing.T) {

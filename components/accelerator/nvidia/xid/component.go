@@ -64,7 +64,7 @@ func New(ctx context.Context, eventStore eventstore.Store) *XIDComponent {
 		if xidErr == nil {
 			return "", ""
 		}
-		return fmt.Sprintf("xid %d %s", xidErr.Detail.Xid, xidErr.Detail.Name), xidErr.Detail.Description
+		return fmt.Sprintf("XID %d %s", xidErr.Detail.Xid, xidErr.Detail.Name), xidErr.Detail.Description
 	})
 	if err != nil {
 		ccancel()
