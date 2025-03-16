@@ -35,6 +35,8 @@ const (
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
+var _ components.Component = &SXIDComponent{}
+
 type SXIDComponent struct {
 	rootCtx      context.Context
 	cancel       context.CancelFunc
@@ -78,8 +80,6 @@ func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
 		kmsgWatcher:  kmsgWatcher,
 	}
 }
-
-var _ components.Component = (*SXIDComponent)(nil)
 
 func (c *SXIDComponent) Name() string { return Name }
 
