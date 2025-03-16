@@ -48,7 +48,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
 		assert.Equal(t, components.StateDegraded, state.Health)
-		assert.Equal(t, "XID 123 detected on PCI:0000:9b:00", state.Reason)
+		assert.Equal(t, "XID 123(SPI PMU RPC Write Failure) detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
