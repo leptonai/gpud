@@ -122,7 +122,7 @@ func resolveXIDEvent(event components.Event) components.Event {
 				return ret
 			}
 			ret.Type = detail.EventType
-			ret.Message = fmt.Sprintf("XID %d detected on %s", currXid, event.ExtraInfo[EventKeyDeviceUUID])
+			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
 			ret.SuggestedActions = detail.SuggestedActionsByGPUd
 
 			xidErr := xidErrorFromDmesg{
