@@ -12,8 +12,8 @@ const (
 	defaultCachePurgeInterval = 30 * time.Minute
 )
 
-func (l Message) cacheKey() string {
-	return fmt.Sprintf("%d-%s", l.Timestamp.Unix(), l.Message)
+func (m Message) cacheKey() string {
+	return fmt.Sprintf("%d-%s", m.Timestamp.Unix(), m.Message)
 }
 
 // caches the log lines and its frequencies
