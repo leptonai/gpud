@@ -2,7 +2,6 @@ package kmsg
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -302,7 +301,6 @@ func Test_readFollow(t *testing.T) {
 
 	// Verify we received messages
 	require.NotEmpty(t, receivedMessages, "Should have received messages from the test file")
-	fmt.Println("receivedMessages", len(receivedMessages))
 
 	// Verify some message fields
 	for _, msg := range receivedMessages {
