@@ -18,7 +18,6 @@ import (
 	metrics_nvlink "github.com/leptonai/gpud/pkg/nvidia-query/metrics/nvlink"
 	metrics_power "github.com/leptonai/gpud/pkg/nvidia-query/metrics/power"
 	metrics_processes "github.com/leptonai/gpud/pkg/nvidia-query/metrics/processes"
-	metrics_remapped_rows "github.com/leptonai/gpud/pkg/nvidia-query/metrics/remapped-rows"
 	metrics_temperature "github.com/leptonai/gpud/pkg/nvidia-query/metrics/temperature"
 	metrics_utilization "github.com/leptonai/gpud/pkg/nvidia-query/metrics/utilization"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -171,7 +170,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		metrics_temperature.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_utilization.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_processes.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_remapped_rows.SetLastUpdateUnixSeconds(nowUnix)
 
 		for _, dev := range o.NVML.DeviceInfos {
 			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
@@ -441,10 +439,6 @@ func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Tim
 		return err
 	}
 
-	if err := setRemappedRowsMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -577,19 +571,6 @@ func setUtilizationMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.T
 
 func setProcessMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
 	if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setRemappedRowsMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_remapped_rows.SetRemappedDueToUncorrectableErrors(ctx, dev.UUID, uint32(dev.RemappedRows.RemappedDueToCorrectableErrors), now); err != nil {
-		return err
-	}
-	if err := metrics_remapped_rows.SetRemappingPending(ctx, dev.UUID, dev.RemappedRows.RemappingPending, now); err != nil {
-		return err
-	}
-	if err := metrics_remapped_rows.SetRemappingFailed(ctx, dev.UUID, dev.RemappedRows.RemappingFailed, now); err != nil {
 		return err
 	}
 	return nil

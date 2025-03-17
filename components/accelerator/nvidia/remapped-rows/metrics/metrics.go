@@ -1,15 +1,15 @@
-// Package remappedrows provides the NVIDIA row remapping metrics collection and reporting.
-package remappedrows
+// Package metrics provides the NVIDIA row remapping metrics collection and reporting.
+package metrics
 
 import (
 	"context"
 	"database/sql"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const SubSystem = "accelerator_nvidia_remapped_rows"

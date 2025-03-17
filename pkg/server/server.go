@@ -171,14 +171,31 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, err
 	}
+
+	var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
 	var xidEventBucket eventstore.Bucket
 	var hwSlowdownEventBucket eventstore.Bucket
+	var remappedRowsEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
+		nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
+		}
+		defer func() {
+			if err := nvmlInstanceV2.Shutdown(); err != nil {
+				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+			}
+		}()
+
 		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
 		if err != nil {
 			return nil, err
 		}
 		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		if err != nil {
+			return nil, err
+		}
+		remappedRowsEventBucket, err = eventStore.Bucket(nvidia_remapped_rows.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -607,18 +624,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_remapped_rows.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_remapped_rows.New(ctx, cfg)
+			c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

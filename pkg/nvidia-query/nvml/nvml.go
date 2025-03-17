@@ -262,6 +262,13 @@ func (inst *instance) NVMLExists() bool {
 	return inst.nvmlLib != nil && inst.nvmlExists
 }
 
+func (inst *instance) ClockEventsSupported() bool {
+	inst.mu.RLock()
+	defer inst.mu.RUnlock()
+
+	return inst.clockEventsSupported
+}
+
 func (inst *instance) Shutdown() error {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()

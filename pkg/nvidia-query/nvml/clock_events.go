@@ -66,9 +66,14 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	}
 
 	// not a "not supported" error, not a success return, thus return an error here
+	if IsNotReadyError(ret) {
+		return false, fmt.Errorf("device not initialized %v", nvml.ErrorString(ret))
+	}
+	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not get current clock events: %v", nvml.ErrorString(ret))
 	}
+
 	return true, nil
 }
 
@@ -136,6 +141,9 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	}
 
 	// not a "not supported" error, not a success return, thus return an error here
+	if IsNotReadyError(ret) {
+		return clockEvents, fmt.Errorf("device %s is not initialized %v", uuid, nvml.ErrorString(ret))
+	}
 	if ret != nvml.SUCCESS {
 		return clockEvents, fmt.Errorf("failed to get device clock event reasons: %v", nvml.ErrorString(ret))
 	}
@@ -150,11 +158,11 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	hwReasons, otherReasons := getClockEventReasons(reasons)
 	for _, reason := range hwReasons {
 		clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons,
-			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+			fmt.Sprintf("%s: %s", uuid, reason))
 	}
 	for _, reason := range otherReasons {
 		clockEvents.Reasons = append(clockEvents.Reasons,
-			fmt.Sprintf("%s: %s (nvml)", uuid, reason))
+			fmt.Sprintf("%s: %s", uuid, reason))
 	}
 
 	return clockEvents, nil
@@ -256,13 +264,6 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 		description:  "GPU clocks are limited by current setting of Display clocks",
 		isHWSlowdown: false,
 	},
-}
-
-func (inst *instance) ClockEventsSupported() bool {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	return inst.clockEventsSupported
 }
 
 // createEventFromClockEvents creates a components.Event from ClockEvents if there are hardware slowdown reasons.
