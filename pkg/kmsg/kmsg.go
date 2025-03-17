@@ -74,7 +74,11 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 	}
 	bootTime := time.Unix(int64(bt), 0)
 
-	return readAll(kmsgFile, bootTime)
+	return readAll(
+		kmsgFile,
+		bootTime,
+		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
+	)
 }
 
 // any value >= PRINTK_MESSAGE_MAX (which is defined as 2048) is fine
@@ -83,7 +87,7 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 const readBufferSize = 8192
 
 // readAll reads all messages from the kmsg file, with no follow mode.
-func readAll(kmsgFile *os.File, bootTime time.Time) ([]Message, error) {
+func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message, error) {
 	rawReader, err := kmsgFile.SyscallConn()
 	if err != nil {
 		return nil, err
@@ -140,6 +144,14 @@ func readAll(kmsgFile *os.File, bootTime time.Time) ([]Message, error) {
 		if err != nil {
 			return nil, fmt.Errorf("malformed kmsg message: %w (%q)", err, line)
 		}
+
+		if deduper != nil {
+			if occurrences := deduper.addCache(*msg); occurrences > 1 {
+				log.Logger.Warnw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
+				continue
+			}
+		}
+
 		msgs = append(msgs, *msg)
 	}
 }
@@ -202,7 +214,12 @@ func (w *watcher) Watch(msgs chan<- Message) error {
 	if err := w.errIfStarted(); err != nil {
 		return err
 	}
-	return readFollow(w.kmsgFile, w.bootTime, msgs)
+	return readFollow(
+		w.kmsgFile,
+		w.bootTime,
+		msgs,
+		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
+	)
 }
 
 func (w *watcher) Close() error {
@@ -211,7 +228,7 @@ func (w *watcher) Close() error {
 
 // readFollow reads messages from the kmsg file, with follow mode,
 // meaning it will continue to read the file as new messages are written to it.
-func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message) error {
+func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, deduper *deduper) error {
 	log.Logger.Infow("reading kmsg with follow mode")
 
 	defer close(msgs)
@@ -247,6 +264,14 @@ func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message) erro
 		if err != nil {
 			return fmt.Errorf("malformed kmsg message: %w (%q)", err, line)
 		}
+
+		if deduper != nil {
+			if occurrences := deduper.addCache(*msg); occurrences > 1 {
+				log.Logger.Warnw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
+				continue
+			}
+		}
+
 		msgs <- *msg
 	}
 }
