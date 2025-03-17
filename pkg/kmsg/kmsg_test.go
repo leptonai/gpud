@@ -266,7 +266,7 @@ func Test_readFollow(t *testing.T) {
 	// Start a goroutine to read messages
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- readFollow(testFile, bootTime, msgChan)
+		errChan <- readFollow(testFile, bootTime, msgChan, nil)
 	}()
 
 	// Collect messages for a short time
@@ -330,7 +330,7 @@ func Test_readFollowMalformedData(t *testing.T) {
 	bootTime := time.Unix(1000, 0)
 	msgChan := make(chan Message, 10)
 
-	err = readFollow(tmpFile, bootTime, msgChan)
+	err = readFollow(tmpFile, bootTime, msgChan, nil)
 
 	// Expect an error about malformed message
 	require.Error(t, err)
