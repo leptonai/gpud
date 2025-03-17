@@ -339,3 +339,118 @@ func TestIsVersionMismatchError(t *testing.T) {
 		})
 	}
 }
+
+func TestIsNotReadyError(t *testing.T) {
+	tests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "Direct ERROR_NOT_READY match",
+			ret:      nvml.ERROR_NOT_READY,
+			expected: true,
+		},
+		{
+			name:     "Success is not a not-ready error",
+			ret:      nvml.SUCCESS,
+			expected: false,
+		},
+		{
+			name:     "Unknown error is not a not-ready error",
+			ret:      nvml.ERROR_UNKNOWN,
+			expected: false,
+		},
+		{
+			name:     "Not supported error is not a not-ready error",
+			ret:      nvml.ERROR_NOT_SUPPORTED,
+			expected: false,
+		},
+	}
+
+	// Override nvml.ErrorString for testing string-based matches
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	nvml.ErrorString = func(ret nvml.Return) string {
+		switch ret {
+		case nvml.Return(1000):
+			return "System is not in ready state"
+		case nvml.Return(1001):
+			return "SYSTEM IS NOT IN READY STATE"
+		case nvml.Return(1002):
+			return "nvml.CLOCK_GRAPHICS: System is not in ready state"
+		case nvml.Return(1003):
+			return "  not in ready  "
+		case nvml.Return(1004):
+			return "The system is not in ready state for this operation"
+		case nvml.Return(1005):
+			return "Some other error"
+		case nvml.Return(1006):
+			return ""
+		case nvml.Return(1007):
+			return "notinready" // No space between words
+		default:
+			return originalErrorString(ret)
+		}
+	}
+
+	// Add string-based test cases
+	stringBasedTests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "String contains 'not in ready' (lowercase)",
+			ret:      nvml.Return(1000),
+			expected: true,
+		},
+		{
+			name:     "String contains 'NOT IN READY' (uppercase)",
+			ret:      nvml.Return(1001),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not in ready' with prefix",
+			ret:      nvml.Return(1002),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not in ready' with spaces",
+			ret:      nvml.Return(1003),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not in ready' within message",
+			ret:      nvml.Return(1004),
+			expected: true,
+		},
+		{
+			name:     "String does not contain 'not in ready'",
+			ret:      nvml.Return(1005),
+			expected: false,
+		},
+		{
+			name:     "Empty string",
+			ret:      nvml.Return(1006),
+			expected: false,
+		},
+		{
+			name:     "String with similar but not exact match",
+			ret:      nvml.Return(1007),
+			expected: false,
+		},
+	}
+
+	tests = append(tests, stringBasedTests...)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsNotReadyError(tt.ret)
+			assert.Equal(t, tt.expected, result, "IsNotReadyError(%v) = %v, want %v", tt.ret, result, tt.expected)
+		})
+	}
+}
