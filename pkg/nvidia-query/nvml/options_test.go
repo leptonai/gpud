@@ -46,16 +46,6 @@ func TestOpApplyOpts(t *testing.T) {
 		assert.Equal(t, dbRO, op.dbRO)
 	})
 
-	t.Run("with events bucket", func(t *testing.T) {
-		bucket := &mockEventBucket{}
-		op := &Op{}
-		err := op.applyOpts([]OpOption{
-			WithHWSlowdownEventBucket(bucket),
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, bucket, op.hwSlowdownEventBucket)
-	})
-
 	t.Run("with GPM metrics", func(t *testing.T) {
 		metrics := []nvml.GpmMetricId{
 			nvml.GPM_METRIC_SM_OCCUPANCY,
@@ -94,21 +84,18 @@ func TestOpApplyOpts(t *testing.T) {
 		assert.NoError(t, err)
 		defer dbRO.Close()
 
-		bucket := &mockEventBucket{}
 		metrics := []nvml.GpmMetricId{nvml.GPM_METRIC_SM_OCCUPANCY}
 
 		op := &Op{}
 		err = op.applyOpts([]OpOption{
 			WithDBRW(dbRW),
 			WithDBRO(dbRO),
-			WithHWSlowdownEventBucket(bucket),
 			WithGPMMetricsID(metrics...),
 		})
 		assert.NoError(t, err)
 
 		assert.Equal(t, dbRW, op.dbRW)
 		assert.Equal(t, dbRO, op.dbRO)
-		assert.Equal(t, bucket, op.hwSlowdownEventBucket)
 		assert.Len(t, op.gpmMetricsIDs, len(metrics))
 	})
 }
@@ -133,14 +120,6 @@ func TestWithDBRO(t *testing.T) {
 	opt := WithDBRO(db)
 	opt(op)
 	assert.Equal(t, db, op.dbRO)
-}
-
-func TestWithHWSlowdownEventBucket(t *testing.T) {
-	bucket := &mockEventBucket{}
-	op := &Op{}
-	opt := WithHWSlowdownEventBucket(bucket)
-	opt(op)
-	assert.Equal(t, bucket, op.hwSlowdownEventBucket)
 }
 
 func TestWithGPMMetricsID(t *testing.T) {
@@ -204,14 +183,5 @@ func TestOpOptionsErrorHandling(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, op.dbRW) // Should create default in-memory DB
 		assert.NotNil(t, op.dbRO) // Should create default in-memory DB
-	})
-
-	t.Run("nil events bucket", func(t *testing.T) {
-		op := &Op{}
-		err := op.applyOpts([]OpOption{
-			WithHWSlowdownEventBucket(nil),
-		})
-		assert.NoError(t, err)
-		assert.Nil(t, op.hwSlowdownEventBucket)
 	})
 }

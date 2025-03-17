@@ -25,7 +25,6 @@ func TestOpOptions(t *testing.T) {
 		op := &Op{}
 		err := op.applyOpts([]OpOption{
 			WithXidEventBucket(mockBucket),
-			WithHWSlowdownEventBucket(mockBucket),
 			WithIbstatCommand("/custom/ibstat"),
 			WithDebug(true),
 		})
@@ -34,7 +33,6 @@ func TestOpOptions(t *testing.T) {
 
 		// Check custom values
 		assert.Equal(t, mockBucket, op.xidEventsBucket)
-		assert.Equal(t, mockBucket, op.hwSlowdownEventsBucket)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
 		assert.True(t, op.debug)
 	})

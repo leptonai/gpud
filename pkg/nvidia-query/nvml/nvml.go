@@ -16,12 +16,85 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
+
+var _ InstanceV2 = &instanceV2{}
+
+type InstanceV2 interface {
+	NVMLExists() bool
+	Library() nvml_lib.Library
+	Devices() []device.Device
+}
+
+func NewInstanceV2() (InstanceV2, error) {
+	nvmlLib := nvml_lib.NewDefault()
+	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+		return nil, err
+	}
+
+	log.Logger.Infow("getting driver version from nvml library")
+	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	if err != nil {
+		return nil, err
+	}
+	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion)
+
+	cudaVersion, err := getCUDAVersion(nvmlLib.NVML())
+	if err != nil {
+		return nil, err
+	}
+
+	log.Logger.Infow("checking if nvml exists from info library")
+	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
+	if !nvmlExists {
+		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
+		return nil, fmt.Errorf("nvml not found: %s", nvmlExistsMsg)
+	}
+
+	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+	// "error getting device handle for index '6': Unknown Error"
+	log.Logger.Debugw("getting devices from device library")
+	devices, err := nvmlLib.Device().GetDevices()
+	if err != nil {
+		return nil, err
+	}
+
+	return &instanceV2{
+		nvmlLib:       nvmlLib,
+		nvmlExists:    nvmlExists,
+		nvmlExistsMsg: nvmlExistsMsg,
+		driverVersion: driverVersion,
+		cudaVersion:   cudaVersion,
+		devices:       devices,
+	}, nil
+}
+
+type instanceV2 struct {
+	nvmlLib nvml_lib.Library
+
+	nvmlExists    bool
+	nvmlExistsMsg string
+
+	driverVersion string
+	cudaVersion   string
+
+	devices []device.Device
+}
+
+func (inst *instanceV2) NVMLExists() bool {
+	return inst.nvmlExists
+}
+
+func (inst *instanceV2) Library() nvml_lib.Library {
+	return inst.nvmlLib
+}
+
+func (inst *instanceV2) Devices() []device.Device {
+	return inst.devices
+}
 
 var _ Instance = &instance{}
 
@@ -49,10 +122,6 @@ type instance struct {
 	// read-only database instance
 	dbRO *sql.DB
 
-	hwSlowdownEventBucket eventstore.Bucket
-
-	clockEventsSupported bool
-
 	gpmPollInterval time.Duration
 
 	gpmMetricsSupported bool
@@ -65,8 +134,6 @@ type Instance interface {
 	NVMLExists() bool
 
 	Start() error
-
-	ClockEventsSupported() bool
 
 	GPMMetricsSupported() bool
 	RecvGPMEvents() <-chan *GPMEvent
@@ -92,17 +159,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion)
-
-	major, _, _, err := ParseDriverVersion(driverVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Logger.Infow("checking if clock events are supported")
-	clockEventsSupported := ClockEventsSupportedVersion(major)
-	if !clockEventsSupported {
-		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
-	}
 
 	cudaVersion, err := getCUDAVersion(nvmlLib.NVML())
 	if err != nil {
@@ -137,10 +193,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
-
-		hwSlowdownEventBucket: op.hwSlowdownEventBucket,
-
-		clockEventsSupported: clockEventsSupported,
 
 		gpmPollInterval: time.Minute,
 
@@ -300,10 +352,6 @@ func (inst *instance) Get() (*Output, error) {
 		CUDAVersion:   inst.cudaVersion,
 	}
 
-	// nvidia-smi polling happens periodically
-	// so we truncate the timestamp to the nearest minute
-	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
-
 	joinedErrs := make([]error, 0)
 	for _, devInfo := range inst.devices {
 		// prepare/copy the static device info
@@ -333,46 +381,6 @@ func (inst *instance) Get() (*Output, error) {
 		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		if inst.clockEventsSupported {
-			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
-			if err != nil {
-				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-			} else {
-				if len(clockEvents.HWSlowdownReasons) > 0 {
-					log.Logger.Infow("detected hw slowdown clock events", "gpu_uuid", devInfo.UUID, "reasons", clockEvents.HWSlowdownReasons)
-
-					// overwrite timestamp to the nearest minute
-					clockEvents.Time = metav1.Time{Time: truncNowUTC}
-
-					latestInfo.ClockEvents = &clockEvents
-
-					ev := createEventFromClockEvents(clockEvents)
-					if ev != nil {
-						log.Logger.Infow("inserting clock events to db", "gpu_uuid", devInfo.UUID)
-
-						cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
-						found, err := inst.hwSlowdownEventBucket.Find(cctx, *ev)
-						ccancel()
-						if err != nil {
-							log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
-							joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-						} else if found == nil {
-							cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
-							err = inst.hwSlowdownEventBucket.Insert(cctx, *ev)
-							ccancel()
-							if err != nil {
-								log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
-							} else {
-								log.Logger.Infow("inserted clock events to db", "gpu_uuid", devInfo.UUID)
-							}
-						} else {
-							log.Logger.Infow("clock event already found in db", "gpu_uuid", devInfo.UUID)
-						}
-					}
-				}
-			}
 		}
 
 		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
@@ -416,11 +424,6 @@ func (inst *instance) Get() (*Output, error) {
 		}
 
 		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
@@ -489,7 +492,6 @@ type DeviceInfo struct {
 
 	GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
 	PersistenceMode PersistenceMode `json:"persistence_mode"`
-	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
 	ClockSpeed      ClockSpeed      `json:"clock_speed"`
 	Memory          Memory          `json:"memory"`
 	NVLink          NVLink          `json:"nvlink"`
@@ -499,7 +501,6 @@ type DeviceInfo struct {
 	Processes       Processes       `json:"processes"`
 	ECCMode         ECCMode         `json:"ecc_mode"`
 	ECCErrors       ECCErrors       `json:"ecc_errors"`
-	RemappedRows    RemappedRows    `json:"remapped_rows"`
 
 	device device.Device `json:"-"`
 }

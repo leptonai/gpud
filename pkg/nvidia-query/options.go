@@ -5,10 +5,9 @@ import (
 )
 
 type Op struct {
-	xidEventsBucket        eventstore.Bucket
-	hwSlowdownEventsBucket eventstore.Bucket
-	ibstatCommand          string
-	debug                  bool
+	xidEventsBucket eventstore.Bucket
+	ibstatCommand   string
+	debug           bool
 }
 
 type OpOption func(*Op)
@@ -28,12 +27,6 @@ func (op *Op) applyOpts(opts []OpOption) error {
 func WithXidEventBucket(bucket eventstore.Bucket) OpOption {
 	return func(op *Op) {
 		op.xidEventsBucket = bucket
-	}
-}
-
-func WithHWSlowdownEventBucket(bucket eventstore.Bucket) OpOption {
-	return func(op *Op) {
-		op.hwSlowdownEventsBucket = bucket
 	}
 }
 

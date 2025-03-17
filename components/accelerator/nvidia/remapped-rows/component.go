@@ -4,99 +4,90 @@ package remappedrows
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	nvidia_query_metrics_remapped_rows "github.com/leptonai/gpud/pkg/nvidia-query/metrics/remapped-rows"
-	"github.com/leptonai/gpud/pkg/query"
-
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/leptonai/gpud/components"
+	metrics "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows/metrics"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/log"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
+// Name is the ID of the remapped rows component.
 const Name = "accelerator-nvidia-remapped-rows"
-
-func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
-	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
-
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
-	}, nil
-}
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	nvmlLib     nvml_lib.Library
+	eventBucket eventstore.Bucket
+	gatherer    prometheus.Gatherer
+
+	lastMu   sync.RWMutex
+	lastData *Data
+}
+
+func New(ctx context.Context, nvmlLib nvml_lib.Library, eventBucket eventstore.Bucket) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(ctx)
+	return &component{
+		ctx:         cctx,
+		cancel:      ccancel,
+		nvmlLib:     nvmlLib,
+		eventBucket: eventBucket,
+	}, nil
 }
 
 func (c *component) Name() string { return Name }
 
-func (c *component) Start() error { return nil }
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
-		return []components.State{
-			{
-				Name:    Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-	}
-
-	output := ToOutput(allOutput)
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return nil, nil
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
-	remappedDueToUncorrectableErrors, err := nvidia_query_metrics_remapped_rows.ReadRemappedDueToUncorrectableErrors(ctx, since)
+	remappedDueToUncorrectableErrors, err := metrics.ReadRemappedDueToUncorrectableErrors(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read remapped due to uncorrectable errors: %w", err)
 	}
-	remappingPending, err := nvidia_query_metrics_remapped_rows.ReadRemappingPending(ctx, since)
+	remappingPending, err := metrics.ReadRemappingPending(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read remapping pending: %w", err)
 	}
-	remappingFailed, err := nvidia_query_metrics_remapped_rows.ReadRemappingFailed(ctx, since)
+	remappingFailed, err := metrics.ReadRemappingFailed(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read remapping failed: %w", err)
 	}
@@ -133,8 +124,8 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
+	c.cancel()
+	c.eventBucket.Close()
 
 	return nil
 }
@@ -143,5 +134,67 @@ var _ components.PromRegisterer = (*component)(nil)
 
 func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	c.gatherer = reg
-	return nvidia_query_metrics_remapped_rows.Register(reg, dbRW, dbRO, tableName)
+	return metrics.Register(reg, dbRW, dbRO, tableName)
+}
+
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking remapped rows")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
+	ccancel()
+
+	_ = cctx
+}
+
+type Data struct {
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no memory data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get memory data -- %s", d.err)
+	}
+	return ""
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+	return health, healthy
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   Name,
+		Reason: d.getReason(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }

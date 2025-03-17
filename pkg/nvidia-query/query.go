@@ -11,14 +11,12 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
-	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
 	metrics_clockspeed "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock-speed"
 	metrics_ecc "github.com/leptonai/gpud/pkg/nvidia-query/metrics/ecc"
 	metrics_memory "github.com/leptonai/gpud/pkg/nvidia-query/metrics/memory"
 	metrics_nvlink "github.com/leptonai/gpud/pkg/nvidia-query/metrics/nvlink"
 	metrics_power "github.com/leptonai/gpud/pkg/nvidia-query/metrics/power"
 	metrics_processes "github.com/leptonai/gpud/pkg/nvidia-query/metrics/processes"
-	metrics_remapped_rows "github.com/leptonai/gpud/pkg/nvidia-query/metrics/remapped-rows"
 	metrics_temperature "github.com/leptonai/gpud/pkg/nvidia-query/metrics/temperature"
 	metrics_utilization "github.com/leptonai/gpud/pkg/nvidia-query/metrics/utilization"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -87,7 +85,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,
@@ -162,7 +159,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		now := time.Now().UTC()
 		nowUnix := float64(now.Unix())
 
-		metrics_clock.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_clockspeed.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_ecc.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_memory.SetLastUpdateUnixSeconds(nowUnix)
@@ -171,7 +167,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		metrics_temperature.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_utilization.SetLastUpdateUnixSeconds(nowUnix)
 		metrics_processes.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_remapped_rows.SetLastUpdateUnixSeconds(nowUnix)
 
 		for _, dev := range o.NVML.DeviceInfos {
 			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
@@ -334,32 +329,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 				fmt.Printf("%s Persistence mode is disabled\n", wrongSign)
 			}
 
-			if dev.ClockEvents != nil {
-				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
-					fmt.Printf("%s Found hw slowdown error(s)\n", wrongSign)
-					yb, err := dev.ClockEvents.YAML()
-					if err != nil {
-						log.Logger.Warnw("failed to marshal clock events", "error", err)
-					} else {
-						fmt.Printf("clock events:\n%s\n\n", string(yb))
-					}
-				} else {
-					fmt.Printf("%s Found no hw slowdown error\n", checkMark)
-				}
-			}
-
-			if dev.RemappedRows.Supported {
-				fmt.Printf("%s Remapped rows supported\n", checkMark)
-				if dev.RemappedRows.RequiresReset() {
-					fmt.Printf("%s Found that the GPU needs a reset\n", wrongSign)
-				}
-				if dev.RemappedRows.QualifiesForRMA() {
-					fmt.Printf("%s Found that the GPU qualifies for RMA\n", wrongSign)
-				}
-			} else {
-				fmt.Printf("%s Remapped rows are not supported\n", wrongSign)
-			}
-
 			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
 			if len(uncorrectedErrs) > 0 {
 				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", wrongSign, len(uncorrectedErrs))
@@ -403,12 +372,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
 	log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.BusID, "device", dev.DeviceID, "minorNumber", dev.MinorNumberID)
 
-	if dev.ClockEvents != nil {
-		if err := setClockMetrics(ctx, dev, now); err != nil {
-			return err
-		}
-	}
-
 	if err := setClockSpeedMetrics(ctx, dev, now); err != nil {
 		return err
 	}
@@ -441,23 +404,6 @@ func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Tim
 		return err
 	}
 
-	if err := setRemappedRowsMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func setClockMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
-		return err
-	}
-	if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
-		return err
-	}
-	if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -577,19 +523,6 @@ func setUtilizationMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.T
 
 func setProcessMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
 	if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setRemappedRowsMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_remapped_rows.SetRemappedDueToUncorrectableErrors(ctx, dev.UUID, uint32(dev.RemappedRows.RemappedDueToCorrectableErrors), now); err != nil {
-		return err
-	}
-	if err := metrics_remapped_rows.SetRemappingPending(ctx, dev.UUID, dev.RemappedRows.RemappingPending, now); err != nil {
-		return err
-	}
-	if err := metrics_remapped_rows.SetRemappingFailed(ctx, dev.UUID, dev.RemappedRows.RemappingFailed, now); err != nil {
 		return err
 	}
 	return nil

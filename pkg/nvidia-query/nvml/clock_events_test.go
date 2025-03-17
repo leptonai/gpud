@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,6 +144,7 @@ func TestGetClockEvents(t *testing.T) {
 		mockReturn     nvml.Return
 		expectedError  bool
 		expectedEvents ClockEvents
+		expectedErrMsg string
 	}{
 		{
 			name:        "success with no events",
@@ -164,7 +166,7 @@ func TestGetClockEvents(t *testing.T) {
 				ReasonsBitmask: reasonHWSlowdown,
 				HWSlowdown:     true,
 				HWSlowdownReasons: []string{
-					"GPU-5678: HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query) (nvml)",
+					"GPU-5678: HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw ('HW Slowdown: Active' in nvidia-smi --query)",
 				},
 			},
 		},
@@ -178,7 +180,7 @@ func TestGetClockEvents(t *testing.T) {
 				ReasonsBitmask:    reasonHWSlowdownThermal,
 				HWSlowdownThermal: true,
 				HWSlowdownReasons: []string{
-					"GPU-ABCD: HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query) (nvml)",
+					"GPU-ABCD: HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged (temperature being too high) ('HW Thermal Slowdown' in nvidia-smi --query)",
 				},
 			},
 		},
@@ -188,6 +190,14 @@ func TestGetClockEvents(t *testing.T) {
 			mockReasons:   0,
 			mockReturn:    nvml.ERROR_UNKNOWN,
 			expectedError: true,
+		},
+		{
+			name:           "device not ready error",
+			uuid:           "GPU-NOT-READY",
+			mockReasons:    0,
+			mockReturn:     nvml.ERROR_NOT_READY,
+			expectedError:  true,
+			expectedErrMsg: "device GPU-NOT-READY is not initialized",
 		},
 	}
 
@@ -206,6 +216,9 @@ func TestGetClockEvents(t *testing.T) {
 			if tc.expectedError {
 				if err == nil {
 					t.Error("expected error but got none")
+				}
+				if tc.expectedErrMsg != "" && !strings.Contains(err.Error(), tc.expectedErrMsg) {
+					t.Errorf("error message mismatch: got %v, want to contain %v", err.Error(), tc.expectedErrMsg)
 				}
 				return
 			}
@@ -715,18 +728,5 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 		result, err := ClockEventsSupported()
 		assert.Error(t, err)
 		assert.False(t, result)
-	})
-}
-
-// TestInstanceClockEventsSupported checks the instance method for clock events supported
-func TestInstanceClockEventsSupported(t *testing.T) {
-	t.Run("returns correct value from instance", func(t *testing.T) {
-		inst := &instance{
-			clockEventsSupported: true,
-		}
-		assert.True(t, inst.ClockEventsSupported())
-
-		inst.clockEventsSupported = false
-		assert.False(t, inst.ClockEventsSupported())
 	})
 }

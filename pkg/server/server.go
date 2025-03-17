@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,7 +43,6 @@ import (
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -102,6 +102,7 @@ import (
 	"github.com/leptonai/gpud/pkg/login"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -171,20 +172,32 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, err
 	}
+
+	var nvmlLib nvml_lib.Library
 	var xidEventBucket eventstore.Bucket
 	var hwSlowdownEventBucket eventstore.Bucket
+	var remappedRowsEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
+		nvmlLib = nvml_lib.NewDefault()
+		if ret := nvmlLib.NVML().Init(); ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+		}
+		defer nvmlLib.NVML().Shutdown()
+
 		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
 		if err != nil {
 			return nil, err
 		}
-		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown.Name)
+		if err != nil {
+			return nil, err
+		}
+		remappedRowsEventBucket, err = eventStore.Bucket(nvidia_remapped_rows.Name)
 		if err != nil {
 			return nil, err
 		}
 		nvidia_query.SetDefaultPoller(
 			nvidia_query.WithXidEventBucket(xidEventBucket),
-			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
 			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 	}
@@ -430,19 +443,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			// db object to read sxid events (read-only, writes are done in poller)
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
 
-		case nvidia_hw_slowdown_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
+		case nvidia_hw_slowdown.Name:
+			c, err := nvidia_hw_slowdown.New(ctx, nvmlLib, hwSlowdownEventBucket)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -607,18 +609,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_remapped_rows.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_remapped_rows.New(ctx, cfg)
+			c, err := nvidia_remapped_rows.New(ctx, nvmlLib, remappedRowsEventBucket)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -887,8 +878,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
 		return nil, fmt.Errorf("failed to update components: %w", err)
 	}
-
-	// TODO: implement configuration file refresh + apply
 
 	router := gin.Default()
 	router.SetHTMLTemplate(rootTmpl)

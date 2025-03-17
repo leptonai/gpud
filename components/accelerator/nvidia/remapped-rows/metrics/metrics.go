@@ -1,5 +1,5 @@
-// Package remappedrows provides the NVIDIA row remapping metrics collection and reporting.
-package remappedrows
+// Package metrics provides the NVIDIA row remapping metrics collection and reporting.
+package metrics
 
 import (
 	"context"

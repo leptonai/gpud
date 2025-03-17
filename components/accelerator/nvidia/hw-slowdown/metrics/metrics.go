@@ -1,5 +1,5 @@
-// Package clock provides the NVIDIA clock metrics collection and reporting.
-package clock
+// Package metrics provides the NVIDIA clock metrics collection and reporting.
+package metrics
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const SubSystem = "accelerator_nvidia_clock"
