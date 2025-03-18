@@ -13,6 +13,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
@@ -70,18 +71,60 @@ func parseUnixEndpoint(endpoint string) (string, error) {
 
 // connect creates a gRPC connection to the CRI service endpoint.
 func connect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+	if endpoint == "" {
+		return nil, fmt.Errorf("endpoint cannot be empty")
+	}
+
 	addr, err := parseUnixEndpoint(endpoint)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
 	}
 
-	// "WithBlock" ctx cancel is no-op
-	conn, err := grpc.DialContext(ctx, addr, defaultDialOptions()...) //nolint:staticcheck
-	if err != nil {
-		return nil, err
+	// Validate the socket file exists before attempting connection
+	if _, err := os.Stat(addr); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("socket file does not exist: %s", addr)
+		}
+		return nil, fmt.Errorf("failed to stat socket file: %w", err)
 	}
-	log.Logger.Debugw("successfully dialed", "endpoint", endpoint)
 
+	// Attempt to establish connection with retries
+	var conn *grpc.ClientConn
+	var dialErr error
+	for i := 0; i < 3; i++ {
+		// "WithBlock" ctx cancel is no-op
+		conn, dialErr = grpc.DialContext(ctx, addr, defaultDialOptions()...) //nolint:staticcheck
+		if conn != nil && dialErr == nil {
+			if conn.GetState() == connectivity.Ready {
+				break
+			}
+
+			log.Logger.Warnw("connection is not ready, closing", "endpoint", endpoint, "connState", conn.GetState())
+			_ = conn.Close()
+			conn = nil
+		} else {
+			log.Logger.Warnw("failed to dial endpoint, retrying",
+				"endpoint", endpoint,
+				"attempt", i+1,
+				"error", dialErr,
+			)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+
+	if dialErr != nil {
+		return nil, fmt.Errorf("failed to establish connection after retries: %w", dialErr)
+	}
+	if conn == nil {
+		return nil, fmt.Errorf("connection is nil")
+	}
+
+	log.Logger.Infow("successfully established connection", "endpoint", endpoint)
 	return conn, nil
 }
 
