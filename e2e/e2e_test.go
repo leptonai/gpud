@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,12 +165,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if state.Name != "annotations" {
+					if len(state.ExtraInfo) == 0 {
+						continue
+					}
+					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.ExtraInfo[randKey]).To(Equal(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
@@ -202,17 +206,19 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if state.Name != "annotations" {
+					if len(state.ExtraInfo) == 0 {
+						continue
+					}
+					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.ExtraInfo[randKey]).To(Equal(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
 		})
-
 	})
 
 	Describe("/v1/metrics requests", func() {

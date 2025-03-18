@@ -11,189 +11,72 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	info_id "github.com/leptonai/gpud/components/info/id"
 	"github.com/leptonai/gpud/pkg/file"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/memory"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/uptime"
 	"github.com/leptonai/gpud/version"
-
-	"github.com/dustin/go-humanize"
 )
 
+const Name = "info"
+
+var _ components.Component = &component{}
+
+type component struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	annotations map[string]string
+	dbRO        *sql.DB
+	gatherer    prometheus.Gatherer
+
+	lastMu   sync.RWMutex
+	lastData *Data
+}
+
 func New(annotations map[string]string, dbRO *sql.DB, gatherer prometheus.Gatherer) components.Component {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &component{
+		ctx:         ctx,
+		cancel:      cancel,
 		annotations: annotations,
 		dbRO:        dbRO,
 		gatherer:    gatherer,
 	}
 }
 
-var _ components.Component = &component{}
+func (c *component) Name() string { return Name }
 
-type component struct {
-	annotations map[string]string
-	dbRO        *sql.DB
-	gatherer    prometheus.Gatherer
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
 }
 
-func (c *component) Name() string { return info_id.Name }
-
-func (c *component) Start() error { return nil }
-
-const (
-	StateNameDaemon = "daemon"
-
-	StateKeyDaemonVersion = "daemon_version"
-	StateKeyMacAddress    = "mac_address"
-	StateKeyPackages      = "packages"
-
-	StateKeyGPUdPID = "gpud_pid"
-
-	StateKeyGPUdUsageFileDescriptors = "gpud_usage_file_descriptors"
-
-	StateKeyGPUdUsageMemoryInBytes   = "gpud_usage_memory_in_bytes"
-	StateKeyGPUdUsageMemoryHumanized = "gpud_usage_memory_humanized"
-
-	StateKeyGPUdUsageDBInBytes   = "gpud_usage_db_in_bytes"
-	StateKeyGPUdUsageDBHumanized = "gpud_usage_db_humanized"
-
-	StateKeyGPUdUsageInsertUpdateTotal               = "gpud_usage_insert_update_total"
-	StateKeyGPUdUsageInsertUpdateAvgQPS              = "gpud_usage_insert_update_avg_qps"
-	StateKeyGPUdUsageInsertUpdateAvgLatencyInSeconds = "gpud_usage_insert_update_avg_latency_in_seconds"
-
-	StateKeyGPUdUsageDeleteTotal               = "gpud_usage_delete_total"
-	StateKeyGPUdUsageDeleteAvgQPS              = "gpud_usage_delete_avg_qps"
-	StateKeyGPUdUsageDeleteAvgLatencyInSeconds = "gpud_usage_delete_avg_latency_in_seconds"
-
-	StateKeyGPUdUsageSelectTotal               = "gpud_usage_select_total"
-	StateKeyGPUdUsageSelectAvgQPS              = "gpud_usage_select_avg_qps"
-	StateKeyGPUdUsageSelectAvgLatencyInSeconds = "gpud_usage_select_avg_latency_in_seconds"
-
-	StateKeyGPUdStartTimeInUnixTime = "gpud_start_time_in_unix_time"
-	StateKeyGPUdStartTimeHumanized  = "gpud_start_time_humanized"
-
-	StateNameAnnotations = "annotations"
-)
-
-var (
-	lastSQLiteMetricsMu sync.Mutex
-	lastSQLiteMetrics   sqlite.Metrics
-)
-
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
-
-	mac := ""
-	for _, iface := range interfaces {
-		macAddress := iface.HardwareAddr.String()
-		if macAddress != "" {
-			mac = macAddress
-			break
-		}
-	}
-
-	var managedPackages string
-	if gpud_manager.GlobalController != nil {
-		packageStatus, err := gpud_manager.GlobalController.Status(ctx)
-		if err != nil {
-			return nil, err
-		}
-		rawPayload, _ := json.Marshal(&packageStatus)
-		managedPackages = string(rawPayload)
-	}
-
-	pid := os.Getpid()
-	gpudUsageFileDescriptors, err := file.GetCurrentProcessUsage()
-	if err != nil {
-		return nil, err
-	}
-
-	gpudUsageMemoryInBytes, err := memory.GetCurrentProcessRSSInBytes()
-	if err != nil {
-		return nil, err
-	}
-	gpudUsageMemoryHumanized := humanize.Bytes(gpudUsageMemoryInBytes)
-
-	var (
-		dbSize          uint64
-		dbSizeHumanized string
-	)
-	if c.dbRO != nil {
-		dbSize, err = sqlite.ReadDBSize(ctx, c.dbRO)
-		if err != nil {
-			return nil, err
-		}
-		dbSizeHumanized = humanize.Bytes(dbSize)
-	}
-
-	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
-	if err != nil {
-		return nil, err
-	}
-
-	lastSQLiteMetricsMu.Lock()
-	insertUpdateAvgQPS, deleteAvgQPS, selectAvgQPS := lastSQLiteMetrics.QPS(curMetrics)
-	lastSQLiteMetrics = curMetrics
-	lastSQLiteMetricsMu.Unlock()
-
-	gpudStartTimeInUnixTime, err := uptime.GetCurrentProcessStartTimeInUnixTime()
-	if err != nil {
-		return nil, err
-	}
-	gpudStartTimeHumanized := humanize.Time(time.Unix(int64(gpudStartTimeInUnixTime), 0))
-
-	return []components.State{
-		{
-			Name:    StateNameDaemon,
-			Healthy: true,
-			Reason:  fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, mac),
-			ExtraInfo: map[string]string{
-				StateKeyDaemonVersion: version.Version,
-				StateKeyMacAddress:    mac,
-				StateKeyPackages:      managedPackages,
-
-				StateKeyGPUdPID: fmt.Sprintf("%d", pid),
-
-				StateKeyGPUdUsageFileDescriptors: fmt.Sprintf("%d", gpudUsageFileDescriptors),
-
-				StateKeyGPUdUsageMemoryInBytes:   fmt.Sprintf("%d", gpudUsageMemoryInBytes),
-				StateKeyGPUdUsageMemoryHumanized: gpudUsageMemoryHumanized,
-
-				StateKeyGPUdUsageDBInBytes:   fmt.Sprintf("%d", dbSize),
-				StateKeyGPUdUsageDBHumanized: dbSizeHumanized,
-
-				StateKeyGPUdUsageInsertUpdateTotal:               fmt.Sprintf("%d", curMetrics.InsertUpdateTotal),
-				StateKeyGPUdUsageInsertUpdateAvgQPS:              fmt.Sprintf("%.3f", insertUpdateAvgQPS),
-				StateKeyGPUdUsageInsertUpdateAvgLatencyInSeconds: fmt.Sprintf("%.7f", curMetrics.InsertUpdateSecondsAvg),
-
-				StateKeyGPUdUsageDeleteTotal:               fmt.Sprintf("%d", curMetrics.DeleteTotal),
-				StateKeyGPUdUsageDeleteAvgQPS:              fmt.Sprintf("%.3f", deleteAvgQPS),
-				StateKeyGPUdUsageDeleteAvgLatencyInSeconds: fmt.Sprintf("%.7f", curMetrics.DeleteSecondsAvg),
-
-				StateKeyGPUdUsageSelectTotal:               fmt.Sprintf("%d", curMetrics.SelectTotal),
-				StateKeyGPUdUsageSelectAvgQPS:              fmt.Sprintf("%.3f", selectAvgQPS),
-				StateKeyGPUdUsageSelectAvgLatencyInSeconds: fmt.Sprintf("%.7f", curMetrics.SelectSecondsAvg),
-
-				StateKeyGPUdStartTimeInUnixTime: fmt.Sprintf("%d", gpudStartTimeInUnixTime),
-				StateKeyGPUdStartTimeHumanized:  gpudStartTimeHumanized,
-			},
-		},
-		{
-			Name:      StateNameAnnotations,
-			Healthy:   true,
-			Reason:    fmt.Sprintf("annotations: %v", c.annotations),
-			ExtraInfo: c.annotations,
-		},
-	}, nil
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -203,28 +86,192 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
+	c.cancel()
+
 	return nil
-}
-
-var _ components.SettableComponent = (*component)(nil)
-
-func (c *component) SetStates(ctx context.Context, states ...components.State) error {
-	for _, s := range states {
-		if s.Name == "annotations" {
-			for k, v := range s.ExtraInfo {
-				c.annotations[k] = v
-			}
-		}
-	}
-	return nil
-}
-
-func (c *component) SetEvents(ctx context.Context, events ...components.Event) error {
-	panic("not implemented")
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
 	return nil, nil
+}
+
+var (
+	lastSQLiteMetricsMu sync.Mutex
+	lastSQLiteMetrics   sqlite.Metrics
+)
+
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking info")
+	d := Data{
+		DaemonVersion: version.Version,
+		Annotations:   c.annotations,
+		ts:            time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		d.err = fmt.Errorf("failed to get interfaces: %v", err)
+		return
+	}
+
+	for _, iface := range interfaces {
+		macAddress := iface.HardwareAddr.String()
+		if macAddress != "" {
+			d.MacAddress = macAddress
+			break
+		}
+	}
+
+	if gpud_manager.GlobalController != nil {
+		cctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+		d.Packages, err = gpud_manager.GlobalController.Status(cctx)
+		cancel()
+		if err != nil {
+			d.err = fmt.Errorf("failed to get package status: %v", err)
+			return
+		}
+	}
+
+	d.GPUdPID = os.Getpid()
+	d.GPUdUsageFileDescriptors, err = file.GetCurrentProcessUsage()
+	if err != nil {
+		d.err = fmt.Errorf("failed to get current process usage: %v", err)
+		return
+	}
+
+	d.GPUdUsageMemoryInBytes, err = memory.GetCurrentProcessRSSInBytes()
+	if err != nil {
+		d.err = fmt.Errorf("failed to get current process RSS: %v", err)
+		return
+	}
+	d.GPUdUsageMemoryHumanized = humanize.Bytes(d.GPUdUsageMemoryInBytes)
+
+	if c.dbRO != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
+		d.GPUdUsageDBInBytes, err = sqlite.ReadDBSize(cctx, c.dbRO)
+		ccancel()
+		if err != nil {
+			d.err = fmt.Errorf("failed to get DB size: %v", err)
+			return
+		}
+		d.GPUdUsageDBHumanized = humanize.Bytes(d.GPUdUsageDBInBytes)
+	}
+
+	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
+	if err != nil {
+		d.err = fmt.Errorf("failed to get SQLite metrics: %v", err)
+		return
+	}
+
+	d.GPUdUsageInsertUpdateTotal = curMetrics.InsertUpdateTotal
+	d.GPUdUsageInsertUpdateAvgLatencyInSeconds = curMetrics.InsertUpdateSecondsAvg
+
+	d.GPUdUsageDeleteTotal = curMetrics.DeleteTotal
+	d.GPUdUsageDeleteAvgLatencyInSeconds = curMetrics.DeleteSecondsAvg
+
+	d.GPUdUsageSelectTotal = curMetrics.SelectTotal
+	d.GPUdUsageSelectAvgLatencyInSeconds = curMetrics.SelectSecondsAvg
+
+	lastSQLiteMetricsMu.Lock()
+	d.GPUdUsageInsertUpdateAvgQPS, d.GPUdUsageDeleteAvgQPS, d.GPUdUsageSelectAvgQPS = lastSQLiteMetrics.QPS(curMetrics)
+	lastSQLiteMetrics = curMetrics
+	lastSQLiteMetricsMu.Unlock()
+
+	d.GPUdStartTimeInUnixTime, err = uptime.GetCurrentProcessStartTimeInUnixTime()
+	if err != nil {
+		d.err = fmt.Errorf("failed to get GPUd start time: %v", err)
+		return
+	}
+	d.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(d.GPUdStartTimeInUnixTime), 0))
+}
+
+type Data struct {
+	// Daemon information
+	DaemonVersion string                   `json:"daemon_version"`
+	MacAddress    string                   `json:"mac_address"`
+	Packages      []packages.PackageStatus `json:"packages"`
+
+	// Process information
+	GPUdPID                  int    `json:"gpud_pid"`
+	GPUdUsageFileDescriptors uint64 `json:"gpud_usage_file_descriptors"`
+
+	// Memory usage
+	GPUdUsageMemoryInBytes   uint64 `json:"gpud_usage_memory_in_bytes"`
+	GPUdUsageMemoryHumanized string `json:"gpud_usage_memory_humanized"`
+
+	// Database usage
+	GPUdUsageDBInBytes   uint64 `json:"gpud_usage_db_in_bytes"`
+	GPUdUsageDBHumanized string `json:"gpud_usage_db_humanized"`
+
+	// Database metrics
+	GPUdUsageInsertUpdateTotal               int64   `json:"gpud_usage_insert_update_total"`
+	GPUdUsageInsertUpdateAvgQPS              float64 `json:"gpud_usage_insert_update_avg_qps"`
+	GPUdUsageInsertUpdateAvgLatencyInSeconds float64 `json:"gpud_usage_insert_update_avg_latency_in_seconds"`
+
+	GPUdUsageDeleteTotal               int64   `json:"gpud_usage_delete_total"`
+	GPUdUsageDeleteAvgQPS              float64 `json:"gpud_usage_delete_avg_qps"`
+	GPUdUsageDeleteAvgLatencyInSeconds float64 `json:"gpud_usage_delete_avg_latency_in_seconds"`
+
+	GPUdUsageSelectTotal               int64   `json:"gpud_usage_select_total"`
+	GPUdUsageSelectAvgQPS              float64 `json:"gpud_usage_select_avg_qps"`
+	GPUdUsageSelectAvgLatencyInSeconds float64 `json:"gpud_usage_select_avg_latency_in_seconds"`
+
+	// Uptime information
+	GPUdStartTimeInUnixTime uint64 `json:"gpud_start_time_in_unix_time"`
+	GPUdStartTimeHumanized  string `json:"gpud_start_time_humanized"`
+
+	// Annotations
+	Annotations map[string]string `json:"annotations"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no info data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get info data -- %s", d.err)
+	}
+	r := fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
+	if len(d.Annotations) > 0 {
+		r += fmt.Sprintf(", annotations: %q", d.Annotations)
+	}
+	return r
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+	return health, healthy
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   Name,
+		Reason: d.getReason(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }

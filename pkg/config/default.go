@@ -35,7 +35,7 @@ import (
 	"github.com/leptonai/gpud/components/fd"
 	file_id "github.com/leptonai/gpud/components/file/id"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
-	info_id "github.com/leptonai/gpud/components/info/id"
+	"github.com/leptonai/gpud/components/info"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
@@ -97,7 +97,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			disk_id.Name:          disk.DefaultConfig(),
 			fuse_id.Name:          nil,
 			fd.Name:               nil,
-			info_id.Name:          nil,
+			info.Name:             nil,
 			memory.Name:           nil,
 			os_id.Name:            nil,
 			kernel_module_id.Name: nil,

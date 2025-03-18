@@ -55,11 +55,6 @@ type Component interface {
 	Close() error
 }
 
-type SettableComponent interface {
-	SetStates(ctx context.Context, states ...State) error
-	SetEvents(ctx context.Context, events ...Event) error
-}
-
 // Defines an optional component interface that returns the underlying output data.
 type OutputProvider interface {
 	Output() (any, error)

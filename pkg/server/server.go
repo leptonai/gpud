@@ -74,7 +74,6 @@ import (
 	"github.com/leptonai/gpud/components/fuse"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
-	info_id "github.com/leptonai/gpud/components/info/id"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
@@ -355,7 +354,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				allComponents = append(allComponents, library.New(libCfg))
 			}
 
-		case info_id.Name:
+		case info.Name:
 			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
 
 		case memory.Name:
