@@ -209,57 +209,6 @@ func TestIsNotSupportErrorStringMatch(t *testing.T) {
 	}
 }
 
-func TestNormalizeErrorString(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "Lowercase string",
-			input:    "error message",
-			expected: "error message",
-		},
-		{
-			name:     "Uppercase string",
-			input:    "ERROR MESSAGE",
-			expected: "error message",
-		},
-		{
-			name:     "Mixed case string",
-			input:    "Error Message",
-			expected: "error message",
-		},
-		{
-			name:     "String with leading/trailing spaces",
-			input:    "  Error Message  ",
-			expected: "error message",
-		},
-		{
-			name:     "String with multiple spaces",
-			input:    "Error    Message",
-			expected: "error    message",
-		},
-		{
-			name:     "Empty string",
-			input:    "",
-			expected: "",
-		},
-		{
-			name:     "Only whitespace",
-			input:    "   ",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeErrorString(tt.input)
-			assert.Equal(t, tt.expected, result, "normalizeErrorString(%q) = %q, want %q", tt.input, result, tt.expected)
-		})
-	}
-}
-
 func TestIsVersionMismatchError(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -451,6 +400,128 @@ func TestIsNotReadyError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsNotReadyError(tt.ret)
 			assert.Equal(t, tt.expected, result, "IsNotReadyError(%v) = %v, want %v", tt.ret, result, tt.expected)
+		})
+	}
+}
+
+func TestIsNotFoundError(t *testing.T) {
+	tests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "Direct ERROR_NOT_FOUND match",
+			ret:      nvml.ERROR_NOT_FOUND,
+			expected: true,
+		},
+		{
+			name:     "Success is not a not-found error",
+			ret:      nvml.SUCCESS,
+			expected: false,
+		},
+		{
+			name:     "Unknown error is not a not-found error",
+			ret:      nvml.ERROR_UNKNOWN,
+			expected: false,
+		},
+		{
+			name:     "Not supported error is not a not-found error",
+			ret:      nvml.ERROR_NOT_SUPPORTED,
+			expected: false,
+		},
+	}
+
+	// Override nvml.ErrorString for testing string-based matches
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	nvml.ErrorString = func(ret nvml.Return) string {
+		switch ret {
+		case nvml.Return(1000):
+			return "process not found"
+		case nvml.Return(1001):
+			return "PROCESS NOT FOUND"
+		case nvml.Return(1002):
+			return "Device Not Found"
+		case nvml.Return(1003):
+			return "  not found  "
+		case nvml.Return(1004):
+			return "The requested object was not found on device 0"
+		case nvml.Return(1005):
+			return "Object not_found in database"
+		case nvml.Return(1006):
+			return "Some other error"
+		case nvml.Return(1007):
+			return ""
+		case nvml.Return(1008):
+			return "notfound" // No space between 'not' and 'found'
+		default:
+			return originalErrorString(ret)
+		}
+	}
+
+	// Add string-based test cases
+	stringBasedTests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{
+			name:     "String contains 'not found' (lowercase)",
+			ret:      nvml.Return(1000),
+			expected: true,
+		},
+		{
+			name:     "String contains 'NOT FOUND' (uppercase)",
+			ret:      nvml.Return(1001),
+			expected: true,
+		},
+		{
+			name:     "String contains 'Not Found' (mixed case)",
+			ret:      nvml.Return(1002),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not found' with leading/trailing spaces",
+			ret:      nvml.Return(1003),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not found' within a longer message",
+			ret:      nvml.Return(1004),
+			expected: true,
+		},
+		{
+			name:     "String contains 'not_found'",
+			ret:      nvml.Return(1005),
+			expected: true,
+		},
+		{
+			name:     "String does not contain 'not found' or 'not_found'",
+			ret:      nvml.Return(1006),
+			expected: false,
+		},
+		{
+			name:     "Empty string",
+			ret:      nvml.Return(1007),
+			expected: false,
+		},
+		{
+			name:     "String with similar but not exact match",
+			ret:      nvml.Return(1008),
+			expected: false,
+		},
+	}
+
+	tests = append(tests, stringBasedTests...)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsNotFoundError(tt.ret)
+			assert.Equal(t, tt.expected, result, "IsNotFoundError(%v) = %v, want %v", tt.ret, result, tt.expected)
 		})
 	}
 }

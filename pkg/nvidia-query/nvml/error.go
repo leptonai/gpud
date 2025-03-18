@@ -12,21 +12,21 @@ func IsVersionMismatchError(ret nvml.Return) bool {
 		return true
 	}
 
-	e := normalizeErrorString(nvml.ErrorString(ret))
+	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "version mismatch")
 }
 
-// Returns true if the error indicates that the operation is not supported.
+// IsNotSupportError returns true if the error indicates that the operation is not supported.
 func IsNotSupportError(ret nvml.Return) bool {
 	if ret == nvml.ERROR_NOT_SUPPORTED {
 		return true
 	}
 
-	e := normalizeErrorString(nvml.ErrorString(ret))
+	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "not supported")
 }
 
-// Returns true if the error indicates that the system is not ready,
+// IsNotReadyError returns true if the error indicates that the system is not ready,
 // meaning that the GPU is not yet initialized.
 // e.g.,
 // "nvml.CLOCK_GRAPHICS: System is not in ready state"
@@ -35,11 +35,23 @@ func IsNotReadyError(ret nvml.Return) bool {
 		return true
 	}
 
-	e := normalizeErrorString(nvml.ErrorString(ret))
+	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "not in ready")
 }
 
-// normalizeErrorString normalizes an NVML error string by converting it to lowercase and trimming whitespace.
-func normalizeErrorString(e string) string {
-	return strings.ToLower(strings.TrimSpace(e))
+// IsNotFoundError returns true if the error indicates that the object/instance is not found.
+// e.g., process not found from nvml
+func IsNotFoundError(ret nvml.Return) bool {
+	if ret == nvml.ERROR_NOT_FOUND {
+		return true
+	}
+
+	e := normalizeNVMLReturnString(ret)
+	return strings.Contains(e, "not found") || strings.Contains(e, "not_found")
+}
+
+// normalizeNVMLReturnString normalizes an NVML return to a string.
+func normalizeNVMLReturnString(ret nvml.Return) string {
+	s := nvml.ErrorString(ret)
+	return strings.ToLower(strings.TrimSpace(s))
 }

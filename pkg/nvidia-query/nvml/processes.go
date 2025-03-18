@@ -110,16 +110,13 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 			procs.GetProcessUtilizationSupported = false
 			return procs, nil
 		}
-
-		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
-			es := nvml.ErrorString(ret)
-
-			// e.g., Not Found
-			if strings.Contains(strings.ToLower(es), "not found") {
-				continue
-			}
-			return procs, fmt.Errorf("failed to get process %d utilization: %v", proc.Pid, es)
+		if IsNotFoundError(ret) {
+			continue
 		}
+		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+			return procs, fmt.Errorf("failed to get process %d utilization (%v)", proc.Pid, nvml.ErrorString(ret))
+		}
+
 		if len(utils) > 0 {
 			// sort by last seen timestamp, so that first is the latest
 			sort.Slice(utils, func(i, j int) bool {
