@@ -2,6 +2,7 @@ package eventstore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -1582,6 +1583,91 @@ func TestCompareEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := compareEvent(tt.eventA, tt.eventB)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestUnmarshalIfValid(t *testing.T) {
+	t.Parallel()
+
+	type testStruct struct {
+		Key   string `json:"key"`
+		Value int    `json:"value"`
+	}
+
+	tests := []struct {
+		name          string
+		data          sql.NullString
+		expectedError bool
+		expectedObj   *testStruct
+	}{
+		{
+			name:          "invalid SQL string",
+			data:          sql.NullString{Valid: false},
+			expectedError: false,
+			expectedObj:   nil,
+		},
+		{
+			name:          "empty string",
+			data:          sql.NullString{String: "", Valid: true},
+			expectedError: false,
+			expectedObj:   nil,
+		},
+		{
+			name:          "null string",
+			data:          sql.NullString{String: "null", Valid: true},
+			expectedError: false,
+			expectedObj:   nil,
+		},
+		{
+			name:          "not starting with {",
+			data:          sql.NullString{String: "[1, 2, 3]", Valid: true},
+			expectedError: true,
+			expectedObj:   nil,
+		},
+		{
+			name:          "valid JSON",
+			data:          sql.NullString{String: `{"key":"test","value":123}`, Valid: true},
+			expectedError: false,
+			expectedObj:   &testStruct{Key: "test", Value: 123},
+		},
+		{
+			name:          "invalid JSON format",
+			data:          sql.NullString{String: `{"key":"test","value":"not-an-int"}`, Valid: true},
+			expectedError: true,
+			expectedObj:   nil,
+		},
+		{
+			name:          "malformed JSON",
+			data:          sql.NullString{String: `{"key":"test", unclosed}`, Valid: true},
+			expectedError: true,
+			expectedObj:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var result *testStruct
+			if tt.expectedObj != nil {
+				result = &testStruct{}
+			}
+
+			err := unmarshalIfValid(tt.data, &result)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tt.expectedObj != nil {
+				assert.Equal(t, tt.expectedObj, result)
+			} else if !tt.expectedError {
+				assert.Nil(t, result)
+			}
 		})
 	}
 }

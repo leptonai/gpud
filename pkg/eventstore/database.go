@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
@@ -407,34 +406,12 @@ func scanRow(row *sql.Row) (components.Event, error) {
 		event.Message = msg.String
 	}
 
-	// Handle extraInfo carefully
-	if extraInfo.Valid && len(extraInfo.String) > 0 {
-		// Make sure it's not "null" string and looks like valid JSON
-		if extraInfo.String != "null" && strings.HasPrefix(extraInfo.String, "{") {
-			var extraInfoMap map[string]string
-			if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-				return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-			} else {
-				event.ExtraInfo = extraInfoMap
-			}
-		} else {
-			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
-		}
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
 
-	// Handle suggestedActions carefully
-	if suggestedActions.Valid && len(suggestedActions.String) > 0 {
-		// Make sure it's not "null" string and looks like valid JSON
-		if suggestedActions.String != "null" && strings.HasPrefix(suggestedActions.String, "{") {
-			var suggestedActionsObj common.SuggestedActions
-			if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-				return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
-			} else {
-				event.SuggestedActions = &suggestedActionsObj
-			}
-		} else {
-			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
-		}
+	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
 	return event, nil
@@ -463,32 +440,12 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 		event.Message = msg.String
 	}
 
-	// Handle extraInfo carefully
-	if extraInfo.Valid && len(extraInfo.String) > 0 {
-		// Make sure it's not "null" string and looks like valid JSON
-		if extraInfo.String != "null" && strings.HasPrefix(extraInfo.String, "{") {
-			var extraInfoMap map[string]string
-			if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-				return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-			}
-			event.ExtraInfo = extraInfoMap
-		} else {
-			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
-		}
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
 
-	// Handle suggestedActions carefully
-	if suggestedActions.Valid && len(suggestedActions.String) > 0 {
-		// Make sure it's not "null" string and looks like valid JSON
-		if suggestedActions.String != "null" && strings.HasPrefix(suggestedActions.String, "{") {
-			var suggestedActionsObj common.SuggestedActions
-			if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-				return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
-			}
-			event.SuggestedActions = &suggestedActionsObj
-		} else {
-			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
-		}
+	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
 	return event, nil
@@ -521,4 +478,17 @@ func compareEvent(eventA, eventB components.Event) bool {
 		}
 	}
 	return true
+}
+
+func unmarshalIfValid(data sql.NullString, v any) error {
+	if !data.Valid {
+		return nil
+	}
+	if len(data.String) == 0 || data.String == "null" {
+		return nil
+	}
+	if !strings.HasPrefix(data.String, "{") {
+		return fmt.Errorf("invalid JSON: %q", data.String)
+	}
+	return json.Unmarshal([]byte(data.String), v)
 }
