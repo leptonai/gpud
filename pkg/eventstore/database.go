@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
@@ -406,20 +405,15 @@ func scanRow(row *sql.Row) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid && len(extraInfo.String) > 0 && extraInfo.String != "null" {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-		}
-		event.ExtraInfo = extraInfoMap
+
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
-	if suggestedActions.Valid && len(suggestedActions.String) > 0 && suggestedActions.String != "null" {
-		var suggestedActionsObj common.SuggestedActions
-		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
-		}
-		event.SuggestedActions = &suggestedActionsObj
+
+	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
+
 	return event, nil
 }
 
@@ -445,20 +439,15 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-		}
-		event.ExtraInfo = extraInfoMap
+
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
-	if suggestedActions.Valid && suggestedActions.String != "" {
-		var suggestedActionsObj common.SuggestedActions
-		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
-		}
-		event.SuggestedActions = &suggestedActionsObj
+
+	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
+
 	return event, nil
 }
 
@@ -489,4 +478,17 @@ func compareEvent(eventA, eventB components.Event) bool {
 		}
 	}
 	return true
+}
+
+func unmarshalIfValid(data sql.NullString, v any) error {
+	if !data.Valid {
+		return nil
+	}
+	if len(data.String) == 0 || data.String == "null" {
+		return nil
+	}
+	if !strings.HasPrefix(data.String, "{") {
+		return fmt.Errorf("invalid JSON: %q", data.String)
+	}
+	return json.Unmarshal([]byte(data.String), v)
 }
