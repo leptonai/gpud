@@ -563,12 +563,12 @@ func TestData_getReason(t *testing.T) {
 			expected: "no pod sandbox found or containerd is not running",
 		},
 		{
-			name: "empty pods with connection error - empty pods condition takes precedence",
+			name: "empty pods with connection error",
 			data: Data{
 				Pods: []PodSandbox{},
 				err:  errors.New("connection refused"),
 			},
-			expected: "no pod sandbox found or containerd is not running",
+			expected: "no pod sandbox found or containerd is not running, error: connection refused",
 		},
 		{
 			name: "single pod no error",
@@ -635,6 +635,126 @@ func TestData_getReason(t *testing.T) {
 				err: status.Error(codes.Unavailable, "service unavailable"),
 			},
 			expected: "failed gRPC call to the containerd socket service unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := tt.data.getReason()
+			assert.Equal(t, tt.expected, reason)
+		})
+	}
+}
+
+// TestData_getReasonWithErrors focuses on testing the getReason method
+// with various error types
+func TestData_getReasonWithErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     Data
+		expected string
+	}{
+		{
+			name: "context canceled error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.Canceled,
+			},
+			expected: "failed to list pod sandbox status context canceled",
+		},
+		{
+			name: "context deadline exceeded error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.DeadlineExceeded,
+			},
+			expected: "failed to list pod sandbox status context deadline exceeded",
+		},
+		{
+			name: "network dial error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err: &net.OpError{
+					Op:  "dial",
+					Err: errors.New("connection refused"),
+				},
+			},
+			expected: "failed to list pod sandbox status dial: connection refused",
+		},
+		{
+			name: "network connect error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err: &net.OpError{
+					Op:  "connect",
+					Err: errors.New("connection reset by peer"),
+				},
+			},
+			expected: "failed to list pod sandbox status connect: connection reset by peer",
+		},
+		{
+			name: "permission denied error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err: &os.PathError{
+					Op:   "open",
+					Path: "/run/containerd/containerd.sock",
+					Err:  errors.New("permission denied"),
+				},
+			},
+			expected: "failed to list pod sandbox status open /run/containerd/containerd.sock: permission denied",
+		},
+		{
+			name: "no such file error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err: &os.PathError{
+					Op:   "stat",
+					Path: "/run/containerd/containerd.sock",
+					Err:  errors.New("no such file or directory"),
+				},
+			},
+			expected: "failed to list pod sandbox status stat /run/containerd/containerd.sock: no such file or directory",
+		},
+		{
+			name: "grpc internal error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  status.Error(codes.Internal, "internal error"),
+			},
+			expected: "failed gRPC call to the containerd socket internal error",
+		},
+		{
+			name: "grpc not found error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  status.Error(codes.NotFound, "not found"),
+			},
+			expected: "failed gRPC call to the containerd socket not found",
+		},
+		{
+			name: "grpc resource exhausted error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  status.Error(codes.ResourceExhausted, "resource exhausted"),
+			},
+			expected: "failed gRPC call to the containerd socket resource exhausted",
+		},
+		{
+			name: "wrapped error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  fmt.Errorf("could not connect: %w", errors.New("underlying error")),
+			},
+			expected: "failed to list pod sandbox status could not connect: underlying error",
+		},
+		{
+			name: "error take precedence over empty pod",
+			data: Data{
+				Pods: []PodSandbox{},
+				err:  errors.New("this error"),
+			},
+			expected: "no pod sandbox found or containerd is not running, error: this error",
 		},
 	}
 

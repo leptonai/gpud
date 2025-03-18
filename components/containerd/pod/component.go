@@ -157,7 +157,11 @@ type Data struct {
 
 func (d *Data) getReason() string {
 	if d == nil || len(d.Pods) == 0 {
-		return "no pod sandbox found or containerd is not running"
+		r := "no pod sandbox found or containerd is not running"
+		if d.err != nil {
+			r += fmt.Sprintf(", error: %v", d.err)
+		}
+		return r
 	}
 
 	reason := fmt.Sprintf("total %d pod sandboxe(s)", len(d.Pods))
