@@ -406,20 +406,37 @@ func scanRow(row *sql.Row) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid && len(extraInfo.String) > 0 && extraInfo.String != "null" {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+
+	// Handle extraInfo carefully
+	if extraInfo.Valid && len(extraInfo.String) > 0 {
+		// Make sure it's not "null" string and looks like valid JSON
+		if extraInfo.String != "null" && strings.HasPrefix(extraInfo.String, "{") {
+			var extraInfoMap map[string]string
+			if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+				return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+			} else {
+				event.ExtraInfo = extraInfoMap
+			}
+		} else {
+			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
 		}
-		event.ExtraInfo = extraInfoMap
 	}
-	if suggestedActions.Valid && len(suggestedActions.String) > 0 && suggestedActions.String != "null" {
-		var suggestedActionsObj common.SuggestedActions
-		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+
+	// Handle suggestedActions carefully
+	if suggestedActions.Valid && len(suggestedActions.String) > 0 {
+		// Make sure it's not "null" string and looks like valid JSON
+		if suggestedActions.String != "null" && strings.HasPrefix(suggestedActions.String, "{") {
+			var suggestedActionsObj common.SuggestedActions
+			if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
+				return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+			} else {
+				event.SuggestedActions = &suggestedActionsObj
+			}
+		} else {
+			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
 		}
-		event.SuggestedActions = &suggestedActionsObj
 	}
+
 	return event, nil
 }
 
@@ -445,20 +462,35 @@ func scanRows(rows *sql.Rows) (components.Event, error) {
 	if msg.Valid {
 		event.Message = msg.String
 	}
-	if extraInfo.Valid {
-		var extraInfoMap map[string]string
-		if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
-			return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+
+	// Handle extraInfo carefully
+	if extraInfo.Valid && len(extraInfo.String) > 0 {
+		// Make sure it's not "null" string and looks like valid JSON
+		if extraInfo.String != "null" && strings.HasPrefix(extraInfo.String, "{") {
+			var extraInfoMap map[string]string
+			if err := json.Unmarshal([]byte(extraInfo.String), &extraInfoMap); err != nil {
+				return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
+			}
+			event.ExtraInfo = extraInfoMap
+		} else {
+			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
 		}
-		event.ExtraInfo = extraInfoMap
 	}
-	if suggestedActions.Valid && suggestedActions.String != "" {
-		var suggestedActionsObj common.SuggestedActions
-		if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
-			return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+
+	// Handle suggestedActions carefully
+	if suggestedActions.Valid && len(suggestedActions.String) > 0 {
+		// Make sure it's not "null" string and looks like valid JSON
+		if suggestedActions.String != "null" && strings.HasPrefix(suggestedActions.String, "{") {
+			var suggestedActionsObj common.SuggestedActions
+			if err := json.Unmarshal([]byte(suggestedActions.String), &suggestedActionsObj); err != nil {
+				return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
+			}
+			event.SuggestedActions = &suggestedActionsObj
+		} else {
+			return event, fmt.Errorf("extra info is not valid: %q", extraInfo.String)
 		}
-		event.SuggestedActions = &suggestedActionsObj
 	}
+
 	return event, nil
 }
 
