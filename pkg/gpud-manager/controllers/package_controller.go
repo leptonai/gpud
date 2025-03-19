@@ -154,9 +154,6 @@ func (c *PackageController) getPackageStatus(pkg string) *packages.PackageStatus
 	c.RLock()
 	defer c.RUnlock()
 
-	if _, ok := c.packageStatus[pkg]; !ok {
-		return nil
-	}
 	return c.packageStatus[pkg]
 }
 
