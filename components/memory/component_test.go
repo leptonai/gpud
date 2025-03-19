@@ -75,3 +75,15 @@ func TestDataGetStates(t *testing.T) {
 	err = json.Unmarshal([]byte(jsonData), &decodedData)
 	assert.NoError(t, err)
 }
+
+func TestDataGetStatesNil(t *testing.T) {
+	// Test with nil data
+	var d *Data
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, "Healthy", states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
+}

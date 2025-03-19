@@ -1068,3 +1068,15 @@ func TestCheckKubeletReadOnlyPort_ReadError(t *testing.T) {
 	err := checkKubeletReadOnlyPortHealthz(ctx, int(port))
 	assert.Error(t, err)
 }
+
+func TestDataGetStatesNil(t *testing.T) {
+	// Test with nil data
+	var d *Data
+	states, err := d.getStates(false)
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, "Healthy", states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
+}
