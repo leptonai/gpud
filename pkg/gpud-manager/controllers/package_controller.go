@@ -148,6 +148,18 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 	}
 }
 
+// getPackageStatus returns the package status for the given package name.
+// if the package is not found, it returns nil.
+func (c *PackageController) getPackageStatus(pkg string) *packages.PackageStatus {
+	c.RLock()
+	defer c.RUnlock()
+
+	if _, ok := c.packageStatus[pkg]; !ok {
+		return nil
+	}
+	return c.packageStatus[pkg]
+}
+
 func (c *PackageController) installRunner(ctx context.Context) {
 	ticker := time.NewTicker(c.syncPeriod)
 	defer ticker.Stop()
@@ -161,17 +173,18 @@ func (c *PackageController) installRunner(ctx context.Context) {
 		for _, pkg := range c.packageStatus {
 			var skipCheck bool
 			for _, dep := range pkg.Dependency {
-				if _, ok := c.packageStatus[dep[0]]; !ok {
+				depStatus := c.getPackageStatus(dep[0])
+				if depStatus == nil {
 					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
-				if !c.packageStatus[dep[0]].IsInstalled {
+				if !depStatus.IsInstalled {
 					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
-				if c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1] {
+				if depStatus.CurrentVersion == "" || depStatus.CurrentVersion < dep[1] {
 					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
 					skipCheck = true
 					break
