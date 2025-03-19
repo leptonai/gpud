@@ -22,6 +22,105 @@ type PackageController struct {
 	sync.RWMutex
 }
 
+func (c *PackageController) setCurrentVersion(pkg string, version string) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.packageStatus[pkg] == nil {
+		return
+	}
+
+	c.packageStatus[pkg].CurrentVersion = version
+}
+
+func (c *PackageController) setProgress(pkg string, progress int) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.packageStatus[pkg] == nil {
+		return
+	}
+
+	c.packageStatus[pkg].Progress = progress
+}
+
+func (c *PackageController) setInstallingProgress(pkg string, installing bool, progress int) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.packageStatus[pkg] == nil {
+		return
+	}
+
+	c.packageStatus[pkg].Installing = installing
+	c.packageStatus[pkg].Progress = progress
+}
+
+func (c *PackageController) setInstalledProgress(pkg string, installed bool, progress int) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.packageStatus[pkg] == nil {
+		return
+	}
+
+	c.packageStatus[pkg].IsInstalled = installed
+	c.packageStatus[pkg].Progress = progress
+}
+
+func (c *PackageController) setStatus(pkg string, status bool) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.packageStatus[pkg] == nil {
+		return
+	}
+
+	c.packageStatus[pkg].Status = status
+}
+
+func (c *PackageController) getTotalTime(pkg string) time.Duration {
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.packageStatus[pkg] == nil {
+		return 0
+	}
+
+	return c.packageStatus[pkg].TotalTime
+}
+
+// getPackageStatus returns the package status for the given package name.
+// if the package is not found, it returns nil.
+func (c *PackageController) getPackageStatus(pkg string) *packages.PackageStatus {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.packageStatus[pkg]
+}
+
+func (c *PackageController) getIsInstalled(pkg string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.packageStatus[pkg] == nil {
+		return false
+	}
+
+	return c.packageStatus[pkg].IsInstalled
+}
+
+func (c *PackageController) getCurrentVersion(pkg string) string {
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.packageStatus[pkg] == nil {
+		return ""
+	}
+
+	return c.packageStatus[pkg].CurrentVersion
+}
+
 func NewPackageController(watcher chan packages.PackageInfo) *PackageController {
 	r := &PackageController{
 		fileWatcher:   watcher,
@@ -135,105 +234,6 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			}
 		}
 	}
-}
-
-func (c *PackageController) setCurrentVersion(pkg string, version string) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.packageStatus[pkg] == nil {
-		return
-	}
-
-	c.packageStatus[pkg].CurrentVersion = version
-}
-
-func (c *PackageController) setProgress(pkg string, progress int) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.packageStatus[pkg] == nil {
-		return
-	}
-
-	c.packageStatus[pkg].Progress = progress
-}
-
-func (c *PackageController) setInstallingProgress(pkg string, installing bool, progress int) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.packageStatus[pkg] == nil {
-		return
-	}
-
-	c.packageStatus[pkg].Installing = installing
-	c.packageStatus[pkg].Progress = progress
-}
-
-func (c *PackageController) setInstalledProgress(pkg string, installed bool, progress int) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.packageStatus[pkg] == nil {
-		return
-	}
-
-	c.packageStatus[pkg].IsInstalled = installed
-	c.packageStatus[pkg].Progress = progress
-}
-
-func (c *PackageController) setStatus(pkg string, status bool) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.packageStatus[pkg] == nil {
-		return
-	}
-
-	c.packageStatus[pkg].Status = status
-}
-
-func (c *PackageController) getTotalTime(pkg string) time.Duration {
-	c.RLock()
-	defer c.RUnlock()
-
-	if c.packageStatus[pkg] == nil {
-		return 0
-	}
-
-	return c.packageStatus[pkg].TotalTime
-}
-
-// getPackageStatus returns the package status for the given package name.
-// if the package is not found, it returns nil.
-func (c *PackageController) getPackageStatus(pkg string) *packages.PackageStatus {
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.packageStatus[pkg]
-}
-
-func (c *PackageController) getIsInstalled(pkg string) bool {
-	c.RLock()
-	defer c.RUnlock()
-
-	if c.packageStatus[pkg] == nil {
-		return false
-	}
-
-	return c.packageStatus[pkg].IsInstalled
-}
-
-func (c *PackageController) getCurrentVersion(pkg string) string {
-	c.RLock()
-	defer c.RUnlock()
-
-	if c.packageStatus[pkg] == nil {
-		return ""
-	}
-
-	return c.packageStatus[pkg].CurrentVersion
 }
 
 func (c *PackageController) installRunner(ctx context.Context) {
