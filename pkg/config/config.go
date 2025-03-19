@@ -58,9 +58,6 @@ type Config struct {
 	// Set false to disable the kubelet connection errors
 	KubeletIgnoreConnectionErrors bool `json:"kubelet_ignore_connection_errors"`
 
-	// A list of files to check for its existence.
-	FilesToCheck []string `json:"files_to_check"`
-
 	// A list of kernel modules to check for its existence.
 	KernelModulesToCheck []string `json:"kernel_modules_to_check"`
 

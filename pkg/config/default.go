@@ -33,7 +33,6 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	file_id "github.com/leptonai/gpud/components/file/id"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
@@ -124,7 +123,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		DockerIgnoreConnectionErrors:  options.DockerIgnoreConnectionErrors,
 		KubeletIgnoreConnectionErrors: options.KubeletIgnoreConnectionErrors,
 
-		FilesToCheck:         options.FilesToCheck,
 		KernelModulesToCheck: options.KernelModulesToCheck,
 
 		NvidiaToolOverwrites: nvidia_common.ToolOverwrites{
@@ -132,9 +130,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 	}
 
-	if len(cfg.FilesToCheck) > 0 {
-		cfg.Components[file_id.Name] = cfg.FilesToCheck
-	}
 	if len(cfg.KernelModulesToCheck) > 0 {
 		cfg.Components[kernel_module_id.Name] = cfg.KernelModulesToCheck
 	}
