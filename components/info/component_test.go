@@ -151,3 +151,15 @@ func TestDataGetReason(t *testing.T) {
 	assert.Contains(t, reason, "mac address: 00:11:22:33:44:55")
 	assert.Contains(t, reason, "annotations")
 }
+
+func TestDataGetStatesNil(t *testing.T) {
+	// Test with nil data
+	var d *Data
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, "Healthy", states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
+}

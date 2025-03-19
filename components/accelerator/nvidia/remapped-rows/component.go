@@ -305,6 +305,17 @@ func (d *Data) getHealth() (string, bool) {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   "row_remapping",
 		Reason: d.getReason(),
