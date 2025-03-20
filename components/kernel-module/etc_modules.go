@@ -3,6 +3,8 @@ package kernelmodule
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -27,6 +29,19 @@ func parseEtcModules(b []byte) ([]string, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	sort.Strings(modules)
+	return modules, nil
+}
+
+func getAllModules() ([]string, error) {
+	b, err := os.ReadFile(DefaultEtcModulesPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %q: %w", DefaultEtcModulesPath, err)
+	}
+	modules, err := parseEtcModules(b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %q: %w", DefaultEtcModulesPath, err)
 	}
 	sort.Strings(modules)
 	return modules, nil

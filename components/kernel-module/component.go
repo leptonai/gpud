@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -29,18 +28,7 @@ type component struct {
 
 func New(modulesToCheck []string) components.Component {
 	return &component{
-		getAllModules: func() ([]string, error) {
-			b, err := os.ReadFile(DefaultEtcModulesPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read %q: %w", DefaultEtcModulesPath, err)
-			}
-			modules, err := parseEtcModules(b)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse %q: %w", DefaultEtcModulesPath, err)
-			}
-			sort.Strings(modules)
-			return modules, nil
-		},
+		getAllModules:  getAllModules,
 		modulesToCheck: modulesToCheck,
 	}
 }
