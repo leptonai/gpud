@@ -69,8 +69,6 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/file"
-	file_id "github.com/leptonai/gpud/components/file/id"
 	"github.com/leptonai/gpud/components/fuse"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
@@ -324,15 +322,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
 			allComponents = append(allComponents, c)
-
-		case file_id.Name:
-			if configValue != nil {
-				filesToCheck, ok := configValue.([]string)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				allComponents = append(allComponents, file.New(filesToCheck))
-			}
 
 		case kernel_module_id.Name:
 			kernelModulesToCheck := []string{}

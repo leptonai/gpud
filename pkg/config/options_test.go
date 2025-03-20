@@ -17,54 +17,15 @@ func TestOp_ApplyOpts(t *testing.T) {
 	t.Run("multiple options", func(t *testing.T) {
 		op := &Op{}
 		err := op.ApplyOpts([]OpOption{
-			WithFilesToCheck("/path1", "/path2"),
 			WithKernelModulesToCheck("mod1", "mod2"),
 			WithDockerIgnoreConnectionErrors(true),
 			WithKubeletIgnoreConnectionErrors(true),
 		})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"/path1", "/path2"}, op.FilesToCheck)
 		assert.Equal(t, []string{"mod1", "mod2"}, op.KernelModulesToCheck)
 		assert.True(t, op.DockerIgnoreConnectionErrors)
 		assert.True(t, op.KubeletIgnoreConnectionErrors)
 	})
-}
-
-func TestWithFilesToCheck(t *testing.T) {
-	tests := []struct {
-		name          string
-		initialFiles  []string
-		filesToAdd    []string
-		expectedFiles []string
-	}{
-		{
-			name:          "add to empty",
-			initialFiles:  nil,
-			filesToAdd:    []string{"/path1", "/path2"},
-			expectedFiles: []string{"/path1", "/path2"},
-		},
-		{
-			name:          "add to existing",
-			initialFiles:  []string{"/existing"},
-			filesToAdd:    []string{"/new1", "/new2"},
-			expectedFiles: []string{"/existing", "/new1", "/new2"},
-		},
-		{
-			name:          "empty addition",
-			initialFiles:  []string{"/existing"},
-			filesToAdd:    []string{},
-			expectedFiles: []string{"/existing"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op := &Op{FilesToCheck: tt.initialFiles}
-			opt := WithFilesToCheck(tt.filesToAdd...)
-			opt(op)
-			assert.Equal(t, tt.expectedFiles, op.FilesToCheck)
-		})
-	}
 }
 
 func TestWithKernelModulesToCheck(t *testing.T) {

@@ -46,7 +46,6 @@ var (
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	filesToCheck         cli.StringSlice
 	kernelModulesToCheck cli.StringSlice
 
 	dockerIgnoreConnectionErrors  bool
@@ -237,11 +236,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
 					Destination: &autoUpdateExitCode,
 					Value:       -1,
-				},
-				&cli.StringSliceFlag{
-					Name:  "files-to-check",
-					Usage: "enable 'file' component that returns healthy if and only if all the files exist (default: [], use '--files-to-check=a --files-to-check=b' for multiple files)",
-					Value: &filesToCheck,
 				},
 				&cli.StringSliceFlag{
 					Name:  "kernel-modules-to-check",
