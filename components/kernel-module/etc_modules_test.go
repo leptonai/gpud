@@ -1,6 +1,10 @@
 package kernelmodule
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestParseEtcModules(t *testing.T) {
 	// ref. https://manpages.ubuntu.com/manpages/xenial/man5/modules.5.html
@@ -18,21 +22,11 @@ func TestParseEtcModules(t *testing.T) {
 
 `
 	modules, err := parseEtcModules([]byte(input))
-	if err != nil {
-		t.Fatalf("failed to parse /etc/modules: %v", err)
-	}
+	assert.NoError(t, err, "failed to parse /etc/modules")
 	t.Logf("modules: %v", modules)
-	if len(modules) != 3 {
-		t.Fatalf("expected 3 modules, got %d", len(modules))
-	}
 
-	if modules[0] != "3c509 irq=15" {
-		t.Fatalf("expected first module to be '3c509 irq=15', got %q", modules[0])
-	}
-	if modules[1] != "nf_nat_ftp" {
-		t.Fatalf("expected second module to be 'nf_nat_ftp', got %q", modules[1])
-	}
-	if modules[2] != "w83781d" {
-		t.Fatalf("expected third module to be 'w83781d', got %q", modules[2])
-	}
+	assert.Len(t, modules, 3, "expected 3 modules")
+	assert.Equal(t, "3c509 irq=15", modules[0], "unexpected first module")
+	assert.Equal(t, "nf_nat_ftp", modules[1], "unexpected second module")
+	assert.Equal(t, "w83781d", modules[2], "unexpected third module")
 }

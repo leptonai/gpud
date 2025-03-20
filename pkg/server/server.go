@@ -73,7 +73,6 @@ import (
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
-	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
@@ -322,7 +321,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case kernel_module_id.Name:
+		case kernel_module.Name:
 			kernelModulesToCheck := []string{}
 			if configValue != nil {
 				var ok bool

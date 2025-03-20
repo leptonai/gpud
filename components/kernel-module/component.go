@@ -5,82 +5,53 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-func New(modulesToCheck []string) components.Component {
-	return &component{modulesToCheck: modulesToCheck}
-}
+// Name is the name of the kernel module component.
+const Name = "kernel-module"
 
 var _ components.Component = &component{}
 
 type component struct {
+	getAllModules  func() ([]string, error)
 	modulesToCheck []string
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func (c *component) Name() string { return kernel_module_id.Name }
+func New(modulesToCheck []string) components.Component {
+	return &component{
+		getAllModules:  getAllModules,
+		modulesToCheck: modulesToCheck,
+	}
+}
+
+func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	b, err := os.ReadFile(DefaultEtcModulesPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %q: %w", DefaultEtcModulesPath, err)
-	}
-	modules, err := parseEtcModules(b)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse %q: %w", DefaultEtcModulesPath, err)
-	}
-	if len(modules) == 0 && len(c.modulesToCheck) == 0 {
-		return []components.State{
-			{
-				Name:    kernel_module_id.Name,
-				Healthy: true,
-				Reason:  "no module set in /etc/modules and no modules to check",
-			},
-		}, nil
-	}
-
-	modulesInJSON, err := json.Marshal(modules)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal modules: %w", err)
-	}
-	state := components.State{
-		Name:    kernel_module_id.Name,
-		Healthy: true,
-		Reason:  fmt.Sprintf("found %d modules in %q and %d module(s) to check", len(modules), DefaultEtcModulesPath, len(c.modulesToCheck)),
-		ExtraInfo: map[string]string{
-			"modules": string(modulesInJSON),
-		},
-	}
-
-	modulesSet := map[string]struct{}{}
-	for _, module := range modules {
-		modulesSet[module] = struct{}{}
-	}
-	unhealthyReasons := []string{}
-	for _, module := range c.modulesToCheck {
-		if _, ok := modulesSet[module]; !ok {
-			state.Healthy = false
-			unhealthyReasons = append(unhealthyReasons, fmt.Sprintf("module %q not found in %q", module, DefaultEtcModulesPath))
-		}
-	}
-	if len(unhealthyReasons) > 0 {
-		state.Healthy = false
-		state.Reason = strings.Join(unhealthyReasons, ", ")
-	}
-
-	return []components.State{state}, nil
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates(c.modulesToCheck)
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
+}
+
+func (c *component) Close() error {
+	log.Logger.Debugw("closing component")
+
+	return nil
 }
 
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
@@ -89,8 +60,108 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 	return nil, nil
 }
 
-func (c *component) Close() error {
-	log.Logger.Debugw("closing component")
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking info")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
 
-	return nil
+	d.LoadedModules, d.err = c.getAllModules()
+	if d.err != nil {
+		return
+	}
+	if len(d.LoadedModules) > 0 {
+		d.loadedModules = make(map[string]struct{})
+		for _, module := range d.LoadedModules {
+			d.loadedModules[module] = struct{}{}
+		}
+	}
+}
+
+type Data struct {
+	LoadedModules []string            `json:"loaded_modules"`
+	loadedModules map[string]struct{} `json:"-"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason(modulesToCheck []string) string {
+	if d == nil {
+		return "no module data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to read modules -- %v", d.err)
+	}
+	if len(modulesToCheck) == 0 {
+		return "no modules to check"
+	}
+
+	missingModules := []string{}
+	for _, module := range modulesToCheck {
+		if _, ok := d.loadedModules[module]; !ok {
+			missingModules = append(missingModules, module)
+		}
+	}
+	if len(missingModules) == 0 {
+		return "all modules are loaded"
+	}
+
+	sort.Strings(missingModules)
+	return fmt.Sprintf("missing modules: %q", missingModules)
+}
+
+func (d *Data) getHealth(modulesToCheck []string) (string, bool) {
+	healthy := d == nil || d.err == nil || len(modulesToCheck) == 0
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+
+	if len(modulesToCheck) > 0 {
+		for _, module := range modulesToCheck {
+			if _, ok := d.loadedModules[module]; !ok {
+				healthy = false
+				health = components.StateUnhealthy
+				break
+			}
+		}
+	}
+
+	return health, healthy
+}
+
+func (d *Data) getStates(modulesToCheck []string) ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
+	state := components.State{
+		Name:   Name,
+		Reason: d.getReason(modulesToCheck),
+	}
+	state.Health, state.Healthy = d.getHealth(modulesToCheck)
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }

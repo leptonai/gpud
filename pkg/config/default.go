@@ -35,7 +35,7 @@ import (
 	"github.com/leptonai/gpud/components/fd"
 	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
-	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
+	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
@@ -91,14 +91,14 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// default components that work both in mac/linux
 		Components: map[string]any{
-			cpu.Name:              nil,
-			disk_id.Name:          disk.DefaultConfig(),
-			fuse_id.Name:          nil,
-			fd.Name:               nil,
-			info.Name:             nil,
-			memory.Name:           nil,
-			os_id.Name:            nil,
-			kernel_module_id.Name: nil,
+			cpu.Name:           nil,
+			disk_id.Name:       disk.DefaultConfig(),
+			fuse_id.Name:       nil,
+			fd.Name:            nil,
+			info.Name:          nil,
+			memory.Name:        nil,
+			os_id.Name:         nil,
+			kernel_module.Name: nil,
 		},
 
 		RetentionPeriod: DefaultRetentionPeriod,
@@ -130,7 +130,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	if len(cfg.KernelModulesToCheck) > 0 {
-		cfg.Components[kernel_module_id.Name] = cfg.KernelModulesToCheck
+		cfg.Components[kernel_module.Name] = cfg.KernelModulesToCheck
 	}
 
 	// regardless of its dependency activeness, we always enable these components
