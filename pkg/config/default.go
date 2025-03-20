@@ -38,7 +38,6 @@ import (
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
-	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	os_id "github.com/leptonai/gpud/components/os/id"
@@ -224,7 +223,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_utilization.Name] = nil
 		cfg.Components[nvidia_processes.Name] = nil
 		cfg.Components[nvidia_remapped_rows.Name] = nil
-		cfg.Components[library_id.Name] = library.Config{
+		cfg.Components[library.Name] = library.Config{
 			Libraries:  nvidia_query.DefaultNVIDIALibraries,
 			SearchDirs: nvidia_query.DefaultNVIDIALibrariesSearchDirs,
 		}

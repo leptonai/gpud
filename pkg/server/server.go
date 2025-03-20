@@ -76,7 +76,6 @@ import (
 	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
-	library_id "github.com/leptonai/gpud/components/library/id"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
@@ -334,7 +333,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
 
-		case library_id.Name:
+		case library.Name:
 			if configValue != nil {
 				libCfg, ok := configValue.(library.Config)
 				if !ok {
