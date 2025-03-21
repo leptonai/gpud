@@ -132,13 +132,13 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		}
 	}
 
-	log.Logger.Infow("waiting for default nvml instance")
-	select {
-	case <-ctx.Done():
-		return o, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
-	case <-nvml.DefaultInstanceReady():
-		log.Logger.Debugw("default nvml instance ready")
-	}
+	//log.Logger.Infow("waiting for default nvml instance")
+	//select {
+	//case <-ctx.Done():
+	//	return o, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
+	//case <-nvml.DefaultInstanceReady():
+	//	log.Logger.Debugw("default nvml instance ready")
+	//}
 
 	// TODO
 	// this may timeout when the GPU is broken

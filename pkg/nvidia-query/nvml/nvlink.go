@@ -116,25 +116,25 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 			FeatureEnabled: state == nvml.FEATURE_ENABLED,
 		}
 
-		// e.g.,
-		// nvidia-smi nvlink -e
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		replayErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_REPLAY)
-		if ret == nvml.SUCCESS {
-			nvlinkState.ReplayErrors = replayErrors
-		}
-
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		recoveryErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_RECOVERY)
-		if ret == nvml.SUCCESS {
-			nvlinkState.RecoveryErrors = recoveryErrors
-		}
-
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
-		crcErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_CRC_FLIT)
-		if ret == nvml.SUCCESS {
-			nvlinkState.CRCErrors = crcErrors
-		}
+		//// e.g.,
+		//// nvidia-smi nvlink -e
+		//// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
+		//replayErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_REPLAY)
+		//if ret == nvml.SUCCESS {
+		//	nvlinkState.ReplayErrors = replayErrors
+		//}
+		//
+		//// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
+		//recoveryErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_RECOVERY)
+		//if ret == nvml.SUCCESS {
+		//	nvlinkState.RecoveryErrors = recoveryErrors
+		//}
+		//
+		//// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gba53d5dbe3b6b25418964d77f6ff2337
+		//crcErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_CRC_FLIT)
+		//if ret == nvml.SUCCESS {
+		//	nvlinkState.CRCErrors = crcErrors
+		//}
 
 		// use nvmlDeviceGetFieldValues
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlFieldValueQueries.html#group__nvmlFieldValueQueries_1g0b02941a262ee4327eb82831f91a1bc0
