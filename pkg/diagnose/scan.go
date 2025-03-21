@@ -140,12 +140,12 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		if err != nil {
 			log.Logger.Warnw("error getting nvidia info", "error", err)
 		} else {
-			defer func() {
-				serr := nvidia_query_nvml.DefaultInstance().Shutdown()
-				if serr != nil {
-					log.Logger.Warnw("error shutting down NVML", "error", serr)
-				}
-			}()
+			//defer func() {
+			//	serr := nvidia_query_nvml.DefaultInstance().Shutdown()
+			//	if serr != nil {
+			//		log.Logger.Warnw("error shutting down NVML", "error", serr)
+			//	}
+			//}()
 
 			output, ok := outputRaw.(*nvidia_query.Output)
 			if !ok {

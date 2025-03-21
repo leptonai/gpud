@@ -132,6 +132,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 		}
 		defer func() {
+			log.Logger.Infow("closing NVML instance")
 			if err := nvmlInstanceV2.Shutdown(); err != nil {
 				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
 			}
