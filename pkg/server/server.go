@@ -17,6 +17,7 @@ import (
 	"net/http/pprof"
 	goOS "os"
 	"path"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -31,8 +32,16 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
+	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
+	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
+	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
+	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
+	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
@@ -69,6 +78,8 @@ import (
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -134,44 +145,44 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	//nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
-	//if err != nil {
-	//	return nil, err
-	//}
+	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	//var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
-	//var xidEventBucket eventstore.Bucket
-	//var hwSlowdownEventBucket eventstore.Bucket
-	//var remappedRowsEventBucket eventstore.Bucket
-	//if runtime.GOOS == "linux" && nvidiaInstalled {
-	//	nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
-	//	if err != nil {
-	//		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-	//	}
-	//	defer func() {
-	//		if err := nvmlInstanceV2.Shutdown(); err != nil {
-	//			log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-	//		}
-	//	}()
-	//
-	//	//xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
-	//	//if err != nil {
-	//	//	return nil, err
-	//	//}
-	//	//hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
-	//	//if err != nil {
-	//	//	return nil, err
-	//	//}
-	//	//remappedRowsEventBucket, err = eventStore.Bucket(nvidia_remapped_rows.Name)
-	//	//if err != nil {
-	//	//	return nil, err
-	//	//}
-	//	//nvidia_query.SetDefaultPoller(
-	//	//	nvidia_query.WithXidEventBucket(xidEventBucket),
-	//	//	nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-	//	//	nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
-	//	//)
-	//}
+	var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
+	var xidEventBucket eventstore.Bucket
+	var hwSlowdownEventBucket eventstore.Bucket
+	var remappedRowsEventBucket eventstore.Bucket
+	if runtime.GOOS == "linux" && nvidiaInstalled {
+		nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
+		}
+		defer func() {
+			if err := nvmlInstanceV2.Shutdown(); err != nil {
+				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+			}
+		}()
+
+		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
+		if err != nil {
+			return nil, err
+		}
+		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		if err != nil {
+			return nil, err
+		}
+		remappedRowsEventBucket, err = eventStore.Bucket(nvidia_remapped_rows.Name)
+		if err != nil {
+			return nil, err
+		}
+		nvidia_query.SetDefaultPoller(
+			nvidia_query.WithXidEventBucket(xidEventBucket),
+			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+		)
+	}
 
 	if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
@@ -414,60 +425,60 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			// db object to read sxid events (read-only, writes are done in poller)
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
 
-		//case nvidia_hw_slowdown_id.Name:
-		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-		//	if configValue != nil {
-		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-		//		if err != nil {
-		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-		//		}
-		//		cfg = *parsed
-		//	}
-		//	if err := cfg.Validate(); err != nil {
-		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-		//	}
-		//	c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
-		//
-		//case nvidia_clock_speed_id.Name:
-		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-		//	if configValue != nil {
-		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-		//		if err != nil {
-		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-		//		}
-		//		cfg = *parsed
-		//	}
-		//	if err := cfg.Validate(); err != nil {
-		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-		//	}
-		//	c, err := nvidia_clock_speed.New(ctx, cfg)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
-		//
-		//case nvidia_ecc_id.Name:
-		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-		//	if configValue != nil {
-		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-		//		if err != nil {
-		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-		//		}
-		//		cfg = *parsed
-		//	}
-		//	if err := cfg.Validate(); err != nil {
-		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-		//	}
-		//	c, err := nvidia_ecc.New(ctx, cfg)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
-		//
+		case nvidia_hw_slowdown_id.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case nvidia_clock_speed_id.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_clock_speed.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case nvidia_ecc_id.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_ecc.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
 		//case nvidia_memory.Name:
 		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 		//	if configValue != nil {
@@ -590,13 +601,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//	}
 		//	allComponents = append(allComponents, c)
 		//
-		//case nvidia_remapped_rows.Name:
-		//	c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
-		//
+		case nvidia_remapped_rows.Name:
+			c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
 		//case nvidia_fabric_manager_id.Name:
 		//	fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
 		//	if err != nil {
