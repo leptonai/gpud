@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DefaultPollInterval   = time.Minute
+	DefaultPollInterval   = 10 * time.Second
 	DefaultGetTimeout     = 7 * time.Minute
 	DefaultQueueSize      = 60
 	DefaultStateRetention = 30 * time.Minute
