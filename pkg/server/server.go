@@ -35,10 +35,7 @@ import (
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
-	network_latency "github.com/leptonai/gpud/components/network/latency"
-	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	_ "github.com/leptonai/gpud/docs/apis"
@@ -667,8 +664,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//	}
 		//	allComponents = append(allComponents, c)
 		//
-		case containerd_pod.Name:
-			allComponents = append(allComponents, containerd_pod.New(ctx))
+		//case containerd_pod.Name:
+		//	allComponents = append(allComponents, containerd_pod.New(ctx))
 
 		//case docker_container.Name:
 		//	allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
@@ -676,22 +673,22 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case kubelet_pod.Name:
 			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
 
-		case network_latency_id.Name:
-			cfg := network_latency.Config{
-				Query:                      defaultQueryCfg,
-				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
-			}
-			if configValue != nil {
-				parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, network_latency.New(ctx, cfg))
+			//case network_latency_id.Name:
+			//	cfg := network_latency.Config{
+			//		Query:                      defaultQueryCfg,
+			//		GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
+			//	}
+			//	if configValue != nil {
+			//		parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
+			//		if err != nil {
+			//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+			//		}
+			//		cfg = *parsed
+			//	}
+			//	if err := cfg.Validate(); err != nil {
+			//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			//	}
+			//	allComponents = append(allComponents, network_latency.New(ctx, cfg))
 
 			//default:
 			//	return nil, fmt.Errorf("unknown component %s", k)
