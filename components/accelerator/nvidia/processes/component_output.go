@@ -38,6 +38,12 @@ func (d *Data) States() ([]components.State, error) {
 
 	data := ""
 	if d != nil {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("failed to marshal data:\n%+v\n\n%+v\n\n", d, d.Processes)
+				fmt.Printf("DEBUG panic:\n%v", r)
+			}
+		}()
 		b, _ := json.Marshal(d)
 		data = string(b)
 	}
