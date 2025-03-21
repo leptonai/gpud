@@ -326,8 +326,6 @@ func (inst *instance) Get() (*Output, error) {
 			SupportedEvents: devInfo.SupportedEvents,
 
 			GPMMetricsSupported: devInfo.GPMMetricsSupported,
-
-			device: devInfo.device,
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
@@ -392,11 +390,6 @@ func (inst *instance) Get() (*Output, error) {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
 		latestInfo.Power, err = GetPower(devInfo.UUID, devInfo.device)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
@@ -428,6 +421,11 @@ func (inst *instance) Get() (*Output, error) {
 		}
 
 		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
+
+		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
