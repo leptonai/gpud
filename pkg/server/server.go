@@ -30,6 +30,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/leptonai/gpud/components"
+	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
+	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
@@ -385,24 +387,24 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		//case nvidia_badenvs_id.Name:
-		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-		//	if configValue != nil {
-		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-		//		if err != nil {
-		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-		//		}
-		//		cfg = *parsed
-		//	}
-		//	if err := cfg.Validate(); err != nil {
-		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-		//	}
-		//	c, err := nvidia_badenvs.New(ctx, cfg)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
-		//
+		case nvidia_badenvs_id.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_badenvs.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
 		//case nvidia_xid.Name:
 		//	allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
 		//
