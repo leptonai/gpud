@@ -44,6 +44,8 @@ type instance struct {
 	// maps from uuid to device info
 	devices map[string]*DeviceInfo
 
+	devices2 map[string]device.Device
+
 	// writable database instance
 	dbRW *sql.DB
 	// read-only database instance
@@ -175,6 +177,7 @@ func (inst *instance) Start() error {
 	inst.gpmMetricsSupported = true
 
 	inst.devices = make(map[string]*DeviceInfo)
+	inst.devices2 = make(map[string]device.Device)
 	for _, d := range devices {
 		uuid, ret := d.GetUUID()
 		if ret != nvml.SUCCESS {
@@ -238,9 +241,8 @@ func (inst *instance) Start() error {
 			SupportedEvents: supportedEvents,
 
 			GPMMetricsSupported: gpmMetricsSpported,
-
-			device: d,
 		}
+		inst.devices2[uuid] = d
 	}
 
 	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
@@ -329,19 +331,26 @@ func (inst *instance) Get() (*Output, error) {
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
+		dev, ok := inst.devices2[devInfo.UUID]
+		if !ok {
+			log.Logger.Warnw("device not found", "uuid", devInfo.UUID)
+			continue
+		}
+		log.Logger.Debugw("found device info", "uuid", devInfo.UUID)
+
 		var err error
-		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devInfo.device)
+		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
+		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		if inst.clockEventsSupported {
-			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
+			clockEvents, err := GetClockEvents(devInfo.UUID, dev)
 			if err != nil {
 				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
 			} else {
@@ -380,52 +389,52 @@ func (inst *instance) Get() (*Output, error) {
 			}
 		}
 
-		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
+		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Memory, err = GetMemory(devInfo.UUID, devInfo.device)
+		latestInfo.Memory, err = GetMemory(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Power, err = GetPower(devInfo.UUID, devInfo.device)
+		latestInfo.Power, err = GetPower(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devInfo.device)
+		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devInfo.device)
+		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devInfo.device)
+		latestInfo.Processes, err = GetProcesses(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devInfo.device)
+		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
+		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, dev, latestInfo.ECCMode.EnabledCurrent)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
+		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
+		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, dev)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
@@ -505,8 +514,6 @@ type DeviceInfo struct {
 	ECCMode         ECCMode         `json:"ecc_mode"`
 	ECCErrors       ECCErrors       `json:"ecc_errors"`
 	RemappedRows    RemappedRows    `json:"remapped_rows"`
-
-	device device.Device `json:"-"`
 }
 
 func GetDriverVersion() (string, error) {

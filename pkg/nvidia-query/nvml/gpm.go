@@ -154,8 +154,8 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 	if len(inst.gpmMetricsIDs) > 98 {
 		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(inst.gpmMetricsIDs))
 	}
-	for uuid, dev := range inst.devices {
-		supported, err := GPMSupportedByDevice(dev.device)
+	for uuid, dev := range inst.devices2 {
+		supported, err := GPMSupportedByDevice(dev)
 		if err != nil {
 			return nil, err
 		}
@@ -164,14 +164,14 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 		}
 	}
 
-	metrics := make([]GPMMetrics, 0, len(inst.devices))
-	for _, dev := range inst.devices {
-		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
+	metrics := make([]GPMMetrics, 0, len(inst.devices2))
+	for uuid, dev := range inst.devices2 {
+		ms, err := GetGPMMetrics(inst.rootCtx, dev, inst.gpmMetricsIDs...)
 		if err != nil {
-			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
+			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", uuid, err)
 		}
 		metrics = append(metrics, GPMMetrics{
-			UUID:           dev.UUID,
+			UUID:           uuid,
 			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
 			Metrics:        ms,
 		})
