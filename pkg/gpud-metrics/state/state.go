@@ -239,25 +239,38 @@ ORDER BY %s ASC;`,
 // If the since is zero, all metrics are used.
 // Returns zero if no record is found ("database/sql.ErrNoRows").
 func AvgSince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, since time.Time) (float64, error) {
-	query := fmt.Sprintf(`
-SELECT AVG(%s)
-FROM %s
-WHERE %s = ? AND %s = ? AND %s >= ?;`,
-		ColumnMetricValue,
-		tableName,
-		ColumnMetricName,
-		ColumnMetricSecondaryName,
-		ColumnUnixSeconds,
-	)
-
 	var sinceUnix int64
 	if !since.IsZero() {
 		sinceUnix = since.Unix()
 	}
 
+	query := fmt.Sprintf(`
+SELECT AVG(%s)
+FROM %s
+WHERE %s = ? AND %s >= ?`,
+		ColumnMetricValue,
+		tableName,
+		ColumnMetricName,
+		ColumnUnixSeconds,
+	)
+	args := []any{name, sinceUnix}
+	if secondaryName != "" {
+		query += fmt.Sprintf(` AND %s = ?`, ColumnMetricSecondaryName)
+		args = append(args, secondaryName)
+	}
+
+	defer func() {
+		rerr := recover()
+		if rerr != nil {
+			fmt.Println("panic", rerr)
+			fmt.Println("query", query)
+			fmt.Println("args", args)
+		}
+	}()
+
 	start := time.Now()
 	var avg sql.NullFloat64
-	err := db.QueryRowContext(ctx, query, name, secondaryName, sinceUnix).Scan(&avg)
+	err := db.QueryRowContext(ctx, query, args...).Scan(&avg)
 	sqlite.RecordSelect(time.Since(start).Seconds())
 
 	if err != nil {

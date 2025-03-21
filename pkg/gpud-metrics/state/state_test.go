@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/sqlite"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestState(t *testing.T) {
@@ -242,5 +242,50 @@ func TestStateMoreDataPoints(t *testing.T) {
 		} else {
 			t.Logf("Average with secondary ID: %.3f", secondaryAvg)
 		}
+	}
+}
+
+func TestAvgSincePanicWithEmptySecondaryName(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	tableName := "test_metrics_panic"
+	if err := CreateTableMetrics(ctx, db, tableName); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	avg, err := AvgSince(ctx, db, tableName, "test_panic_metric", "", time.Now().Add(-5*time.Minute))
+	if err != nil {
+		t.Fatalf("failed to get average: %v", err)
+	}
+	if avg != 0.0 {
+		t.Errorf("expected average 0.0, got %.3f", avg)
+	}
+
+	// Insert a metric with an empty secondary name
+	now := time.Now()
+	metric := Metric{
+		UnixSeconds:         now.Unix(),
+		MetricName:          "test_panic_metric",
+		MetricSecondaryName: "", // Empty secondary name
+		Value:               42.0,
+	}
+
+	if err := InsertMetric(ctx, db, tableName, metric); err != nil {
+		t.Fatalf("failed to insert metric: %v", err)
+	}
+
+	avg, err = AvgSince(ctx, db, tableName, "test_panic_metric", "", time.Now().Add(-5*time.Minute))
+	if err != nil {
+		t.Fatalf("failed to get average: %v", err)
+	}
+	if avg != 42.0 {
+		t.Errorf("expected average 42.0, got %.3f", avg)
 	}
 }
