@@ -16,7 +16,6 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
@@ -311,7 +310,7 @@ func (inst *instance) Get() (*Output, error) {
 
 	// nvidia-smi polling happens periodically
 	// so we truncate the timestamp to the nearest minute
-	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+	//truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
 	joinedErrs := make([]error, 0)
 	for _, devInfo := range inst.devices {
@@ -339,100 +338,100 @@ func (inst *instance) Get() (*Output, error) {
 		log.Logger.Debugw("found device info", "uuid", devInfo.UUID)
 
 		var err error
-		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		if inst.clockEventsSupported {
-			clockEvents, err := GetClockEvents(devInfo.UUID, dev)
-			if err != nil {
-				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-			} else {
-				if len(clockEvents.HWSlowdownReasons) > 0 {
-					log.Logger.Infow("detected hw slowdown clock events", "gpu_uuid", devInfo.UUID, "reasons", clockEvents.HWSlowdownReasons)
-
-					// overwrite timestamp to the nearest minute
-					clockEvents.Time = metav1.Time{Time: truncNowUTC}
-
-					latestInfo.ClockEvents = &clockEvents
-
-					ev := createEventFromClockEvents(clockEvents)
-					if ev != nil {
-						log.Logger.Infow("inserting clock events to db", "gpu_uuid", devInfo.UUID)
-
-						cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
-						found, err := inst.hwSlowdownEventBucket.Find(cctx, *ev)
-						ccancel()
-						if err != nil {
-							log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
-							joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
-						} else if found == nil {
-							cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
-							err = inst.hwSlowdownEventBucket.Insert(cctx, *ev)
-							ccancel()
-							if err != nil {
-								log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
-							} else {
-								log.Logger.Infow("inserted clock events to db", "gpu_uuid", devInfo.UUID)
-							}
-						} else {
-							log.Logger.Infow("clock event already found in db", "gpu_uuid", devInfo.UUID)
-						}
-					}
-				}
-			}
-		}
-
-		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Memory, err = GetMemory(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Power, err = GetPower(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Processes, err = GetProcesses(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, dev, latestInfo.ECCMode.EnabledCurrent)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, dev)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
+		//latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//if inst.clockEventsSupported {
+		//	clockEvents, err := GetClockEvents(devInfo.UUID, dev)
+		//	if err != nil {
+		//		joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+		//	} else {
+		//		if len(clockEvents.HWSlowdownReasons) > 0 {
+		//			log.Logger.Infow("detected hw slowdown clock events", "gpu_uuid", devInfo.UUID, "reasons", clockEvents.HWSlowdownReasons)
+		//
+		//			// overwrite timestamp to the nearest minute
+		//			clockEvents.Time = metav1.Time{Time: truncNowUTC}
+		//
+		//			latestInfo.ClockEvents = &clockEvents
+		//
+		//			ev := createEventFromClockEvents(clockEvents)
+		//			if ev != nil {
+		//				log.Logger.Infow("inserting clock events to db", "gpu_uuid", devInfo.UUID)
+		//
+		//				cctx, ccancel := context.WithTimeout(context.Background(), 15*time.Second)
+		//				found, err := inst.hwSlowdownEventBucket.Find(cctx, *ev)
+		//				ccancel()
+		//				if err != nil {
+		//					log.Logger.Warnw("failed to find clock events from db", "error", err, "gpu_uuid", devInfo.UUID)
+		//					joinedErrs = append(joinedErrs, fmt.Errorf("failed to find clock events: %w (GPU uuid %s)", err, devInfo.UUID))
+		//				} else if found == nil {
+		//					cctx, ccancel = context.WithTimeout(context.Background(), 15*time.Second)
+		//					err = inst.hwSlowdownEventBucket.Insert(cctx, *ev)
+		//					ccancel()
+		//					if err != nil {
+		//						log.Logger.Warnw("failed to insert clock events to db", "error", err, "gpu_uuid", devInfo.UUID)
+		//					} else {
+		//						log.Logger.Infow("inserted clock events to db", "gpu_uuid", devInfo.UUID)
+		//					}
+		//				} else {
+		//					log.Logger.Infow("clock event already found in db", "gpu_uuid", devInfo.UUID)
+		//				}
+		//			}
+		//		}
+		//	}
+		//}
+		//
+		//latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Memory, err = GetMemory(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Power, err = GetPower(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Temperature, err = GetTemperature(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Utilization, err = GetUtilization(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Processes, err = GetProcesses(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, dev, latestInfo.ECCMode.EnabledCurrent)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, dev)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
 
 		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, dev)
 		if err != nil {

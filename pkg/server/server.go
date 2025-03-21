@@ -13,21 +13,13 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"net/http"
-	"net/http/pprof"
 	goOS "os"
-	"path"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/gin-contrib/gzip"
-	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/leptonai/gpud/components"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
@@ -42,7 +34,6 @@ import (
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/login"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
@@ -831,116 +822,116 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//	}
 	//}
 
-	uid, err := gpud_state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create machine uid: %w", err)
-	}
-	s.uid = uid
-	if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
-		return nil, fmt.Errorf("failed to update components: %w", err)
-	}
-
-	// TODO: implement configuration file refresh + apply
-
-	router := gin.Default()
-	router.SetHTMLTemplate(rootTmpl)
-
-	cert, err := s.generateSelfSignedCert()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate tls cert: %w", err)
-	}
-
-	installRootGinMiddlewares(router)
-	installCommonGinMiddlewares(router, log.Logger.Desugar())
-
-	v1 := router.Group("/v1")
-
-	// if the request header is set "Accept-Encoding: gzip",
-	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
-	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
-
-	ghler := newGlobalHandler(config, components.GetAllComponents())
-	registeredPaths := ghler.registerComponentRoutes(v1)
-	for i := range registeredPaths {
-		registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
-	}
-
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: "/metrics",
-		Desc: "Prometheus metrics",
-	})
-	promHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
-	router.GET("/metrics", func(ctx *gin.Context) {
-		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
-	})
-
-	router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET(URLPathHealthz, createHealthzHandler())
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: URLPathHealthz,
-		Desc: URLPathHealthzDesc,
-	})
-
-	admin := router.Group(urlPathAdmin)
-
-	admin.GET(URLPathConfig, createConfigHandler(config))
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: path.Join("/admin", URLPathConfig),
-		Desc: URLPathConfigDesc,
-	})
-	admin.GET(urlPathPackages, createPackageHandler(packageManager))
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: URLPathAdminPackages,
-		Desc: urlPathPackagesDesc,
-	})
-
-	if config.Pprof {
-		log.Logger.Debugw("registering pprof handlers")
-		admin.GET("/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
-		admin.GET("/pprof/heap", gin.WrapH(pprof.Handler("heap")))
-		admin.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
-	}
-
-	if config.Web != nil && config.Web.Enable {
-		router.GET("/", createRootHandler(registeredPaths, *config.Web))
-
-		if config.Web.Enable {
-			go func() {
-				time.Sleep(2 * time.Second)
-				url := "https://" + config.Address
-				if !strings.HasPrefix(config.Address, "127.0.0.1") && !strings.HasPrefix(config.Address, "0.0.0.0") && !strings.HasPrefix(config.Address, "localhost") {
-					url = "https://localhost" + config.Address
-				}
-				fmt.Printf("\n\n\n\n\n%s serving %s\n\n\n\n\n", checkMark, url)
-			}()
-		}
-	}
-
-	go s.updateToken(ctx, dbRW, uid, endpoint)
-
-	go func() {
-		srv := &http.Server{
-			Addr:    config.Address,
-			Handler: router,
-			TLSConfig: &tls.Config{
-				Certificates: []tls.Certificate{cert},
-			},
-		}
-		log.Logger.Infof("serving %s", config.Address)
-		// Start HTTPS server
-		err = srv.ListenAndServeTLS("", "")
-		if err != nil {
-			s.Stop()
-			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
-		}
-	}()
-
-	ghler.componentNamesMu.RLock()
-	currComponents := ghler.componentNames
-	ghler.componentNamesMu.RUnlock()
-	if err = login.Gossip(endpoint, uid, config.Address, currComponents); err != nil {
-		log.Logger.Debugf("failed to gossip: %v", err)
-	}
+	//uid, err := gpud_state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to create machine uid: %w", err)
+	//}
+	//s.uid = uid
+	//if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
+	//	return nil, fmt.Errorf("failed to update components: %w", err)
+	//}
+	//
+	//// TODO: implement configuration file refresh + apply
+	//
+	//router := gin.Default()
+	//router.SetHTMLTemplate(rootTmpl)
+	//
+	//cert, err := s.generateSelfSignedCert()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to generate tls cert: %w", err)
+	//}
+	//
+	//installRootGinMiddlewares(router)
+	//installCommonGinMiddlewares(router, log.Logger.Desugar())
+	//
+	//v1 := router.Group("/v1")
+	//
+	//// if the request header is set "Accept-Encoding: gzip",
+	//// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
+	//v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
+	//
+	//ghler := newGlobalHandler(config, components.GetAllComponents())
+	//registeredPaths := ghler.registerComponentRoutes(v1)
+	//for i := range registeredPaths {
+	//	registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
+	//}
+	//
+	//registeredPaths = append(registeredPaths, componentHandlerDescription{
+	//	Path: "/metrics",
+	//	Desc: "Prometheus metrics",
+	//})
+	//promHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
+	//router.GET("/metrics", func(ctx *gin.Context) {
+	//	promHandler.ServeHTTP(ctx.Writer, ctx.Request)
+	//})
+	//
+	//router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))
+	//router.GET(URLPathHealthz, createHealthzHandler())
+	//registeredPaths = append(registeredPaths, componentHandlerDescription{
+	//	Path: URLPathHealthz,
+	//	Desc: URLPathHealthzDesc,
+	//})
+	//
+	//admin := router.Group(urlPathAdmin)
+	//
+	//admin.GET(URLPathConfig, createConfigHandler(config))
+	//registeredPaths = append(registeredPaths, componentHandlerDescription{
+	//	Path: path.Join("/admin", URLPathConfig),
+	//	Desc: URLPathConfigDesc,
+	//})
+	//admin.GET(urlPathPackages, createPackageHandler(packageManager))
+	//registeredPaths = append(registeredPaths, componentHandlerDescription{
+	//	Path: URLPathAdminPackages,
+	//	Desc: urlPathPackagesDesc,
+	//})
+	//
+	//if config.Pprof {
+	//	log.Logger.Debugw("registering pprof handlers")
+	//	admin.GET("/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
+	//	admin.GET("/pprof/heap", gin.WrapH(pprof.Handler("heap")))
+	//	admin.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
+	//}
+	//
+	//if config.Web != nil && config.Web.Enable {
+	//	router.GET("/", createRootHandler(registeredPaths, *config.Web))
+	//
+	//	if config.Web.Enable {
+	//		go func() {
+	//			time.Sleep(2 * time.Second)
+	//			url := "https://" + config.Address
+	//			if !strings.HasPrefix(config.Address, "127.0.0.1") && !strings.HasPrefix(config.Address, "0.0.0.0") && !strings.HasPrefix(config.Address, "localhost") {
+	//				url = "https://localhost" + config.Address
+	//			}
+	//			fmt.Printf("\n\n\n\n\n%s serving %s\n\n\n\n\n", checkMark, url)
+	//		}()
+	//	}
+	//}
+	//
+	//go s.updateToken(ctx, dbRW, uid, endpoint)
+	//
+	//go func() {
+	//	srv := &http.Server{
+	//		Addr:    config.Address,
+	//		Handler: router,
+	//		TLSConfig: &tls.Config{
+	//			Certificates: []tls.Certificate{cert},
+	//		},
+	//	}
+	//	log.Logger.Infof("serving %s", config.Address)
+	//	// Start HTTPS server
+	//	err = srv.ListenAndServeTLS("", "")
+	//	if err != nil {
+	//		s.Stop()
+	//		log.Logger.Fatalf("serve %v failure %v", config.Address, err)
+	//	}
+	//}()
+	//
+	//ghler.componentNamesMu.RLock()
+	//currComponents := ghler.componentNames
+	//ghler.componentNamesMu.RUnlock()
+	//if err = login.Gossip(endpoint, uid, config.Address, currComponents); err != nil {
+	//	log.Logger.Debugf("failed to gossip: %v", err)
+	//}
 	return s, nil
 }
 
