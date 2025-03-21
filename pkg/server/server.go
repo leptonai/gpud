@@ -44,7 +44,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -123,20 +122,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 	defaultQueryCfg.SetDefaultsIfNotSet()
 
-	var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
+	//var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
 	var xidEventBucket eventstore.Bucket
 	var hwSlowdownEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-		}
-		defer func() {
-			log.Logger.Infow("closing NVML instance")
-			if err := nvmlInstanceV2.Shutdown(); err != nil {
-				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-			}
-		}()
+		//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+		//if err != nil {
+		//	return nil, fmt.Errorf("failed to create NVML instance: %w", err)
+		//}
+		//defer func() {
+		//	log.Logger.Infow("closing NVML instance")
+		//	if err := nvmlInstanceV2.Shutdown(); err != nil {
+		//		log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+		//	}
+		//}
 
 		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
 		if err != nil {
