@@ -36,30 +36,11 @@ import (
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
-	"github.com/leptonai/gpud/components/cpu"
-	"github.com/leptonai/gpud/components/disk"
-	disk_id "github.com/leptonai/gpud/components/disk/id"
-	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/file"
-	file_id "github.com/leptonai/gpud/components/file/id"
-	"github.com/leptonai/gpud/components/fuse"
-	fuse_id "github.com/leptonai/gpud/components/fuse/id"
-	"github.com/leptonai/gpud/components/info"
-	kernel_module "github.com/leptonai/gpud/components/kernel-module"
-	kernel_module_id "github.com/leptonai/gpud/components/kernel-module/id"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
-	"github.com/leptonai/gpud/components/library"
-	library_id "github.com/leptonai/gpud/components/library/id"
-	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
-	"github.com/leptonai/gpud/components/pci"
-	pci_id "github.com/leptonai/gpud/components/pci/id"
-	component_systemd "github.com/leptonai/gpud/components/systemd"
-	systemd_id "github.com/leptonai/gpud/components/systemd/id"
-	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
@@ -226,148 +207,148 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	for k, configValue := range config.Components {
 		switch k {
-		case cpu.Name:
-			c, err := cpu.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case disk_id.Name:
-			cfg := disk.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, disk.New(ctx, cfg))
-
-		case fuse_id.Name:
-			cfg := fuse.Config{
-				Query:                                defaultQueryCfg,
-				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
-				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
-			}
-			if configValue != nil {
-				parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := fuse.New(ctx, cfg, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case pci_id.Name:
-			cfg := pci.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			c, err := pci.New(ctx, cfg, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case fd.Name:
-			c, err := fd.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case file_id.Name:
-			if configValue != nil {
-				filesToCheck, ok := configValue.([]string)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				allComponents = append(allComponents, file.New(filesToCheck))
-			}
-
-		case kernel_module_id.Name:
-			kernelModulesToCheck := []string{}
-			if configValue != nil {
-				var ok bool
-				kernelModulesToCheck, ok = configValue.([]string)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-			}
-			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
-
-		case library_id.Name:
-			if configValue != nil {
-				libCfg, ok := configValue.(library.Config)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				allComponents = append(allComponents, library.New(libCfg))
-			}
-
-		case info.Name:
-			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
-
-		case memory.Name:
-			c, err := memory.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case os_id.Name:
-			cfg := os.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := os.New(ctx, cfg, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case systemd_id.Name:
-			cfg := component_systemd.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := component_systemd.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case tailscale.Name:
-			allComponents = append(allComponents, tailscale.New(ctx))
+		//case cpu.Name:
+		//	c, err := cpu.New(ctx, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case disk_id.Name:
+		//	cfg := disk.Config{Query: defaultQueryCfg}
+		//	if configValue != nil {
+		//		parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, disk.New(ctx, cfg))
+		//
+		//case fuse_id.Name:
+		//	cfg := fuse.Config{
+		//		Query:                                defaultQueryCfg,
+		//		CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
+		//		MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
+		//	}
+		//	if configValue != nil {
+		//		parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := fuse.New(ctx, cfg, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case pci_id.Name:
+		//	cfg := pci.Config{Query: defaultQueryCfg}
+		//	if configValue != nil {
+		//		parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	c, err := pci.New(ctx, cfg, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case fd.Name:
+		//	c, err := fd.New(ctx, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case file_id.Name:
+		//	if configValue != nil {
+		//		filesToCheck, ok := configValue.([]string)
+		//		if !ok {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		allComponents = append(allComponents, file.New(filesToCheck))
+		//	}
+		//
+		//case kernel_module_id.Name:
+		//	kernelModulesToCheck := []string{}
+		//	if configValue != nil {
+		//		var ok bool
+		//		kernelModulesToCheck, ok = configValue.([]string)
+		//		if !ok {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//	}
+		//	allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
+		//
+		//case library_id.Name:
+		//	if configValue != nil {
+		//		libCfg, ok := configValue.(library.Config)
+		//		if !ok {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		allComponents = append(allComponents, library.New(libCfg))
+		//	}
+		//
+		//case info.Name:
+		//	allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
+		//
+		//case memory.Name:
+		//	c, err := memory.New(ctx, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case os_id.Name:
+		//	cfg := os.Config{Query: defaultQueryCfg}
+		//	if configValue != nil {
+		//		parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := os.New(ctx, cfg, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case systemd_id.Name:
+		//	cfg := component_systemd.Config{Query: defaultQueryCfg}
+		//	if configValue != nil {
+		//		parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := component_systemd.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case tailscale.Name:
+		//	allComponents = append(allComponents, tailscale.New(ctx))
 
 		case nvidia_info.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
