@@ -176,11 +176,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 		}
-		defer func() {
-			if err := nvmlInstanceV2.Shutdown(); err != nil {
-				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-			}
-		}()
 
 		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
 		if err != nil {
@@ -958,7 +953,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint)
 
-	go func() {
+	go func(nvmlInstance nvidia_query_nvml.InstanceV2) {
+		defer func() {
+			if nvmlInstance != nil {
+				if err := nvmlInstance.Shutdown(); err != nil {
+					log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+				}
+			}
+		}()
+
 		srv := &http.Server{
 			Addr:    config.Address,
 			Handler: router,
@@ -967,13 +970,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			},
 		}
 		log.Logger.Infof("serving %s", config.Address)
+
 		// Start HTTPS server
 		err = srv.ListenAndServeTLS("", "")
 		if err != nil {
 			s.Stop()
 			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
 		}
-	}()
+	}(nvmlInstanceV2)
 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames
