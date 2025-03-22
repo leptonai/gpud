@@ -24,10 +24,10 @@ func fooo() {
 	if err != nil {
 		panic(err)
 	}
-	for _, v := range devices {
-		id, _ := v.GetUUID()
-		fmt.Printf("device %v\n", id)
-	}
+	//for _, v := range devices {
+	//	id, _ := v.GetUUID()
+	//	fmt.Printf("device %v\n", id)
+	//}
 	for {
 		for _, v := range devices {
 			id, _ := v.GetUUID()
