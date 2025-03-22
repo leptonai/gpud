@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
+	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	os_id "github.com/leptonai/gpud/components/os/id"
+	"github.com/leptonai/gpud/pkg/log"
+	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/mitchellh/go-homedir"
@@ -166,17 +169,17 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	//	cfg.Components[nvidia_clock_speed_id.Name] = nil
 	//	cfg.Components[nvidia_memory.Name] = nil
 	//
-	//	gpmSupported, err := nvidia_query_nvml.GPMSupported()
-	//	if err == nil {
-	//		if gpmSupported {
-	//			log.Logger.Infow("auto-detected gpm supported")
-	//			cfg.Components[nvidia_gpm.Name] = nil
-	//		} else {
-	//			log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
-	//		}
-	//	} else {
-	//		log.Logger.Warnw("failed to check gpm supported or not", "error", err)
-	//	}
+	gpmSupported, err := nvidia_query_nvml.GPMSupported()
+	if err == nil {
+		if gpmSupported {
+			log.Logger.Infow("auto-detected gpm supported")
+			cfg.Components[nvidia_gpm.Name] = nil
+		} else {
+			log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
+		}
+	} else {
+		log.Logger.Warnw("failed to check gpm supported or not", "error", err)
+	}
 	//
 	//	cfg.Components[nvidia_nvlink.Name] = nil
 	//	cfg.Components[nvidia_power_id.Name] = nil
