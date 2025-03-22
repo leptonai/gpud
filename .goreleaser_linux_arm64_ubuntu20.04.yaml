@@ -28,7 +28,7 @@ builds:
 archives:
 
   - id: gpud
-    format: tgz
+    formats: [ 'tgz' ]
 
     # "builds" reference which build instances should be archived in this archive
     builds:
@@ -40,7 +40,7 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
+        formats: ['zip']
 
 # https://goreleaser.com/customization/changelog/
 changelog:
