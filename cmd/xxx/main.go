@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -20,20 +19,13 @@ func fooo() {
 	if ret != nvml.SUCCESS {
 		panic(ret.String())
 	}
-	devLib := device.New(nvmlInterface)
-	devices, err := devLib.GetDevices()
-	if err != nil {
-		panic(err)
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	defer func() {
-		for _, v := range devices {
-			id, _ := v.GetUUID()
-			fmt.Println("found device", id)
-		}
-	}()
 	for {
+		devLib := device.New(nvmlInterface)
+		devices, err := devLib.GetDevices()
+		if err != nil {
+			panic(err)
+		}
+
 		for _, v := range devices {
 			id, _ := v.GetUUID()
 			fmt.Printf("process device %v\n", id)
