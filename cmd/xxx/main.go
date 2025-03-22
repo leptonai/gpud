@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -11,16 +10,6 @@ import (
 
 func main() {
 	fooo()
-	
-	//defaultQueryCfg := query_config.Config{
-	//	State: &query_config.State{},
-	//}
-	//defaultQueryCfg.SetDefaultsIfNotSet()
-	//nvidia_query.SetDefaultPoller()
-	//nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
-	//for {
-	//	time.Sleep(1 * time.Second)
-	//}
 }
 
 func fooo() {
@@ -34,10 +23,14 @@ func fooo() {
 	if err != nil {
 		panic(err)
 	}
+	for _, v := range devices {
+		id, _ := v.GetUUID()
+		fmt.Printf("device %v\n", id)
+	}
 	for {
 		for _, v := range devices {
 			id, _ := v.GetUUID()
-			fmt.Printf("process %v", id)
+			fmt.Printf("process device %v\n", id)
 			for link := 0; link < nvml.NVLINK_MAX_LINKS; link++ {
 				values := []nvml.FieldValue{
 					{FieldId: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX}, // NVLink RX Data throughput + protocol overhead in KiB
@@ -45,14 +38,7 @@ func fooo() {
 				}
 				ret = nvml.DeviceGetFieldValues(v, values)
 				if ret == nvml.SUCCESS {
-					for _, value := range values {
-						if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX {
-							fmt.Println(binary.NativeEndian.Uint64(value.Value[:]) * 1024)
-						}
-						if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX {
-							fmt.Println(binary.NativeEndian.Uint64(value.Value[:]) * 1024)
-						}
-					}
+					fmt.Printf("devices %s returned nvlink stats\n", id)
 				}
 			}
 		}
