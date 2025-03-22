@@ -57,10 +57,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
 
-	stateFile := ":memory:"
-	if config.State != "" {
-		stateFile = config.State
-	}
+	stateFile := "/tmp/gpud-test.db"
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
@@ -135,9 +132,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//	return nil, err
 		//}
 		nvidia_query.SetDefaultPoller(
-		//nvidia_query.WithXidEventBucket(xidEventBucket),
-		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+			//nvidia_query.WithXidEventBucket(xidEventBucket),
+			//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+			//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 		nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 	}
