@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/config"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	lepServer "github.com/leptonai/gpud/pkg/server"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/gin-gonic/gin"
@@ -102,25 +100,25 @@ func cmdRun(cliContext *cli.Context) error {
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
 	signal.Notify(signals, handledSignals...)
-	m, err := gpud_manager.New()
-	if err != nil {
-		return err
-	}
-	m.Start(rootCtx)
+	//m, err := gpud_manager.New()
+	//if err != nil {
+	//	return err
+	//}
+	//m.Start(rootCtx)
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
+	server, err := lepServer.New(rootCtx, cfg)
 	if err != nil {
 		return err
 	}
 	serverC <- server
 
-	if pkd_systemd.SystemctlExists() {
-		if err := notifyReady(rootCtx); err != nil {
-			log.Logger.Warnw("notify ready failed")
-		}
-	} else {
-		log.Logger.Debugw("skipped sd notify as systemd is not available")
-	}
+	//if pkd_systemd.SystemctlExists() {
+	//	if err := notifyReady(rootCtx); err != nil {
+	//		log.Logger.Warnw("notify ready failed")
+	//	}
+	//} else {
+	//	log.Logger.Debugw("skipped sd notify as systemd is not available")
+	//}
 
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/mitchellh/go-homedir"
@@ -54,7 +53,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			//fd.Name:               nil,
 			//info.Name:             nil,
 			//memory.Name:           nil,
-			os_id.Name: nil,
+			//os_id.Name: nil,
 			//kernel_module_id.Name: nil,
 		},
 

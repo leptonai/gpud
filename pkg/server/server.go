@@ -2,90 +2,62 @@ package server
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"database/sql"
-	"encoding/pem"
 	"fmt"
-	"io"
-	"math/big"
-	goOS "os"
-	"runtime"
-	"strings"
-	"syscall"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/os"
-	os_id "github.com/leptonai/gpud/components/os/id"
-	_ "github.com/leptonai/gpud/docs/apis"
+	//_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
-	"github.com/leptonai/gpud/pkg/eventstore"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
-	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
-	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
-	"github.com/leptonai/gpud/pkg/session"
-	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 // Server is the gpud main daemon
 type Server struct {
-	dbRW *sql.DB
-	dbRO *sql.DB
+	//dbRW *sql.DB
+	//dbRO *sql.DB
 
 	nvidiaComponentsExist bool
 	uid                   string
 	fifoPath              string
-	fifo                  *goOS.File
-	session               *session.Session
-	enableAutoUpdate      bool
-	autoUpdateExitCode    int
+	//fifo                  *goOS.File
+	//session               *session.Session
+	enableAutoUpdate   bool
+	autoUpdateExitCode int
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpud_manager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
 
-	stateFile := "/tmp/gpud-test.db"
-	dbRW, err := sqlite.Open(stateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
-	}
-	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
-	if err != nil {
-		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
-	}
+	//stateFile := "/tmp/gpud-test.db"
+	//dbRW, err := sqlite.Open(stateFile)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
+	//}
+	//dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
+	//}
 
-	eventStore, err := eventstore.New(dbRW, dbRO, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open events database: %w", err)
-	}
+	//eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to open events database: %w", err)
+	//}
 
-	promReg := prometheus.NewRegistry()
-	if err := sqlite.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
-	}
+	//promReg := prometheus.NewRegistry()
+	//if err := sqlite.Register(promReg); err != nil {
+	//	return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
+	//}
 
-	fifoPath, err := lepconfig.DefaultFifoFile()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get fifo path: %w", err)
-	}
+	//fifoPath, err := lepconfig.DefaultFifoFile()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to get fifo path: %w", err)
+	//}
 	s := &Server{
-		dbRW: dbRW,
-		dbRO: dbRO,
+		//dbRW: dbRW,
+		//dbRO: dbRO,
 
-		fifoPath:           fifoPath,
+		//fifoPath:           fifoPath,
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
 	}
@@ -95,15 +67,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
-	if err != nil {
-		return nil, err
-	}
+	//nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	defaultQueryCfg := query_config.Config{
 		State: &query_config.State{
-			DBRW: dbRW,
-			DBRO: dbRO,
+			//DBRW: dbRW,
+			//DBRO: dbRO,
 		},
 	}
 	defaultQueryCfg.SetDefaultsIfNotSet()
@@ -111,79 +83,79 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
 	//var xidEventBucket eventstore.Bucket
 	//var hwSlowdownEventBucket eventstore.Bucket
-	if runtime.GOOS == "linux" && nvidiaInstalled {
-		//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
-		//if err != nil {
-		//	return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-		//}
-		//defer func() {
-		//	log.Logger.Infow("closing NVML instance")
-		//	if err := nvmlInstanceV2.Shutdown(); err != nil {
-		//		log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-		//	}
-		//}
-		//
-		//xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
-		//if err != nil {
-		//	return nil, err
-		//}
-		//hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
-		//if err != nil {
-		//	return nil, err
-		//}
-		nvidia_query.SetDefaultPoller(
-		//nvidia_query.WithXidEventBucket(xidEventBucket),
-		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
-		)
-		nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
-	}
+	//if runtime.GOOS == "linux" && nvidiaInstalled {
+	//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to create NVML instance: %w", err)
+	//}
+	//defer func() {
+	//	log.Logger.Infow("closing NVML instance")
+	//	if err := nvmlInstanceV2.Shutdown(); err != nil {
+	//		log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+	//	}
+	//}
+	//
+	//xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+	//if err != nil {
+	//	return nil, err
+	//}
+	nvidia_query.SetDefaultPoller(
+	//nvidia_query.WithXidEventBucket(xidEventBucket),
+	//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+	//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+	)
+	nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
+	//}
 
-	if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
-	}
-	if err := gpud_state.CreateTableAPIVersion(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create api version table: %w", err)
-	}
-	ver, err := gpud_state.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
-	if err != nil {
-		return nil, fmt.Errorf("failed to update api version: %w", err)
-	}
-	log.Logger.Infow("api version", "version", ver)
-	if ver != "v1" {
-		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
-	}
-
-	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
-		return nil, fmt.Errorf("failed to create metrics table: %w", err)
-	}
-	go func() {
-		dur := config.RetentionPeriod.Duration
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-				purged, err := components_metrics_state.PurgeMetrics(ctx, dbRW, components_metrics_state.DefaultTableName, before)
-				if err != nil {
-					log.Logger.Warnw("failed to purge metrics", "error", err)
-				} else {
-					log.Logger.Debugw("purged metrics", "purged", purged)
-				}
-			}
-		}
-	}()
-
-	allComponents := make([]components.Component, 0)
-	if _, ok := config.Components[os_id.Name]; !ok {
-		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
-		}
-		allComponents = append(allComponents, c)
-	}
+	//if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
+	//	return nil, fmt.Errorf("failed to create table: %w", err)
+	//}
+	//if err := gpud_state.CreateTableAPIVersion(ctx, dbRW); err != nil {
+	//	return nil, fmt.Errorf("failed to create api version table: %w", err)
+	//}
+	//ver, err := gpud_state.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to update api version: %w", err)
+	//}
+	//log.Logger.Infow("api version", "version", ver)
+	//if ver != "v1" {
+	//	return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
+	//}
+	//
+	//if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
+	//	return nil, fmt.Errorf("failed to create metrics table: %w", err)
+	//}
+	//go func() {
+	//	dur := config.RetentionPeriod.Duration
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-time.After(dur):
+	//			now := time.Now().UTC()
+	//			before := now.Add(-dur)
+	//			purged, err := components_metrics_state.PurgeMetrics(ctx, dbRW, components_metrics_state.DefaultTableName, before)
+	//			if err != nil {
+	//				log.Logger.Warnw("failed to purge metrics", "error", err)
+	//			} else {
+	//				log.Logger.Debugw("purged metrics", "purged", purged)
+	//			}
+	//		}
+	//	}
+	//}()
+	//
+	//allComponents := make([]components.Component, 0)
+	//if _, ok := config.Components[os_id.Name]; !ok {
+	//	c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
+	//	}
+	//	allComponents = append(allComponents, c)
+	//}
 
 	//for k, configValue := range config.Components {
 	//	switch k {
@@ -678,129 +650,129 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//	}
 	//}
 
-	if err := metrics.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register metrics: %w", err)
-	}
-	if err := gpud_state.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register state metrics: %w", err)
-	}
-	go func() {
-		ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ticker.Reset(20 * time.Minute)
-			}
-
-			total, err := metrics.ReadRegisteredTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get registered total", "error", err)
-				continue
-			}
-
-			healthy, err := metrics.ReadHealthyTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get registered healthy", "error", err)
-				continue
-			}
-
-			unhealthy, err := metrics.ReadUnhealthyTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get registered unhealthy", "error", err)
-				continue
-			}
-
-			log.Logger.Debugw("components status",
-				"inflight_components", total,
-				"evaluated_healthy_states", healthy,
-				"evaluated_unhealthy_states", unhealthy,
-			)
-		}
-	}()
-
+	//if err := metrics.Register(promReg); err != nil {
+	//	return nil, fmt.Errorf("failed to register metrics: %w", err)
+	//}
+	//if err := gpud_state.Register(promReg); err != nil {
+	//	return nil, fmt.Errorf("failed to register state metrics: %w", err)
+	//}
+	//go func() {
+	//	ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-ticker.C:
+	//			ticker.Reset(20 * time.Minute)
+	//		}
+	//
+	//		total, err := metrics.ReadRegisteredTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered total", "error", err)
+	//			continue
+	//		}
+	//
+	//		healthy, err := metrics.ReadHealthyTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered healthy", "error", err)
+	//			continue
+	//		}
+	//
+	//		unhealthy, err := metrics.ReadUnhealthyTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered unhealthy", "error", err)
+	//			continue
+	//		}
+	//
+	//		log.Logger.Debugw("components status",
+	//			"inflight_components", total,
+	//			"evaluated_healthy_states", healthy,
+	//			"evaluated_unhealthy_states", unhealthy,
+	//		)
+	//	}
+	//}()
+	//
 	// track metrics every hour
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ticker.Reset(time.Hour)
-			}
-
-			if err := gpud_state.RecordMetrics(ctx, dbRW); err != nil {
-				log.Logger.Errorw("failed to record metrics", "error", err)
-			}
-		}
-	}()
-
-	// compact the state database every retention period
-	if config.CompactPeriod.Duration > 0 {
-		go func() {
-			ticker := time.NewTicker(config.CompactPeriod.Duration)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					ticker.Reset(config.CompactPeriod.Duration)
-				}
-
-				if err := sqlite.Compact(ctx, dbRW); err != nil {
-					log.Logger.Errorw("failed to compact state database", "error", err)
-				}
-			}
-		}()
-	} else {
-		log.Logger.Debugw("compact period is not set, skipping compacting")
-	}
-
-	for i := range allComponents {
-		metrics.SetRegistered(allComponents[i].Name())
-		allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
-	}
-
-	var componentNames []string
-	componentSet := make(map[string]struct{})
-	for _, c := range allComponents {
-		componentSet[c.Name()] = struct{}{}
-		componentNames = append(componentNames, c.Name())
-		if strings.Contains(c.Name(), "nvidia") {
-			s.nvidiaComponentsExist = true
-		}
-
-		// this guarantees no name conflict, thus safe to register handlers by its name
-		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-			continue
-		}
-
-		if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
-			if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
-				log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-				if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
-					return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
-				}
-			} else {
-				log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
-			}
-		} else {
-			log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
-		}
-	}
-
-	for _, c := range allComponents {
-		if err = c.Start(); err != nil {
-			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
-			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
-		}
-	}
+	//go func() {
+	//	ticker := time.NewTicker(time.Hour)
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-ticker.C:
+	//			ticker.Reset(time.Hour)
+	//		}
+	//
+	//		if err := gpud_state.RecordMetrics(ctx, dbRW); err != nil {
+	//			log.Logger.Errorw("failed to record metrics", "error", err)
+	//		}
+	//	}
+	//}()
+	//
+	//// compact the state database every retention period
+	//if config.CompactPeriod.Duration > 0 {
+	//	go func() {
+	//		ticker := time.NewTicker(config.CompactPeriod.Duration)
+	//		defer ticker.Stop()
+	//		for {
+	//			select {
+	//			case <-ctx.Done():
+	//				return
+	//			case <-ticker.C:
+	//				ticker.Reset(config.CompactPeriod.Duration)
+	//			}
+	//
+	//			if err := sqlite.Compact(ctx, dbRW); err != nil {
+	//				log.Logger.Errorw("failed to compact state database", "error", err)
+	//			}
+	//		}
+	//	}()
+	//} else {
+	//	log.Logger.Debugw("compact period is not set, skipping compacting")
+	//}
+	//
+	//for i := range allComponents {
+	//	metrics.SetRegistered(allComponents[i].Name())
+	//	allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
+	//}
+	//
+	//var componentNames []string
+	//componentSet := make(map[string]struct{})
+	//for _, c := range allComponents {
+	//	componentSet[c.Name()] = struct{}{}
+	//	componentNames = append(componentNames, c.Name())
+	//	if strings.Contains(c.Name(), "nvidia") {
+	//		s.nvidiaComponentsExist = true
+	//	}
+	//
+	//	// this guarantees no name conflict, thus safe to register handlers by its name
+	//	if err := components.RegisterComponent(c.Name(), c); err != nil {
+	//		log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
+	//		continue
+	//	}
+	//
+	//	if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
+	//		if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
+	//			log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
+	//			if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
+	//				return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
+	//			}
+	//		} else {
+	//			log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
+	//		}
+	//	} else {
+	//		log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
+	//	}
+	//}
+	//
+	//for _, c := range allComponents {
+	//	if err = c.Start(); err != nil {
+	//		log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
+	//		return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
+	//	}
+	//}
 
 	// to not start healthz until the initial gpu data is ready
 	//if s.nvidiaComponentsExist {
@@ -932,30 +904,30 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 const checkMark = "\033[32m✔\033[0m"
 
 func (s *Server) Stop() {
-	if s.session != nil {
-		s.session.Stop()
-	}
-	for name, component := range components.GetAllComponents() {
-		closer, ok := component.(io.Closer)
-		if !ok {
-			continue
-		}
-		if err := closer.Close(); err != nil {
-			log.Logger.Errorf("failed to close plugin %v: %v", name, err)
-		}
-	}
-
-	if cerr := s.dbRW.Close(); cerr != nil {
-		log.Logger.Debugw("failed to close read-write db", "error", cerr)
-	} else {
-		log.Logger.Debugw("successfully closed read-write db")
-	}
-	if cerr := s.dbRO.Close(); cerr != nil {
-		log.Logger.Debugw("failed to close read-only db", "error", cerr)
-	} else {
-		log.Logger.Debugw("successfully closed read-only db")
-	}
-
+	//if s.session != nil {
+	//	s.session.Stop()
+	//}
+	//for name, component := range components.GetAllComponents() {
+	//	closer, ok := component.(io.Closer)
+	//	if !ok {
+	//		continue
+	//	}
+	//	if err := closer.Close(); err != nil {
+	//		log.Logger.Errorf("failed to close plugin %v: %v", name, err)
+	//	}
+	//}
+	//
+	//if cerr := s.dbRW.Close(); cerr != nil {
+	//	log.Logger.Debugw("failed to close read-write db", "error", cerr)
+	//} else {
+	//	log.Logger.Debugw("successfully closed read-write db")
+	//}
+	//if cerr := s.dbRO.Close(); cerr != nil {
+	//	log.Logger.Debugw("failed to close read-only db", "error", cerr)
+	//} else {
+	//	log.Logger.Debugw("successfully closed read-only db")
+	//}
+	//
 	//if s.nvidiaComponentsExist {
 	//	serr := nvidia_query_nvml.DefaultInstance().Shutdown()
 	//	if serr != nil {
@@ -974,146 +946,147 @@ func (s *Server) Stop() {
 	//}
 }
 
-func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
+//
+//func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
+//	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+//	if err != nil {
+//		return tls.Certificate{}, err
+//	}
+//
+//	// Create a certificate template
+//	template := x509.Certificate{
+//		SerialNumber: big.NewInt(1),
+//		Subject: pkix.Name{
+//			Organization: []string{"Lepton AI"},
+//		},
+//		NotBefore:             time.Now(),
+//		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+//		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+//		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+//		BasicConstraintsValid: true,
+//	}
+//
+//	// Create the certificate
+//	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+//	if err != nil {
+//		return tls.Certificate{}, err
+//	}
+//
+//	// Encode the certificate and private key to PEM format
+//	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+//	privDER, err := x509.MarshalECPrivateKey(priv)
+//	if err != nil {
+//		return tls.Certificate{}, err
+//	}
+//	privPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
+//
+//	// Load the certificate
+//	cert, err := tls.X509KeyPair(certPEM, privPEM)
+//	if err != nil {
+//		return tls.Certificate{}, err
+//	}
+//
+//	return cert, nil
+//}
 
-	// Create a certificate template
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization: []string{"Lepton AI"},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	// Create the certificate
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
-	// Encode the certificate and private key to PEM format
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privDER, err := x509.MarshalECPrivateKey(priv)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	privPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
-
-	// Load the certificate
-	cert, err := tls.X509KeyPair(certPEM, privPEM)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
-	return cert, nil
-}
-
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string) {
-	var userToken string
-	pipePath := s.fifoPath
-	if dbToken, err := gpud_state.GetLoginInfo(ctx, db, uid); err == nil {
-		userToken = dbToken
-	}
-
-	if userToken != "" {
-		var err error
-		s.session, err = session.NewSession(
-			ctx,
-			fmt.Sprintf("https://%s/api/v1/session", endpoint),
-			session.WithMachineID(uid),
-			session.WithPipeInterval(3*time.Second),
-			session.WithEnableAutoUpdate(s.enableAutoUpdate),
-			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
-		)
-		if err != nil {
-			log.Logger.Errorw("error creating session", "error", err)
-		}
-	}
-
-	if _, err := goOS.Stat(pipePath); err == nil {
-		if err = goOS.Remove(pipePath); err != nil {
-			log.Logger.Errorf("error creating pipe: %v", err)
-			return
-		}
-	} else if !goOS.IsNotExist(err) {
-		log.Logger.Errorf("error stat pipe: %v", err)
-		return
-	}
-
-	if err := syscall.Mkfifo(pipePath, 0666); err != nil {
-		log.Logger.Errorf("error creating pipe: %v", err)
-		return
-	}
-	for {
-		pipe, err := goOS.OpenFile(pipePath, goOS.O_RDONLY, goOS.ModeNamedPipe)
-		if err != nil {
-			log.Logger.Errorf("error opening named pipe: %v", err)
-			return
-		}
-		buffer := make([]byte, 1024)
-		if n, err := pipe.Read(buffer); err != nil {
-			log.Logger.Errorf("error reading pipe: %v", err)
-		} else {
-			userToken = string(buffer[:n])
-		}
-
-		pipe.Close()
-		if userToken != "" {
-			if s.session != nil {
-				s.session.Stop()
-			}
-			s.session, err = session.NewSession(
-				ctx,
-				fmt.Sprintf("https://%s/api/v1/session", endpoint),
-				session.WithMachineID(uid),
-				session.WithPipeInterval(3*time.Second),
-				session.WithEnableAutoUpdate(s.enableAutoUpdate),
-				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
-			)
-			if err != nil {
-				log.Logger.Errorw("error creating session", "error", err)
-			}
-		}
-
-		time.Sleep(time.Second)
-	}
-}
-
-func WriteToken(token string, fifoFile string) error {
-	var f *goOS.File
-	var err error
-	for i := 0; i < 30; i++ {
-		if _, err = goOS.Stat(fifoFile); goOS.IsNotExist(err) {
-			time.Sleep(1 * time.Second)
-			continue
-		} else if err != nil {
-			return fmt.Errorf("failed to stat fifo file: %w", err)
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("server not ready")
-	}
-
-	if f, err = goOS.OpenFile(fifoFile, goOS.O_WRONLY, 0600); err != nil {
-		return fmt.Errorf("failed to open fifo file: %w", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Logger.Errorf("failed to close token fifo: %v", err)
-		}
-	}()
-
-	_, err = f.Write([]byte(token))
-	if err != nil {
-		return fmt.Errorf("failed to write token: %w", err)
-	}
-	return nil
-}
+//func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string) {
+//	var userToken string
+//	pipePath := s.fifoPath
+//	if dbToken, err := gpud_state.GetLoginInfo(ctx, db, uid); err == nil {
+//		userToken = dbToken
+//	}
+//
+//	if userToken != "" {
+//		var err error
+//		s.session, err = session.NewSession(
+//			ctx,
+//			fmt.Sprintf("https://%s/api/v1/session", endpoint),
+//			session.WithMachineID(uid),
+//			session.WithPipeInterval(3*time.Second),
+//			session.WithEnableAutoUpdate(s.enableAutoUpdate),
+//			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+//		)
+//		if err != nil {
+//			log.Logger.Errorw("error creating session", "error", err)
+//		}
+//	}
+//
+//	if _, err := goOS.Stat(pipePath); err == nil {
+//		if err = goOS.Remove(pipePath); err != nil {
+//			log.Logger.Errorf("error creating pipe: %v", err)
+//			return
+//		}
+//	} else if !goOS.IsNotExist(err) {
+//		log.Logger.Errorf("error stat pipe: %v", err)
+//		return
+//	}
+//
+//	if err := syscall.Mkfifo(pipePath, 0666); err != nil {
+//		log.Logger.Errorf("error creating pipe: %v", err)
+//		return
+//	}
+//	for {
+//		pipe, err := goOS.OpenFile(pipePath, goOS.O_RDONLY, goOS.ModeNamedPipe)
+//		if err != nil {
+//			log.Logger.Errorf("error opening named pipe: %v", err)
+//			return
+//		}
+//		buffer := make([]byte, 1024)
+//		if n, err := pipe.Read(buffer); err != nil {
+//			log.Logger.Errorf("error reading pipe: %v", err)
+//		} else {
+//			userToken = string(buffer[:n])
+//		}
+//
+//		pipe.Close()
+//		if userToken != "" {
+//			if s.session != nil {
+//				s.session.Stop()
+//			}
+//			s.session, err = session.NewSession(
+//				ctx,
+//				fmt.Sprintf("https://%s/api/v1/session", endpoint),
+//				session.WithMachineID(uid),
+//				session.WithPipeInterval(3*time.Second),
+//				session.WithEnableAutoUpdate(s.enableAutoUpdate),
+//				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+//			)
+//			if err != nil {
+//				log.Logger.Errorw("error creating session", "error", err)
+//			}
+//		}
+//
+//		time.Sleep(time.Second)
+//	}
+//}
+//
+//func WriteToken(token string, fifoFile string) error {
+//	var f *goOS.File
+//	var err error
+//	for i := 0; i < 30; i++ {
+//		if _, err = goOS.Stat(fifoFile); goOS.IsNotExist(err) {
+//			time.Sleep(1 * time.Second)
+//			continue
+//		} else if err != nil {
+//			return fmt.Errorf("failed to stat fifo file: %w", err)
+//		}
+//	}
+//	if err != nil {
+//		return fmt.Errorf("server not ready")
+//	}
+//
+//	if f, err = goOS.OpenFile(fifoFile, goOS.O_WRONLY, 0600); err != nil {
+//		return fmt.Errorf("failed to open fifo file: %w", err)
+//	}
+//	defer func() {
+//		if err := f.Close(); err != nil {
+//			log.Logger.Errorf("failed to close token fifo: %v", err)
+//		}
+//	}()
+//
+//	_, err = f.Write([]byte(token))
+//	if err != nil {
+//		return fmt.Errorf("failed to write token: %w", err)
+//	}
+//	return nil
+//}
