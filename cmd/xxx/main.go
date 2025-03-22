@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -38,7 +39,14 @@ func fooo() {
 				}
 				ret = nvml.DeviceGetFieldValues(v, values)
 				if ret == nvml.SUCCESS {
-					fmt.Printf("devices %s returned nvlink stats\n", id)
+					for _, value := range values {
+						if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX {
+							fmt.Println(binary.NativeEndian.Uint64(value.Value[:]) * 1024)
+						}
+						if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX {
+							fmt.Println(binary.NativeEndian.Uint64(value.Value[:]) * 1024)
+						}
+					}
 				}
 			}
 		}
