@@ -4,7 +4,6 @@ package nvml
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
@@ -17,7 +16,6 @@ import (
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
@@ -45,12 +43,12 @@ type instance struct {
 
 	devices2 map[string]device.Device
 
-	// writable database instance
-	dbRW *sql.DB
-	// read-only database instance
-	dbRO *sql.DB
+	//// writable database instance
+	//dbRW *sql.DB
+	//// read-only database instance
+	//dbRO *sql.DB
 
-	hwSlowdownEventBucket eventstore.Bucket
+	//hwSlowdownEventBucket eventstore.Bucket
 
 	clockEventsSupported bool
 
@@ -136,10 +134,10 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
 
-		dbRW: op.dbRW,
-		dbRO: op.dbRO,
+		//dbRW: op.dbRW,
+		//dbRO: op.dbRO,
 
-		hwSlowdownEventBucket: op.hwSlowdownEventBucket,
+		//hwSlowdownEventBucket: op.hwSlowdownEventBucket,
 
 		clockEventsSupported: clockEventsSupported,
 
@@ -515,17 +513,17 @@ type DeviceInfo struct {
 	//RemappedRows    RemappedRows    `json:"remapped_rows"`
 }
 
-func GetDriverVersion() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
-	return getDriverVersion(nvmlLib.NVML())
-}
+//func GetDriverVersion() (string, error) {
+//	nvmlLib := nvml_lib.NewDefault()
+//	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+//		return "", err
+//	}
+//	defer func() {
+//		_ = nvmlLib.Shutdown()
+//	}()
+//
+//	return getDriverVersion(nvmlLib.NVML())
+//}
 
 func getDriverVersion(nvmlLib nvml.Interface) (string, error) {
 	ver, ret := nvmlLib.SystemGetDriverVersion()
@@ -567,17 +565,17 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 	return major, minor, patch, nil
 }
 
-func GetCUDAVersion() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
-	return getCUDAVersion(nvmlLib.NVML())
-}
+//func GetCUDAVersion() (string, error) {
+//	nvmlLib := nvml_lib.NewDefault()
+//	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+//		return "", err
+//	}
+//	defer func() {
+//		_ = nvmlLib.Shutdown()
+//	}()
+//
+//	return getCUDAVersion(nvmlLib.NVML())
+//}
 
 func getCUDAVersion(nvmlLib nvml.Interface) (string, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g1d12b603a42805ee7e4160557ffc2128

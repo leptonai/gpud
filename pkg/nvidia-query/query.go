@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -77,7 +76,7 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 
 	if err := nvml.StartDefaultInstance(
 		ctx,
-		nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
+		//nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
 		nvml.WithGPMMetricsID(
 			go_nvml.GPM_METRIC_SM_OCCUPANCY,
 			go_nvml.GPM_METRIC_INTEGER_UTIL,
@@ -110,14 +109,14 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		})
 	}()
 
-	for k, desc := range nvml.BAD_CUDA_ENV_KEYS {
-		if os.Getenv(k) == "1" {
-			if o.BadEnvVarsForCUDA == nil {
-				o.BadEnvVarsForCUDA = make(map[string]string)
-			}
-			o.BadEnvVarsForCUDA[k] = desc
-		}
-	}
+	//for k, desc := range nvml.BAD_CUDA_ENV_KEYS {
+	//	if os.Getenv(k) == "1" {
+	//		if o.BadEnvVarsForCUDA == nil {
+	//			o.BadEnvVarsForCUDA = make(map[string]string)
+	//		}
+	//		o.BadEnvVarsForCUDA[k] = desc
+	//	}
+	//}
 
 	log.Logger.Debugw("checking lsmod peermem")
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)

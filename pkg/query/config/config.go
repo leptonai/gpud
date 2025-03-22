@@ -2,10 +2,9 @@
 package config
 
 import (
-	"database/sql"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	//_ "github.com/mattn/go-sqlite3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -53,11 +52,11 @@ func (cfg *Config) SetDefaultsIfNotSet() {
 }
 
 type State struct {
-	// DB instance for read-write.
-	DBRW *sql.DB `json:"-"`
-
-	// DB instance for read-only.
-	DBRO *sql.DB `json:"-"`
+	//// DB instance for read-write.
+	//DBRW *sql.DB `json:"-"`
+	//
+	//// DB instance for read-only.
+	//DBRO *sql.DB `json:"-"`
 
 	// Duration to keep states for.
 	Retention metav1.Duration `json:"retention"`
