@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -24,10 +25,8 @@ func fooo() {
 	if err != nil {
 		panic(err)
 	}
-	//for _, v := range devices {
-	//	id, _ := v.GetUUID()
-	//	fmt.Printf("device %v\n", id)
-	//}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	for {
 		for _, v := range devices {
 			id, _ := v.GetUUID()
