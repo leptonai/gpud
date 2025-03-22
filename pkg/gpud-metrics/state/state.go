@@ -5,12 +5,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os/exec"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -261,23 +259,6 @@ WHERE %s = ? AND %s >= ?`,
 		query += fmt.Sprintf(` AND %s = ?`, ColumnMetricSecondaryName)
 		args = append(args, secondaryName)
 	}
-
-	defer func() {
-		rerr := recover()
-		if rerr != nil {
-			log.Logger.Infow("panic recovered", "error", rerr)
-			log.Logger.Infow("query", "query", query)
-			log.Logger.Infow("args", "args", args)
-
-			// print "go env" output
-			out, err := exec.Command("go", "env").Output()
-			if err != nil {
-				log.Logger.Infow("error", "error", err)
-			} else {
-				log.Logger.Infow("go env", "output", string(out))
-			}
-		}
-	}()
 
 	start := time.Now()
 	var avg sql.NullFloat64
