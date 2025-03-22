@@ -13,15 +13,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/query"
 	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -102,46 +94,46 @@ func (s *Session) serve() {
 
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
-			for _, componentName := range payload.Components {
-				switch componentName {
-				case nvidia_xid.Name:
-					rawComponent, err := components.GetComponent(nvidia_xid.Name)
-					if err != nil {
-						log.Logger.Errorw("failed to get component", "error", err)
-						continue
-					}
-					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
-						if component, ok := watchable.Component.(*xid.XIDComponent); ok {
-							if err = component.SetHealthy(); err != nil {
-								log.Logger.Errorw("failed to set xid healthy", "error", err)
-							}
-						} else {
-							log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
-						}
-					} else {
-						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
-					}
-				case nvidia_sxid.Name:
-					rawComponent, err := components.GetComponent(nvidia_sxid.Name)
-					if err != nil {
-						log.Logger.Errorw("failed to get component", "error", err)
-						continue
-					}
-					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
-						if component, ok := watchable.Component.(*sxid.SXIDComponent); ok {
-							if err = component.SetHealthy(); err != nil {
-								log.Logger.Errorw("failed to set sxid healthy", "error", err)
-							}
-						} else {
-							log.Logger.Errorf("failed to cast component to sxid component: %T", watchable)
-						}
-					} else {
-						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
-					}
-				default:
-					log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
-				}
-			}
+			//for _, componentName := range payload.Components {
+			//	switch componentName {
+			//	case nvidia_xid.Name:
+			//		rawComponent, err := components.GetComponent(nvidia_xid.Name)
+			//		if err != nil {
+			//			log.Logger.Errorw("failed to get component", "error", err)
+			//			continue
+			//		}
+			//		if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
+			//			if component, ok := watchable.Component.(*xid.XIDComponent); ok {
+			//				if err = component.SetHealthy(); err != nil {
+			//					log.Logger.Errorw("failed to set xid healthy", "error", err)
+			//				}
+			//			} else {
+			//				log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
+			//			}
+			//		} else {
+			//			log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+			//		}
+			//	case nvidia_sxid.Name:
+			//		rawComponent, err := components.GetComponent(nvidia_sxid.Name)
+			//		if err != nil {
+			//			log.Logger.Errorw("failed to get component", "error", err)
+			//			continue
+			//		}
+			//		if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
+			//			if component, ok := watchable.Component.(*sxid.SXIDComponent); ok {
+			//				if err = component.SetHealthy(); err != nil {
+			//					log.Logger.Errorw("failed to set sxid healthy", "error", err)
+			//				}
+			//			} else {
+			//				log.Logger.Errorf("failed to cast component to sxid component: %T", watchable)
+			//			}
+			//		} else {
+			//			log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+			//		}
+			//	default:
+			//		log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
+			//	}
+			//}
 
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
@@ -188,23 +180,23 @@ func (s *Session) serve() {
 			}
 
 		case "updateConfig":
-			if payload.UpdateConfig != nil {
-				for componentName, value := range payload.UpdateConfig {
-					log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
-
-					switch componentName {
-					case nvidia_infiniband_id.Name:
-						var updateCfg infiniband.ExpectedPortStates
-						if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
-							log.Logger.Warnw("failed to unmarshal update config", "error", err)
-						} else {
-							nvidia_infiniband.SetDefaultExpectedPortStates(updateCfg)
-						}
-					default:
-						log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
-					}
-				}
-			}
+			//if payload.UpdateConfig != nil {
+			//	for componentName, value := range payload.UpdateConfig {
+			//		log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
+			//
+			//		switch componentName {
+			//		case nvidia_infiniband_id.Name:
+			//			var updateCfg infiniband.ExpectedPortStates
+			//			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+			//				log.Logger.Warnw("failed to unmarshal update config", "error", err)
+			//			} else {
+			//				nvidia_infiniband.SetDefaultExpectedPortStates(updateCfg)
+			//			}
+			//		default:
+			//			log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
+			//		}
+			//	}
+			//}
 		}
 
 		cancel()

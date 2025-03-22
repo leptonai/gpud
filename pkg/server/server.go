@@ -22,8 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
-	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	_ "github.com/leptonai/gpud/docs/apis"
@@ -114,8 +112,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	defaultQueryCfg.SetDefaultsIfNotSet()
 
 	//var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
-	var xidEventBucket eventstore.Bucket
-	var hwSlowdownEventBucket eventstore.Bucket
+	//var xidEventBucket eventstore.Bucket
+	//var hwSlowdownEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
 		//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
 		//if err != nil {
@@ -127,19 +125,19 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//		log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
 		//	}
 		//}
-
-		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
-		if err != nil {
-			return nil, err
-		}
-		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
-		if err != nil {
-			return nil, err
-		}
+		//
+		//xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
+		//if err != nil {
+		//	return nil, err
+		//}
+		//hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		//if err != nil {
+		//	return nil, err
+		//}
 		nvidia_query.SetDefaultPoller(
-			nvidia_query.WithXidEventBucket(xidEventBucket),
-			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+		//nvidia_query.WithXidEventBucket(xidEventBucket),
+		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 		nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 	}
