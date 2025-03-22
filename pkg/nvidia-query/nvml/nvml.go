@@ -281,10 +281,10 @@ func (inst *instance) Shutdown() error {
 	log.Logger.Debugw("shutting down NVML")
 	inst.rootCancel()
 
-	ret := inst.nvmlLib.Shutdown()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to shutdown NVML: %v", nvml.ErrorString(ret))
-	}
+	//ret := inst.nvmlLib.Shutdown()
+	//if ret != nvml.SUCCESS {
+	//	return fmt.Errorf("failed to shutdown NVML: %v", nvml.ErrorString(ret))
+	//}
 	inst.nvmlLib = nil
 
 	return nil
