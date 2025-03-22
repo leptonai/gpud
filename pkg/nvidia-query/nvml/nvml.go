@@ -281,10 +281,10 @@ func (inst *instance) Shutdown() error {
 	log.Logger.Debugw("shutting down NVML")
 	inst.rootCancel()
 
-	//ret := inst.nvmlLib.Shutdown()
-	//if ret != nvml.SUCCESS {
-	//	return fmt.Errorf("failed to shutdown NVML: %v", nvml.ErrorString(ret))
-	//}
+	ret := inst.nvmlLib.Shutdown()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to shutdown NVML: %v", nvml.ErrorString(ret))
+	}
 	inst.nvmlLib = nil
 
 	return nil
@@ -520,9 +520,9 @@ func GetDriverVersion() (string, error) {
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
-	//defer func() {
-	//	_ = nvmlLib.Shutdown()
-	//}()
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
 
 	return getDriverVersion(nvmlLib.NVML())
 }
@@ -572,9 +572,9 @@ func GetCUDAVersion() (string, error) {
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
-	//defer func() {
-	//	_ = nvmlLib.Shutdown()
-	//}()
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
 
 	return getCUDAVersion(nvmlLib.NVML())
 }
@@ -609,9 +609,9 @@ func LoadGPUDeviceName() (string, error) {
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
 		return "", err
 	}
-	//defer func() {
-	//	_ = nvmlLib.Shutdown()
-	//}()
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
 
 	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
 	if !nvmlExists {
