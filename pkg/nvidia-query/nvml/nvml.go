@@ -22,7 +22,7 @@ import (
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-var _ Instance = &instance{}
+//var _ Instance = &instance{}
 
 type instance struct {
 	mu sync.RWMutex
@@ -56,10 +56,10 @@ type instance struct {
 
 	gpmPollInterval time.Duration
 
-	gpmMetricsSupported bool
-	gpmMetricsIDs       []nvml.GpmMetricId
-	gpmEventCh          chan *GPMEvent
-	gpmEventChCloseOnce sync.Once
+	//gpmMetricsSupported bool
+	//gpmMetricsIDs       []nvml.GpmMetricId
+	//gpmEventCh          chan *GPMEvent
+	//gpmEventChCloseOnce sync.Once
 }
 
 type Instance interface {
@@ -69,8 +69,8 @@ type Instance interface {
 
 	ClockEventsSupported() bool
 
-	GPMMetricsSupported() bool
-	RecvGPMEvents() <-chan *GPMEvent
+	//GPMMetricsSupported() bool
+	//RecvGPMEvents() <-chan *GPMEvent
 
 	Shutdown() error
 	Get() (*Output, error)
@@ -145,10 +145,10 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		gpmPollInterval: time.Minute,
 
-		gpmMetricsSupported: false,
-		gpmMetricsIDs:       gpmMetricsIDs,
-		gpmEventCh:          make(chan *GPMEvent, 100),
-		gpmEventChCloseOnce: sync.Once{},
+		//gpmMetricsSupported: false,
+		//gpmMetricsIDs:       gpmMetricsIDs,
+		//gpmEventCh:          make(chan *GPMEvent, 100),
+		//gpmEventChCloseOnce: sync.Once{},
 	}, nil
 }
 
@@ -167,13 +167,13 @@ func (inst *instance) Start() error {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
-	log.Logger.Debugw("getting devices from device library")
+	log.Logger.Infow("getting devices from device library")
 	devices, err := inst.deviceLib.GetDevices()
 	if err != nil {
 		return err
 	}
 
-	inst.gpmMetricsSupported = true
+	//inst.gpmMetricsSupported = true
 
 	inst.devices = make(map[string]*DeviceInfo)
 	inst.devices2 = make(map[string]device.Device)
@@ -187,45 +187,45 @@ func (inst *instance) Start() error {
 		}
 
 		// TODO: this returns 0 for all GPUs...
-		log.Logger.Debugw("getting device minor number")
+		log.Logger.Infow("getting device minor number")
 		minorNumber, ret := d.GetMinorNumber()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device minor number: %v", nvml.ErrorString(ret))
 		}
 
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g8789a616b502a78a1013c45cbb86e1bd
-		log.Logger.Debugw("getting device pci info")
+		log.Logger.Infow("getting device pci info")
 		pciInfo, ret := d.GetPciInfo()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device PCI info: %v", nvml.ErrorString(ret))
 		}
 
-		log.Logger.Debugw("getting device name")
+		log.Logger.Infow("getting device name")
 		name, ret := d.GetName()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 		}
 
-		log.Logger.Debugw("getting device cores")
+		log.Logger.Infow("getting device cores")
 		cores, ret := d.GetNumGpuCores()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device cores: %v", nvml.ErrorString(ret))
 		}
 
-		log.Logger.Debugw("getting supported event types")
+		log.Logger.Infow("getting supported event types")
 		supportedEvents, ret := d.GetSupportedEventTypes()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get supported event types: %v", nvml.ErrorString(ret))
 		}
 
-		log.Logger.Debugw("checking if gpm metrics are supported")
-		gpmMetricsSpported, err := GPMSupportedByDevice(d)
-		if err != nil {
-			return err
-		}
-		if !gpmMetricsSpported {
-			inst.gpmMetricsSupported = false
-		}
+		log.Logger.Infow("checking if gpm metrics are supported")
+		//gpmMetricsSpported, err := GPMSupportedByDevice(d)
+		//if err != nil {
+		//	return err
+		//}
+		//if !gpmMetricsSpported {
+		//	inst.gpmMetricsSupported = false
+		//}
 
 		inst.devices[uuid] = &DeviceInfo{
 			UUID: uuid,
@@ -239,19 +239,19 @@ func (inst *instance) Start() error {
 
 			SupportedEvents: supportedEvents,
 
-			GPMMetricsSupported: gpmMetricsSpported,
+			//GPMMetricsSupported: gpmMetricsSpported,
 		}
 		inst.devices2[uuid] = d
 	}
 
-	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
-		go inst.pollGPMEvents()
-	} else {
-		inst.gpmEventChCloseOnce.Do(func() {
-			log.Logger.Warnw("gpm metrics not supported")
-			close(inst.gpmEventCh)
-		})
-	}
+	//if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
+	//	go inst.pollGPMEvents()
+	//} else {
+	//	inst.gpmEventChCloseOnce.Do(func() {
+	//		log.Logger.Warnw("gpm metrics not supported")
+	//		close(inst.gpmEventCh)
+	//	})
+	//}
 
 	return nil
 }
@@ -278,7 +278,7 @@ func (inst *instance) Shutdown() error {
 		return nil
 	}
 
-	log.Logger.Debugw("shutting down NVML")
+	log.Logger.Infow("shutting down NVML")
 	inst.rootCancel()
 
 	//ret := inst.nvmlLib.Shutdown()
@@ -335,7 +335,7 @@ func (inst *instance) Get() (*Output, error) {
 			log.Logger.Warnw("device not found", "uuid", devInfo.UUID)
 			continue
 		}
-		log.Logger.Debugw("found device info", "uuid", devInfo.UUID)
+		log.Logger.Infow("found device info", "uuid", devInfo.UUID)
 
 		var err error
 		//latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, dev)
@@ -500,19 +500,19 @@ type DeviceInfo struct {
 	// Set true if the device supports GPM metrics.
 	GPMMetricsSupported bool `json:"gpm_metrics_supported"`
 
-	GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
-	PersistenceMode PersistenceMode `json:"persistence_mode"`
-	ClockEvents     *ClockEvents    `json:"clock_events,omitempty"`
-	ClockSpeed      ClockSpeed      `json:"clock_speed"`
-	Memory          Memory          `json:"memory"`
-	NVLink          NVLink          `json:"nvlink"`
-	Power           Power           `json:"power"`
-	Temperature     Temperature     `json:"temperature"`
-	Utilization     Utilization     `json:"utilization"`
-	Processes       Processes       `json:"processes"`
-	ECCMode         ECCMode         `json:"ecc_mode"`
-	ECCErrors       ECCErrors       `json:"ecc_errors"`
-	RemappedRows    RemappedRows    `json:"remapped_rows"`
+	//GSPFirmwareMode GSPFirmwareMode `json:"gsp_firmware_mode"`
+	//PersistenceMode PersistenceMode `json:"persistence_mode"`
+	//ClockEvents *ClockEvents `json:"clock_events,omitempty"`
+	//ClockSpeed  ClockSpeed   `json:"clock_speed"`
+	//Memory      Memory       `json:"memory"`
+	NVLink NVLink `json:"nvlink"`
+	//Power           Power           `json:"power"`
+	//Temperature     Temperature     `json:"temperature"`
+	//Utilization     Utilization     `json:"utilization"`
+	//Processes       Processes       `json:"processes"`
+	//ECCMode   ECCMode   `json:"ecc_mode"`
+	//ECCErrors ECCErrors `json:"ecc_errors"`
+	//RemappedRows    RemappedRows    `json:"remapped_rows"`
 }
 
 func GetDriverVersion() (string, error) {
@@ -682,7 +682,7 @@ func StartDefaultInstance(rootCtx context.Context, opts ...OpOption) error {
 		return nil
 	}
 
-	log.Logger.Debugw("creating a new default nvml instance")
+	log.Logger.Infow("creating a new default nvml instance")
 
 	var err error
 	defaultInstance, err = NewInstance(rootCtx, opts...)

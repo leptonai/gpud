@@ -17,7 +17,7 @@ type InstanceV2 interface {
 	Library() nvml_lib.Library
 	Devices() map[string]device.Device
 	ProductName() string
-	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
+	//GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
 	Shutdown() error
 }
 
@@ -82,7 +82,7 @@ func NewInstanceV2() (InstanceV2, error) {
 			dm[uuid] = dev
 		}
 	}
-	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
+	//memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instanceV2{
 		nvmlLib:       nvmlLib,
@@ -93,7 +93,7 @@ func NewInstanceV2() (InstanceV2, error) {
 		cudaVersion:   cudaVersion,
 		devices:       dm,
 		productName:   productName,
-		memMgmtCaps:   memMgmtCaps,
+		//memMgmtCaps:   memMgmtCaps,
 	}, nil
 }
 
@@ -110,7 +110,7 @@ type instanceV2 struct {
 	devices map[string]device.Device
 
 	productName string
-	memMgmtCaps MemoryErrorManagementCapabilities
+	//memMgmtCaps MemoryErrorManagementCapabilities
 }
 
 func (inst *instanceV2) NVMLExists() bool {
@@ -129,9 +129,9 @@ func (inst *instanceV2) ProductName() string {
 	return inst.productName
 }
 
-func (inst *instanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
-	return inst.memMgmtCaps
-}
+//func (inst *instanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
+//	return inst.memMgmtCaps
+//}
 
 func (inst *instanceV2) Shutdown() error {
 	ret := inst.nvmlLib.Shutdown()

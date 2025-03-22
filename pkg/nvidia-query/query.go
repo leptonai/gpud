@@ -265,129 +265,130 @@ const (
 	warningSign = "\033[33m⚠️\033[0m"
 )
 
-func (o *Output) PrintInfo(opts ...OpOption) {
-	options := &Op{}
-	if err := options.applyOpts(opts); err != nil {
-		log.Logger.Warnw("failed to apply options", "error", err)
-	}
-
-	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
-	fmt.Printf("%s GPU count '%d'\n", checkMark, o.GPUCountFromNVML())
-	fmt.Printf("%s GPU product name '%s'\n", checkMark, o.GPUProductNameFromNVML())
-
-	if len(o.BadEnvVarsForCUDA) > 0 {
-		for k, v := range o.BadEnvVarsForCUDA {
-			fmt.Printf("%s bad cuda env var: %s=%s\n", wrongSign, k, v)
-		}
-	} else {
-		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
-	}
-
-	if len(o.LsmodPeermemErrors) > 0 {
-		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", wrongSign, len(o.LsmodPeermemErrors))
-		for _, err := range o.LsmodPeermemErrors {
-			fmt.Println(err)
-		}
-	} else {
-		fmt.Printf("%s successfully checked lsmod peermem\n", checkMark)
-	}
-
-	if len(o.NVMLErrors) > 0 {
-		fmt.Printf("%s Check failed with %d error(s)\n", wrongSign, len(o.NVMLErrors))
-		for _, err := range o.NVMLErrors {
-			fmt.Println(err)
-		}
-	}
-
-	if o.NVML != nil {
-		fmt.Printf("%s driver version: %s\n", checkMark, o.NVML.DriverVersion)
-		fmt.Printf("%s CUDA version: %s\n", checkMark, o.NVML.CUDAVersion)
-
-		if len(o.NVML.DeviceInfos) > 0 {
-			fmt.Printf("%s name: %s\n", checkMark, o.NVML.DeviceInfos[0].Name)
-		}
-
-		for _, dev := range o.NVML.DeviceInfos {
-			fmt.Printf("\n\n##################\n %s\n\n", dev.UUID)
-
-			if dev.GSPFirmwareMode.Enabled {
-				fmt.Printf("%s GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
-			} else {
-				fmt.Printf("%s GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
-			}
-
-			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
-			if dev.PersistenceMode.Enabled {
-				fmt.Printf("%s Persistence mode is enabled\n", checkMark)
-			} else {
-				fmt.Printf("%s Persistence mode is disabled\n", wrongSign)
-			}
-
-			if dev.ClockEvents != nil {
-				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
-					fmt.Printf("%s Found hw slowdown error(s)\n", wrongSign)
-					yb, err := dev.ClockEvents.YAML()
-					if err != nil {
-						log.Logger.Warnw("failed to marshal clock events", "error", err)
-					} else {
-						fmt.Printf("clock events:\n%s\n\n", string(yb))
-					}
-				} else {
-					fmt.Printf("%s Found no hw slowdown error\n", checkMark)
-				}
-			}
-
-			if dev.RemappedRows.Supported {
-				fmt.Printf("%s Remapped rows supported\n", checkMark)
-				if dev.RemappedRows.RequiresReset() {
-					fmt.Printf("%s Found that the GPU needs a reset\n", wrongSign)
-				}
-				if dev.RemappedRows.QualifiesForRMA() {
-					fmt.Printf("%s Found that the GPU qualifies for RMA\n", wrongSign)
-				}
-			} else {
-				fmt.Printf("%s Remapped rows are not supported\n", wrongSign)
-			}
-
-			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
-			if len(uncorrectedErrs) > 0 {
-				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", wrongSign, len(uncorrectedErrs))
-				yb, err := dev.ECCErrors.YAML()
-				if err != nil {
-					log.Logger.Warnw("failed to marshal ecc errors", "error", err)
-				} else {
-					fmt.Printf("ecc errors:\n%s\n\n", string(yb))
-				}
-			} else {
-				fmt.Printf("%s Found no ecc volatile uncorrected error\n", checkMark)
-			}
-
-			if len(dev.Processes.RunningProcesses) > 0 {
-				fmt.Printf("%s Found %d running process\n", checkMark, len(dev.Processes.RunningProcesses))
-				yb, err := dev.Processes.YAML()
-				if err != nil {
-					log.Logger.Warnw("failed to marshal processes", "error", err)
-				} else {
-					fmt.Printf("\n%s\n\n", string(yb))
-				}
-			} else {
-				fmt.Printf("%s Found no running process\n", checkMark)
-			}
-		}
-	}
-
-	if options.debug {
-		copied := *o
-		yb, err := copied.YAML()
-		if err != nil {
-			log.Logger.Warnw("failed to marshal output", "error", err)
-		} else {
-			fmt.Printf("\n\n##################\nfull nvidia query output\n\n")
-			fmt.Println(string(yb))
-		}
-	}
-}
-
+//
+//func (o *Output) PrintInfo(opts ...OpOption) {
+//	options := &Op{}
+//	if err := options.applyOpts(opts); err != nil {
+//		log.Logger.Warnw("failed to apply options", "error", err)
+//	}
+//
+//	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
+//	fmt.Printf("%s GPU count '%d'\n", checkMark, o.GPUCountFromNVML())
+//	fmt.Printf("%s GPU product name '%s'\n", checkMark, o.GPUProductNameFromNVML())
+//
+//	if len(o.BadEnvVarsForCUDA) > 0 {
+//		for k, v := range o.BadEnvVarsForCUDA {
+//			fmt.Printf("%s bad cuda env var: %s=%s\n", wrongSign, k, v)
+//		}
+//	} else {
+//		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
+//	}
+//
+//	if len(o.LsmodPeermemErrors) > 0 {
+//		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", wrongSign, len(o.LsmodPeermemErrors))
+//		for _, err := range o.LsmodPeermemErrors {
+//			fmt.Println(err)
+//		}
+//	} else {
+//		fmt.Printf("%s successfully checked lsmod peermem\n", checkMark)
+//	}
+//
+//	if len(o.NVMLErrors) > 0 {
+//		fmt.Printf("%s Check failed with %d error(s)\n", wrongSign, len(o.NVMLErrors))
+//		for _, err := range o.NVMLErrors {
+//			fmt.Println(err)
+//		}
+//	}
+//
+//	if o.NVML != nil {
+//		fmt.Printf("%s driver version: %s\n", checkMark, o.NVML.DriverVersion)
+//		fmt.Printf("%s CUDA version: %s\n", checkMark, o.NVML.CUDAVersion)
+//
+//		if len(o.NVML.DeviceInfos) > 0 {
+//			fmt.Printf("%s name: %s\n", checkMark, o.NVML.DeviceInfos[0].Name)
+//		}
+//
+//		for _, dev := range o.NVML.DeviceInfos {
+//			fmt.Printf("\n\n##################\n %s\n\n", dev.UUID)
+//
+//			if dev.GSPFirmwareMode.Enabled {
+//				fmt.Printf("%s GSP firmware mode is enabled (supported: %v)\n", checkMark, dev.GSPFirmwareMode.Supported)
+//			} else {
+//				fmt.Printf("%s GSP firmware mode is disabled (supported: %v)\n", warningSign, dev.GSPFirmwareMode.Supported)
+//			}
+//
+//			// ref. https://docs.nvidia.com/deploy/driver-persistence/index.html
+//			if dev.PersistenceMode.Enabled {
+//				fmt.Printf("%s Persistence mode is enabled\n", checkMark)
+//			} else {
+//				fmt.Printf("%s Persistence mode is disabled\n", wrongSign)
+//			}
+//
+//			if dev.ClockEvents != nil {
+//				if dev.ClockEvents.HWSlowdown || dev.ClockEvents.HWSlowdownThermal || dev.ClockEvents.HWSlowdownPowerBrake {
+//					fmt.Printf("%s Found hw slowdown error(s)\n", wrongSign)
+//					yb, err := dev.ClockEvents.YAML()
+//					if err != nil {
+//						log.Logger.Warnw("failed to marshal clock events", "error", err)
+//					} else {
+//						fmt.Printf("clock events:\n%s\n\n", string(yb))
+//					}
+//				} else {
+//					fmt.Printf("%s Found no hw slowdown error\n", checkMark)
+//				}
+//			}
+//
+//			if dev.RemappedRows.Supported {
+//				fmt.Printf("%s Remapped rows supported\n", checkMark)
+//				if dev.RemappedRows.RequiresReset() {
+//					fmt.Printf("%s Found that the GPU needs a reset\n", wrongSign)
+//				}
+//				if dev.RemappedRows.QualifiesForRMA() {
+//					fmt.Printf("%s Found that the GPU qualifies for RMA\n", wrongSign)
+//				}
+//			} else {
+//				fmt.Printf("%s Remapped rows are not supported\n", wrongSign)
+//			}
+//
+//			uncorrectedErrs := dev.ECCErrors.Volatile.FindUncorrectedErrs()
+//			if len(uncorrectedErrs) > 0 {
+//				fmt.Printf("%s found %d ecc volatile uncorrected error(s)\n", wrongSign, len(uncorrectedErrs))
+//				yb, err := dev.ECCErrors.YAML()
+//				if err != nil {
+//					log.Logger.Warnw("failed to marshal ecc errors", "error", err)
+//				} else {
+//					fmt.Printf("ecc errors:\n%s\n\n", string(yb))
+//				}
+//			} else {
+//				fmt.Printf("%s Found no ecc volatile uncorrected error\n", checkMark)
+//			}
+//
+//			if len(dev.Processes.RunningProcesses) > 0 {
+//				fmt.Printf("%s Found %d running process\n", checkMark, len(dev.Processes.RunningProcesses))
+//				yb, err := dev.Processes.YAML()
+//				if err != nil {
+//					log.Logger.Warnw("failed to marshal processes", "error", err)
+//				} else {
+//					fmt.Printf("\n%s\n\n", string(yb))
+//				}
+//			} else {
+//				fmt.Printf("%s Found no running process\n", checkMark)
+//			}
+//		}
+//	}
+//
+//	if options.debug {
+//		copied := *o
+//		yb, err := copied.YAML()
+//		if err != nil {
+//			log.Logger.Warnw("failed to marshal output", "error", err)
+//		} else {
+//			fmt.Printf("\n\n##################\nfull nvidia query output\n\n")
+//			fmt.Println(string(yb))
+//		}
+//	}
+//}
+//
 //
 //// setMetricsForDevice sets all metrics for a single device
 //func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
