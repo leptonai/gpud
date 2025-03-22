@@ -27,6 +27,12 @@ func fooo() {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	defer func() {
+		for _, v := range devices {
+			id, _ := v.GetUUID()
+			fmt.Println("found device", id)
+		}
+	}()
 	for {
 		for _, v := range devices {
 			id, _ := v.GetUUID()
