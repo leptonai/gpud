@@ -602,39 +602,39 @@ func ClockEventsSupportedVersion(major int) bool {
 }
 
 // Loads the product name of the NVIDIA GPU device.
-func LoadGPUDeviceName() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
-		return "", err
-	}
-	//defer func() {
-	//	_ = nvmlLib.Shutdown()
-	//}()
-
-	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
-	if !nvmlExists {
-		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
-	}
-
-	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
-	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
-	if err != nil {
-		return "", err
-	}
-
-	for _, d := range devices {
-		name, ret := d.GetName()
-		if ret != nvml.SUCCESS {
-			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
-		}
-		if name != "" {
-			return name, nil
-		}
-	}
-
-	return "", nil
-}
+//func LoadGPUDeviceName() (string, error) {
+//	nvmlLib := nvml_lib.NewDefault()
+//	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+//		return "", err
+//	}
+//	//defer func() {
+//	//	_ = nvmlLib.Shutdown()
+//	//}()
+//
+//	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
+//	if !nvmlExists {
+//		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
+//	}
+//
+//	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
+//	// "error getting device handle for index '6': Unknown Error"
+//	devices, err := nvmlLib.Device().GetDevices()
+//	if err != nil {
+//		return "", err
+//	}
+//
+//	for _, d := range devices {
+//		name, ret := d.GetName()
+//		if ret != nvml.SUCCESS {
+//			return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+//		}
+//		if name != "" {
+//			return name, nil
+//		}
+//	}
+//
+//	return "", nil
+//}
 
 var (
 	defaultInstanceMu sync.RWMutex
