@@ -1,29 +1,21 @@
 package main
 
 import (
-	"fmt"
-	"runtime"
-	"sync"
+	"context"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/uptime"
+	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	query_config "github.com/leptonai/gpud/pkg/query/config"
 )
 
 func main() {
-	var wg sync.WaitGroup
-	wg.Add(runtime.NumCPU())
-	for range runtime.NumCPU() {
-		go func() {
-			defer wg.Done()
-			for {
-				val, err := uptime.GetCurrentProcessStartTimeInUnixTime()
-				if err != nil {
-					panic(err)
-				}
-				fmt.Println(val)
-				time.Sleep(1 * time.Second)
-			}
-		}()
+	defaultQueryCfg := query_config.Config{
+		State: &query_config.State{},
 	}
-	wg.Wait()
+	defaultQueryCfg.SetDefaultsIfNotSet()
+	nvidia_query.SetDefaultPoller()
+	nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
+	for {
+		time.Sleep(1 * time.Second)
+	}
 }
