@@ -140,6 +140,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
 
+		nvmlLib: nvmlLib,
+
 		hwSlowdownEventBucket: op.hwSlowdownEventBucket,
 
 		clockEventsSupported: clockEventsSupported,

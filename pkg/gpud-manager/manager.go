@@ -21,7 +21,7 @@ func New() (*Manager, error) {
 func (a *Manager) Start(ctx context.Context) {
 	watcher := informer.NewFileInformer()
 	packageController := controllers.NewPackageController(watcher)
-	_ = packageController.Run(ctx)
+	//_ = packageController.Run(ctx)
 	a.packageController = packageController
 	GlobalController = packageController
 }
