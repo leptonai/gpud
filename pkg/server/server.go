@@ -824,12 +824,12 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			s.nvidiaComponentsExist = true
 		}
 
-		//// this guarantees no name conflict, thus safe to register handlers by its name
-		//if err := components.RegisterComponent(c.Name(), c); err != nil {
-		//	log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-		//	continue
-		//}
-		//
+		// this guarantees no name conflict, thus safe to register handlers by its name
+		if err := components.RegisterComponent(c.Name(), c); err != nil {
+			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
+			continue
+		}
+
 		//if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
 		//	if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
 		//		log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
