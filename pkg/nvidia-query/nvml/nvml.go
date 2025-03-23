@@ -508,10 +508,6 @@ func GetDriverVersion() (string, error) {
 	if installed, err := initAndCheckNVMLSupported(nvmlLib); !installed || err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
 	return getDriverVersion()
 }
 
@@ -585,9 +581,6 @@ func LoadGPUDeviceName() (string, error) {
 	if installed, err := initAndCheckNVMLSupported(nvmlLib); !installed || err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
 
 	if !nvmlLib.HasNVML() {
 		return "", fmt.Errorf("NVML not found")
