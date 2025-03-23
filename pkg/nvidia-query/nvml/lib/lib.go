@@ -17,24 +17,19 @@ var initOnce sync.Once
 var shutdownOnce sync.Once
 
 type Library interface {
-	NVML() nvml.Interface
+	Init() nvml.Return
+	Shutdown() nvml.Return
 	GetDevices() ([]nvml.Device, error)
 	HasNVML() bool
-	Shutdown() nvml.Return
 }
 
 var _ Library = &nvmlInterface{}
 
 type nvmlInterface struct {
-	nvml.Interface
 	getDeviceCount                         func() (int, nvml.Return)
 	getDeviceByIndex                       func(int) (nvml.Device, nvml.Return)
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
-}
-
-func (n *nvmlInterface) NVML() nvml.Interface {
-	return n
 }
 
 func (n *nvmlInterface) GetDevices() ([]nvml.Device, error) {

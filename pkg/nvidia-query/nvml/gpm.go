@@ -19,7 +19,7 @@ import (
 // Returns false if any device does not support GPM.
 func GPMSupported() (bool, error) {
 	nvmlLib := nvml_lib.NewDefault()
-	if ret := nvmlLib.NVML().Init(); ret != nvml.SUCCESS {
+	if ret := nvmlLib.Init(); ret != nvml.SUCCESS {
 		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 	}
 	log.Logger.Debugw("successfully initialized NVML")

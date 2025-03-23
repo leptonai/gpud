@@ -35,7 +35,7 @@ type instance struct {
 	nvmlExists    bool
 	nvmlExistsMsg string
 
-	nvmlLib       nvml.Interface
+	nvmlLib       nvml_lib.Library
 	deviceCount   int
 	deviceHandles []nvml.Device
 	devices       map[string]*DeviceInfo // maps from uuid to device info
@@ -78,12 +78,12 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	}
 
 	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	if installed, err := initAndCheckNVMLSupported(nvmlLib); !installed || err != nil {
 		return nil, err
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	driverVersion, err := getDriverVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		log.Logger.Warnw("old nvidia driver -- skipping clock events, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 	}
 
-	cudaVersion, err := getCUDAVersion(nvmlLib.NVML())
+	cudaVersion, err := getCUDAVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -134,8 +134,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		driverVersion: driverVersion,
 		cudaVersion:   cudaVersion,
-
-		nvmlLib:       nvmlLib.NVML(),
 		deviceCount:   deviceCount,
 		deviceHandles: deviceHandles,
 
@@ -438,7 +436,7 @@ func (inst *instance) Get() (*Output, error) {
 	return st, joinedErr
 }
 
-func initAndCheckNVMLSupported(nvmlLib nvml.Interface) (bool, error) {
+func initAndCheckNVMLSupported(nvmlLib nvml_lib.Library) (bool, error) {
 	log.Logger.Infow("initializing nvml library")
 	ret := nvmlLib.Init()
 	if ret == nvml.SUCCESS {
@@ -507,18 +505,18 @@ type DeviceInfo struct {
 
 func GetDriverVersion() (string, error) {
 	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	if installed, err := initAndCheckNVMLSupported(nvmlLib); !installed || err != nil {
 		return "", err
 	}
 	defer func() {
 		_ = nvmlLib.Shutdown()
 	}()
 
-	return getDriverVersion(nvmlLib.NVML())
+	return getDriverVersion()
 }
 
-func getDriverVersion(nvmlLib nvml.Interface) (string, error) {
-	ver, ret := nvmlLib.SystemGetDriverVersion()
+func getDriverVersion() (string, error) {
+	ver, ret := nvml.SystemGetDriverVersion()
 	if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
 	}
@@ -557,21 +555,9 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 	return major, minor, patch, nil
 }
 
-func GetCUDAVersion() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
-	return getCUDAVersion(nvmlLib.NVML())
-}
-
-func getCUDAVersion(nvmlLib nvml.Interface) (string, error) {
+func getCUDAVersion() (string, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlSystemQueries.html#group__nvmlSystemQueries_1g1d12b603a42805ee7e4160557ffc2128
-	ver, ret := nvmlLib.SystemGetCudaDriverVersion_v2()
+	ver, ret := nvml.SystemGetCudaDriverVersion_v2()
 	if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))
 	}
@@ -596,7 +582,7 @@ func ClockEventsSupportedVersion(major int) bool {
 // Loads the product name of the NVIDIA GPU device.
 func LoadGPUDeviceName() (string, error) {
 	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	if installed, err := initAndCheckNVMLSupported(nvmlLib); !installed || err != nil {
 		return "", err
 	}
 	defer func() {

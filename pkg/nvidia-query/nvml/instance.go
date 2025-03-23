@@ -24,7 +24,7 @@ var ErrNVMLNotInstalled = fmt.Errorf("nvml not installed")
 // If NVML is not installed, it returns `ErrNVMLNotInstalled`.
 func NewInstanceV2() (InstanceV2, error) {
 	nvmlLib := nvml_lib.NewDefault()
-	installed, err := initAndCheckNVMLSupported(nvmlLib.NVML())
+	installed, err := initAndCheckNVMLSupported(nvmlLib)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func NewInstanceV2() (InstanceV2, error) {
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	driverVersion, err := getDriverVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func NewInstanceV2() (InstanceV2, error) {
 		return nil, err
 	}
 
-	cudaVersion, err := getCUDAVersion(nvmlLib.NVML())
+	cudaVersion, err := getCUDAVersion()
 	if err != nil {
 		return nil, err
 	}
