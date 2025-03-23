@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,7 +39,6 @@ type instance struct {
 	deviceCount   int
 	deviceHandles []nvml.Device
 	devices       map[string]*DeviceInfo // maps from uuid to device info
-	infoLib       nvinfo.Interface
 
 	// writable database instance
 	dbRW *sql.DB
@@ -120,9 +118,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	}
 
 	log.Logger.Infow("checking if nvml exists from info library")
-	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
-	if !nvmlExists {
-		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
+	if !nvmlLib.HasNVML() {
+		log.Logger.Warnw("nvml not found")
 	}
 
 	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
@@ -141,11 +138,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		nvmlLib:       nvmlLib.NVML(),
 		deviceCount:   deviceCount,
 		deviceHandles: deviceHandles,
-
-		infoLib: nvmlLib.Info(),
-
-		nvmlExists:    nvmlExists,
-		nvmlExistsMsg: nvmlExistsMsg,
 
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
@@ -611,9 +603,8 @@ func LoadGPUDeviceName() (string, error) {
 		_ = nvmlLib.Shutdown()
 	}()
 
-	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
-	if !nvmlExists {
-		return "", fmt.Errorf("NVML not found: %s", nvmlExistsMsg)
+	if !nvmlLib.HasNVML() {
+		return "", fmt.Errorf("NVML not found")
 	}
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:

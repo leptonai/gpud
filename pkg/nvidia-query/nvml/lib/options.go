@@ -1,18 +1,14 @@
 package lib
 
 import (
-	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 type Op struct {
-	nvmlLib nvml.Interface
-
 	getDeviceCount   func() (int, nvml.Return)
 	getDeviceByIndex func(int) (nvml.Device, nvml.Return)
 
-	initReturn        *nvml.Return
-	propertyExtractor nvinfo.PropertyExtractor
+	initReturn *nvml.Return
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g055e7c34f7f15b6ae9aac1dabd60870d
 	devGetRemappedRowsForAllDevs func() (corrRows int, uncRows int, isPending bool, failureOccurred bool, ret nvml.Return)
@@ -27,22 +23,11 @@ func (op *Op) applyOpts(opts []OpOption) {
 	for _, opt := range opts {
 		opt(op)
 	}
-	if op.nvmlLib == nil {
-		op.nvmlLib = nvml.New()
-	}
 	if op.getDeviceCount == nil {
-		op.getDeviceCount = op.nvmlLib.DeviceGetCount
+		op.getDeviceCount = nvml.DeviceGetCount
 	}
 	if op.getDeviceByIndex == nil {
-		op.getDeviceByIndex = op.nvmlLib.DeviceGetHandleByIndex
-	}
-}
-
-// Specifies the NVML library instance.
-// Otherwise, defaults to the NVML library instance returned by nvml.New().
-func WithNVML(nvmlLib nvml.Interface) OpOption {
-	return func(op *Op) {
-		op.nvmlLib = nvmlLib
+		op.getDeviceByIndex = nvml.DeviceGetHandleByIndex
 	}
 }
 
@@ -67,13 +52,6 @@ func WithGetDeviceByIndex(f func(int) (nvml.Device, nvml.Return)) OpOption {
 func WithInitReturn(initReturn nvml.Return) OpOption {
 	return func(op *Op) {
 		op.initReturn = &initReturn
-	}
-}
-
-// Specifies the property extractor for the NVML library.
-func WithPropertyExtractor(propertyExtractor nvinfo.PropertyExtractor) OpOption {
-	return func(op *Op) {
-		op.propertyExtractor = propertyExtractor
 	}
 }
 

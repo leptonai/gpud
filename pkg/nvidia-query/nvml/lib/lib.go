@@ -4,32 +4,31 @@ package lib
 
 import (
 	"fmt"
+	"sync"
 
-	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
+
+var theInterface Library
+var initResult nvml.Return
+var shutdownResult nvml.Return
+var once sync.Once
+var initOnce sync.Once
+var shutdownOnce sync.Once
 
 type Library interface {
 	NVML() nvml.Interface
 	GetDevices() ([]nvml.Device, error)
-	Info() nvinfo.Interface
+	HasNVML() bool
 	Shutdown() nvml.Return
 }
 
 var _ Library = &nvmlInterface{}
-var _ nvml.Interface = &nvmlInterface{}
 
 type nvmlInterface struct {
 	nvml.Interface
-
-	getDeviceCount   func() (int, nvml.Return)
-	getDeviceByIndex func(int) (nvml.Device, nvml.Return)
-
-	info nvinfo.Interface
-
-	initReturn        *nvml.Return
-	propertyExtractor nvinfo.PropertyExtractor
-
+	getDeviceCount                         func() (int, nvml.Return)
+	getDeviceByIndex                       func(int) (nvml.Device, nvml.Return)
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
@@ -60,12 +59,8 @@ func (n *nvmlInterface) GetDevices() ([]nvml.Device, error) {
 	return devices, nil
 }
 
-func (n *nvmlInterface) Info() nvinfo.Interface {
-	return n.info
-}
-
-func (n *nvmlInterface) Shutdown() nvml.Return {
-	return n.Interface.Shutdown()
+func (n *nvmlInterface) HasNVML() bool {
+	return true
 }
 
 // New creates a new NVML instance and returns nil if NVML is not supported.
@@ -74,34 +69,27 @@ func New(opts ...OpOption) Library {
 	options.applyOpts(opts)
 
 	nvInterface := &nvmlInterface{
-		Interface: options.nvmlLib,
-
-		getDeviceCount:   options.getDeviceCount,
-		getDeviceByIndex: options.getDeviceByIndex,
-
-		initReturn:        options.initReturn,
-		propertyExtractor: options.propertyExtractor,
-
+		getDeviceCount:                         options.getDeviceCount,
+		getDeviceByIndex:                       options.getDeviceByIndex,
 		getRemappedRowsForAllDevs:              options.devGetRemappedRowsForAllDevs,
 		getCurrentClocksEventReasonsForAllDevs: options.devGetCurrentClocksEventReasonsForAllDevs,
 	}
-
-	infoOpts := []nvinfo.Option{
-		nvinfo.WithNvmlLib(nvInterface),
-	}
-	if nvInterface.propertyExtractor != nil {
-		infoOpts = append(infoOpts, nvinfo.WithPropertyExtractor(nvInterface.propertyExtractor))
-	}
-	nvInterface.info = nvinfo.New(infoOpts...)
 
 	return nvInterface
 }
 
 func (n *nvmlInterface) Init() nvml.Return {
-	if n.initReturn != nil {
-		return *n.initReturn
-	}
-	return n.Interface.Init()
+	initOnce.Do(func() {
+		initResult = nvml.Init()
+	})
+	return initResult
+}
+
+func (n *nvmlInterface) Shutdown() nvml.Return {
+	shutdownOnce.Do(func() {
+		shutdownResult = nvml.Shutdown()
+	})
+	return shutdownResult
 }
 
 var _ nvml.Device = &nvmlDevice{}

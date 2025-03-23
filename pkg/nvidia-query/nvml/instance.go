@@ -12,12 +12,10 @@ import (
 var _ InstanceV2 = &instanceV2{}
 
 type InstanceV2 interface {
-	NVMLExists() bool
 	Library() nvml_lib.Library
 	Devices() map[string]nvml.Device
 	ProductName() string
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
-	Shutdown() error
 }
 
 var ErrNVMLNotInstalled = fmt.Errorf("nvml not installed")
@@ -35,9 +33,8 @@ func NewInstanceV2() (InstanceV2, error) {
 	}
 
 	log.Logger.Infow("checking if nvml exists from info library")
-	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
-	if !nvmlExists {
-		return nil, fmt.Errorf("nvml not found: %s", nvmlExistsMsg)
+	if !nvmlLib.HasNVML() {
+		return nil, fmt.Errorf("nvml not found")
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
@@ -85,8 +82,6 @@ func NewInstanceV2() (InstanceV2, error) {
 
 	return &instanceV2{
 		nvmlLib:       nvmlLib,
-		nvmlExists:    nvmlExists,
-		nvmlExistsMsg: nvmlExistsMsg,
 		driverVersion: driverVersion,
 		driverMajor:   driverMajor,
 		cudaVersion:   cudaVersion,
@@ -99,9 +94,6 @@ func NewInstanceV2() (InstanceV2, error) {
 type instanceV2 struct {
 	nvmlLib nvml_lib.Library
 
-	nvmlExists    bool
-	nvmlExistsMsg string
-
 	driverVersion string
 	driverMajor   int
 	cudaVersion   string
@@ -110,10 +102,6 @@ type instanceV2 struct {
 
 	productName string
 	memMgmtCaps MemoryErrorManagementCapabilities
-}
-
-func (inst *instanceV2) NVMLExists() bool {
-	return inst.nvmlExists
 }
 
 func (inst *instanceV2) Library() nvml_lib.Library {
@@ -130,12 +118,4 @@ func (inst *instanceV2) ProductName() string {
 
 func (inst *instanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return inst.memMgmtCaps
-}
-
-func (inst *instanceV2) Shutdown() error {
-	ret := inst.nvmlLib.Shutdown()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to shutdown nvml library: %s", ret)
-	}
-	return nil
 }

@@ -954,14 +954,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	go s.updateToken(ctx, dbRW, uid, endpoint)
 
 	go func(nvmlInstance nvidia_query_nvml.InstanceV2) {
-		defer func() {
-			if nvmlInstance != nil {
-				if err := nvmlInstance.Shutdown(); err != nil {
-					log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-				}
-			}
-		}()
-
 		srv := &http.Server{
 			Addr:    config.Address,
 			Handler: router,
