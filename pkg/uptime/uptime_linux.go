@@ -16,24 +16,38 @@
 
 package uptime
 
-import "github.com/prometheus/procfs"
+import (
+	"sync"
+
+	"github.com/prometheus/procfs"
+)
+
+var gpudStartTime uint64
+var getStartTimeErr error
+var once sync.Once
 
 // Returns the current process start time in unix time.
 func GetCurrentProcessStartTimeInUnixTime() (uint64, error) {
-	proc, err := procfs.Self()
-	if err != nil {
-		return 0, err
-	}
+	once.Do(func() {
+		proc, err := procfs.Self()
+		if err != nil {
+			getStartTimeErr = err
+			return
+		}
 
-	stat, err := proc.Stat()
-	if err != nil {
-		return 0, err
-	}
+		stat, err := proc.Stat()
+		if err != nil {
+			getStartTimeErr = err
+			return
+		}
 
-	startTime, err := stat.StartTime()
-	if err != nil {
-		return 0, err
-	}
+		startTime, err := stat.StartTime()
+		if err != nil {
+			getStartTimeErr = err
+			return
+		}
 
-	return uint64(startTime), nil
+		gpudStartTime = uint64(startTime)
+	})
+	return gpudStartTime, getStartTimeErr
 }
