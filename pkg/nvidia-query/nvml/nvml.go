@@ -137,6 +137,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		deviceCount:   deviceCount,
 		deviceHandles: deviceHandles,
 
+		nvmlExists: true,
+
 		dbRW: op.dbRW,
 		dbRO: op.dbRO,
 
