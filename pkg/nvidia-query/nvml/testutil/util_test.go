@@ -79,15 +79,6 @@ func TestMockDevice(t *testing.T) {
 			assert.Equal(t, tt.uuid, uuid)
 			assert.Equal(t, nvml.SUCCESS, ret)
 
-			// Test MIG-related methods
-			migDevices, err := mockDevice.GetMigDevices()
-			assert.NoError(t, err)
-			assert.Empty(t, migDevices)
-
-			migProfiles, err := mockDevice.GetMigProfiles()
-			assert.NoError(t, err)
-			assert.Empty(t, migProfiles)
-
 			fabricAttached, err := mockDevice.IsFabricAttached()
 			assert.NoError(t, err)
 			assert.False(t, fabricAttached)
@@ -99,13 +90,6 @@ func TestMockDevice(t *testing.T) {
 			migEnabled, err := mockDevice.IsMigEnabled()
 			assert.NoError(t, err)
 			assert.False(t, migEnabled)
-
-			// Test visitor methods
-			err = mockDevice.VisitMigDevices(nil)
-			assert.NoError(t, err)
-
-			err = mockDevice.VisitMigProfiles(nil)
-			assert.NoError(t, err)
 		})
 	}
 }

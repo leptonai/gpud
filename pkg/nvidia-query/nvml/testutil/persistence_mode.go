@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
@@ -11,7 +10,7 @@ func CreatePersistenceModeDevice(
 	uuid string,
 	persistenceMode nvml.EnableState,
 	persistenceModeRet nvml.Return,
-) device.Device {
+) nvml.Device {
 	mockDevice := &mock.Device{
 		GetPersistenceModeFunc: func() (nvml.EnableState, nvml.Return) {
 			return persistenceMode, persistenceModeRet

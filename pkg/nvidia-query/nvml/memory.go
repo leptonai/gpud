@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
 )
@@ -35,7 +34,7 @@ func (mem Memory) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(mem.UsedPercent, 64)
 }
 
-func GetMemory(uuid string, dev device.Device) (Memory, error) {
+func GetMemory(uuid string, dev nvml.Device) (Memory, error) {
 	mem := Memory{
 		UUID:      uuid,
 		Supported: true,

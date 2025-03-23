@@ -10,7 +10,6 @@ import (
 	metrics_gpm "github.com/leptonai/gpud/pkg/nvidia-query/metrics/gpm"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -27,7 +26,7 @@ func GPMSupported() (bool, error) {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
+	devices, err := nvmlLib.GetDevices()
 	if err != nil {
 		return false, err
 	}
@@ -54,7 +53,7 @@ func (ev *GPMEvent) YAML() ([]byte, error) {
 	return yaml.Marshal(ev)
 }
 
-func GPMSupportedByDevice(dev device.Device) (bool, error) {
+func GPMSupportedByDevice(dev nvml.Device) (bool, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmFunctions.html#group__nvmlGpmFunctions_1gdfd08d875be65f0532201913da9b8890
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
 
@@ -199,7 +198,7 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 // It "SIGSEGV: segmentation violation" in cgo execution.
 // Returns nil if it's not supported.
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/examples/gpm-metrics/main.go
-func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
+func GetGPMMetrics(ctx context.Context, dev nvml.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
 	}

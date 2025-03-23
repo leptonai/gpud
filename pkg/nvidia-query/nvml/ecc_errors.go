@@ -6,7 +6,6 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"sigs.k8s.io/yaml"
 )
@@ -128,7 +127,7 @@ func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
 	return errs
 }
 
-func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+func GetECCErrors(uuid string, dev nvml.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
 	result := ECCErrors{
 		UUID:      uuid,
 		Aggregate: AllECCErrorCounts{},

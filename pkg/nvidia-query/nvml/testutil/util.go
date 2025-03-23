@@ -1,11 +1,11 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
 
-var _ device.Device = (*MockDevice)(nil)
+var _ nvml.Device = (*MockDevice)(nil)
 
 type MockDevice struct {
 	*mock.Device
@@ -38,14 +38,6 @@ func (d *MockDevice) GetCudaComputeCapabilityAsString() (string, error) {
 	return d.CudaComputeCapability, nil
 }
 
-func (d *MockDevice) GetMigDevices() ([]device.MigDevice, error) {
-	return nil, nil
-}
-
-func (d *MockDevice) GetMigProfiles() ([]device.MigProfile, error) {
-	return nil, nil
-}
-
 func (d *MockDevice) GetPCIBusID() (string, error) {
 	return d.PCIBusID, nil
 }
@@ -60,12 +52,4 @@ func (d *MockDevice) IsMigCapable() (bool, error) {
 
 func (d *MockDevice) IsMigEnabled() (bool, error) {
 	return false, nil
-}
-
-func (d *MockDevice) VisitMigDevices(func(j int, m device.MigDevice) error) error {
-	return nil
-}
-
-func (d *MockDevice) VisitMigProfiles(func(p device.MigProfile) error) error {
-	return nil
 }

@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,12 +36,11 @@ type instance struct {
 	nvmlExists    bool
 	nvmlExistsMsg string
 
-	nvmlLib   nvml.Interface
-	deviceLib device.Interface
-	infoLib   nvinfo.Interface
-
-	// maps from uuid to device info
-	devices map[string]*DeviceInfo
+	nvmlLib       nvml.Interface
+	deviceCount   int
+	deviceHandles []nvml.Device
+	devices       map[string]*DeviceInfo // maps from uuid to device info
+	infoLib       nvinfo.Interface
 
 	// writable database instance
 	dbRW *sql.DB
@@ -98,6 +96,18 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 
+	deviceCount, ret := nvmlLib.NVML().DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
+	}
+	deviceHandles := make([]nvml.Device, deviceCount)
+	for i := range deviceCount {
+		deviceHandles[i], ret = nvmlLib.NVML().DeviceGetHandleByIndex(i)
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get device handle: %v", nvml.ErrorString(ret))
+		}
+	}
+
 	log.Logger.Infow("checking if clock events are supported")
 	clockEventsSupported := ClockEventsSupportedVersion(major)
 	if !clockEventsSupported {
@@ -128,9 +138,11 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		driverVersion: driverVersion,
 		cudaVersion:   cudaVersion,
 
-		nvmlLib:   nvmlLib.NVML(),
-		deviceLib: nvmlLib.Device(),
-		infoLib:   nvmlLib.Info(),
+		nvmlLib:       nvmlLib.NVML(),
+		deviceCount:   deviceCount,
+		deviceHandles: deviceHandles,
+
+		infoLib: nvmlLib.Info(),
 
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
@@ -164,18 +176,8 @@ func (inst *instance) Start() error {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
-	// "error getting device handle for index '6': Unknown Error"
-	log.Logger.Debugw("getting devices from device library")
-	devices, err := inst.deviceLib.GetDevices()
-	if err != nil {
-		return err
-	}
-
-	inst.gpmMetricsSupported = true
-
 	inst.devices = make(map[string]*DeviceInfo)
-	for _, d := range devices {
+	for _, d := range inst.deviceHandles {
 		uuid, ret := d.GetUUID()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device uuid: %v", nvml.ErrorString(ret))
@@ -508,7 +510,7 @@ type DeviceInfo struct {
 	ECCErrors       ECCErrors       `json:"ecc_errors"`
 	RemappedRows    RemappedRows    `json:"remapped_rows"`
 
-	device device.Device `json:"-"`
+	device nvml.Device `json:"-"`
 }
 
 func GetDriverVersion() (string, error) {
@@ -616,7 +618,7 @@ func LoadGPUDeviceName() (string, error) {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
+	devices, err := nvmlLib.GetDevices()
 	if err != nil {
 		return "", err
 	}

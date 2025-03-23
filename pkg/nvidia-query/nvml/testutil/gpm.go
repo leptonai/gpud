@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
@@ -11,7 +10,7 @@ func CreateGPMSupportedDevice(
 	uuid string,
 	gpmDeviceSupport nvml.GpmSupport,
 	gpmDeviceSupportRet nvml.Return,
-) device.Device {
+) nvml.Device {
 	mockDevice := &mock.Device{
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return gpmDeviceSupport, gpmDeviceSupportRet
@@ -28,7 +27,7 @@ func CreateGPMSupportedDevice(
 func CreateGPMSampleDevice(
 	uuid string,
 	sampleGetRet nvml.Return,
-) device.Device {
+) nvml.Device {
 	mockDevice := &mock.Device{
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS

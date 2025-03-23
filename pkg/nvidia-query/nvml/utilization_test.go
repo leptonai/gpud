@@ -3,7 +3,6 @@ package nvml
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -161,7 +160,7 @@ func TestUtilizationWithCustomMockDevice(t *testing.T) {
 // TestGetUtilizationWithNilDevice tests the behavior of GetUtilization when passed a nil device.
 // This is a defensive test to ensure proper error handling in case of nil devices.
 func TestGetUtilizationWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice nvml.Device = nil
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device

@@ -1,13 +1,12 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
 
 // CreateClockSpeedDevice creates a new mock device specifically for clock speed testing
-func CreateClockSpeedDevice(graphicsClock uint32, graphicsClockRet nvml.Return, memClock uint32, memClockRet nvml.Return, uuid string) device.Device {
+func CreateClockSpeedDevice(graphicsClock uint32, graphicsClockRet nvml.Return, memClock uint32, memClockRet nvml.Return, uuid string) nvml.Device {
 	return &MockDevice{
 		Device: &mock.Device{
 			GetClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {

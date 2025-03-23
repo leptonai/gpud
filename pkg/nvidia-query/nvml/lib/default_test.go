@@ -22,32 +22,6 @@ func TestNewDefaultNoEnvVars(t *testing.T) {
 	// Verify the library instance is created with default options
 	assert.NotNil(t, lib)
 	assert.NotNil(t, lib.NVML())
-	assert.NotNil(t, lib.Device())
-}
-
-// TestNewDefaultMockAllSuccess tests the NewDefault function when EnvMockAllSuccess is set
-func TestNewDefaultMockAllSuccess(t *testing.T) {
-	// Clean up environment variables first
-	cleanupEnvVars()
-	defer cleanupEnvVars()
-
-	// Set the environment variable
-	os.Setenv(EnvMockAllSuccess, "true")
-
-	// Create a new library instance
-	lib := NewDefault()
-
-	// Verify the library instance is created with mock interface
-	assert.NotNil(t, lib)
-
-	// Test that NVML functions succeed
-	ret := lib.NVML().Init()
-	assert.Equal(t, nvml.SUCCESS, ret)
-
-	// Test that device functions are available and succeed
-	devices, err := lib.Device().GetDevices()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, devices)
 }
 
 // TestNewDefaultMultipleEnvVars tests the NewDefault function when multiple environment variables are set
@@ -72,7 +46,7 @@ func TestNewDefaultMultipleEnvVars(t *testing.T) {
 	assert.Equal(t, nvml.SUCCESS, ret)
 
 	// Get devices to test modified functions
-	devices, err := lib.Device().GetDevices()
+	devices, err := lib.GetDevices()
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
 

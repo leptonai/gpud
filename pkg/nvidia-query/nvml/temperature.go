@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -47,7 +46,7 @@ func (temp Temperature) GetUsedPercentGPUMax() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentGPUMax, 64)
 }
 
-func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
+func GetTemperature(uuid string, dev nvml.Device) (Temperature, error) {
 	temp := Temperature{
 		UUID: uuid,
 	}

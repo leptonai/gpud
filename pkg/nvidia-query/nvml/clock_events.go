@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -30,7 +29,7 @@ func ClockEventsSupported() (bool, error) {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
+	devices, err := nvmlLib.GetDevices()
 	if err != nil {
 		return false, err
 	}
@@ -55,7 +54,7 @@ func ClockEventsSupported() (bool, error) {
 }
 
 // Returns true if clock events is supported by this device.
-func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
+func ClockEventsSupportedByDevice(dev nvml.Device) (bool, error) {
 	// clock events are supported in versions 535 and above
 	// otherwise, CGO call just exits with
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
@@ -123,7 +122,7 @@ func (evs *ClockEvents) YAML() ([]byte, error) {
 	return yaml.Marshal(evs)
 }
 
-func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
+func GetClockEvents(uuid string, dev nvml.Device) (ClockEvents, error) {
 	clockEvents := ClockEvents{
 		Time:      metav1.Time{Time: time.Now().UTC()},
 		UUID:      uuid,

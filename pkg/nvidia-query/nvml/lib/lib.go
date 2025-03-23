@@ -3,14 +3,15 @@
 package lib
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"fmt"
+
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 type Library interface {
 	NVML() nvml.Interface
-	Device() device.Interface
+	GetDevices() ([]nvml.Device, error)
 	Info() nvinfo.Interface
 	Shutdown() nvml.Return
 }
@@ -21,19 +22,39 @@ var _ nvml.Interface = &nvmlInterface{}
 type nvmlInterface struct {
 	nvml.Interface
 
-	dev  *devInterface
 	info nvinfo.Interface
 
 	initReturn        *nvml.Return
 	propertyExtractor nvinfo.PropertyExtractor
+
+	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
+	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
 
 func (n *nvmlInterface) NVML() nvml.Interface {
 	return n
 }
 
-func (n *nvmlInterface) Device() device.Interface {
-	return n.dev
+func (n *nvmlInterface) GetDevices() ([]nvml.Device, error) {
+	count, ret := n.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get device count: %v", ret)
+	}
+
+	devices := make([]nvml.Device, count)
+	for i := range count {
+		dev, ret := n.DeviceGetHandleByIndex(i)
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get device handle by index: %v", ret)
+		}
+		devices[i] = &nvmlDevice{
+			Device:                                 dev,
+			getRemappedRowsForAllDevs:              n.getRemappedRowsForAllDevs,
+			getCurrentClocksEventReasonsForAllDevs: n.getCurrentClocksEventReasonsForAllDevs,
+		}
+	}
+
+	return devices, nil
 }
 
 func (n *nvmlInterface) Info() nvinfo.Interface {
@@ -54,19 +75,13 @@ func New(opts ...OpOption) Library {
 
 		initReturn:        options.initReturn,
 		propertyExtractor: options.propertyExtractor,
-	}
 
-	devLib := device.New(nvInterface.Interface)
-	nvInterface.dev = &devInterface{
-		Interface:                              devLib,
-		devices:                                options.devicesToReturn,
 		getRemappedRowsForAllDevs:              options.devGetRemappedRowsForAllDevs,
 		getCurrentClocksEventReasonsForAllDevs: options.devGetCurrentClocksEventReasonsForAllDevs,
 	}
 
 	infoOpts := []nvinfo.Option{
 		nvinfo.WithNvmlLib(nvInterface),
-		nvinfo.WithDeviceLib(nvInterface.dev),
 	}
 	if nvInterface.propertyExtractor != nil {
 		infoOpts = append(infoOpts, nvinfo.WithPropertyExtractor(nvInterface.propertyExtractor))
@@ -83,59 +98,26 @@ func (n *nvmlInterface) Init() nvml.Return {
 	return n.Interface.Init()
 }
 
-var _ device.Interface = &devInterface{}
+var _ nvml.Device = &nvmlDevice{}
 
-type devInterface struct {
-	device.Interface
-	devices                                []device.Device
+type nvmlDevice struct {
+	nvml.Device
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
 
-func (d *devInterface) GetDevices() ([]device.Device, error) {
-	devs := d.devices
-
-	var err error
-	if len(devs) == 0 {
-		devs, err = d.Interface.GetDevices()
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	updated := make([]device.Device, len(devs))
-	for i, dev := range devs {
-		updated[i] = &devDevInterface{
-			Device:                                 dev,
-			getRemappedRowsForAllDevs:              d.getRemappedRowsForAllDevs,
-			getCurrentClocksEventReasonsForAllDevs: d.getCurrentClocksEventReasonsForAllDevs,
-		}
-	}
-
-	return updated, nil
-}
-
-var _ device.Device = &devDevInterface{}
-
-type devDevInterface struct {
-	device.Device
-	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
-	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
-}
-
-func (d *devDevInterface) GetRemappedRows() (int, int, bool, bool, nvml.Return) {
+func (d *nvmlDevice) GetRemappedRows() (int, int, bool, bool, nvml.Return) {
 	// no injected remapped rows
-	// thus just passthrough to call the underlying device.Device.GetRemappedRows()
+	// thus just passthrough to call the underlying nvml.Device.GetRemappedRows()
 	if d.getRemappedRowsForAllDevs == nil {
 		return d.Device.GetRemappedRows()
 	}
 	return d.getRemappedRowsForAllDevs()
 }
 
-func (d *devDevInterface) GetCurrentClocksEventReasons() (uint64, nvml.Return) {
+func (d *nvmlDevice) GetCurrentClocksEventReasons() (uint64, nvml.Return) {
 	// no injected current clocks event reasons
-	// thus just passthrough to call the underlying device.Device.GetCurrentClocksEventReasons()
+	// thus just passthrough to call the underlying nvml.Device.GetCurrentClocksEventReasons()
 	if d.getCurrentClocksEventReasonsForAllDevs == nil {
 		return d.Device.GetCurrentClocksEventReasons()
 	}
