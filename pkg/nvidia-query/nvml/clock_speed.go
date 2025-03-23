@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -24,7 +23,7 @@ type ClockSpeed struct {
 	ClockMemorySupported bool `json:"clock_memory_supported"`
 }
 
-func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
+func GetClockSpeed(uuid string, dev nvml.Device) (ClockSpeed, error) {
 	clockSpeed := ClockSpeed{
 		UUID: uuid,
 	}

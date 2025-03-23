@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -27,7 +26,7 @@ func (power Power) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(power.UsedPercent, 64)
 }
 
-func GetPower(uuid string, dev device.Device) (Power, error) {
+func GetPower(uuid string, dev nvml.Device) (Power, error) {
 	power := Power{
 		UUID: uuid,
 	}

@@ -3,7 +3,6 @@ package nvml
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -319,7 +318,7 @@ func TestGetUsedPercentMethods(t *testing.T) {
 
 // TestGetTemperatureWithNilDevice tests the behavior of GetTemperature when passed a nil device.
 func TestGetTemperatureWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice nvml.Device = nil
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device

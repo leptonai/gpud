@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -29,7 +28,7 @@ type PersistenceMode struct {
 	Supported bool `json:"supported"`
 }
 
-func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error) {
+func GetPersistenceMode(uuid string, dev nvml.Device) (PersistenceMode, error) {
 	mode := PersistenceMode{
 		UUID:      uuid,
 		Supported: true,

@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -42,7 +41,7 @@ type RemappedRows struct {
 	Supported bool `json:"supported"`
 }
 
-func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
+func GetRemappedRows(uuid string, dev nvml.Device) (RemappedRows, error) {
 	remRws := RemappedRows{
 		UUID:      uuid,
 		Supported: true,

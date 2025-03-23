@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/process"
@@ -64,7 +63,7 @@ func (procs *Processes) YAML() ([]byte, error) {
 	return yaml.Marshal(procs)
 }
 
-func GetProcesses(uuid string, dev device.Device) (Processes, error) {
+func GetProcesses(uuid string, dev nvml.Device) (Processes, error) {
 	procs := Processes{
 		UUID:                                uuid,
 		GetComputeRunningProcessesSupported: true,

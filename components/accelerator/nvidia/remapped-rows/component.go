@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -35,7 +35,7 @@ type component struct {
 	eventBucket  eventstore.Bucket
 	gatherer     prometheus.Gatherer
 
-	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+	getRemappedRowsFunc func(uuid string, dev go_nvml.Device) (nvml.RemappedRows, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data

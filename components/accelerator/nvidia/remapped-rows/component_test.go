@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ import (
 type mockNVMLInstance struct {
 	productName                       string
 	memoryErrorManagementCapabilities nvml.MemoryErrorManagementCapabilities
-	devices                           map[string]device.Device
+	devices                           map[string]go_nvml.Device
 }
 
 func (m *mockNVMLInstance) Library() lib.Library {
@@ -44,7 +44,7 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErr
 	return m.memoryErrorManagementCapabilities
 }
 
-func (m *mockNVMLInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]go_nvml.Device {
 	return m.devices
 }
 
@@ -113,7 +113,7 @@ func createMockNVMLInstance() *mockNVMLInstance {
 		memoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		},
-		devices: make(map[string]device.Device),
+		devices: make(map[string]go_nvml.Device),
 	}
 }
 
@@ -397,7 +397,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 		memoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		},
-		devices: map[string]device.Device{
+		devices: map[string]go_nvml.Device{
 			"GPU1": nil, // We don't use the actual device in our test
 			"GPU2": nil,
 			"GPU3": nil,
@@ -416,7 +416,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Get the underlying component to modify getRemappedRowsFunc
 	c := comp.(*component)
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, dev go_nvml.Device) (nvml.RemappedRows, error) {
 		switch uuid {
 		case "GPU1":
 			// Healthy GPU - no events expected
@@ -513,7 +513,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 		memoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		},
-		devices: map[string]device.Device{
+		devices: map[string]go_nvml.Device{
 			"GPU1": nil,
 		},
 	}
@@ -531,7 +531,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	// Override getRemappedRowsFunc to return an error
 	c := comp.(*component)
 	expectedErr := errors.New("nvml error")
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, dev go_nvml.Device) (nvml.RemappedRows, error) {
 		return nvml.RemappedRows{}, expectedErr
 	}
 

@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func createECCErrorsDevice(
 	totalECCUncorrected uint64,
 	totalECCRet nvml.Return,
 	memoryErrorRet nvml.Return,
-) device.Device {
+) nvml.Device {
 	mockDevice := &mock.Device{
 		GetTotalEccErrorsFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType) (uint64, nvml.Return) {
 			if totalECCRet != nvml.SUCCESS {

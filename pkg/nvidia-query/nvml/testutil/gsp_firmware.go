@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
@@ -12,7 +11,7 @@ func CreateGSPFirmwareDevice(
 	gspEnabled bool,
 	gspSupported bool,
 	gspFirmwareRet nvml.Return,
-) device.Device {
+) nvml.Device {
 	mockDevice := &mock.Device{
 		GetGspFirmwareModeFunc: func() (bool, bool, nvml.Return) {
 			return gspEnabled, gspSupported, gspFirmwareRet

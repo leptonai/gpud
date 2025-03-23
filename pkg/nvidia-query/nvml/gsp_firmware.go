@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -16,7 +15,7 @@ type GSPFirmwareMode struct {
 	Supported bool   `json:"supported"`
 }
 
-func GetGSPFirmwareMode(uuid string, dev device.Device) (GSPFirmwareMode, error) {
+func GetGSPFirmwareMode(uuid string, dev nvml.Device) (GSPFirmwareMode, error) {
 	mode := GSPFirmwareMode{
 		UUID: uuid,
 	}

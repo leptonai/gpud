@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -22,7 +21,7 @@ type ECCMode struct {
 
 // Returns the current and pending ECC modes.
 // "pending" ECC mode refers to the target mode following the next reboot.
-func GetECCModeEnabled(uuid string, dev device.Device) (ECCMode, error) {
+func GetECCModeEnabled(uuid string, dev nvml.Device) (ECCMode, error) {
 	result := ECCMode{
 		UUID:      uuid,
 		Supported: true,

@@ -7,8 +7,6 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 // TestApplyOptsDefault tests the default behavior of applyOpts when no options are provided
@@ -69,30 +67,6 @@ func TestWithPropertyExtractor(t *testing.T) {
 	assert.Equal(t, mockExtractor, op.propertyExtractor, "propertyExtractor should be set to the provided mock")
 }
 
-// TestWithDevice tests that WithDevice correctly adds to the devicesToReturn slice
-func TestWithDevice(t *testing.T) {
-	// Create a mock Device using testutil
-	mockDevice := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "test-pci")
-
-	// Create an empty Op
-	op := &Op{}
-
-	// Apply the WithDevice option
-	op.applyOpts([]OpOption{WithDevice(mockDevice)})
-
-	// Verify that devicesToReturn contains our mock device
-	assert.Len(t, op.devicesToReturn, 1, "devicesToReturn should have one device")
-	assert.Equal(t, mockDevice, op.devicesToReturn[0], "devicesToReturn should contain the provided device")
-
-	// Add another device and verify both are present
-	mockDevice2 := testutil.NewMockDevice(&mock.Device{}, "test-arch2", "test-brand2", "test-cuda2", "test-pci2")
-	op.applyOpts([]OpOption{WithDevice(mockDevice2)})
-
-	assert.Len(t, op.devicesToReturn, 2, "devicesToReturn should have two devices")
-	assert.Equal(t, mockDevice, op.devicesToReturn[0], "First device should still be present")
-	assert.Equal(t, mockDevice2, op.devicesToReturn[1], "Second device should be added")
-}
-
 // TestWithDeviceGetRemappedRowsForAllDevs tests that WithDeviceGetRemappedRowsForAllDevs correctly sets the function
 func TestWithDeviceGetRemappedRowsForAllDevs(t *testing.T) {
 	// Create a test function
@@ -145,7 +119,6 @@ func TestMultipleOptions(t *testing.T) {
 	// Create mocks and test values
 	mockNVML := &mock.Interface{}
 	mockExtractor := &nvinfo.PropertyExtractorMock{}
-	mockDevice := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "test-pci")
 	testReturn := nvml.ERROR_UNKNOWN
 
 	// Create test functions
@@ -165,7 +138,6 @@ func TestMultipleOptions(t *testing.T) {
 		WithNVML(mockNVML),
 		WithInitReturn(testReturn),
 		WithPropertyExtractor(mockExtractor),
-		WithDevice(mockDevice),
 		WithDeviceGetRemappedRowsForAllDevs(remappedRowsFunc),
 		WithDeviceGetCurrentClocksEventReasonsForAllDevs(clockEventsFunc),
 	})
@@ -175,8 +147,6 @@ func TestMultipleOptions(t *testing.T) {
 	assert.NotNil(t, op.initReturn, "initReturn should not be nil")
 	assert.Equal(t, testReturn, *op.initReturn, "initReturn should be set correctly")
 	assert.Equal(t, mockExtractor, op.propertyExtractor, "propertyExtractor should be set correctly")
-	assert.Len(t, op.devicesToReturn, 1, "devicesToReturn should have one device")
-	assert.Equal(t, mockDevice, op.devicesToReturn[0], "devicesToReturn should contain the provided device")
 	assert.NotNil(t, op.devGetRemappedRowsForAllDevs, "devGetRemappedRowsForAllDevs should be set")
 	assert.NotNil(t, op.devGetCurrentClocksEventReasonsForAllDevs, "devGetCurrentClocksEventReasonsForAllDevs should be set")
 

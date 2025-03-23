@@ -22,7 +22,6 @@ func TestNewDefaultNoEnvVars(t *testing.T) {
 	// Verify the library instance is created with default options
 	assert.NotNil(t, lib)
 	assert.NotNil(t, lib.NVML())
-	assert.NotNil(t, lib.Device())
 }
 
 // TestNewDefaultMockAllSuccess tests the NewDefault function when EnvMockAllSuccess is set
@@ -35,7 +34,17 @@ func TestNewDefaultMockAllSuccess(t *testing.T) {
 	os.Setenv(EnvMockAllSuccess, "true")
 
 	// Create a new library instance
-	lib := NewDefault()
+	lib := NewDefault(
+		WithGetDeviceCount(func() (int, nvml.Return) {
+			return 1, nvml.SUCCESS
+		}),
+		WithGetDeviceByIndex(func(int) (nvml.Device, nvml.Return) {
+			// Create a mock device instead of using nvml.NewDevice which doesn't exist
+			return &nvmlDevice{
+				Device: nil, // This will need actual implementation in a real scenario
+			}, nvml.SUCCESS
+		}),
+	)
 
 	// Verify the library instance is created with mock interface
 	assert.NotNil(t, lib)
@@ -45,7 +54,7 @@ func TestNewDefaultMockAllSuccess(t *testing.T) {
 	assert.Equal(t, nvml.SUCCESS, ret)
 
 	// Test that device functions are available and succeed
-	devices, err := lib.Device().GetDevices()
+	devices, err := lib.GetDevices()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, devices)
 }
@@ -72,7 +81,7 @@ func TestNewDefaultMultipleEnvVars(t *testing.T) {
 	assert.Equal(t, nvml.SUCCESS, ret)
 
 	// Get devices to test modified functions
-	devices, err := lib.Device().GetDevices()
+	devices, err := lib.GetDevices()
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
 

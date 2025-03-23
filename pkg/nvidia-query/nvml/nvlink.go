@@ -5,7 +5,6 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -91,7 +90,7 @@ type NVLinkState struct {
 }
 
 // Queries the nvlink information.
-func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
+func GetNVLink(uuid string, dev nvml.Device) (NVLink, error) {
 	nvlink := NVLink{
 		UUID:      uuid,
 		Supported: true,

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -379,7 +378,7 @@ func TestClockEventsSupported(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock devices
-			mockDevices := make([]device.Device, len(tt.mockDevices))
+			mockDevices := make([]nvml.Device, len(tt.mockDevices))
 			for i, d := range tt.mockDevices {
 				mockDevices[i] = d
 			}

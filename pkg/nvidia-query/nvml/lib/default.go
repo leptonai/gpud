@@ -26,7 +26,7 @@ const (
 
 var clockEventsToInjectHwSlowdown = reasonHWSlowdown | reasonSwThermalSlowdown | reasonHWSlowdownThermal | reasonHWSlowdownPowerBrake
 
-func NewDefault() Library {
+func NewDefault(options ...OpOption) Library {
 	opts := []OpOption{}
 
 	if os.Getenv(EnvMockAllSuccess) == "true" {
@@ -54,5 +54,5 @@ func NewDefault() Library {
 		)
 	}
 
-	return New(opts...)
+	return New(append(opts, options...)...)
 }

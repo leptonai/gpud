@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -26,7 +25,7 @@ type Utilization struct {
 	Supported bool `json:"supported"`
 }
 
-func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
+func GetUtilization(uuid string, dev nvml.Device) (Utilization, error) {
 	util := Utilization{
 		UUID:      uuid,
 		Supported: true,

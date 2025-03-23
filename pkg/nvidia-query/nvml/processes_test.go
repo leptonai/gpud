@@ -3,13 +3,13 @@ package nvml
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetProcessesWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice nvml.Device = nil
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device

@@ -3,7 +3,6 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -15,7 +14,7 @@ var _ InstanceV2 = &instanceV2{}
 type InstanceV2 interface {
 	NVMLExists() bool
 	Library() nvml_lib.Library
-	Devices() map[string]device.Device
+	Devices() map[string]nvml.Device
 	ProductName() string
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
 	Shutdown() error
@@ -59,14 +58,14 @@ func NewInstanceV2() (InstanceV2, error) {
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
+	devices, err := nvmlLib.GetDevices()
 	if err != nil {
 		return nil, err
 	}
 	log.Logger.Infow("got devices from device library", "numDevices", len(devices))
 
 	productName := ""
-	dm := make(map[string]device.Device)
+	dm := make(map[string]nvml.Device)
 	if len(devices) > 0 {
 		name, ret := devices[0].GetName()
 		if ret != nvml.SUCCESS {
@@ -107,7 +106,7 @@ type instanceV2 struct {
 	driverMajor   int
 	cudaVersion   string
 
-	devices map[string]device.Device
+	devices map[string]nvml.Device
 
 	productName string
 	memMgmtCaps MemoryErrorManagementCapabilities
@@ -121,7 +120,7 @@ func (inst *instanceV2) Library() nvml_lib.Library {
 	return inst.nvmlLib
 }
 
-func (inst *instanceV2) Devices() map[string]device.Device {
+func (inst *instanceV2) Devices() map[string]nvml.Device {
 	return inst.devices
 }
 
