@@ -824,24 +824,24 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			s.nvidiaComponentsExist = true
 		}
 
-		// this guarantees no name conflict, thus safe to register handlers by its name
-		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-			continue
-		}
-
-		if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
-			if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
-				log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-				if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
-					return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
-				}
-			} else {
-				log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
-			}
-		} else {
-			log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
-		}
+		//// this guarantees no name conflict, thus safe to register handlers by its name
+		//if err := components.RegisterComponent(c.Name(), c); err != nil {
+		//	log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
+		//	continue
+		//}
+		//
+		//if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
+		//	if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
+		//		log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
+		//		if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
+		//			return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
+		//		}
+		//	} else {
+		//		log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
+		//	}
+		//} else {
+		//	log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
+		//}
 	}
 
 	for _, c := range allComponents {
