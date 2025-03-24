@@ -79,6 +79,9 @@ func CreateGet(opts ...OpOption) query.GetFunc {
 
 // Get all nvidia component queries.
 func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
+	return &Output{
+		Time: time.Now().UTC(),
+	}, nil
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
