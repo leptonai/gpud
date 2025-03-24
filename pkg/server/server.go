@@ -76,7 +76,6 @@ import (
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
-	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
@@ -707,21 +706,21 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
 
 		case network_latency_id.Name:
-			cfg := network_latency.Config{
-				Query:                      defaultQueryCfg,
-				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
-			}
-			if configValue != nil {
-				parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, network_latency.New(ctx, cfg))
+			//cfg := network_latency.Config{
+			//	Query:                      defaultQueryCfg,
+			//	GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
+			//}
+			//if configValue != nil {
+			//	parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
+			//	if err != nil {
+			//		return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+			//	}
+			//	cfg = *parsed
+			//}
+			//if err := cfg.Validate(); err != nil {
+			//	return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			//}
+			//allComponents = append(allComponents, network_latency.New(ctx, cfg))
 
 		default:
 			return nil, fmt.Errorf("unknown component %s", k)
@@ -831,18 +830,18 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			continue
 		}
 
-		if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
-			if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
-				log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-				if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
-					return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
-				}
-			} else {
-				log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
-			}
-		} else {
-			log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
-		}
+		//if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
+		//	if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
+		//		log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
+		//		if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
+		//			return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
+		//		}
+		//	} else {
+		//		log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
+		//	}
+		//} else {
+		//	log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
+		//}
 	}
 
 	for _, c := range allComponents {
