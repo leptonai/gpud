@@ -323,7 +323,7 @@ func (inst *instance) Get() (*Output, error) {
 
 			GPMMetricsSupported: devInfo.GPMMetricsSupported,
 
-			device: devInfo.device,
+			//device: devInfo.device,
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 

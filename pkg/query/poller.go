@@ -106,6 +106,8 @@ type poller struct {
 	cfg   query_config.Config
 
 	lastItemsMu sync.RWMutex
+	lastItem    Item
+	updated     bool
 	lastItems   []Item
 
 	inflightComponents map[string]any
@@ -261,15 +263,18 @@ func (pl *poller) processItem(item Item) {
 }
 
 func (pl *poller) insertItemToInMemoryQueue(item Item) {
-	queueN := pl.Config().QueueSize
+	//queueN := pl.Config().QueueSize
 
 	pl.lastItemsMu.Lock()
 	defer pl.lastItemsMu.Unlock()
 
-	if queueN > 0 && len(pl.lastItems) >= queueN {
-		pl.lastItems = pl.lastItems[1:]
-	}
-	pl.lastItems = append(pl.lastItems, item)
+	pl.lastItem = item
+	pl.updated = true
+
+	//if queueN > 0 && len(pl.lastItems) >= queueN {
+	//	pl.lastItems = pl.lastItems[1:]
+	//}
+	//pl.lastItems = append(pl.lastItems, item)
 }
 
 // Last returns the last item in the queue.
@@ -291,21 +296,28 @@ func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
-	if len(pl.lastItems) == 0 {
+	if !pl.updated {
 		return nil, ErrNoData
 	}
 
-	// reverse iterate
-	for i := len(pl.lastItems) - 1; i >= 0; i-- {
-		item := pl.lastItems[i]
-		if requireNoErr && item.Error != nil {
-			log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", item.Error)
-			continue
-		}
-		return &item, nil
+	if requireNoErr && pl.lastItem.Error != nil {
+		log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", pl.lastItem.Error)
+		return nil, ErrNoData
 	}
+	item := pl.lastItem
+	return &item, nil
 
-	return nil, ErrNoData
+	// reverse iterate
+	//for i := len(pl.lastItems) - 1; i >= 0; i-- {
+	//	item := pl.lastItems[i]
+	//	if requireNoErr && item.Error != nil {
+	//		log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", item.Error)
+	//		continue
+	//	}
+	//	return &item, nil
+	//}
+	//
+	//return nil, ErrNoData
 }
 
 // Returns the last known error in the queue.
@@ -322,19 +334,21 @@ func (pl *poller) readLastErr() error {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
-	if len(pl.lastItems) == 0 {
+	if !pl.updated {
 		return ErrNoData
 	}
 
-	// reverse iterate
-	for i := len(pl.lastItems) - 1; i >= 0; i-- {
-		item := pl.lastItems[i]
-		if item.Error != nil {
-			return item.Error
-		}
-	}
+	return pl.lastItem.Error
 
-	return nil
+	// reverse iterate
+	//for i := len(pl.lastItems) - 1; i >= 0; i-- {
+	//	item := pl.lastItems[i]
+	//	if item.Error != nil {
+	//		return item.Error
+	//	}
+	//}
+	//
+	//return nil
 }
 
 // All returns all results in the queue since the given time.
