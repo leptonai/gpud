@@ -112,16 +112,8 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read crc errors: %w", err)
 	}
-	rxBytes, err := nvidia_query_metrics_nvlink.ReadRxBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read rx bytes: %w", err)
-	}
-	txBytes, err := nvidia_query_metrics_nvlink.ReadTxBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read tx bytes: %w", err)
-	}
 
-	ms := make([]components.Metric, 0, len(featureEnableds)+len(replayErrors)+len(recoveryErrors)+len(crcErrors)+len(rxBytes)+len(txBytes))
+	ms := make([]components.Metric, 0, len(featureEnableds)+len(replayErrors)+len(recoveryErrors)+len(crcErrors))
 	for _, m := range featureEnableds {
 		ms = append(ms, components.Metric{
 			Metric: m,
@@ -147,22 +139,6 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 		})
 	}
 	for _, m := range crcErrors {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range rxBytes {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range txBytes {
 		ms = append(ms, components.Metric{
 			Metric: m,
 			ExtraInfo: map[string]string{

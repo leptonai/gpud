@@ -1,8 +1,6 @@
 package nvml
 
 import (
-	"encoding/binary"
-
 	"github.com/leptonai/gpud/pkg/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -51,22 +49,6 @@ func (s NVLinkStates) TotalCRCErrors() uint64 {
 	var total uint64
 	for _, state := range s {
 		total += state.CRCErrors
-	}
-	return total
-}
-
-func (s NVLinkStates) TotalThroughputRawTxBytes() uint64 {
-	var total uint64
-	for _, state := range s {
-		total += state.ThroughputRawTxBytes
-	}
-	return total
-}
-
-func (s NVLinkStates) TotalThroughputRawRxBytes() uint64 {
-	var total uint64
-	for _, state := range s {
-		total += state.ThroughputRawRxBytes
 	}
 	return total
 }
@@ -134,36 +116,6 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		crcErrors, ret := nvml.DeviceGetNvLinkErrorCounter(dev, link, nvml.NVLINK_ERROR_DL_CRC_FLIT)
 		if ret == nvml.SUCCESS {
 			nvlinkState.CRCErrors = crcErrors
-		}
-
-		// use nvmlDeviceGetFieldValues
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlFieldValueQueries.html#group__nvmlFieldValueQueries_1g0b02941a262ee4327eb82831f91a1bc0
-		values := []nvml.FieldValue{
-			{FieldId: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX}, // NVLink RX Data throughput + protocol overhead in KiB
-			{FieldId: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX}, // NVLink TX Data throughput + protocol overhead in KiB
-		}
-		ret = nvml.DeviceGetFieldValues(dev, values)
-		if ret == nvml.SUCCESS {
-			for _, value := range values {
-				if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX {
-					nvlinkState.ThroughputRawTxBytes = binary.NativeEndian.Uint64(value.Value[:]) * 1024 // convert KiB to bytes
-				}
-				if value.FieldId == nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX {
-					nvlinkState.ThroughputRawRxBytes = binary.NativeEndian.Uint64(value.Value[:]) * 1024 // convert KiB to bytes
-				}
-			}
-		} else {
-			log.Logger.Warnw("failed to get nvlink utilization -- falling back to DeviceGetNvLinkUtilizationCounter", "link", link, "error", nvml.ErrorString(ret))
-
-			// DeviceGetNvLinkUtilizationCounter deprecated...
-			// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1gd623d8eaf212205fd282abbeb8f8c395
-			rawRxBytes, rawTxBytes, ret := nvml.DeviceGetNvLinkUtilizationCounter(dev, link, int(nvml.NVLINK_COUNTER_UNIT_BYTES))
-			if ret == nvml.SUCCESS {
-				nvlinkState.ThroughputRawTxBytes = rawTxBytes * 1024 // convert KiB to bytes
-				nvlinkState.ThroughputRawRxBytes = rawRxBytes * 1024 // convert KiB to bytes
-			} else {
-				log.Logger.Warnw("failed to get nvlink utilization -- failed DeviceGetNvLinkUtilizationCounter", "link", link, "error", nvml.ErrorString(ret))
-			}
 		}
 
 		// TODO
