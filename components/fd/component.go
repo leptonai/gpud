@@ -3,22 +3,19 @@ package fd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	components_metrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -52,13 +49,21 @@ type component struct {
 
 	logLineProcessor *dmesg.LogLineProcessor
 	eventBucket      eventstore.Bucket
-	gatherer         prometheus.Gatherer
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
 
 	lastMu   sync.RWMutex
 	lastData *Data
+
+	metricsMu                                        sync.RWMutex
+	allocatedFileHandlesMetricsStore                 components_metrics.Store
+	runningPIDsMetricsStore                          components_metrics.Store
+	limitMetricsStore                                components_metrics.Store
+	allocatedFileHandlesPercentMetricsStore          components_metrics.Store
+	usedPercentMetricsStore                          components_metrics.Store
+	thresholdUsedPercentMetricsStore                 components_metrics.Store
+	thresholdAllocatedFileHandlesPercentMetricsStore components_metrics.Store
 }
 
 func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
@@ -125,50 +130,6 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	allocatedFileHandles, err := metrics.ReadAllocatedFileHandles(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read allocated file handles: %w", err)
-	}
-	runningPIDs, err := metrics.ReadRunningPIDs(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read running pids: %w", err)
-	}
-	limits, err := metrics.ReadLimits(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read limits: %w", err)
-	}
-	allocatedPercents, err := metrics.ReadAllocatedFileHandlesPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read allocated percents: %w", err)
-	}
-	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(allocatedFileHandles)+len(runningPIDs)+len(limits)+len(allocatedPercents)+len(usedPercents))
-	for _, m := range allocatedFileHandles {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range runningPIDs {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range limits {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range allocatedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
@@ -183,13 +144,6 @@ func (c *component) Close() error {
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
-}
-
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
@@ -197,7 +151,7 @@ func (c *component) CheckOnce() {
 	d := Data{
 		ts: time.Now().UTC(),
 	}
-	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	c.setLastUpdateUnixSeconds(float64(d.ts.Unix()))
 	defer func() {
 		c.lastMu.Lock()
 		c.lastData = &d
@@ -212,7 +166,7 @@ func (c *component) CheckOnce() {
 	d.AllocatedFileHandles = allocatedFileHandles
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetAllocatedFileHandles(cctx, float64(allocatedFileHandles), d.ts)
+	err = c.setAllocatedFileHandles(cctx, float64(allocatedFileHandles), d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -227,7 +181,7 @@ func (c *component) CheckOnce() {
 	d.RunningPIDs = runningPIDs
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetRunningPIDs(cctx, float64(runningPIDs), d.ts)
+	err = c.setRunningPIDs(cctx, float64(runningPIDs), d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -252,7 +206,7 @@ func (c *component) CheckOnce() {
 	d.Limit = limit
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetLimit(cctx, float64(limit), d.ts)
+	err = c.setLimit(cctx, float64(limit), d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -263,7 +217,7 @@ func (c *component) CheckOnce() {
 	d.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetAllocatedFileHandlesPercent(cctx, allocatedFileHandlesPct, d.ts)
+	err = c.setAllocatedFileHandlesPercent(cctx, allocatedFileHandlesPct, d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -278,7 +232,7 @@ func (c *component) CheckOnce() {
 	d.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedPercent(cctx, usedPct, d.ts)
+	err = c.setUsedPercent(cctx, usedPct, d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -296,14 +250,14 @@ func (c *component) CheckOnce() {
 	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdAllocatedFileHandles(cctx, float64(c.thresholdAllocatedFileHandles))
+	err = c.setThresholdAllocatedFileHandles(cctx, float64(c.thresholdAllocatedFileHandles))
 	ccancel()
 	if err != nil {
 		d.err = err
 		return
 	}
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdAllocatedFileHandlesPercent(cctx, thresholdAllocatedFileHandlesPct, d.ts)
+	err = c.setThresholdAllocatedFileHandlesPercent(cctx, thresholdAllocatedFileHandlesPct, d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -321,7 +275,7 @@ func (c *component) CheckOnce() {
 	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdRunningPIDs(cctx, float64(c.thresholdRunningPIDs))
+	err = c.setThresholdRunningPIDs(cctx, float64(c.thresholdRunningPIDs))
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -329,7 +283,7 @@ func (c *component) CheckOnce() {
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdRunningPIDsPercent(cctx, thresholdRunningPIDsPct, d.ts)
+	err = c.setThresholdRunningPIDsPercent(cctx, thresholdRunningPIDsPct, d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
