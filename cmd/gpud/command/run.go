@@ -53,6 +53,10 @@ func cmdRun(cliContext *cli.Context) error {
 		return err
 	}
 
+	if stateFile != "" {
+		cfg.State = stateFile
+	}
+
 	if annotations != "" {
 		annot := make(map[string]string)
 		if err := json.Unmarshal([]byte(annotations), &annot); err != nil {

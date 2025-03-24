@@ -54,6 +54,8 @@ var (
 	ibstatCommand string
 
 	checkInfiniBand bool
+
+	stateFile string
 )
 
 const (
@@ -167,6 +169,11 @@ func App() *cli.App {
 			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
 			Action: cmdRun,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "state-file,s",
+					Usage:       "ssss",
+					Destination: &stateFile,
+				},
 				&cli.StringFlag{
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
