@@ -52,8 +52,7 @@ ONI = "👹"
 RELEASE=gpud-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 
 COMMANDS=gpud swagger
-
-GO_BUILD_FLAGS=-gcflags=all=-asan -ldflags=-lasan
+GO_BUILD_FLAGS=-gcflags=all=-asan -ldflags "-asan"
 
 ifdef BUILDTAGS
     GO_BUILDTAGS = ${BUILDTAGS}
