@@ -65,18 +65,15 @@ import (
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
-	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/fuse"
-	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
-	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
@@ -257,37 +254,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case disk_id.Name:
-			cfg := disk.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, disk.New(ctx, cfg))
+		case disk.Name:
+			allComponents = append(allComponents, disk.New(ctx, []string{"/"}, []string{"/var/lib/kubelet"}))
 
-		case fuse_id.Name:
-			cfg := fuse.Config{
-				Query:                                defaultQueryCfg,
-				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
-				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
-			}
-			if configValue != nil {
-				parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := fuse.New(ctx, cfg, eventStore)
+		case fuse.Name:
+			c, err := fuse.New(
+				ctx,
+				fuse.DefaultCongestedPercentAgainstThreshold,
+				fuse.DefaultMaxBackgroundPercentAgainstThreshold,
+				eventStore,
+			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -690,22 +666,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case kubelet_pod.Name:
 			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
 
-		case network_latency_id.Name:
-			cfg := network_latency.Config{
-				Query:                      defaultQueryCfg,
-				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
-			}
-			if configValue != nil {
-				parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, network_latency.New(ctx, cfg))
+		case network_latency.Name:
+			allComponents = append(allComponents, network_latency.New(ctx))
 
 		default:
 			return nil, fmt.Errorf("unknown component %s", k)

@@ -71,6 +71,7 @@ func (c *component) Start() error {
 	}()
 	return nil
 }
+
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData

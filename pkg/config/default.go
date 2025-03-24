@@ -30,16 +30,15 @@ import (
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
-	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	fuse_id "github.com/leptonai/gpud/components/fuse/id"
+	"github.com/leptonai/gpud/components/fuse"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
-	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
+	network_latency "github.com/leptonai/gpud/components/network/latency"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
@@ -92,8 +91,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		// default components that work both in mac/linux
 		Components: map[string]any{
 			cpu.Name:           nil,
-			disk_id.Name:       disk.DefaultConfig(),
-			fuse_id.Name:       nil,
+			disk.Name:          nil,
+			fuse.Name:          nil,
 			fd.Name:            nil,
 			info.Name:          nil,
 			memory.Name:        nil,
@@ -139,7 +138,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	cfg.Components[containerd_pod.Name] = nil
 	cfg.Components[kubelet_pod.Name] = nil
 
-	cfg.Components[network_latency_id.Name] = nil
+	cfg.Components[network_latency.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[component_pci_id.Name] = nil

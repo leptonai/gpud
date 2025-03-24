@@ -3,21 +3,19 @@ package cpu
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/load"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/cpu/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	components_metrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the ID of the CPU component.
@@ -31,7 +29,6 @@ type component struct {
 
 	logLineProcessor *dmesg.LogLineProcessor
 	eventBucket      eventstore.Bucket
-	gatherer         prometheus.Gatherer
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
@@ -41,6 +38,10 @@ type component struct {
 
 	lastMu   sync.RWMutex
 	lastData *Data
+
+	metricsMu                   sync.RWMutex
+	loadAverage5minMetricsStore components_metrics.Store
+	usedPercentMetricsStore     components_metrics.Store
 }
 
 func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
@@ -113,34 +114,6 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	loadAverage5mins, err := metrics.ReadLoadAverage5mins(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read load average 5mins: %w", err)
-	}
-
-	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(loadAverage5mins)+len(usedPercents))
-	for _, m := range loadAverage5mins {
-		ms = append(ms, components.Metric{
-			Metric: m,
-		})
-	}
-	for _, m := range usedPercents {
-		ms = append(ms, components.Metric{
-			Metric: m,
-		})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
@@ -155,13 +128,6 @@ func (c *component) Close() error {
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
-}
-
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
@@ -171,7 +137,7 @@ func (c *component) CheckOnce() {
 		Info:  &c.info,
 		Cores: &c.cores,
 	}
-	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	c.setLastUpdateUnixSeconds(float64(d.ts.Unix()))
 	defer func() {
 		c.lastMu.Lock()
 		c.lastData = &d
@@ -195,7 +161,7 @@ func (c *component) CheckOnce() {
 	d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPercent)
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedPercent(cctx, d.Usage.usedPercent, d.ts)
+	err = c.setUsedPercent(cctx, d.Usage.usedPercent, d.ts)
 	ccancel()
 	if err != nil {
 		d.Usage.err = err
@@ -214,7 +180,7 @@ func (c *component) CheckOnce() {
 	d.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetLoadAverage(cctx, time.Minute, loadAvg.Load1, d.ts)
+	err = c.setLoadAverage(cctx, time.Minute, loadAvg.Load1, d.ts)
 	ccancel()
 	if err != nil {
 		d.Usage.err = err
@@ -222,7 +188,7 @@ func (c *component) CheckOnce() {
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetLoadAverage(cctx, 5*time.Minute, loadAvg.Load5, d.ts)
+	err = c.setLoadAverage(cctx, 5*time.Minute, loadAvg.Load5, d.ts)
 	ccancel()
 	if err != nil {
 		d.Usage.err = err
@@ -230,7 +196,7 @@ func (c *component) CheckOnce() {
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetLoadAverage(cctx, 15*time.Minute, loadAvg.Load15, d.ts)
+	err = c.setLoadAverage(cctx, 15*time.Minute, loadAvg.Load15, d.ts)
 	ccancel()
 	if err != nil {
 		d.Usage.err = err
