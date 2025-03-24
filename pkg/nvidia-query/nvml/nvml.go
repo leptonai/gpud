@@ -400,44 +400,44 @@ func (inst *instance) Get() (*Output, error) {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devHandle)
+		//latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devHandle)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+
+		latestInfo.Power, err = GetPower(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
+		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		//latestInfo.Power, err = GetPower(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
-		//latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
-		//
-		//latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
+		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
 
-		//latestInfo.Processes, err = GetProcesses(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
-		//
-		//latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
-		//
-		//latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devHandle, latestInfo.ECCMode.EnabledCurrent)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
-		//
-		//latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
+		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
+
+		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
+
+		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devHandle, latestInfo.ECCMode.EnabledCurrent)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
+
+		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
 	}
 
 	sort.Slice(st.DeviceInfos, func(i, j int) bool {
