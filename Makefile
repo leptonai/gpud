@@ -53,7 +53,7 @@ RELEASE=gpud-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 
 COMMANDS=gpud swagger
 
-GO_BUILD_FLAGS=-ldflags '-s -X $(PACKAGE)/version.BuildTimestamp=$(BUILD_TIMESTAMP) -X $(PACKAGE)/version.Version=$(VERSION) -X $(PACKAGE)/version.Revision=$(REVISION) -X $(PACKAGE)/version.Package=$(PACKAGE)'
+GO_BUILD_FLAGS=-gcflags=all=-asan -ldflags=-lasan'
 
 ifdef BUILDTAGS
     GO_BUILDTAGS = ${BUILDTAGS}
