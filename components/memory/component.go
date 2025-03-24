@@ -3,22 +3,20 @@ package memory
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	components_metrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the ID of the memory component.
@@ -32,13 +30,17 @@ type component struct {
 
 	logLineProcessor *dmesg.LogLineProcessor
 	eventBucket      eventstore.Bucket
-	gatherer         prometheus.Gatherer
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
 
 	lastMu   sync.RWMutex
 	lastData *Data
+
+	metricsMu               sync.RWMutex
+	totalBytesMetricsStore  components_metrics.Store
+	usedBytesMetricsStore   components_metrics.Store
+	usedPercentMetricsStore components_metrics.Store
 }
 
 func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
@@ -100,36 +102,6 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	totalBytes, err := metrics.ReadTotalBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read total bytes: %w", err)
-	}
-	usedBytes, err := metrics.ReadUsedBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes: %w", err)
-	}
-	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(totalBytes)+len(usedBytes)+len(usedPercents))
-	for _, m := range totalBytes {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedBytes {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
@@ -144,13 +116,6 @@ func (c *component) Close() error {
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
-}
-
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
@@ -158,7 +123,7 @@ func (c *component) CheckOnce() {
 	d := Data{
 		ts: time.Now().UTC(),
 	}
-	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	c.setLastUpdateUnixSeconds(float64(d.ts.Unix()))
 	defer func() {
 		c.lastMu.Lock()
 		c.lastData = &d
@@ -181,17 +146,17 @@ func (c *component) CheckOnce() {
 	d.VMAllocUsedBytes = vm.VmallocUsed
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetTotalBytes(cctx, float64(vm.Total), d.ts)
+	err = c.setTotalBytes(cctx, float64(vm.Total), d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
 		return
 	}
 
-	metrics.SetAvailableBytes(float64(vm.Available))
+	c.setAvailableBytes(float64(vm.Available))
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedBytes(cctx, float64(vm.Used), d.ts)
+	err = c.setUsedBytes(cctx, float64(vm.Used), d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -199,14 +164,14 @@ func (c *component) CheckOnce() {
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedPercent(cctx, vm.UsedPercent, d.ts)
+	err = c.setUsedPercent(cctx, vm.UsedPercent, d.ts)
 	ccancel()
 	if err != nil {
 		d.err = err
 		return
 	}
 
-	metrics.SetFreeBytes(float64(vm.Free))
+	c.setFreeBytes(float64(vm.Free))
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	bpfJITBufferBytes, err := getCurrentBPFJITBufferBytes(cctx)
