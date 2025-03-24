@@ -2,12 +2,10 @@ package nvml
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
-	metrics_gpm "github.com/leptonai/gpud/pkg/nvidia-query/metrics/gpm"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -144,53 +142,54 @@ type GPMMetrics struct {
 // Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
 // Blocks for the duration of the sample interval.
 func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
-	if inst.gpmPollInterval == 0 {
-		return nil, errors.New("gpm sample interval is not set")
-	}
-	if len(inst.gpmMetricsIDs) == 0 {
-		return nil, errors.New("no metric IDs provided")
-	}
-	if len(inst.gpmMetricsIDs) > 98 {
-		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(inst.gpmMetricsIDs))
-	}
-	for uuid, dev := range inst.devices {
-		supported, err := GPMSupportedByDevice(dev.device)
-		if err != nil {
-			return nil, err
-		}
-		if !supported {
-			return nil, fmt.Errorf("device %s is not supported by GPM", uuid)
-		}
-	}
-
-	metrics := make([]GPMMetrics, 0, len(inst.devices))
-	for _, dev := range inst.devices {
-		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
-		if err != nil {
-			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
-		}
-		metrics = append(metrics, GPMMetrics{
-			UUID:           dev.UUID,
-			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
-			Metrics:        ms,
-		})
-	}
-
-	now := time.Now().UTC()
-	metrics_gpm.SetLastUpdateUnixSeconds(float64(now.Unix()))
-
-	for i, m := range metrics {
-		metrics[i].Time = metav1.NewTime(now)
-
-		gpuID := m.UUID
-		for gpmMetricsID, v := range m.Metrics {
-			if err := metrics_gpm.SetGPUUtilPercent(inst.rootCtx, gpmMetricsID, gpuID, v, now); err != nil {
-				return nil, fmt.Errorf("failed to set gpm metric %v for gpu %s: %w", gpmMetricsID, gpuID, err)
-			}
-		}
-	}
-
-	return metrics, nil
+	return nil, fmt.Errorf("skipped")
+	//if inst.gpmPollInterval == 0 {
+	//	return nil, errors.New("gpm sample interval is not set")
+	//}
+	//if len(inst.gpmMetricsIDs) == 0 {
+	//	return nil, errors.New("no metric IDs provided")
+	//}
+	//if len(inst.gpmMetricsIDs) > 98 {
+	//	return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(inst.gpmMetricsIDs))
+	//}
+	//for uuid, dev := range inst.devices {
+	//	supported, err := GPMSupportedByDevice(dev.device)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	if !supported {
+	//		return nil, fmt.Errorf("device %s is not supported by GPM", uuid)
+	//	}
+	//}
+	//
+	//metrics := make([]GPMMetrics, 0, len(inst.devices))
+	//for _, dev := range inst.devices {
+	//	ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
+	//	}
+	//	metrics = append(metrics, GPMMetrics{
+	//		UUID:           dev.UUID,
+	//		SampleDuration: metav1.Duration{Duration: 5 * time.Second},
+	//		Metrics:        ms,
+	//	})
+	//}
+	//
+	//now := time.Now().UTC()
+	//metrics_gpm.SetLastUpdateUnixSeconds(float64(now.Unix()))
+	//
+	//for i, m := range metrics {
+	//	metrics[i].Time = metav1.NewTime(now)
+	//
+	//	gpuID := m.UUID
+	//	for gpmMetricsID, v := range m.Metrics {
+	//		if err := metrics_gpm.SetGPUUtilPercent(inst.rootCtx, gpmMetricsID, gpuID, v, now); err != nil {
+	//			return nil, fmt.Errorf("failed to set gpm metric %v for gpu %s: %w", gpmMetricsID, gpuID, err)
+	//		}
+	//	}
+	//}
+	//
+	//return metrics, nil
 }
 
 // Returns the map from the metrics ID to the value for this device.

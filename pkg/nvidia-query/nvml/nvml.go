@@ -234,8 +234,6 @@ func (inst *instance) Start() error {
 			SupportedEvents: supportedEvents,
 
 			GPMMetricsSupported: gpmMetricsSpported,
-
-			device: d,
 		}
 	}
 
@@ -308,7 +306,23 @@ func (inst *instance) Get() (*Output, error) {
 	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
 	joinedErrs := make([]error, 0)
-	for _, devInfo := range inst.devices {
+	count, ret := nvml.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
+	}
+	for i := range count {
+		devHandle, ret := nvml.DeviceGetHandleByIndex(i)
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get device handle: %v", nvml.ErrorString(ret))
+		}
+		devUUID, ret := devHandle.GetUUID()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get device uuid: %v", nvml.ErrorString(ret))
+		}
+		devInfo := inst.devices[devUUID]
+		if devInfo == nil {
+			continue
+		}
 		// prepare/copy the static device info
 		latestInfo := &DeviceInfo{
 			UUID: devInfo.UUID,
@@ -322,24 +336,22 @@ func (inst *instance) Get() (*Output, error) {
 			SupportedEvents: devInfo.SupportedEvents,
 
 			GPMMetricsSupported: devInfo.GPMMetricsSupported,
-
-			//device: devInfo.device,
 		}
 		st.DeviceInfos = append(st.DeviceInfos, latestInfo)
 
 		var err error
-		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devInfo.device)
+		latestInfo.GSPFirmwareMode, err = GetGSPFirmwareMode(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devInfo.device)
+		latestInfo.PersistenceMode, err = GetPersistenceMode(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
 		if inst.clockEventsSupported {
-			clockEvents, err := GetClockEvents(devInfo.UUID, devInfo.device)
+			clockEvents, err := GetClockEvents(devInfo.UUID, devHandle)
 			if err != nil {
 				joinedErrs = append(joinedErrs, fmt.Errorf("failed to get clock events: %w (GPU uuid %s)", err, devInfo.UUID))
 			} else {
@@ -378,52 +390,52 @@ func (inst *instance) Get() (*Output, error) {
 			}
 		}
 
-		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devInfo.device)
+		latestInfo.ClockSpeed, err = GetClockSpeed(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Memory, err = GetMemory(devInfo.UUID, devInfo.device)
+		latestInfo.Memory, err = GetMemory(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devInfo.device)
+		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Power, err = GetPower(devInfo.UUID, devInfo.device)
+		latestInfo.Power, err = GetPower(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devInfo.device)
+		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devInfo.device)
+		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devInfo.device)
+		latestInfo.Processes, err = GetProcesses(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devInfo.device)
+		latestInfo.ECCMode, err = GetECCModeEnabled(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devInfo.device, latestInfo.ECCMode.EnabledCurrent)
+		latestInfo.ECCErrors, err = GetECCErrors(devInfo.UUID, devHandle, latestInfo.ECCMode.EnabledCurrent)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devInfo.device)
+		latestInfo.RemappedRows, err = GetRemappedRows(devInfo.UUID, devHandle)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
@@ -503,8 +515,6 @@ type DeviceInfo struct {
 	ECCMode         ECCMode         `json:"ecc_mode"`
 	ECCErrors       ECCErrors       `json:"ecc_errors"`
 	RemappedRows    RemappedRows    `json:"remapped_rows"`
-
-	device nvml.Device `json:"-"`
 }
 
 func GetDriverVersion() (string, error) {

@@ -153,11 +153,12 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	// this may timeout when the GPU is broken
 	// e.g.,
 	// "nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT]"
-	//o.NVML, err = nvml.DefaultInstance().Get()
-	//if err != nil {
-	//	log.Logger.Warnw("nvml get failed", "error", err)
-	//	o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	//} else {
+	o.NVML, err = nvml.DefaultInstance().Get()
+	if err != nil {
+		log.Logger.Warnw("nvml get failed", "error", err)
+		o.NVMLErrors = append(o.NVMLErrors, err.Error())
+	}
+	// else {
 	//	now := time.Now().UTC()
 	//	nowUnix := float64(now.Unix())
 	//
