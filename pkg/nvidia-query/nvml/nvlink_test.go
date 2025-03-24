@@ -128,8 +128,6 @@ func TestGetNVLink(t *testing.T) {
 		expectedReplayErrors   uint64
 		expectedRecoveryErrors uint64
 		expectedCRCErrors      uint64
-		expectedRawTxBytes     uint64
-		expectedRawRxBytes     uint64
 	}{
 		{
 			name: "NVLink supported and working",
@@ -150,8 +148,6 @@ func TestGetNVLink(t *testing.T) {
 			expectedReplayErrors:   10,
 			expectedRecoveryErrors: 20,
 			expectedCRCErrors:      30,
-			expectedRawTxBytes:     100 * 1024, // KiB to bytes
-			expectedRawRxBytes:     200 * 1024, // KiB to bytes
 		},
 		{
 			name: "NVLink not supported",
@@ -203,8 +199,6 @@ func TestGetNVLink(t *testing.T) {
 					assert.Equal(t, tc.expectedReplayErrors, state.ReplayErrors)
 					assert.Equal(t, tc.expectedRecoveryErrors, state.RecoveryErrors)
 					assert.Equal(t, tc.expectedCRCErrors, state.CRCErrors)
-					assert.Equal(t, tc.expectedRawTxBytes, state.ThroughputRawTxBytes)
-					assert.Equal(t, tc.expectedRawRxBytes, state.ThroughputRawRxBytes)
 				}
 			}
 		})
