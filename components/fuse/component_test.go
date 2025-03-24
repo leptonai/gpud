@@ -6,145 +6,158 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	query_config "github.com/leptonai/gpud/pkg/query/config"
+	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/sqlite"
-
-	"github.com/prometheus/client_golang/prometheus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestComponent(t *testing.T) {
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	// Create test databases
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
-	assert.NoError(t, err)
+	// Create test context
+	ctx := context.Background()
 
-	cfg := Config{
-		Query: query_config.Config{
-			State: &query_config.State{
-				DBRW: dbRW,
-				DBRO: dbRO,
-			},
-		},
-	}
+	// Create test event store
+	eventStore, err := eventstore.New(dbRW, dbRO, time.Minute)
+	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Test component creation
+	c, err := New(ctx, 90.0, 80.0, eventStore)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Equal(t, Name, c.Name())
 
-	c, err := New(ctx, cfg, store)
-	if err != nil {
-		t.Fatalf("Failed to create component: %v", err)
-	}
-	defer c.Close()
-
-	// Test component name
-	if c.Name() != "fuse" {
-		t.Errorf("Expected component name to be 'fuse', got '%s'", c.Name())
-	}
-
-	// Test Start method
-	if err := c.Start(); err != nil {
-		t.Errorf("Start() returned error: %v", err)
-	}
-
-	states, err := c.States(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get states: %v", err)
-	}
-	t.Logf("States: %+v", states)
-
-	comp, ok := c.(*component)
-	if !ok {
-		t.Fatalf("Component is not of type *component")
-	}
-
-	now := time.Now().UTC()
-	ev := components.Event{
-		Time:    metav1.Time{Time: now},
-		Name:    "fuse_connections",
-		Type:    common.EventTypeCritical,
-		Message: "test device",
-		ExtraInfo: map[string]string{
-			"data":     "{1:2}",
-			"encoding": "json",
-		},
-	}
-	if err := comp.eventBucket.Insert(ctx, ev); err != nil {
-		t.Fatalf("Failed to insert event: %v", err)
-	}
-
-	events, err := comp.Events(ctx, now.Add(-time.Second))
-	if err != nil {
-		t.Fatalf("Failed to get events: %v", err)
-	}
-	if len(events) != 1 {
-		t.Fatalf("Expected 1 event, got %d", len(events))
-	}
-	if events[0].Name != "fuse_connections" {
-		t.Fatalf("Expected event name 'fuse_connections', got '%s'", events[0].Name)
-	}
-
-	// Test metrics
-	metrics, err := comp.Metrics(ctx, now.Add(-time.Second))
-	if err != nil {
-		t.Fatalf("Failed to get metrics: %v", err)
-	}
-	t.Logf("Got %d metrics", len(metrics))
-
-	// Test prometheus registration
-	reg := prometheus.NewRegistry()
-	if err := comp.RegisterCollectors(reg, dbRW, dbRO, "test_table"); err != nil {
-		t.Fatalf("Failed to register collectors: %v", err)
-	}
-
-	// Test closing
-	if err := c.Close(); err != nil {
-		t.Fatalf("Failed to close component: %v", err)
-	}
-
-	select {
-	case <-comp.ctx.Done():
-	case <-time.After(time.Second):
-		t.Fatalf("Component context did not close")
-	}
+	// Test with default thresholds
+	c, err = New(ctx, 0, 0, eventStore)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Equal(t, DefaultCongestedPercentAgainstThreshold, c.(*component).congestedPercentAgainstThreshold)
+	assert.Equal(t, DefaultMaxBackgroundPercentAgainstThreshold, c.(*component).maxBackgroundPercentAgainstThreshold)
 }
 
-// TestComponentMetricsWithInvalidTime tests metrics retrieval with invalid time range
-func TestComponentMetricsWithInvalidTime(t *testing.T) {
+func TestComponentLifecycle(t *testing.T) {
+	t.Parallel()
+
+	// Create test databases
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
-	assert.NoError(t, err)
-
-	cfg := Config{
-		Query: query_config.Config{
-			State: &query_config.State{
-				DBRW: dbRW,
-				DBRO: dbRO,
-			},
-		},
-	}
-
+	// Create test context
 	ctx := context.Background()
-	c, err := New(ctx, cfg, store)
-	if err != nil {
-		t.Fatalf("Failed to create component: %v", err)
-	}
-	defer c.Close()
 
-	// Test with future time
-	futureTime := time.Now().Add(24 * time.Hour)
-	metrics, err := c.Metrics(ctx, futureTime)
-	if err != nil {
-		t.Logf("Expected behavior: got error for future time: %v", err)
+	// Create test event store
+	eventStore, err := eventstore.New(dbRW, dbRO, time.Minute)
+	require.NoError(t, err)
+
+	// Create component
+	c, err := New(ctx, 90.0, 80.0, eventStore)
+	require.NoError(t, err)
+
+	// Test Start
+	err = c.Start()
+	require.NoError(t, err)
+
+	// Test States with nil data
+	states, err := c.States(ctx)
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	assert.Equal(t, "fuse", states[0].Name)
+	assert.Equal(t, "no fuse data", states[0].Reason)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+
+	// Test Close
+	err = c.Close()
+	require.NoError(t, err)
+}
+
+func TestDataStates(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	states, err := d.getStates()
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	assert.Equal(t, "fuse", states[0].Name)
+	assert.Equal(t, "no fuse data", states[0].Reason)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+
+	// Test data with error
+	d = &Data{
+		err: assert.AnError,
 	}
-	if len(metrics) > 0 {
-		t.Errorf("Expected no metrics for future time, got %d", len(metrics))
+	states, err = d.getStates()
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	assert.Equal(t, "fuse", states[0].Name)
+	assert.Equal(t, "failed to get fuse data -- assert.AnError general error for testing", states[0].Reason)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+
+	// Test healthy data
+	d = &Data{
+		ConnectionInfos: make([]fuse.ConnectionInfo, 3),
 	}
+	states, err = d.getStates()
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	assert.Equal(t, "fuse", states[0].Name)
+	assert.Equal(t, "found 3 fuse connections", states[0].Reason)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+}
+
+func TestDataHealth(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	health, healthy := d.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
+
+	// Test data with error
+	d = &Data{
+		err: assert.AnError,
+	}
+	health, healthy = d.getHealth()
+	assert.Equal(t, components.StateUnhealthy, health)
+	assert.False(t, healthy)
+
+	// Test healthy data
+	d = &Data{
+		ConnectionInfos: make([]fuse.ConnectionInfo, 3),
+	}
+	health, healthy = d.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
+}
+
+func TestDataReason(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	assert.Equal(t, "no fuse data", d.getReason())
+
+	// Test data with error
+	d = &Data{
+		err: assert.AnError,
+	}
+	assert.Equal(t, "failed to get fuse data -- assert.AnError general error for testing", d.getReason())
+
+	// Test healthy data
+	d = &Data{
+		ConnectionInfos: make([]fuse.ConnectionInfo, 3),
+	}
+	assert.Equal(t, "found 3 fuse connections", d.getReason())
 }
