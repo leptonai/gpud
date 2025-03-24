@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
@@ -303,7 +302,7 @@ func (inst *instance) Get() (*Output, error) {
 
 	// nvidia-smi polling happens periodically
 	// so we truncate the timestamp to the nearest minute
-	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+	// truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
 	joinedErrs := make([]error, 0)
 	count, ret := nvml.DeviceGetCount()
