@@ -6,6 +6,7 @@ import (
 	"fmt"
 	goOS "os"
 	"runtime"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -38,6 +39,8 @@ import (
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
@@ -759,60 +762,60 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//	log.Logger.Debugw("compact period is not set, skipping compacting")
 	//}
 
-	//for i := range allComponents {
-	//	metrics.SetRegistered(allComponents[i].Name())
-	//	allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
-	//}
-	//
-	//var componentNames []string
-	//componentSet := make(map[string]struct{})
-	//for _, c := range allComponents {
-	//	componentSet[c.Name()] = struct{}{}
-	//	componentNames = append(componentNames, c.Name())
-	//	if strings.Contains(c.Name(), "nvidia") {
-	//		s.nvidiaComponentsExist = true
-	//	}
-	//
-	//	// this guarantees no name conflict, thus safe to register handlers by its name
-	//	if err := components.RegisterComponent(c.Name(), c); err != nil {
-	//		log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-	//		continue
-	//	}
-	//
-	//	//if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
-	//	//	if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
-	//	//		log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-	//	//		if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
-	//	//			return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
-	//	//		}
-	//	//	} else {
-	//	//		log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
-	//	//	}
-	//	//} else {
-	//	//	log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
-	//	//}
-	//}
-	//
-	//for _, c := range allComponents {
-	//	if err = c.Start(); err != nil {
-	//		log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
-	//		return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
-	//	}
-	//}
-	//
-	//// to not start healthz until the initial gpu data is ready
-	//if s.nvidiaComponentsExist {
-	//	// no need to wait for "nvidia_query_nvml.DefaultInstanceReady()"
-	//	// as "nvidia_query.GetSuccessOnce()" already waits for it
-	//
-	//	log.Logger.Infow("waiting for first nvidia query to succeed")
-	//	select {
-	//	case <-ctx.Done():
-	//		return nil, ctx.Err()
-	//	case <-nvidia_query.GetSuccessOnce():
-	//		log.Logger.Debugw("first nvidia query succeeded")
-	//	}
-	//}
+	for i := range allComponents {
+		metrics.SetRegistered(allComponents[i].Name())
+		allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
+	}
+
+	var componentNames []string
+	componentSet := make(map[string]struct{})
+	for _, c := range allComponents {
+		componentSet[c.Name()] = struct{}{}
+		componentNames = append(componentNames, c.Name())
+		if strings.Contains(c.Name(), "nvidia") {
+			s.nvidiaComponentsExist = true
+		}
+
+		// this guarantees no name conflict, thus safe to register handlers by its name
+		if err := components.RegisterComponent(c.Name(), c); err != nil {
+			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
+			continue
+		}
+
+		//if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
+		//	if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
+		//		log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
+		//		if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
+		//			return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
+		//		}
+		//	} else {
+		//		log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
+		//	}
+		//} else {
+		//	log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
+		//}
+	}
+
+	for _, c := range allComponents {
+		if err = c.Start(); err != nil {
+			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
+			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
+		}
+	}
+
+	// to not start healthz until the initial gpu data is ready
+	if s.nvidiaComponentsExist {
+		// no need to wait for "nvidia_query_nvml.DefaultInstanceReady()"
+		// as "nvidia_query.GetSuccessOnce()" already waits for it
+
+		log.Logger.Infow("waiting for first nvidia query to succeed")
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-nvidia_query.GetSuccessOnce():
+			log.Logger.Debugw("first nvidia query succeeded")
+		}
+	}
 
 	//uid, err := gpud_state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
 	//if err != nil {
