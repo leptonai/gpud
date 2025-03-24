@@ -106,8 +106,6 @@ type poller struct {
 	cfg   query_config.Config
 
 	lastItemsMu sync.RWMutex
-	lastItem    Item
-	updated     bool
 	lastItems   []Item
 
 	inflightComponents map[string]any
@@ -250,7 +248,6 @@ func (pl *poller) Stop(componentName string) bool {
 }
 
 func (pl *poller) processItem(item Item) {
-	return
 	pl.ctxMu.RLock()
 	canceled := pl.ctx == nil
 	pl.ctxMu.RUnlock()
@@ -264,18 +261,15 @@ func (pl *poller) processItem(item Item) {
 }
 
 func (pl *poller) insertItemToInMemoryQueue(item Item) {
-	//queueN := pl.Config().QueueSize
+	queueN := pl.Config().QueueSize
 
 	pl.lastItemsMu.Lock()
 	defer pl.lastItemsMu.Unlock()
 
-	pl.lastItem = item
-	pl.updated = true
-
-	//if queueN > 0 && len(pl.lastItems) >= queueN {
-	//	pl.lastItems = pl.lastItems[1:]
-	//}
-	//pl.lastItems = append(pl.lastItems, item)
+	if queueN > 0 && len(pl.lastItems) >= queueN {
+		pl.lastItems = pl.lastItems[1:]
+	}
+	pl.lastItems = append(pl.lastItems, item)
 }
 
 // Last returns the last item in the queue.
@@ -297,28 +291,21 @@ func (pl *poller) readLast(requireNoErr bool) (*Item, error) {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
-	if !pl.updated {
+	if len(pl.lastItems) == 0 {
 		return nil, ErrNoData
 	}
-
-	if requireNoErr && pl.lastItem.Error != nil {
-		log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", pl.lastItem.Error)
-		return nil, ErrNoData
-	}
-	item := pl.lastItem
-	return &item, nil
 
 	// reverse iterate
-	//for i := len(pl.lastItems) - 1; i >= 0; i-- {
-	//	item := pl.lastItems[i]
-	//	if requireNoErr && item.Error != nil {
-	//		log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", item.Error)
-	//		continue
-	//	}
-	//	return &item, nil
-	//}
-	//
-	//return nil, ErrNoData
+	for i := len(pl.lastItems) - 1; i >= 0; i-- {
+		item := pl.lastItems[i]
+		if requireNoErr && item.Error != nil {
+			log.Logger.Warnw("skipping item due to error", "id", pl.id, "error", item.Error)
+			continue
+		}
+		return &item, nil
+	}
+
+	return nil, ErrNoData
 }
 
 // Returns the last known error in the queue.
@@ -335,21 +322,19 @@ func (pl *poller) readLastErr() error {
 	pl.lastItemsMu.RLock()
 	defer pl.lastItemsMu.RUnlock()
 
-	if !pl.updated {
+	if len(pl.lastItems) == 0 {
 		return ErrNoData
 	}
 
-	return pl.lastItem.Error
-
 	// reverse iterate
-	//for i := len(pl.lastItems) - 1; i >= 0; i-- {
-	//	item := pl.lastItems[i]
-	//	if item.Error != nil {
-	//		return item.Error
-	//	}
-	//}
-	//
-	//return nil
+	for i := len(pl.lastItems) - 1; i >= 0; i-- {
+		item := pl.lastItems[i]
+		if item.Error != nil {
+			return item.Error
+		}
+	}
+
+	return nil
 }
 
 // All returns all results in the queue since the given time.
