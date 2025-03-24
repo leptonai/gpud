@@ -400,10 +400,10 @@ func (inst *instance) Get() (*Output, error) {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		//latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devHandle)
-		//if err != nil {
-		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		//}
+		latestInfo.NVLink, err = GetNVLink(devInfo.UUID, devHandle)
+		if err != nil {
+			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		}
 
 		latestInfo.Power, err = GetPower(devInfo.UUID, devHandle)
 		if err != nil {
