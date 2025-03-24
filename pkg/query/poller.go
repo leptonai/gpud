@@ -250,6 +250,7 @@ func (pl *poller) Stop(componentName string) bool {
 }
 
 func (pl *poller) processItem(item Item) {
+	return
 	pl.ctxMu.RLock()
 	canceled := pl.ctx == nil
 	pl.ctxMu.RUnlock()
