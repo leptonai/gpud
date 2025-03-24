@@ -320,8 +320,10 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 		}
 	}()
 
+	finCh := make(chan struct{})
 	if result != nil {
 		go func() {
+			defer close(finCh)
 			lines := make([]string, 0)
 			err := process.Read(
 				ctx,
@@ -340,13 +342,17 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 			}
 		}()
 	}
+	var retErr error
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		retErr = ctx.Err()
 	case err = <-p.Wait():
 		if err != nil {
-			return err
+			retErr = err
 		}
 	}
-	return nil
+	if result != nil {
+		<-finCh
+	}
+	return retErr
 }
