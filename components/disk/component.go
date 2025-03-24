@@ -3,149 +3,269 @@ package disk
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	disk_id "github.com/leptonai/gpud/components/disk/id"
-	"github.com/leptonai/gpud/components/disk/metrics"
+	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/query"
-
-	"github.com/prometheus/client_golang/prometheus"
+	components_metrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-func New(ctx context.Context, cfg Config) components.Component {
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg)
-
-	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, disk_id.Name)
-
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  getDefaultPoller(),
-	}
-}
+// Name is the ID of the disk component.
+const Name = "disk"
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	mountPointsToTrackUsage map[string]struct{}
+
+	lastMu   sync.RWMutex
+	lastData *Data
+
+	metricsMu                    sync.RWMutex
+	totalBytesMetricsStore       components_metrics.Store
+	usedBytesMetricsStore        components_metrics.Store
+	usedBytesPercentMetricsStore components_metrics.Store
 }
 
-func (c *component) Name() string { return disk_id.Name }
+func New(ctx context.Context, mountPoints []string, mountTargets []string) components.Component {
+	mountPointsToTrackUsage := make(map[string]struct{})
+	for _, mp := range mountPoints {
+		mountPointsToTrackUsage[mp] = struct{}{}
+	}
+	for _, mt := range mountTargets {
+		mountPointsToTrackUsage[mt] = struct{}{}
+	}
 
-func (c *component) Start() error { return nil }
+	cctx, ccancel := context.WithCancel(ctx)
+	return &component{
+		ctx:    cctx,
+		cancel: ccancel,
+	}
+}
 
+func (c *component) Name() string { return Name }
+
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", disk_id.Name)
-		return []components.State{
-			{
-				Name:    disk_id.Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if last.Error != nil {
-		return []components.State{
-			{
-				Name:    disk_id.Name,
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
-	}
-	if last.Output == nil {
-		return []components.State{
-			{
-				Name:    disk_id.Name,
-				Healthy: true,
-				Reason:  "no output",
-			},
-		}, nil
-	}
-
-	output, ok := last.Output.(*Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	totalBytes, err := metrics.ReadTotalBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read total bytes: %w", err)
-	}
-	usedBytes, err := metrics.ReadUsedBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes: %w", err)
-	}
-	usedBytesPercents, err := metrics.ReadUsedBytesPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(totalBytes)+len(usedBytes)+len(usedBytesPercents))
-	for _, m := range totalBytes {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"mount_point": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range usedBytes {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"mount_point": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range usedBytesPercents {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"mount_point": m.MetricSecondaryName,
-			},
-		})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
-	// safe to call stop multiple times
-	c.poller.Stop(disk_id.Name)
+	c.cancel()
 
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking disk")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	c.setLastUpdateUnixSeconds(float64(d.ts.Unix()))
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
+	prevFailed := false
+	for _ = range 5 {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
+			return dt == "disk"
+		}))
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get block devices", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				d.err = c.ctx.Err()
+				return
+			case <-time.After(5 * time.Second):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		d.BlockDevices = blks
+		if prevFailed {
+			log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(blks))
+		}
+		break
+	}
+	if len(d.BlockDevices) == 0 {
+		d.err = errors.New("no block device found")
+		return
+	}
+
+	prevFailed = false
+	for _ = range 5 {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
+			return fs == "ext4"
+		}))
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get partitions", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				d.err = c.ctx.Err()
+				return
+			case <-time.After(5 * time.Second):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		d.ExtPartitions = parts
+		if prevFailed {
+			log.Logger.Infow("successfully got partitions after retries", "num_partitions", len(parts))
+		}
+		break
+	}
+	if len(d.ExtPartitions) == 0 {
+		d.err = errors.New("no ext4 partition found")
+		return
+	}
+
+	now := time.Now().UTC()
+	nowUTC := float64(now.Unix())
+	c.setLastUpdateUnixSeconds(nowUTC)
+
+	devToUsage := make(map[string]disk.Usage)
+	for _, p := range d.ExtPartitions {
+		usage := p.Usage
+		if usage == nil {
+			log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
+			continue
+		}
+
+		devToUsage[p.Device] = *usage
+
+		if _, ok := c.mountPointsToTrackUsage[p.MountPoint]; !ok {
+			continue
+		}
+
+		if err := c.setTotalBytes(c.ctx, p.MountPoint, float64(usage.TotalBytes), now); err != nil {
+			d.err = err
+			return
+		}
+		c.setFreeBytes(p.MountPoint, float64(usage.FreeBytes))
+		if err := c.setUsedBytes(c.ctx, p.MountPoint, float64(usage.UsedBytes), now); err != nil {
+			d.err = err
+			return
+		}
+		if err := c.setUsedBytesPercent(c.ctx, p.MountPoint, usage.UsedPercentFloat, now); err != nil {
+			d.err = err
+			return
+		}
+		c.setUsedInodesPercent(p.MountPoint, usage.InodesUsedPercentFloat)
+	}
+
+	for target := range c.mountPointsToTrackUsage {
+		if _, err := os.Stat(target); err != nil {
+			log.Logger.Warnw("mount target does not exist", "mount_target", target)
+			continue
+		}
+
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		mntOut, err := disk.FindMnt(cctx, target)
+		ccancel()
+		if err != nil {
+			log.Logger.Warnw("error finding mount target device", "mount_target", target, "error", err)
+			continue
+		}
+
+		if d.MountTargetUsages == nil {
+			d.MountTargetUsages = make(map[string]disk.FindMntOutput)
+		}
+		d.MountTargetUsages[target] = *mntOut
+	}
+}
+
+type Data struct {
+	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
+	BlockDevices      disk.BlockDevices             `json:"block_devices"`
+	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no disk data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get disk data -- %s", d.err)
+	}
+
+	return fmt.Sprintf("found %d ext4 partitions and %d block devices", len(d.ExtPartitions), len(d.BlockDevices))
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+
+	return health, healthy
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   "disk",
+		Reason: d.getReason(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }
