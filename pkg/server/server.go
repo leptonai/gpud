@@ -136,9 +136,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//}
 
 	nvidia_query.SetDefaultPoller(
-		//nvidia_query.WithXidEventBucket(xidEventBucket),
-		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+	//nvidia_query.WithXidEventBucket(xidEventBucket),
+	//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+	//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 	)
 	nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 

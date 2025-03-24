@@ -79,9 +79,6 @@ func CreateGet(opts ...OpOption) query.GetFunc {
 
 // Get all nvidia component queries.
 func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
-	return &Output{
-		Time: time.Now().UTC(),
-	}, nil
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
@@ -156,30 +153,30 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	// this may timeout when the GPU is broken
 	// e.g.,
 	// "nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT]"
-	o.NVML, err = nvml.DefaultInstance().Get()
-	if err != nil {
-		log.Logger.Warnw("nvml get failed", "error", err)
-		o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	} else {
-		now := time.Now().UTC()
-		nowUnix := float64(now.Unix())
-
-		metrics_clock.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_clockspeed.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_ecc.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_memory.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_nvlink.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_power.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_temperature.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_utilization.SetLastUpdateUnixSeconds(nowUnix)
-		metrics_processes.SetLastUpdateUnixSeconds(nowUnix)
-
-		for _, dev := range o.NVML.DeviceInfos {
-			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
-				return o, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
-			}
-		}
-	}
+	//o.NVML, err = nvml.DefaultInstance().Get()
+	//if err != nil {
+	//	log.Logger.Warnw("nvml get failed", "error", err)
+	//	o.NVMLErrors = append(o.NVMLErrors, err.Error())
+	//} else {
+	//	now := time.Now().UTC()
+	//	nowUnix := float64(now.Unix())
+	//
+	//	metrics_clock.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_clockspeed.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_ecc.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_memory.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_nvlink.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_power.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_temperature.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_utilization.SetLastUpdateUnixSeconds(nowUnix)
+	//	metrics_processes.SetLastUpdateUnixSeconds(nowUnix)
+	//
+	//	for _, dev := range o.NVML.DeviceInfos {
+	//		if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
+	//			return o, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
+	//		}
+	//	}
+	//}
 
 	productName := o.GPUProductName()
 	if productName != "" {
