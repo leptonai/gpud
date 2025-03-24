@@ -11,7 +11,6 @@ import (
 
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
-	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -51,10 +50,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	eventStore, err := eventstore.New(dbRW, dbRO, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open events database: %w", err)
-	}
+	//eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to open events database: %w", err)
+	//}
 
 	promReg := prometheus.NewRegistry()
 	if err := sqlite.Register(promReg); err != nil {
@@ -115,9 +114,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//	return nil, err
 		//}
 		nvidia_query.SetDefaultPoller(
-		//nvidia_query.WithXidEventBucket(xidEventBucket),
-		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+			//nvidia_query.WithXidEventBucket(xidEventBucket),
+			//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+			//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 		nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 	}
