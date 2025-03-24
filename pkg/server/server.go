@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	goOS "os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
@@ -34,6 +34,7 @@ import (
 	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
@@ -129,19 +130,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//if err != nil {
 	//	return nil, err
 	//}
-	if runtime.GOOS == "linux" {
-		//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
-		//if err != nil {
-		//	return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-		//}
-		//
-		//nvidia_query.SetDefaultPoller(
-		////nvidia_query.WithXidEventBucket(xidEventBucket),
-		////nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-		////nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
-		//)
-		//nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
-	}
+	//nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to create NVML instance: %w", err)
+	//}
+
+	nvidia_query.SetDefaultPoller(
+		//nvidia_query.WithXidEventBucket(xidEventBucket),
+		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+	)
+	nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 
 	//if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 	//	return nil, fmt.Errorf("failed to create table: %w", err)
@@ -332,23 +331,23 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case tailscale.Name:
 			allComponents = append(allComponents, tailscale.New(ctx))
 
-		//case nvidia_info.Name:
-		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-		//	if configValue != nil {
-		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-		//		if err != nil {
-		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-		//		}
-		//		cfg = *parsed
-		//	}
-		//	if err := cfg.Validate(); err != nil {
-		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-		//	}
-		//	c, err := nvidia_info.New(ctx, cfg)
-		//	if err != nil {
-		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-		//	}
-		//	allComponents = append(allComponents, c)
+		case nvidia_info.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_info.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 		//
 		//case nvidia_badenvs_id.Name:
 		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
