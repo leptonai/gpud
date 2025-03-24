@@ -110,20 +110,16 @@ func TestNVLinkStatesAllFeatureEnabled(t *testing.T) {
 func TestNVLinkStatesTotalCounters(t *testing.T) {
 	states := NVLinkStates{
 		{
-			Link:                 0,
-			ReplayErrors:         10,
-			RecoveryErrors:       20,
-			CRCErrors:            30,
-			ThroughputRawTxBytes: 100,
-			ThroughputRawRxBytes: 200,
+			Link:           0,
+			ReplayErrors:   10,
+			RecoveryErrors: 20,
+			CRCErrors:      30,
 		},
 		{
-			Link:                 1,
-			ReplayErrors:         15,
-			RecoveryErrors:       25,
-			CRCErrors:            35,
-			ThroughputRawTxBytes: 150,
-			ThroughputRawRxBytes: 250,
+			Link:           1,
+			ReplayErrors:   15,
+			RecoveryErrors: 25,
+			CRCErrors:      35,
 		},
 	}
 
@@ -137,14 +133,6 @@ func TestNVLinkStatesTotalCounters(t *testing.T) {
 
 	t.Run("TotalCRCErrors", func(t *testing.T) {
 		assert.Equal(t, uint64(65), states.TotalCRCErrors())
-	})
-
-	t.Run("TotalThroughputRawTxBytes", func(t *testing.T) {
-		assert.Equal(t, uint64(250), states.TotalThroughputRawTxBytes())
-	})
-
-	t.Run("TotalThroughputRawRxBytes", func(t *testing.T) {
-		assert.Equal(t, uint64(450), states.TotalThroughputRawRxBytes())
 	})
 }
 
