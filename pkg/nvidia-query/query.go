@@ -514,12 +514,6 @@ func setNVLinkMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) 
 	if err := metrics_nvlink.SetCRCErrors(ctx, dev.UUID, dev.NVLink.States.TotalCRCErrors(), now); err != nil {
 		return err
 	}
-	if err := metrics_nvlink.SetRxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawRxBytes()), now); err != nil {
-		return err
-	}
-	if err := metrics_nvlink.SetTxBytes(ctx, dev.UUID, float64(dev.NVLink.States.TotalThroughputRawTxBytes()), now); err != nil {
-		return err
-	}
 	return nil
 }
 
