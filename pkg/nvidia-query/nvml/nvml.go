@@ -410,15 +410,15 @@ func (inst *instance) Get() (*Output, error) {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devHandle)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
-		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devHandle)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
+		//latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devHandle)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
+		//
+		//latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devHandle)
+		//if err != nil {
+		//	joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
+		//}
 
 		//latestInfo.Processes, err = GetProcesses(devInfo.UUID, devHandle)
 		//if err != nil {
