@@ -9,8 +9,34 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/leptonai/gpud/components"
+	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
+	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
+	"github.com/leptonai/gpud/components/cpu"
+	"github.com/leptonai/gpud/components/disk"
+	disk_id "github.com/leptonai/gpud/components/disk/id"
+	docker_container "github.com/leptonai/gpud/components/docker/container"
+	"github.com/leptonai/gpud/components/fd"
+	"github.com/leptonai/gpud/components/fuse"
+	fuse_id "github.com/leptonai/gpud/components/fuse/id"
+	"github.com/leptonai/gpud/components/info"
+	kernel_module "github.com/leptonai/gpud/components/kernel-module"
+	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
+	"github.com/leptonai/gpud/components/library"
+	"github.com/leptonai/gpud/components/memory"
+	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
+	"github.com/leptonai/gpud/components/os"
+	os_id "github.com/leptonai/gpud/components/os/id"
+	component_systemd "github.com/leptonai/gpud/components/systemd"
+	systemd_id "github.com/leptonai/gpud/components/systemd/id"
+	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -50,10 +76,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	//eventStore, err := eventstore.New(dbRW, dbRO, 0)
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to open events database: %w", err)
-	//}
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open events database: %w", err)
+	}
 
 	promReg := prometheus.NewRegistry()
 	if err := sqlite.Register(promReg); err != nil {
@@ -114,9 +140,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		//	return nil, err
 		//}
 		nvidia_query.SetDefaultPoller(
-			//nvidia_query.WithXidEventBucket(xidEventBucket),
-			//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
+		//nvidia_query.WithXidEventBucket(xidEventBucket),
+		//nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
+		//nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
 		)
 		nvidia_query.GetDefaultPoller().Start(context.Background(), defaultQueryCfg, "test")
 	}
@@ -165,577 +191,577 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	//	},
 	//}
 	//
-	//allComponents := make([]components.Component, 0)
-	//if _, ok := config.Components[os_id.Name]; !ok {
-	//	c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
-	//	}
-	//	allComponents = append(allComponents, c)
+	allComponents := make([]components.Component, 0)
+	if _, ok := config.Components[os_id.Name]; !ok {
+		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
+		}
+		allComponents = append(allComponents, c)
+	}
+
+	for k, configValue := range config.Components {
+		switch k {
+		case cpu.Name:
+			c, err := cpu.New(ctx, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case disk_id.Name:
+			cfg := disk.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			allComponents = append(allComponents, disk.New(ctx, cfg))
+
+		case fuse_id.Name:
+			cfg := fuse.Config{
+				Query:                                defaultQueryCfg,
+				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
+				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
+			}
+			if configValue != nil {
+				parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := fuse.New(ctx, cfg, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		//case pci_id.Name:
+		//	cfg := pci.Config{Query: defaultQueryCfg}
+		//	if configValue != nil {
+		//		parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	c, err := pci.New(ctx, cfg, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+
+		case fd.Name:
+			c, err := fd.New(ctx, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case kernel_module.Name:
+			kernelModulesToCheck := []string{}
+			if configValue != nil {
+				var ok bool
+				kernelModulesToCheck, ok = configValue.([]string)
+				if !ok {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+			}
+			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
+
+		case library.Name:
+			if configValue != nil {
+				libCfg, ok := configValue.(library.Config)
+				if !ok {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				allComponents = append(allComponents, library.New(libCfg))
+			}
+
+		case info.Name:
+			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
+
+		case memory.Name:
+			c, err := memory.New(ctx, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case os_id.Name:
+			cfg := os.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := os.New(ctx, cfg, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case systemd_id.Name:
+			cfg := component_systemd.Config{Query: defaultQueryCfg}
+			if configValue != nil {
+				parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := component_systemd.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		case tailscale.Name:
+			allComponents = append(allComponents, tailscale.New(ctx))
+
+		case nvidia_info.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_info.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		//case nvidia_badenvs_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_badenvs.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+
+		case nvidia_xid.Name:
+			allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
+
+		case nvidia_sxid.Name:
+			// db object to read sxid events (read-only, writes are done in poller)
+			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
+
+		//case nvidia_hw_slowdown_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_clock_speed_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_clock_speed.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_ecc_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_ecc.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_memory.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_memory.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_gpm.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
+
+		case nvidia_nvlink.Name:
+			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+			if configValue != nil {
+				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+				}
+				cfg = *parsed
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			}
+			c, err := nvidia_nvlink.New(ctx, cfg)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
+
+		//case nvidia_power_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_power.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_temperature.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_temperature.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_utilization.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_utilization.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_processes.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_processes.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_remapped_rows.Name:
+		//	c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_fabric_manager_id.Name:
+		//	fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, fabricManagerLogComponent)
+		//
+		//case nvidia_gsp_firmware_mode_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_gsp_firmware_mode.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_infiniband_id.Name:
+		//	c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_peermem_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_peermem.New(ctx, cfg, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_persistence_mode_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_persistence_mode.New(ctx, cfg)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+		//
+		//case nvidia_nccl_id.Name:
+		//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
+		//	if configValue != nil {
+		//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
+		//		if err != nil {
+		//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+		//		}
+		//		cfg = *parsed
+		//	}
+		//	if err := cfg.Validate(); err != nil {
+		//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+		//	}
+		//	c, err := nvidia_nccl.New(ctx, eventStore)
+		//	if err != nil {
+		//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+		//	}
+		//	allComponents = append(allComponents, c)
+
+		case containerd_pod.Name:
+			allComponents = append(allComponents, containerd_pod.New(ctx))
+
+		case docker_container.Name:
+			allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
+
+		case kubelet_pod.Name:
+			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
+
+		case network_latency_id.Name:
+			//cfg := network_latency.Config{
+			//	Query:                      defaultQueryCfg,
+			//	GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
+			//}
+			//if configValue != nil {
+			//	parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
+			//	if err != nil {
+			//		return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
+			//	}
+			//	cfg = *parsed
+			//}
+			//if err := cfg.Validate(); err != nil {
+			//	return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
+			//}
+			//allComponents = append(allComponents, network_latency.New(ctx, cfg))
+
+			//default:
+			//	return nil, fmt.Errorf("unknown component %s", k)
+		}
+	}
+	//
+	//if err := metrics.Register(promReg); err != nil {
+	//	return nil, fmt.Errorf("failed to register metrics: %w", err)
 	//}
-	//
-	//for k, configValue := range config.Components {
-	//	switch k {
-	//	case cpu.Name:
-	//		c, err := cpu.New(ctx, eventStore)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	case disk_id.Name:
-	//		cfg := disk.Config{Query: defaultQueryCfg}
-	//		if configValue != nil {
-	//			parsed, err := disk.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, disk.New(ctx, cfg))
-	//
-	//	case fuse_id.Name:
-	//		cfg := fuse.Config{
-	//			Query:                                defaultQueryCfg,
-	//			CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
-	//			MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
-	//		}
-	//		if configValue != nil {
-	//			parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		c, err := fuse.New(ctx, cfg, eventStore)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	//case pci_id.Name:
-	//	//	cfg := pci.Config{Query: defaultQueryCfg}
-	//	//	if configValue != nil {
-	//	//		parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	c, err := pci.New(ctx, cfg, eventStore)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//
-	//	case fd.Name:
-	//		c, err := fd.New(ctx, eventStore)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	case kernel_module.Name:
-	//		kernelModulesToCheck := []string{}
-	//		if configValue != nil {
-	//			var ok bool
-	//			kernelModulesToCheck, ok = configValue.([]string)
-	//			if !ok {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//		}
-	//		allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
-	//
-	//	case library.Name:
-	//		if configValue != nil {
-	//			libCfg, ok := configValue.(library.Config)
-	//			if !ok {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			allComponents = append(allComponents, library.New(libCfg))
-	//		}
-	//
-	//	case info.Name:
-	//		allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
-	//
-	//	case memory.Name:
-	//		c, err := memory.New(ctx, eventStore)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	case os_id.Name:
-	//		cfg := os.Config{Query: defaultQueryCfg}
-	//		if configValue != nil {
-	//			parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		c, err := os.New(ctx, cfg, eventStore)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	case systemd_id.Name:
-	//		cfg := component_systemd.Config{Query: defaultQueryCfg}
-	//		if configValue != nil {
-	//			parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		c, err := component_systemd.New(ctx, cfg)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	case tailscale.Name:
-	//		allComponents = append(allComponents, tailscale.New(ctx))
-	//
-	//	case nvidia_info.Name:
-	//		cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//		if configValue != nil {
-	//			parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		c, err := nvidia_info.New(ctx, cfg)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	//case nvidia_badenvs_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_badenvs.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//
-	//	case nvidia_xid.Name:
-	//		allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
-	//
-	//	case nvidia_sxid.Name:
-	//		// db object to read sxid events (read-only, writes are done in poller)
-	//		allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
-	//
-	//	//case nvidia_hw_slowdown_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_clock_speed_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_clock_speed.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_ecc_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_ecc.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_memory.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_memory.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_gpm.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
-	//
-	//	case nvidia_nvlink.Name:
-	//		cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//		if configValue != nil {
-	//			parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//			}
-	//			cfg = *parsed
-	//		}
-	//		if err := cfg.Validate(); err != nil {
-	//			return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		}
-	//		c, err := nvidia_nvlink.New(ctx, cfg)
-	//		if err != nil {
-	//			return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//		}
-	//		allComponents = append(allComponents, c)
-	//
-	//	//case nvidia_power_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_power.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_temperature.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_temperature.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_utilization.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_utilization.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_processes.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_processes.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_remapped_rows.Name:
-	//	//	c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_fabric_manager_id.Name:
-	//	//	fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, fabricManagerLogComponent)
-	//	//
-	//	//case nvidia_gsp_firmware_mode_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_gsp_firmware_mode.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_infiniband_id.Name:
-	//	//	c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_peermem_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_peermem.New(ctx, cfg, eventStore)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_persistence_mode_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_persistence_mode.New(ctx, cfg)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//	//
-	//	//case nvidia_nccl_id.Name:
-	//	//	cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-	//	//	if configValue != nil {
-	//	//		parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-	//	//		if err != nil {
-	//	//			return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//	//		}
-	//	//		cfg = *parsed
-	//	//	}
-	//	//	if err := cfg.Validate(); err != nil {
-	//	//		return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//	//	}
-	//	//	c, err := nvidia_nccl.New(ctx, eventStore)
-	//	//	if err != nil {
-	//	//		return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-	//	//	}
-	//	//	allComponents = append(allComponents, c)
-	//
-	//	case containerd_pod.Name:
-	//		allComponents = append(allComponents, containerd_pod.New(ctx))
-	//
-	//	case docker_container.Name:
-	//		allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
-	//
-	//	case kubelet_pod.Name:
-	//		allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
-	//
-	//	case network_latency_id.Name:
-	//		//cfg := network_latency.Config{
-	//		//	Query:                      defaultQueryCfg,
-	//		//	GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
-	//		//}
-	//		//if configValue != nil {
-	//		//	parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
-	//		//	if err != nil {
-	//		//		return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-	//		//	}
-	//		//	cfg = *parsed
-	//		//}
-	//		//if err := cfg.Validate(); err != nil {
-	//		//	return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-	//		//}
-	//		//allComponents = append(allComponents, network_latency.New(ctx, cfg))
-	//
-	//		//default:
-	//		//	return nil, fmt.Errorf("unknown component %s", k)
-	//	}
+	//if err := gpud_state.Register(promReg); err != nil {
+	//	return nil, fmt.Errorf("failed to register state metrics: %w", err)
 	//}
-	////
-	////if err := metrics.Register(promReg); err != nil {
-	////	return nil, fmt.Errorf("failed to register metrics: %w", err)
-	////}
-	////if err := gpud_state.Register(promReg); err != nil {
-	////	return nil, fmt.Errorf("failed to register state metrics: %w", err)
-	////}
-	////go func() {
-	////	ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
-	////	defer ticker.Stop()
-	////	for {
-	////		select {
-	////		case <-ctx.Done():
-	////			return
-	////		case <-ticker.C:
-	////			ticker.Reset(20 * time.Minute)
-	////		}
-	////
-	////		total, err := metrics.ReadRegisteredTotal(promReg)
-	////		if err != nil {
-	////			log.Logger.Errorw("failed to get registered total", "error", err)
-	////			continue
-	////		}
-	////
-	////		healthy, err := metrics.ReadHealthyTotal(promReg)
-	////		if err != nil {
-	////			log.Logger.Errorw("failed to get registered healthy", "error", err)
-	////			continue
-	////		}
-	////
-	////		unhealthy, err := metrics.ReadUnhealthyTotal(promReg)
-	////		if err != nil {
-	////			log.Logger.Errorw("failed to get registered unhealthy", "error", err)
-	////			continue
-	////		}
-	////
-	////		log.Logger.Debugw("components status",
-	////			"inflight_components", total,
-	////			"evaluated_healthy_states", healthy,
-	////			"evaluated_unhealthy_states", unhealthy,
-	////		)
-	////	}
-	////}()
-	////
-	////// track metrics every hour
-	////go func() {
-	////	ticker := time.NewTicker(time.Hour)
-	////	defer ticker.Stop()
-	////	for {
-	////		select {
-	////		case <-ctx.Done():
-	////			return
-	////		case <-ticker.C:
-	////			ticker.Reset(time.Hour)
-	////		}
-	////
-	////		if err := gpud_state.RecordMetrics(ctx, dbRW); err != nil {
-	////			log.Logger.Errorw("failed to record metrics", "error", err)
-	////		}
-	////	}
-	////}()
-	////
-	////// compact the state database every retention period
-	////if config.CompactPeriod.Duration > 0 {
-	////	go func() {
-	////		ticker := time.NewTicker(config.CompactPeriod.Duration)
-	////		defer ticker.Stop()
-	////		for {
-	////			select {
-	////			case <-ctx.Done():
-	////				return
-	////			case <-ticker.C:
-	////				ticker.Reset(config.CompactPeriod.Duration)
-	////			}
-	////
-	////			if err := sqlite.Compact(ctx, dbRW); err != nil {
-	////				log.Logger.Errorw("failed to compact state database", "error", err)
-	////			}
-	////		}
-	////	}()
-	////} else {
-	////	log.Logger.Debugw("compact period is not set, skipping compacting")
-	////}
+	//go func() {
+	//	ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-ticker.C:
+	//			ticker.Reset(20 * time.Minute)
+	//		}
 	//
+	//		total, err := metrics.ReadRegisteredTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered total", "error", err)
+	//			continue
+	//		}
+	//
+	//		healthy, err := metrics.ReadHealthyTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered healthy", "error", err)
+	//			continue
+	//		}
+	//
+	//		unhealthy, err := metrics.ReadUnhealthyTotal(promReg)
+	//		if err != nil {
+	//			log.Logger.Errorw("failed to get registered unhealthy", "error", err)
+	//			continue
+	//		}
+	//
+	//		log.Logger.Debugw("components status",
+	//			"inflight_components", total,
+	//			"evaluated_healthy_states", healthy,
+	//			"evaluated_unhealthy_states", unhealthy,
+	//		)
+	//	}
+	//}()
+	//
+	//// track metrics every hour
+	//go func() {
+	//	ticker := time.NewTicker(time.Hour)
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-ticker.C:
+	//			ticker.Reset(time.Hour)
+	//		}
+	//
+	//		if err := gpud_state.RecordMetrics(ctx, dbRW); err != nil {
+	//			log.Logger.Errorw("failed to record metrics", "error", err)
+	//		}
+	//	}
+	//}()
+	//
+	//// compact the state database every retention period
+	//if config.CompactPeriod.Duration > 0 {
+	//	go func() {
+	//		ticker := time.NewTicker(config.CompactPeriod.Duration)
+	//		defer ticker.Stop()
+	//		for {
+	//			select {
+	//			case <-ctx.Done():
+	//				return
+	//			case <-ticker.C:
+	//				ticker.Reset(config.CompactPeriod.Duration)
+	//			}
+	//
+	//			if err := sqlite.Compact(ctx, dbRW); err != nil {
+	//				log.Logger.Errorw("failed to compact state database", "error", err)
+	//			}
+	//		}
+	//	}()
+	//} else {
+	//	log.Logger.Debugw("compact period is not set, skipping compacting")
+	//}
+
 	//for i := range allComponents {
 	//	metrics.SetRegistered(allComponents[i].Name())
 	//	allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
