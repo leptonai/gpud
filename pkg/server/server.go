@@ -3,13 +3,16 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	goOS "os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_badenvs_id "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs/id"
@@ -46,7 +49,9 @@ import (
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	"github.com/leptonai/gpud/pkg/query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
+	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -821,6 +826,35 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
+	ttt := &tester{}
+	go func() {
+		for {
+			<-time.After(5 * time.Second)
+			_, err := ttt.getEvents(ctx, allComponents)
+			if err != nil {
+				log.Logger.Errorw("failed to get events", "error", err)
+			}
+		}
+	}()
+	go func() {
+		for {
+			<-time.After(5 * time.Second)
+			_, err := ttt.getMetrics(ctx, allComponents)
+			if err != nil {
+				log.Logger.Errorw("failed to get metrics", "error", err)
+			}
+		}
+	}()
+	go func() {
+		for {
+			<-time.After(5 * time.Second)
+			_, err := ttt.getStates(ctx, allComponents)
+			if err != nil {
+				log.Logger.Errorw("failed to get states", "error", err)
+			}
+		}
+	}()
+
 	//uid, err := gpud_state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
 	//if err != nil {
 	//	return nil, fmt.Errorf("failed to create machine uid: %w", err)
@@ -1123,3 +1157,184 @@ func (s *Server) Stop() {
 //	}
 //	return nil
 //}
+
+type tester struct{}
+
+func (s *tester) getEvents(ctx context.Context, allComponents []components.Component) (v1.LeptonEvents, error) {
+	startTime := time.Now().Add(-5 * time.Minute)
+	endTime := time.Now()
+	var eventsBuf = make(chan v1.LeptonComponentEvents, len(allComponents))
+	localCtx, done := context.WithTimeout(ctx, time.Minute)
+	defer done()
+	for _, component := range allComponents {
+		go func() {
+			eventsBuf <- s.getEventsFromComponent(localCtx, component.Name(), startTime, endTime)
+		}()
+	}
+	var events v1.LeptonEvents
+	for currEvent := range eventsBuf {
+		events = append(events, currEvent)
+		if len(events) == len(allComponents) {
+			close(eventsBuf)
+			break
+		}
+	}
+	return events, nil
+}
+
+func (s *tester) getMetrics(ctx context.Context, allComponents []components.Component) (v1.LeptonMetrics, error) {
+	now := time.Now().UTC()
+	metricsSince := now.Add(-DefaultQuerySince)
+
+	var metricBuf = make(chan v1.LeptonComponentMetrics, len(allComponents))
+	localCtx, done := context.WithTimeout(ctx, time.Minute)
+	defer done()
+	for _, component := range allComponents {
+		go func(name string) {
+			metricBuf <- s.getMetricsFromComponent(localCtx, name, metricsSince)
+		}(component.Name())
+	}
+	var retMetrics v1.LeptonMetrics
+	for currMetric := range metricBuf {
+		retMetrics = append(retMetrics, currMetric)
+		if len(retMetrics) == len(allComponents) {
+			close(metricBuf)
+			break
+		}
+	}
+	return retMetrics, nil
+}
+
+func (s *tester) getStates(ctx context.Context, allComponents []components.Component) (v1.LeptonStates, error) {
+	var statesBuf = make(chan v1.LeptonComponentStates, len(allComponents))
+	var lastRebootTime *time.Time
+	localCtx, done := context.WithTimeout(ctx, time.Minute)
+	defer done()
+	for _, component := range allComponents {
+		go func(name string) {
+			statesBuf <- s.getStatesFromComponent(localCtx, name, lastRebootTime)
+		}(component.Name())
+	}
+	var states v1.LeptonStates
+	for currState := range statesBuf {
+		states = append(states, currState)
+		if len(states) == len(allComponents) {
+			close(statesBuf)
+			break
+		}
+	}
+	return states, nil
+}
+
+func (s *tester) getEventsFromComponent(ctx context.Context, componentName string, startTime, endTime time.Time) v1.LeptonComponentEvents {
+	component, err := components.GetComponent(componentName)
+	if err != nil {
+		log.Logger.Errorw("failed to get component",
+			"operation", "GetEvents",
+			"component", componentName,
+			"error", err,
+		)
+		return v1.LeptonComponentEvents{
+			Component: componentName,
+			StartTime: startTime,
+			EndTime:   endTime,
+		}
+	}
+	currEvent := v1.LeptonComponentEvents{
+		Component: componentName,
+		StartTime: startTime,
+		EndTime:   endTime,
+	}
+	log.Logger.Debugw("getting events", "component", componentName)
+	event, err := component.Events(ctx, startTime)
+	if err != nil {
+		if errors.Is(err, query.ErrNoData) {
+			log.Logger.Debugw("no event found", "component", componentName)
+			return currEvent
+		}
+
+		log.Logger.Errorw("failed to invoke component events",
+			"operation", "GetEvents",
+			"component", componentName,
+			"error", err,
+		)
+	} else {
+		log.Logger.Debugw("successfully got events", "component", componentName)
+		currEvent.Events = event
+	}
+	return currEvent
+}
+
+func (s *tester) getMetricsFromComponent(ctx context.Context, componentName string, since time.Time) v1.LeptonComponentMetrics {
+	component, err := components.GetComponent(componentName)
+	if err != nil {
+		log.Logger.Errorw("failed to get component",
+			"operation", "GetEvents",
+			"component", componentName,
+			"error", err,
+		)
+		return v1.LeptonComponentMetrics{
+			Component: componentName,
+		}
+	}
+	currMetrics := v1.LeptonComponentMetrics{
+		Component: componentName,
+	}
+	currMetric, err := component.Metrics(ctx, since)
+	if err != nil {
+		log.Logger.Errorw("failed to invoke component metrics",
+			"operation", "GetEvents",
+			"component", componentName,
+			"error", err,
+		)
+	} else {
+		currMetrics.Metrics = currMetric
+	}
+	return currMetrics
+}
+
+func (s *tester) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) v1.LeptonComponentStates {
+	component, err := components.GetComponent(componentName)
+	if err != nil {
+		log.Logger.Errorw("failed to get component",
+			"operation", "GetStates",
+			"component", componentName,
+			"error", err,
+		)
+		return v1.LeptonComponentStates{
+			Component: componentName,
+		}
+	}
+	currState := v1.LeptonComponentStates{
+		Component: componentName,
+	}
+	log.Logger.Debugw("getting states", "component", componentName)
+	state, err := component.States(ctx)
+	if err != nil {
+		log.Logger.Errorw("failed to invoke component state",
+			"operation", "GetStates",
+			"component", componentName,
+			"error", err,
+		)
+	} else {
+		log.Logger.Debugw("successfully got states", "component", componentName)
+		currState.States = state
+	}
+	for i, componentState := range currState.States {
+		if !componentState.Healthy {
+			if lastRebootTime == nil {
+				rebootTime, err := reboot.LastReboot(context.Background())
+				lastRebootTime = &rebootTime
+				if err != nil {
+					log.Logger.Errorw("failed to get last reboot time", "error", err)
+				}
+			}
+			if time.Since(*lastRebootTime) < 10*time.Minute {
+				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
+				currState.States[i].Health = components.StateInitializing
+				currState.States[i].Healthy = true
+			}
+		}
+	}
+	return currState
+}
