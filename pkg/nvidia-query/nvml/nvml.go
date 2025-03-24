@@ -303,7 +303,7 @@ func (inst *instance) Get() (*Output, error) {
 
 	// nvidia-smi polling happens periodically
 	// so we truncate the timestamp to the nearest minute
-	// truncNowUTC := time.Now().UTC().Truncate(time.Minute)
+	truncNowUTC := time.Now().UTC().Truncate(time.Minute)
 
 	joinedErrs := make([]error, 0)
 	count, ret := nvml.DeviceGetCount()
