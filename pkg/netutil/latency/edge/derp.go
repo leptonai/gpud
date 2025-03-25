@@ -41,9 +41,18 @@ func measureDERP(ctx context.Context, targetDerpServrs *tailcfg.DERPMap, opts ..
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := netMon.Close(); err != nil {
+			log.Logger.Errorw("failed to close netmon", "error", err)
+		}
+	}()
 
 	pm := portmapper.NewClient(logf, netMon, nil, nil, nil)
-	defer pm.Close()
+	defer func() {
+		if err := pm.Close(); err != nil {
+			log.Logger.Errorw("failed to close portmapper", "error", err)
+		}
+	}()
 
 	c := &netcheck.Client{
 		NetMon:      netMon,
