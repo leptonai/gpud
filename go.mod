@@ -1,6 +1,6 @@
 module github.com/leptonai/gpud
 
-go 1.23.7
+go 1.24.1
 
 require (
 	github.com/NVIDIA/go-nvlib v0.7.1
