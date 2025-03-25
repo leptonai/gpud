@@ -79,13 +79,14 @@ func TestStates(t *testing.T) {
 				Libraries: map[string][]string{
 					"lib1": {"alt1"},
 					"lib2": {},
+					"lib3": {},
 				},
 			},
 			mockLibFinder: func(lib string, opts ...file.OpOption) (string, error) {
 				return "", file.ErrLibraryNotFound
 			},
 			wantHealthy: false,
-			wantReason:  `library "lib1" does not exist; library "lib2" does not exist`,
+			wantReason:  `library "lib1" does not exist; library "lib2" does not exist; library "lib3" does not exist`,
 		},
 		{
 			name: "error finding library",
