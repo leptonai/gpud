@@ -13,6 +13,10 @@ const (
 
 type Store interface {
 	Bucket(name string) (Bucket, error)
+
+	// LoadBucketWithNoPurge loads the bucket with no purge run.
+	// This is useful for loading the bucket for read-only operations.
+	LoadBucketWithNoPurge(name string) (Bucket, error)
 }
 
 type Bucket interface {

@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	os_id "github.com/leptonai/gpud/components/os/id"
+	"github.com/leptonai/gpud/components/os"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -43,6 +43,7 @@ type XIDComponent struct {
 	cancel       context.CancelFunc
 	currState    components.State
 	extraEventCh chan *components.Event
+	eventStore   eventstore.Store
 	eventBucket  eventstore.Bucket
 	mu           sync.RWMutex
 
@@ -77,6 +78,7 @@ func New(ctx context.Context, eventStore eventstore.Store) *XIDComponent {
 		rootCtx:      cctx,
 		cancel:       ccancel,
 		extraEventCh: extraEventCh,
+		eventStore:   eventStore,
 		eventBucket:  eventBucket,
 		kmsgWatcher:  kmsgWatcher,
 	}
@@ -116,11 +118,11 @@ func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
 }
 
 func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	var ret []components.Event
-	events, err := c.eventBucket.Get(ctx, since)
+	events, err := os.GetRebootEvents(ctx, c.eventStore, since)
 	if err != nil {
 		return nil, err
 	}
+	var ret []components.Event
 	for _, event := range events {
 		ret = append(ret, resolveXIDEvent(event))
 	}
@@ -221,7 +223,7 @@ func (c *XIDComponent) SetHealthy() error {
 
 func (c *XIDComponent) updateCurrentState() error {
 	var rebootErr string
-	rebootEvents, err := getRebootEvents(c.rootCtx)
+	rebootEvents, err := os.GetRebootEvents(c.rootCtx, c.eventStore, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
@@ -238,18 +240,6 @@ func (c *XIDComponent) updateCurrentState() error {
 	}
 	c.mu.Unlock()
 	return nil
-}
-
-func getRebootEvents(ctx context.Context) ([]components.Event, error) {
-	osComponent, err := components.GetComponent(os_id.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get os component: %w", err)
-	}
-	osEvents, err := osComponent.Events(ctx, time.Now().Add(-DefaultRetentionPeriod))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get os events: %w", err)
-	}
-	return osEvents, nil
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice

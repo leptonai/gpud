@@ -78,7 +78,6 @@ import (
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
-	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
@@ -254,10 +253,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	allComponents := make([]components.Component, 0)
-	if _, ok := config.Components[os_id.Name]; !ok {
-		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
+	if _, ok := config.Components[os.Name]; !ok {
+		c, err := os.New(ctx, eventStore)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
+			return nil, fmt.Errorf("failed to create component %s: %w", os.Name, err)
 		}
 		allComponents = append(allComponents, c)
 	}
@@ -359,19 +358,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case os_id.Name:
-			cfg := os.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := os.New(ctx, cfg, eventStore)
+		case os.Name:
+			c, err := os.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
