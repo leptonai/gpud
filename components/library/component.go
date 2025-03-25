@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -80,6 +81,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}, nil
 	}
 
+	sort.Strings(reasons)
 	return []components.State{
 		{
 			Name:    Name,
