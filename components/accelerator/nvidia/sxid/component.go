@@ -163,14 +163,10 @@ func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durat
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
-			if err != nil {
-				log.Logger.Errorw("failed to get all events", "error", err)
+			if err := c.updateCurrentState(); err != nil {
+				log.Logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
-			c.mu.Lock()
-			c.currState = EvolveHealthyState(events)
-			c.mu.Unlock()
 		case dmesgLine := <-watcher.Watch():
 			log.Logger.Debugw("dmesg line", "line", dmesgLine)
 			sxidErr := Match(dmesgLine.Content)
@@ -200,14 +196,10 @@ func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durat
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
-			events, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
-			if err != nil {
-				log.Logger.Errorw("failed to get all events", "error", err)
+			if err = c.updateCurrentState(); err != nil {
+				log.Logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
-			c.mu.Lock()
-			c.currState = EvolveHealthyState(events)
-			c.mu.Unlock()
 		}
 	}
 }
@@ -224,9 +216,11 @@ func (c *SXIDComponent) SetHealthy() error {
 }
 
 func (c *SXIDComponent) updateCurrentState() error {
+	var rebootErr string
 	rebootEvents, err := getRebootEvents(c.rootCtx)
 	if err != nil {
-		return fmt.Errorf("failed to get reboot events: %w", err)
+		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
+		log.Logger.Errorw("failed to get reboot events", "error", err)
 	}
 	localEvents, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
@@ -235,6 +229,9 @@ func (c *SXIDComponent) updateCurrentState() error {
 	events := mergeEvents(rebootEvents, localEvents)
 	c.mu.Lock()
 	c.currState = EvolveHealthyState(events)
+	if rebootErr != "" {
+		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
+	}
 	c.mu.Unlock()
 	return nil
 }
