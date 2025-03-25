@@ -20,6 +20,12 @@ func listContainers(ctx context.Context) ([]DockerContainer, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := cli.Close(); err != nil {
+			log.Logger.Errorw("failed to close docker client", "error", err)
+		}
+	}()
+
 	cs, err := cli.ContainerList(ctx, docker_container.ListOptions{
 		All: true,
 	})
@@ -76,6 +82,12 @@ func checkDockerRunning(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
+	defer func() {
+		if err := cli.Close(); err != nil {
+			log.Logger.Errorw("failed to close docker client", "error", err)
+		}
+	}()
+
 	_, err = cli.Ping(ctx)
 	return err == nil
 }
