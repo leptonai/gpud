@@ -3,6 +3,7 @@ package tailscale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -134,6 +135,11 @@ func (d *Data) getReason() string {
 	}
 
 	if d.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", d.err)
+		}
 		return fmt.Sprintf("tailscaled check failed -- %s", d.err)
 	}
 
@@ -146,6 +152,14 @@ func (d *Data) getReason() string {
 
 func (d *Data) getHealth() (string, bool) {
 	healthy := d == nil || d.err == nil
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy

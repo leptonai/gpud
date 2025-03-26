@@ -262,6 +262,20 @@ func TestDataGetReason(t *testing.T) {
 			expectedReason: "tailscaled check failed -- test error",
 		},
 		{
+			name: "context deadline exceeded",
+			data: &Data{
+				err: context.DeadlineExceeded,
+			},
+			expectedReason: "check failed with context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "context canceled",
+			data: &Data{
+				err: context.Canceled,
+			},
+			expectedReason: "check failed with context canceled -- transient error, please retry",
+		},
+		{
 			name: "service active",
 			data: &Data{
 				TailscaledServiceActive: true,
@@ -305,6 +319,22 @@ func TestDataGetHealth(t *testing.T) {
 			},
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
+		},
+		{
+			name: "context deadline exceeded",
+			data: &Data{
+				err: context.DeadlineExceeded,
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "context canceled",
+			data: &Data{
+				err: context.Canceled,
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
 		},
 		{
 			name: "no error",
