@@ -454,6 +454,15 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 				currState.States[i].Health = components.StateInitializing
 				currState.States[i].Healthy = true
 			}
+
+			if componentState.Error != "" &&
+				(strings.Contains(componentState.Error, context.DeadlineExceeded.Error()) ||
+					strings.Contains(componentState.Error, context.Canceled.Error())) {
+				log.Logger.Warnw("set healthy state due to deadline exceeded or canceled error", "component", componentName, "error", componentState.Error)
+
+				currState.States[i].Health = components.StateHealthy
+				currState.States[i].Healthy = true
+			}
 		}
 	}
 	return currState
