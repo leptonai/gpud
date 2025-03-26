@@ -1,6 +1,8 @@
 package fd
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -103,4 +105,93 @@ func TestDataGetStates(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.NotEmpty(t, states[0].ExtraInfo)
+}
+
+func TestDataGetReasonWithContextErrors(t *testing.T) {
+	// Test with context deadline exceeded error
+	d := &Data{err: context.DeadlineExceeded}
+	reason := d.getReason()
+	assert.Contains(t, reason, "check failed with context deadline exceeded -- transient error, please retry")
+
+	// Test with context canceled error
+	d = &Data{err: context.Canceled}
+	reason = d.getReason()
+	assert.Contains(t, reason, "check failed with context canceled -- transient error, please retry")
+
+	// Test with other error types
+	customErr := fmt.Errorf("custom error")
+	d = &Data{err: customErr}
+	reason = d.getReason()
+	assert.Contains(t, reason, "failed to get file descriptors data -- custom error")
+}
+
+func TestDataGetReasonWithUsedPercent(t *testing.T) {
+	d := &Data{
+		Usage:                                500,
+		ThresholdAllocatedFileHandles:        1000,
+		ThresholdAllocatedFileHandlesPercent: "50.00",
+		UsedPercent:                          "30.00",
+	}
+	reason := d.getReason()
+	assert.Contains(t, reason, "current file descriptors: 500")
+	assert.Contains(t, reason, "threshold: 1000")
+	assert.Contains(t, reason, "used_percent: 50.00")
+}
+
+func TestDataGetHealthWithContextErrors(t *testing.T) {
+	// Test with context deadline exceeded error
+	d := &Data{err: context.DeadlineExceeded}
+	health, healthy := d.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test with context canceled error
+	d = &Data{err: context.Canceled}
+	health, healthy = d.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test with other errors
+	d = &Data{err: fmt.Errorf("some other error")}
+	health, healthy = d.getHealth()
+	assert.Equal(t, "Unhealthy", health)
+	assert.False(t, healthy)
+}
+
+func TestDataGetHealthDegradedState(t *testing.T) {
+	// Test threshold exactly at warning level
+	d := &Data{
+		ThresholdAllocatedFileHandlesPercent: fmt.Sprintf("%.2f", WarningFileHandlesAllocationPercent),
+	}
+	health, healthy := d.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test threshold just above warning level
+	d = &Data{
+		ThresholdAllocatedFileHandlesPercent: fmt.Sprintf("%.2f", WarningFileHandlesAllocationPercent+0.01),
+	}
+	health, healthy = d.getHealth()
+	assert.Equal(t, "Degraded", health)
+	assert.False(t, healthy)
+
+	// Test with error and threshold above warning
+	// Error condition should take precedence
+	d = &Data{
+		err:                                  fmt.Errorf("some error"),
+		ThresholdAllocatedFileHandlesPercent: "85.00",
+	}
+	health, healthy = d.getHealth()
+	assert.Equal(t, "Degraded", health)
+	assert.False(t, healthy)
+}
+
+func TestDataGetHealthWithInvalidThreshold(t *testing.T) {
+	// Test with invalid percentage format
+	d := &Data{
+		ThresholdAllocatedFileHandlesPercent: "invalid",
+	}
+	health, healthy := d.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
 }
