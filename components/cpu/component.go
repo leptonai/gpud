@@ -347,6 +347,22 @@ func (u *Usage) getHealth() (string, bool) {
 	return health, healthy
 }
 
+func (d *Data) getError() error {
+	if d == nil {
+		return nil
+	}
+	if d.Info != nil && d.Info.err != nil {
+		return d.Info.err
+	}
+	if d.Cores != nil && d.Cores.err != nil {
+		return d.Cores.err
+	}
+	if d.Usage != nil && d.Usage.err != nil {
+		return d.Usage.err
+	}
+	return nil
+}
+
 func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
@@ -402,5 +418,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		stateInfo,
 		stateCores,
 		stateUsage,
-	}, nil
+	}, d.getError()
 }
