@@ -279,5 +279,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
