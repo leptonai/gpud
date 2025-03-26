@@ -157,7 +157,7 @@ type Data struct {
 }
 
 func (d *Data) getReason() string {
-	if d == nil || len(d.Pods) == 0 {
+	if d == nil || (d.err == nil && len(d.Pods) == 0) {
 		return "no pod found or kubelet is not running"
 	}
 
@@ -205,7 +205,7 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	state.Health, state.Healthy = d.getHealth(ignoreConnErr)
 
 	if len(d.Pods) == 0 { // no pod found yet
-		return []components.State{state}, nil
+		return []components.State{state}, d.err
 	}
 
 	b, _ := json.Marshal(d)
@@ -213,5 +213,5 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }

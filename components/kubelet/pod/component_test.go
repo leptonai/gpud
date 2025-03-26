@@ -424,7 +424,13 @@ func Test_getStates(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates(tc.ignoreConnErr)
-			require.NoError(t, err)
+
+			if tc.data.err != nil {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
 			require.Len(t, states, tc.expectedLen)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
@@ -706,7 +712,7 @@ func Test_componentStates(t *testing.T) {
 			ignoreConnErr:    false,
 			expectedLen:      1,
 			expectedHealth:   "Unhealthy",
-			expectStateError: false,
+			expectStateError: true,
 		},
 		{
 			name: "connection error - ignored",
@@ -718,7 +724,7 @@ func Test_componentStates(t *testing.T) {
 			ignoreConnErr:    true,
 			expectedLen:      1,
 			expectedHealth:   "Healthy",
-			expectStateError: false,
+			expectStateError: true,
 		},
 	}
 
@@ -993,7 +999,13 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 			}
 
 			states, err := c.States(context.Background())
-			assert.NoError(t, err)
+
+			if tc.lastData.err != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 		})
@@ -1079,4 +1091,144 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
+}
+
+func TestDataGetStatesErrorReturn(t *testing.T) {
+	testCases := []struct {
+		name           string
+		data           Data
+		ignoreConnErr  bool
+		expectedError  error
+		expectedHealth string
+	}{
+		{
+			name: "standard error returned",
+			data: Data{
+				err: errors.New("standard error"),
+			},
+			ignoreConnErr:  false,
+			expectedError:  errors.New("standard error"),
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "empty pods with error",
+			data: Data{
+				Pods: []PodStatus{},
+				err:  errors.New("no pods error"),
+			},
+			ignoreConnErr:  false,
+			expectedError:  errors.New("no pods error"),
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "connection error not ignored",
+			data: Data{
+				NodeName: "test-node",
+				err:      errors.New("connection refused"),
+				connErr:  true,
+			},
+			ignoreConnErr:  false,
+			expectedError:  errors.New("connection refused"),
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "connection error ignored but still returned",
+			data: Data{
+				NodeName: "test-node",
+				err:      errors.New("connection refused"),
+				connErr:  true,
+			},
+			ignoreConnErr:  true,
+			expectedError:  errors.New("connection refused"),
+			expectedHealth: "Healthy",
+		},
+		{
+			name: "no error with pods",
+			data: Data{
+				NodeName: "test-node",
+				Pods:     []PodStatus{{Name: "pod1"}},
+				err:      nil,
+			},
+			ignoreConnErr:  false,
+			expectedError:  nil,
+			expectedHealth: "Healthy",
+		},
+		{
+			name: "kubelet service error",
+			data: Data{
+				NodeName:             "test-node",
+				KubeletServiceActive: false,
+				err:                  errors.New("kubelet service not active"),
+			},
+			ignoreConnErr:  false,
+			expectedError:  errors.New("kubelet service not active"),
+			expectedHealth: "Unhealthy",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			states, err := tc.data.getStates(tc.ignoreConnErr)
+
+			// Check error return value
+			if tc.expectedError == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+
+			// Verify state properties
+			require.Len(t, states, 1)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, Name, states[0].Name)
+
+			// Verify health status matches expected
+			assert.Equal(t, tc.expectedHealth == "Healthy", states[0].Healthy)
+
+			// Check for extra info if we have pods
+			if len(tc.data.Pods) > 0 {
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+			}
+		})
+	}
+}
+
+func TestDataGetStatesWithSpecificErrors(t *testing.T) {
+	// Test with context deadline exceeded error
+	deadlineErr := context.DeadlineExceeded
+	deadlineData := Data{
+		NodeName: "test-node",
+		err:      deadlineErr,
+	}
+	states, err := deadlineData.getStates(false)
+	assert.Error(t, err)
+	assert.Equal(t, deadlineErr, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Contains(t, states[0].Reason, "failed to list pods")
+
+	// Test with context canceled error
+	canceledErr := context.Canceled
+	canceledData := Data{
+		NodeName: "test-node",
+		err:      canceledErr,
+	}
+	states, err = canceledData.getStates(false)
+	assert.Error(t, err)
+	assert.Equal(t, canceledErr, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+
+	// Test with formatted error message
+	customErr := fmt.Errorf("custom error: %v", "details")
+	customData := Data{
+		NodeName: "test-node",
+		err:      customErr,
+	}
+	states, err = customData.getStates(false)
+	assert.Error(t, err)
+	assert.Equal(t, customErr, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Contains(t, states[0].Reason, "custom error: details")
 }
