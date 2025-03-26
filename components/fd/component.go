@@ -411,6 +411,17 @@ func (d *Data) getThresholdAllocatedFileHandlesPercent() (float64, error) {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    "file_descriptors",
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   "file_descriptors",
 		Reason: d.getReason(),
@@ -422,7 +433,7 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
 
 func calcUsagePct(usage, limit uint64) float64 {
