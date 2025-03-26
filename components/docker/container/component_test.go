@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -66,6 +67,38 @@ func TestData_getReason(t *testing.T) {
 			},
 			expectedText: "failed to list containers",
 		},
+		{
+			name: "Context deadline exceeded error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        context.DeadlineExceeded,
+			},
+			expectedText: "check failed with context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "Context canceled error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        context.Canceled,
+			},
+			expectedText: "check failed with context canceled -- transient error, please retry",
+		},
+		{
+			name: "Wrapped context deadline exceeded error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        fmt.Errorf("operation timeout: %w", context.DeadlineExceeded),
+			},
+			expectedText: "check failed with operation timeout: context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "Wrapped context canceled error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        fmt.Errorf("operation aborted: %w", context.Canceled),
+			},
+			expectedText: "check failed with operation aborted: context canceled -- transient error, please retry",
+		},
 	}
 
 	for _, tt := range tests {
@@ -121,6 +154,60 @@ func TestDataGetHealth(t *testing.T) {
 			ignoreConnErr:   true,
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
+		},
+		{
+			name: "Context deadline exceeded error - ignoreConnErr true",
+			data: Data{
+				err: context.DeadlineExceeded,
+			},
+			ignoreConnErr:   true,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "Context deadline exceeded error - ignoreConnErr false",
+			data: Data{
+				err: context.DeadlineExceeded,
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "Context canceled error - ignoreConnErr true",
+			data: Data{
+				err: context.Canceled,
+			},
+			ignoreConnErr:   true,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "Context canceled error - ignoreConnErr false",
+			data: Data{
+				err: context.Canceled,
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "Wrapped context deadline exceeded error",
+			data: Data{
+				err: fmt.Errorf("operation timeout: %w", context.DeadlineExceeded),
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "Wrapped context canceled error",
+			data: Data{
+				err: fmt.Errorf("operation aborted: %w", context.Canceled),
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
 		},
 	}
 

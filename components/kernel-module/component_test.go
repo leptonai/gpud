@@ -2,6 +2,8 @@ package kernelmodule
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -173,6 +175,30 @@ func TestDataGetReason(t *testing.T) {
 			wantReason:     "failed to read modules -- assert.AnError general error for testing",
 		},
 		{
+			name:           "context deadline exceeded error",
+			data:           &Data{err: context.DeadlineExceeded},
+			modulesToCheck: []string{"module1"},
+			wantReason:     "check failed with context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name:           "context canceled error",
+			data:           &Data{err: context.Canceled},
+			modulesToCheck: []string{"module1"},
+			wantReason:     "check failed with context canceled -- transient error, please retry",
+		},
+		{
+			name:           "wrapped context deadline exceeded error",
+			data:           &Data{err: fmt.Errorf("operation aborted: %w", context.DeadlineExceeded)},
+			modulesToCheck: []string{"module1"},
+			wantReason:     "check failed with operation aborted: context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name:           "wrapped context canceled error",
+			data:           &Data{err: fmt.Errorf("operation aborted: %w", context.Canceled)},
+			modulesToCheck: []string{"module1"},
+			wantReason:     "check failed with operation aborted: context canceled -- transient error, please retry",
+		},
+		{
 			name:           "no modules to check",
 			data:           &Data{loadedModules: map[string]struct{}{"module1": {}}},
 			modulesToCheck: nil,
@@ -220,6 +246,34 @@ func TestDataGetHealth(t *testing.T) {
 			modulesToCheck: []string{"module1"},
 			wantHealth:     components.StateUnhealthy,
 			wantHealthy:    false,
+		},
+		{
+			name:           "context deadline exceeded error",
+			data:           &Data{err: context.DeadlineExceeded},
+			modulesToCheck: []string{"module1"},
+			wantHealth:     components.StateHealthy,
+			wantHealthy:    true,
+		},
+		{
+			name:           "context canceled error",
+			data:           &Data{err: context.Canceled},
+			modulesToCheck: []string{"module1"},
+			wantHealth:     components.StateHealthy,
+			wantHealthy:    true,
+		},
+		{
+			name:           "wrapped context deadline exceeded error",
+			data:           &Data{err: errors.New("failed operation: context deadline exceeded")},
+			modulesToCheck: []string{"module1"},
+			wantHealth:     components.StateHealthy,
+			wantHealthy:    true,
+		},
+		{
+			name:           "wrapped context canceled error",
+			data:           &Data{err: errors.New("operation aborted: context canceled")},
+			modulesToCheck: []string{"module1"},
+			wantHealth:     components.StateHealthy,
+			wantHealthy:    true,
 		},
 		{
 			name: "no modules to check",

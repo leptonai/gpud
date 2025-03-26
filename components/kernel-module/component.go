@@ -4,6 +4,7 @@ package kernelmodule
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -99,9 +100,16 @@ func (d *Data) getReason(modulesToCheck []string) string {
 	if d == nil {
 		return "no module data"
 	}
+
 	if d.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", d.err)
+		}
 		return fmt.Sprintf("failed to read modules -- %v", d.err)
 	}
+
 	if len(modulesToCheck) == 0 {
 		return "no modules to check"
 	}
@@ -122,6 +130,14 @@ func (d *Data) getReason(modulesToCheck []string) string {
 
 func (d *Data) getHealth(modulesToCheck []string) (string, bool) {
 	healthy := d == nil || d.err == nil || len(modulesToCheck) == 0
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if d != nil && !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy

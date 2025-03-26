@@ -242,6 +242,7 @@ func (d *Data) getReason() string {
 	if d == nil {
 		return "no memory data"
 	}
+
 	if d.err != nil {
 		// if the context is canceled or timeout, we assume the next course of action is unknown
 		// thus, treating it as healthy (or transient failure)
@@ -250,6 +251,7 @@ func (d *Data) getReason() string {
 		}
 		return fmt.Sprintf("failed to get memory data -- %s", d.err)
 	}
+
 	return fmt.Sprintf("using %s out of total %s", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes))
 }
 
@@ -258,7 +260,7 @@ func (d *Data) getHealth() (string, bool) {
 
 	// if the context is canceled or timeout, we assume the next course of action is unknown
 	// thus, treating it as healthy (or transient failure)
-	if !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+	if d != nil && !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
 		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
 		healthy = true
 	}
