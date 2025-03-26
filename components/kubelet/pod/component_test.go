@@ -242,6 +242,24 @@ func Test_describeReason(t *testing.T) {
 			},
 			expected: "failed to list pods from kubelet read-only port -- some error",
 		},
+		{
+			name: "context deadline exceeded error",
+			data: Data{
+				NodeName: "test-node",
+				Pods:     []PodStatus{{ID: "test-pod"}},
+				err:      context.DeadlineExceeded,
+			},
+			expected: "check failed with context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "context canceled error",
+			data: Data{
+				NodeName: "test-node",
+				Pods:     []PodStatus{{ID: "test-pod"}},
+				err:      context.Canceled,
+			},
+			expected: "check failed with context canceled -- transient error, please retry",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -294,6 +312,24 @@ func Test_getHealth(t *testing.T) {
 			ignoreConnErr:   true,
 			expectedHealth:  "Unhealthy",
 			expectedHealthy: false,
+		},
+		{
+			name: "context deadline exceeded error",
+			data: Data{
+				err: context.DeadlineExceeded,
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  "Healthy",
+			expectedHealthy: true,
+		},
+		{
+			name: "context canceled error",
+			data: Data{
+				err: context.Canceled,
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  "Healthy",
+			expectedHealthy: true,
 		},
 	}
 
