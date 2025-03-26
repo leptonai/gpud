@@ -468,7 +468,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		}
 
 		states, err := d.getStates()
-		assert.NoError(t, err) // Error is embedded in state, not returned
+		assert.Error(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
@@ -483,7 +483,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		}
 
 		states, err := d.getStates()
-		assert.NoError(t, err)
+		assert.Error(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
@@ -762,6 +762,213 @@ func TestData_getReasonWithErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reason := tt.data.getReason()
 			assert.Equal(t, tt.expected, reason)
+		})
+	}
+}
+
+// TestData_getHealth thoroughly tests the Data.getHealth method
+func TestData_getHealth(t *testing.T) {
+	tests := []struct {
+		name          string
+		data          *Data
+		expectedState string
+		expectHealthy bool
+	}{
+		{
+			name:          "nil data",
+			data:          nil,
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "empty data no error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  nil,
+			},
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "data with pods no error",
+			data: &Data{
+				Pods: []PodSandbox{
+					{ID: "pod1", Name: "test-pod-1"},
+					{ID: "pod2", Name: "test-pod-2"},
+				},
+				err: nil,
+			},
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "data with generic error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  errors.New("generic error"),
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+		{
+			name: "data with gRPC unimplemented error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  status.Error(codes.Unimplemented, "unknown service"),
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+		{
+			name: "data with context canceled error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  context.Canceled,
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+		{
+			name: "data with network error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err: &net.OpError{
+					Op:  "dial",
+					Err: errors.New("connection refused"),
+				},
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			health, healthy := tt.data.getHealth()
+			assert.Equal(t, tt.expectedState, health)
+			assert.Equal(t, tt.expectHealthy, healthy)
+		})
+	}
+}
+
+// TestData_getStates thoroughly tests the Data.getStates method
+func TestData_getStates(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedStates int
+		expectedName   string
+		expectedReason string
+		expectedHealth string
+		expectError    bool
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "no data yet",
+			expectedHealth: components.StateHealthy,
+			expectError:    false,
+		},
+		{
+			name: "empty data no error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  nil,
+			},
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "no pod sandbox found or containerd is not running",
+			expectedHealth: components.StateHealthy,
+			expectError:    false,
+		},
+		{
+			name: "data with pods no error",
+			data: &Data{
+				Pods: []PodSandbox{
+					{ID: "pod1", Name: "test-pod-1"},
+					{ID: "pod2", Name: "test-pod-2"},
+				},
+				err: nil,
+			},
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "total 2 pod sandboxe(s)",
+			expectedHealth: components.StateHealthy,
+			expectError:    false,
+		},
+		{
+			name: "data with generic error",
+			data: &Data{
+				Pods: []PodSandbox{},
+				err:  errors.New("generic error"),
+			},
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "no pod sandbox found or containerd is not running, error: generic error",
+			expectedHealth: components.StateUnhealthy,
+			expectError:    true,
+		},
+		{
+			name: "data with gRPC unimplemented error",
+			data: &Data{
+				Pods: []PodSandbox{
+					{ID: "pod1", Name: "test-pod-1"},
+				},
+				err: status.Error(codes.Unimplemented, "unknown service"),
+			},
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "containerd didn't enable CRI",
+			expectedHealth: components.StateUnhealthy,
+			expectError:    true,
+		},
+		{
+			name: "data with many pods and JSON extraInfo",
+			data: &Data{
+				Pods: []PodSandbox{
+					{ID: "pod1", Name: "test-pod-1"},
+					{ID: "pod2", Name: "test-pod-2"},
+					{ID: "pod3", Name: "test-pod-3"},
+				},
+				ContainerdServiceActive: true,
+			},
+			expectedStates: 1,
+			expectedName:   Name,
+			expectedReason: "total 3 pod sandboxe(s)",
+			expectedHealth: components.StateHealthy,
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			states, err := tt.data.getStates()
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Len(t, states, tt.expectedStates)
+			assert.Equal(t, tt.expectedName, states[0].Name)
+			assert.Equal(t, tt.expectedReason, states[0].Reason)
+			assert.Equal(t, tt.expectedHealth, states[0].Health)
+
+			// Check extraInfo for data with pods
+			if tt.data != nil && len(tt.data.Pods) > 0 && err == nil {
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+
+				// Verify we can unmarshal the JSON data
+				var decodedData Data
+				err := json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &decodedData)
+				assert.NoError(t, err)
+				assert.Equal(t, len(tt.data.Pods), len(decodedData.Pods))
+			}
 		})
 	}
 }

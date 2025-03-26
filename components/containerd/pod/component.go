@@ -211,7 +211,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	state.Health, state.Healthy = d.getHealth()
 
 	if d == nil || len(d.Pods) == 0 { // no pod found yet
-		return []components.State{state}, nil
+		return []components.State{state}, d.err
 	}
 
 	b, _ := json.Marshal(d)
@@ -219,5 +219,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
