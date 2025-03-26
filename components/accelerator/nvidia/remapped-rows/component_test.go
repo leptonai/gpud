@@ -136,13 +136,27 @@ func TestDataGetReason(t *testing.T) {
 	reason := nilData.getReason()
 	assert.Equal(t, "no remapped rows data", reason)
 
-	// Test with error
+	// Test with generic error
 	errorData := &Data{
 		err: errors.New("test error"),
 	}
 	reason = errorData.getReason()
 	assert.Contains(t, reason, "failed to get remapped rows data")
 	assert.Contains(t, reason, "test error")
+
+	// Test with context.DeadlineExceeded error
+	deadlineData := &Data{
+		err: context.DeadlineExceeded,
+	}
+	reason = deadlineData.getReason()
+	assert.Equal(t, "check failed with context deadline exceeded -- transient error, please retry", reason)
+
+	// Test with context.Canceled error
+	canceledData := &Data{
+		err: context.Canceled,
+	}
+	reason = canceledData.getReason()
+	assert.Equal(t, "check failed with context canceled -- transient error, please retry", reason)
 
 	// Test with data that has no row remapping support
 	noSupportData := &Data{
@@ -242,13 +256,29 @@ func TestRegisterCollectors(t *testing.T) {
 
 // Test the Data.getHealth method
 func TestDataGetHealth(t *testing.T) {
-	// Test with error
+	// Test with generic error
 	errorData := &Data{
 		err: errors.New("test error"),
 	}
 	health, healthy := errorData.getHealth()
 	assert.Equal(t, components.StateUnhealthy, health)
 	assert.False(t, healthy)
+
+	// Test with context.DeadlineExceeded error
+	deadlineData := &Data{
+		err: context.DeadlineExceeded,
+	}
+	health, healthy = deadlineData.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
+
+	// Test with context.Canceled error
+	canceledData := &Data{
+		err: context.Canceled,
+	}
+	health, healthy = canceledData.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
 
 	// Test with no row remapping support
 	noSupportData := &Data{
