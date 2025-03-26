@@ -167,6 +167,12 @@ func (d *Data) getReason() string {
 	reason := fmt.Sprintf("total %d pod sandboxe(s)", len(d.Pods))
 
 	if d.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", d.err)
+		}
+
 		st, ok := status.FromError(d.err)
 		if ok {
 			// this is the error from "ListSandboxStatus"
@@ -186,12 +192,21 @@ func (d *Data) getReason() string {
 }
 
 func (d *Data) getHealth() (string, bool) {
-	if d != nil && d.err != nil {
-		return components.StateUnhealthy, false
-	}
-	return components.StateHealthy, true
-}
+	healthy := d == nil || d.err == nil
 
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if d != nil && !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
+		healthy = true
+	}
+
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+	return health, healthy
+}
 func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{

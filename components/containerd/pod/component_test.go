@@ -429,24 +429,24 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 		assert.False(t, healthy)
 	})
 
-	t.Run("context canceled error", func(t *testing.T) {
+	t.Run("context canceled error should evaluate to healthy", func(t *testing.T) {
 		d := Data{
 			err: context.Canceled,
 		}
 
 		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		assert.Equal(t, components.StateHealthy, health)
+		assert.True(t, healthy)
 	})
 
-	t.Run("context deadline exceeded error", func(t *testing.T) {
+	t.Run("context deadline exceeded error should evaluate to healthy", func(t *testing.T) {
 		d := Data{
 			err: context.DeadlineExceeded,
 		}
 
 		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		assert.Equal(t, components.StateHealthy, health)
+		assert.True(t, healthy)
 	})
 
 	t.Run("grpc unavailable error", func(t *testing.T) {
@@ -660,7 +660,7 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  context.Canceled,
 			},
-			expected: "failed to list pod sandbox status context canceled",
+			expected: "check failed with context canceled -- transient error, please retry",
 		},
 		{
 			name: "context deadline exceeded error",
@@ -668,7 +668,7 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  context.DeadlineExceeded,
 			},
-			expected: "failed to list pod sandbox status context deadline exceeded",
+			expected: "check failed with context deadline exceeded -- transient error, please retry",
 		},
 		{
 			name: "network dial error",
@@ -762,6 +762,136 @@ func TestData_getReasonWithErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reason := tt.data.getReason()
 			assert.Equal(t, tt.expected, reason)
+		})
+	}
+}
+
+// TestData_getReason_ContextErrors focuses specifically on testing context error handling in getReason
+func TestData_getReason_ContextErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     Data
+		expected string
+	}{
+		{
+			name: "context.DeadlineExceeded error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.DeadlineExceeded,
+			},
+			expected: "check failed with context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "context.Canceled error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.Canceled,
+			},
+			expected: "check failed with context canceled -- transient error, please retry",
+		},
+		{
+			name: "regular error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  errors.New("some regular error"),
+			},
+			expected: "failed to list pod sandbox status some regular error",
+		},
+		{
+			name: "wrapped context.DeadlineExceeded error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  fmt.Errorf("connection timeout: %w", context.DeadlineExceeded),
+			},
+			expected: "check failed with connection timeout: context deadline exceeded -- transient error, please retry",
+		},
+		{
+			name: "wrapped context.Canceled error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  fmt.Errorf("operation canceled: %w", context.Canceled),
+			},
+			expected: "check failed with operation canceled: context canceled -- transient error, please retry",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := tt.data.getReason()
+			assert.Equal(t, tt.expected, reason)
+		})
+	}
+}
+
+// TestData_getHealth_ContextErrors focuses specifically on testing context error handling in getHealth
+func TestData_getHealth_ContextErrors(t *testing.T) {
+	tests := []struct {
+		name            string
+		data            Data
+		expectedHealth  string
+		expectedHealthy bool
+	}{
+		{
+			name: "no error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  nil,
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "context.DeadlineExceeded error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.DeadlineExceeded,
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "context.Canceled error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  context.Canceled,
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "wrapped context.DeadlineExceeded error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  fmt.Errorf("connection timeout: %w", context.DeadlineExceeded),
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "wrapped context.Canceled error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  fmt.Errorf("operation canceled: %w", context.Canceled),
+			},
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
+		{
+			name: "regular error",
+			data: Data{
+				Pods: []PodSandbox{{ID: "pod1"}},
+				err:  errors.New("some regular error"),
+			},
+			expectedHealth:  components.StateUnhealthy,
+			expectedHealthy: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			health, healthy := tt.data.getHealth()
+			assert.Equal(t, tt.expectedHealth, health)
+			assert.Equal(t, tt.expectedHealthy, healthy)
 		})
 	}
 }
