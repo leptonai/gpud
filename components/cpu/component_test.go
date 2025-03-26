@@ -22,6 +22,16 @@ func TestInfoGetReason(t *testing.T) {
 	i = &Info{err: assert.AnError}
 	assert.Contains(t, i.getReason(), "failed to get CPU information")
 
+	// Test with context.DeadlineExceeded error
+	i = &Info{err: context.DeadlineExceeded}
+	assert.Contains(t, i.getReason(), "check failed with context deadline exceeded")
+	assert.Contains(t, i.getReason(), "transient error, please retry")
+
+	// Test with context.Canceled error
+	i = &Info{err: context.Canceled}
+	assert.Contains(t, i.getReason(), "check failed with context canceled")
+	assert.Contains(t, i.getReason(), "transient error, please retry")
+
 	// Test with valid info
 	i = &Info{
 		Arch:      "x86_64",
@@ -32,6 +42,9 @@ func TestInfoGetReason(t *testing.T) {
 	}
 	assert.Contains(t, i.getReason(), "x86_64")
 	assert.Contains(t, i.getReason(), "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz")
+	assert.Contains(t, i.getReason(), "family: 6")
+	assert.Contains(t, i.getReason(), "model: 142")
+	assert.Contains(t, i.getReason(), "cpu: 0")
 }
 
 func TestInfoGetHealth(t *testing.T) {
@@ -47,11 +60,29 @@ func TestInfoGetHealth(t *testing.T) {
 	assert.Equal(t, "Unhealthy", health)
 	assert.False(t, healthy)
 
+	// Test with context.DeadlineExceeded error - should be treated as healthy
+	i = &Info{err: context.DeadlineExceeded}
+	health, healthy = i.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context deadline exceeded should be treated as healthy")
+
+	// Test with context.Canceled error - should be treated as healthy
+	i = &Info{err: context.Canceled}
+	health, healthy = i.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context canceled should be treated as healthy")
+
 	// Test with valid info
 	i = &Info{
 		Arch:      "x86_64",
 		ModelName: "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz",
 	}
+	health, healthy = i.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test with empty but non-nil info
+	i = &Info{}
 	health, healthy = i.getHealth()
 	assert.Equal(t, "Healthy", health)
 	assert.True(t, healthy)
@@ -66,11 +97,27 @@ func TestCoresGetReason(t *testing.T) {
 	c = &Cores{err: assert.AnError}
 	assert.Contains(t, c.getReason(), "failed to get CPU cores")
 
+	// Test with context.DeadlineExceeded error
+	c = &Cores{err: context.DeadlineExceeded}
+	assert.Contains(t, c.getReason(), "check failed with context deadline exceeded")
+	assert.Contains(t, c.getReason(), "transient error, please retry")
+
+	// Test with context.Canceled error
+	c = &Cores{err: context.Canceled}
+	assert.Contains(t, c.getReason(), "check failed with context canceled")
+	assert.Contains(t, c.getReason(), "transient error, please retry")
+
 	// Test with valid cores
 	c = &Cores{
 		Logical: 8,
 	}
 	assert.Contains(t, c.getReason(), "logical: 8 cores")
+
+	// Test with zero cores
+	c = &Cores{
+		Logical: 0,
+	}
+	assert.Contains(t, c.getReason(), "logical: 0 cores")
 }
 
 func TestCoresGetHealth(t *testing.T) {
@@ -86,10 +133,28 @@ func TestCoresGetHealth(t *testing.T) {
 	assert.Equal(t, "Unhealthy", health)
 	assert.False(t, healthy)
 
+	// Test with context.DeadlineExceeded error - should be treated as healthy
+	c = &Cores{err: context.DeadlineExceeded}
+	health, healthy = c.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context deadline exceeded should be treated as healthy")
+
+	// Test with context.Canceled error - should be treated as healthy
+	c = &Cores{err: context.Canceled}
+	health, healthy = c.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context canceled should be treated as healthy")
+
 	// Test with valid cores
 	c = &Cores{
 		Logical: 8,
 	}
+	health, healthy = c.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test with empty but non-nil cores
+	c = &Cores{}
 	health, healthy = c.getHealth()
 	assert.Equal(t, "Healthy", health)
 	assert.True(t, healthy)
@@ -104,6 +169,16 @@ func TestUsageGetReason(t *testing.T) {
 	u = &Usage{err: assert.AnError}
 	assert.Contains(t, u.getReason(), "failed to get CPU usage")
 
+	// Test with context.DeadlineExceeded error
+	u = &Usage{err: context.DeadlineExceeded}
+	assert.Contains(t, u.getReason(), "check failed with context deadline exceeded")
+	assert.Contains(t, u.getReason(), "transient error, please retry")
+
+	// Test with context.Canceled error
+	u = &Usage{err: context.Canceled}
+	assert.Contains(t, u.getReason(), "check failed with context canceled")
+	assert.Contains(t, u.getReason(), "transient error, please retry")
+
 	// Test with valid usage
 	u = &Usage{
 		UsedPercent:  "25.50",
@@ -115,6 +190,14 @@ func TestUsageGetReason(t *testing.T) {
 	assert.Contains(t, u.getReason(), "1.25")
 	assert.Contains(t, u.getReason(), "1.50")
 	assert.Contains(t, u.getReason(), "1.75")
+
+	// Test with empty but non-nil usage
+	u = &Usage{}
+	reason := u.getReason()
+	assert.Contains(t, reason, "used_percent: %")
+	assert.Contains(t, reason, "load_avg_1min: ")
+	assert.Contains(t, reason, "load_avg_5min: ")
+	assert.Contains(t, reason, "load_avg_15min: ")
 }
 
 func TestUsageGetHealth(t *testing.T) {
@@ -130,6 +213,18 @@ func TestUsageGetHealth(t *testing.T) {
 	assert.Equal(t, "Unhealthy", health)
 	assert.False(t, healthy)
 
+	// Test with context.DeadlineExceeded error - should be treated as healthy
+	u = &Usage{err: context.DeadlineExceeded}
+	health, healthy = u.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context deadline exceeded should be treated as healthy")
+
+	// Test with context.Canceled error - should be treated as healthy
+	u = &Usage{err: context.Canceled}
+	health, healthy = u.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "Context canceled should be treated as healthy")
+
 	// Test with normal load
 	u = &Usage{
 		UsedPercent:  "50.00",
@@ -137,6 +232,23 @@ func TestUsageGetHealth(t *testing.T) {
 		LoadAvg5Min:  "1.50",
 		LoadAvg15Min: "1.75",
 	}
+	health, healthy = u.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+
+	// Test with high load but no error
+	u = &Usage{
+		UsedPercent:  "99.99",
+		LoadAvg1Min:  "10.5",
+		LoadAvg5Min:  "9.8",
+		LoadAvg15Min: "8.7",
+	}
+	health, healthy = u.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy, "High load alone doesn't make the system unhealthy")
+
+	// Test with empty but non-nil usage
+	u = &Usage{}
 	health, healthy = u.getHealth()
 	assert.Equal(t, "Healthy", health)
 	assert.True(t, healthy)
@@ -271,6 +383,26 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.False(t, infoState.Healthy)
 	})
 
+	// Test with Info with context deadline exceeded error
+	t.Run("Info with context deadline exceeded error", func(t *testing.T) {
+		d := &Data{
+			Info:  &Info{err: context.DeadlineExceeded},
+			Usage: &Usage{UsedPercent: "25.50"},
+			ts:    time.Now(),
+		}
+		states, err := d.getStates()
+
+		assert.NoError(t, err)
+		assert.Len(t, states, 3)
+
+		// Find the info state
+		var infoState = findStateByName(states, "info")
+		assert.NotNil(t, infoState)
+		assert.Contains(t, infoState.Reason, "check failed with context deadline exceeded -- transient error")
+		assert.Equal(t, "Healthy", infoState.Health)
+		assert.True(t, infoState.Healthy)
+	})
+
 	// Test with Cores with error
 	t.Run("Cores with error", func(t *testing.T) {
 		d := &Data{
@@ -292,6 +424,27 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.False(t, coresState.Healthy)
 	})
 
+	// Test with Cores with context canceled error
+	t.Run("Cores with context canceled error", func(t *testing.T) {
+		d := &Data{
+			Info:  &Info{Arch: "x86_64"},
+			Cores: &Cores{err: context.Canceled},
+			Usage: &Usage{UsedPercent: "25.50"},
+			ts:    time.Now(),
+		}
+		states, err := d.getStates()
+
+		assert.NoError(t, err)
+		assert.Len(t, states, 3)
+
+		// Find the cores state
+		var coresState = findStateByName(states, "cores")
+		assert.NotNil(t, coresState)
+		assert.Contains(t, coresState.Reason, "check failed with context canceled -- transient error")
+		assert.Equal(t, "Healthy", coresState.Health)
+		assert.True(t, coresState.Healthy)
+	})
+
 	// Test with Usage with error
 	t.Run("Usage with error", func(t *testing.T) {
 		d := &Data{
@@ -310,6 +463,67 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, usageState.Reason, "failed to get CPU usage")
 		assert.Equal(t, "Unhealthy", usageState.Health)
 		assert.False(t, usageState.Healthy)
+	})
+
+	// Test with Usage with context deadline exceeded error
+	t.Run("Usage with context deadline exceeded error", func(t *testing.T) {
+		d := &Data{
+			Info:  &Info{Arch: "x86_64"},
+			Usage: &Usage{err: context.DeadlineExceeded},
+			ts:    time.Now(),
+		}
+		states, err := d.getStates()
+
+		assert.NoError(t, err)
+		assert.Len(t, states, 3)
+
+		// Find the usage state
+		var usageState = findStateByName(states, "usage")
+		assert.NotNil(t, usageState)
+		assert.Contains(t, usageState.Reason, "check failed with context deadline exceeded -- transient error")
+		assert.Equal(t, "Healthy", usageState.Health)
+		assert.True(t, usageState.Healthy)
+	})
+
+	// Test with Usage with context canceled error
+	t.Run("Usage with context canceled error", func(t *testing.T) {
+		d := &Data{
+			Info:  &Info{Arch: "x86_64"},
+			Usage: &Usage{err: context.Canceled},
+			ts:    time.Now(),
+		}
+		states, err := d.getStates()
+
+		assert.NoError(t, err)
+		assert.Len(t, states, 3)
+
+		// Find the usage state
+		var usageState = findStateByName(states, "usage")
+		assert.NotNil(t, usageState)
+		assert.Contains(t, usageState.Reason, "check failed with context canceled -- transient error")
+		assert.Equal(t, "Healthy", usageState.Health)
+		assert.True(t, usageState.Healthy)
+	})
+
+	// Test with all fields having context errors
+	t.Run("All fields with context errors", func(t *testing.T) {
+		d := &Data{
+			Info:  &Info{err: context.DeadlineExceeded},
+			Cores: &Cores{err: context.Canceled},
+			Usage: &Usage{err: context.DeadlineExceeded},
+			ts:    time.Now(),
+		}
+		states, err := d.getStates()
+
+		assert.NoError(t, err)
+		assert.Len(t, states, 3)
+
+		// All states should be healthy despite context errors
+		for _, state := range states {
+			assert.Equal(t, "Healthy", state.Health)
+			assert.True(t, state.Healthy)
+			assert.Contains(t, state.Reason, "transient error")
+		}
 	})
 }
 

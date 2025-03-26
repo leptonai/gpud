@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -263,6 +264,11 @@ func (i *Info) getReason() string {
 		return "no cpu info found"
 	}
 	if i.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(i.err, context.DeadlineExceeded) || errors.Is(i.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", i.err)
+		}
 		return fmt.Sprintf("failed to get CPU information -- %s", i.err)
 	}
 
@@ -272,6 +278,14 @@ func (i *Info) getReason() string {
 
 func (i *Info) getHealth() (string, bool) {
 	healthy := i == nil || i.err == nil
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if !healthy && (errors.Is(i.err, context.DeadlineExceeded) || errors.Is(i.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", i.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy
@@ -291,6 +305,11 @@ func (c *Cores) getReason() string {
 		return "no cpu cores found"
 	}
 	if c.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(c.err, context.DeadlineExceeded) || errors.Is(c.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", c.err)
+		}
 		return fmt.Sprintf("failed to get CPU cores -- %s", c.err)
 	}
 
@@ -299,6 +318,14 @@ func (c *Cores) getReason() string {
 
 func (c *Cores) getHealth() (string, bool) {
 	healthy := c == nil || c.err == nil
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if !healthy && (errors.Is(c.err, context.DeadlineExceeded) || errors.Is(c.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", c.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy
@@ -331,6 +358,11 @@ func (u *Usage) getReason() string {
 		return "no cpu usage found"
 	}
 	if u.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(u.err, context.DeadlineExceeded) || errors.Is(u.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", u.err)
+		}
 		return fmt.Sprintf("failed to get CPU usage -- %s", u.err)
 	}
 
@@ -340,6 +372,14 @@ func (u *Usage) getReason() string {
 
 func (u *Usage) getHealth() (string, bool) {
 	healthy := u == nil || u.err == nil
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if !healthy && (errors.Is(u.err, context.DeadlineExceeded) || errors.Is(u.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", u.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy
