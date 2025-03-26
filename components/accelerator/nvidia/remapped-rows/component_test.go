@@ -2,6 +2,7 @@ package remappedrows
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -626,4 +627,362 @@ func TestEventsWithDB(t *testing.T) {
 	}
 	assert.True(t, foundEvent1, "Expected to find test_event in results")
 	assert.True(t, foundEvent2, "Expected to find another_test_event in results")
+}
+
+// TestDataGetReasonEdgeCases tests edge cases for the getReason method
+func TestDataGetReasonEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name: "empty data with no remapped rows",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{}, // Empty map
+			},
+			expected: "no issue detected",
+		},
+		{
+			name: "nil remapped rows map",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: nil, // Nil map
+			},
+			expected: "no issue detected",
+		},
+		{
+			name: "error with specific message",
+			data: &Data{
+				err: fmt.Errorf("NVML library initialization failed"),
+			},
+			expected: "failed to get remapped rows data -- NVML library initialization failed",
+		},
+		{
+			name: "multiple GPUs with mixed issues",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{
+					"GPU0": { // Healthy
+						RemappedDueToUncorrectableErrors: 0,
+						RemappingFailed:                  false,
+						RemappingPending:                 false,
+					},
+					"GPU1": { // RMA qualifying
+						RemappedDueToUncorrectableErrors: 5,
+						RemappingFailed:                  true,
+					},
+					"GPU2": { // Reset required
+						RemappingPending: true,
+					},
+					"GPU3": { // Both issues
+						RemappedDueToUncorrectableErrors: 3,
+						RemappingFailed:                  true,
+						RemappingPending:                 true,
+					},
+				},
+			},
+			expected: "GPU1 qualifies for RMA (row remapping failed, remapped due to 5 uncorrectable error(s)); GPU2 needs reset (detected pending row remapping); GPU3 qualifies for RMA (row remapping failed, remapped due to 3 uncorrectable error(s)); GPU3 needs reset (detected pending row remapping)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := tt.data.getReason()
+			// For the mixed issues test, just check that all expected GPUs are mentioned
+			if tt.name == "multiple GPUs with mixed issues" {
+				assert.Contains(t, reason, "GPU1 qualifies for RMA")
+				assert.Contains(t, reason, "GPU2 needs reset")
+				assert.Contains(t, reason, "GPU3 qualifies for RMA")
+				assert.Contains(t, reason, "GPU3 needs reset")
+				assert.NotContains(t, reason, "GPU0") // Should not mention healthy GPU
+			} else {
+				assert.Equal(t, tt.expected, reason)
+			}
+		})
+	}
+}
+
+// TestDataGetHealthEdgeCases tests edge cases for the getHealth method
+func TestDataGetHealthEdgeCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		data          *Data
+		expectedState string
+		expectHealthy bool
+	}{
+		{
+			name:          "nil data",
+			data:          nil,
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "error in data",
+			data: &Data{
+				err: fmt.Errorf("test error"),
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+		{
+			name: "no row remapping support",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: false,
+				},
+			},
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "empty remapped rows",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{},
+			},
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "nil remapped rows",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: nil,
+			},
+			expectedState: components.StateHealthy,
+			expectHealthy: true,
+		},
+		{
+			name: "one unhealthy GPU among healthy GPUs",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{
+					"GPU0": { // Healthy
+						RemappedDueToUncorrectableErrors: 0,
+						RemappingFailed:                  false,
+						RemappingPending:                 false,
+					},
+					"GPU1": { // Healthy
+						RemappedDueToUncorrectableErrors: 0,
+						RemappingFailed:                  false,
+						RemappingPending:                 false,
+					},
+					"GPU2": { // Unhealthy - needs reset
+						RemappingPending: true,
+					},
+				},
+			},
+			expectedState: components.StateUnhealthy,
+			expectHealthy: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			health, healthy := tt.data.getHealth()
+			assert.Equal(t, tt.expectedState, health)
+			assert.Equal(t, tt.expectHealthy, healthy)
+		})
+	}
+}
+
+// TestDataGetStatesErrorHandling tests error handling in the getStates method
+func TestDataGetStatesErrorHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        *Data
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "with error",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{},
+				err:          fmt.Errorf("NVML initialization failed"),
+			},
+			expectError: true,
+			errorMsg:    "NVML initialization failed",
+		},
+		{
+			name: "nil error",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{},
+				err:          nil,
+			},
+			expectError: false,
+		},
+		{
+			name: "wrapped error",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{},
+				err:          fmt.Errorf("error getting remapped rows: %w", errors.New("device not found")),
+			},
+			expectError: true,
+			errorMsg:    "error getting remapped rows: device not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			states, err := tt.data.getStates()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errorMsg, err.Error())
+				// Even with error, should return a valid state object
+				assert.Len(t, states, 1)
+				assert.Equal(t, "row_remapping", states[0].Name)
+				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+				assert.False(t, states[0].Healthy)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, states, 1)
+			}
+
+			// Verify the extraInfo contains valid JSON data
+			if tt.data != nil {
+				jsonData := states[0].ExtraInfo["data"]
+				var decodedData Data
+				err := json.Unmarshal([]byte(jsonData), &decodedData)
+				assert.NoError(t, err, "ExtraInfo data should be valid JSON")
+
+				// Check that product name is preserved in the JSON
+				assert.Equal(t, tt.data.ProductName, decodedData.ProductName)
+			}
+		})
+	}
+}
+
+// TestDataGetStatesMalformedData tests getStates with potentially problematic data structures
+func TestDataGetStatesMalformedData(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedReason string
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedReason: "no data yet",
+		},
+		{
+			name: "empty product name",
+			data: &Data{
+				ProductName: "", // Empty product name
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{},
+			},
+			expectedReason: "no issue detected",
+		},
+		{
+			name: "extremely large number of remapped rows",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{
+					"GPU0": {
+						RemappedDueToUncorrectableErrors: 9999999,
+						RemappingFailed:                  true,
+					},
+				},
+			},
+			expectedReason: "GPU0 qualifies for RMA (row remapping failed, remapped due to 9999999 uncorrectable error(s))",
+		},
+		{
+			name: "GPUs with special characters in IDs",
+			data: &Data{
+				ProductName: "Test GPU",
+				MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+					RowRemapping: true,
+				},
+				RemappedRows: map[string]nvml.RemappedRows{
+					"GPU-123&$": { // Special characters
+						RemappingPending: true,
+					},
+					"GPU\n\t": { // Control characters
+						RemappedDueToUncorrectableErrors: 1,
+						RemappingFailed:                  true,
+					},
+				},
+			},
+			expectedReason: "GPU-123&$ needs reset (detected pending row remapping); GPU\n\t qualifies for RMA",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			states, err := tt.data.getStates()
+
+			if tt.data != nil && tt.data.err != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Len(t, states, 1)
+
+			if tt.data == nil {
+				assert.Equal(t, tt.expectedReason, states[0].Reason)
+				assert.Equal(t, "Healthy", states[0].Health)
+				assert.True(t, states[0].Healthy)
+				return
+			}
+
+			// For special character test, just verify both GPUs are mentioned
+			if tt.name == "GPUs with special characters in IDs" {
+				assert.Contains(t, states[0].Reason, "GPU-123&$")
+				assert.Contains(t, states[0].Reason, "GPU\n\t")
+			} else if tt.expectedReason != "" {
+				assert.Equal(t, tt.expectedReason, states[0].Reason)
+			}
+
+			// Verify JSON serialization works for all cases
+			if tt.data != nil {
+				jsonData := states[0].ExtraInfo["data"]
+				assert.NotEmpty(t, jsonData)
+
+				// Just verify it's valid JSON - some special characters might be escaped
+				var rawJSON map[string]interface{}
+				err := json.Unmarshal([]byte(jsonData), &rawJSON)
+				assert.NoError(t, err, "Should produce valid JSON even with malformed data")
+			}
+		})
+	}
 }

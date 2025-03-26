@@ -284,7 +284,7 @@ func (d *Data) getReason() string {
 func (d *Data) getHealth() (string, bool) {
 	healthy := d == nil || d.err == nil
 
-	if healthy && d.MemoryErrorManagementCapabilities.RowRemapping {
+	if d != nil && healthy && d.MemoryErrorManagementCapabilities.RowRemapping {
 		for _, remappedRows := range d.RemappedRows {
 			if remappedRows.QualifiesForRMA() {
 				healthy = false
@@ -327,5 +327,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
