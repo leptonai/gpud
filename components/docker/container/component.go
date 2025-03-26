@@ -209,7 +209,7 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	state.Health, state.Healthy = d.getHealth(ignoreConnErr)
 
 	if len(d.Containers) == 0 { // no container found yet
-		return []components.State{state}, nil
+		return []components.State{state}, d.err
 	}
 
 	b, _ := json.Marshal(d)
@@ -217,5 +217,5 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
