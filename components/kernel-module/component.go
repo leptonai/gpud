@@ -163,5 +163,5 @@ func (d *Data) getStates(modulesToCheck []string) ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []components.State{state}, d.err
 }
