@@ -468,7 +468,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		}
 
 		states, err := d.getStates()
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
@@ -483,7 +483,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		}
 
 		states, err := d.getStates()
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
@@ -908,7 +908,7 @@ func TestData_getStates(t *testing.T) {
 			expectedName:   Name,
 			expectedReason: "no pod sandbox found or containerd is not running, error: generic error",
 			expectedHealth: components.StateUnhealthy,
-			expectError:    true,
+			expectError:    false,
 		},
 		{
 			name: "data with gRPC unimplemented error",
@@ -922,7 +922,7 @@ func TestData_getStates(t *testing.T) {
 			expectedName:   Name,
 			expectedReason: "containerd didn't enable CRI",
 			expectedHealth: components.StateUnhealthy,
-			expectError:    true,
+			expectError:    false,
 		},
 		{
 			name: "data with many pods and JSON extraInfo",

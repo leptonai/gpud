@@ -186,6 +186,13 @@ func (d *Data) getHealth(ignoreConnErr bool) (string, bool) {
 	return health, healthy
 }
 
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
 func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	if d == nil {
 		return []components.State{
@@ -201,11 +208,12 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	state := components.State{
 		Name:   Name,
 		Reason: d.getReason(),
+		Error:  d.getError(),
 	}
 	state.Health, state.Healthy = d.getHealth(ignoreConnErr)
 
 	if len(d.Pods) == 0 { // no pod found yet
-		return []components.State{state}, d.err
+		return []components.State{state}, nil
 	}
 
 	b, _ := json.Marshal(d)
@@ -213,5 +221,5 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, d.err
+	return []components.State{state}, nil
 }

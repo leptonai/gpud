@@ -170,6 +170,7 @@ func TestDataGetStates(t *testing.T) {
 	stateNames := []string{}
 	for _, state := range states {
 		stateNames = append(stateNames, state.Name)
+		assert.Empty(t, state.Error, "Error should be empty for healthy states")
 	}
 	assert.Contains(t, stateNames, "info")
 	assert.Contains(t, stateNames, "cores")
@@ -187,6 +188,7 @@ func TestNilDataGetStates(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
 }
 
 func TestDataWithNilFieldsGetStates(t *testing.T) {
@@ -208,6 +210,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu info found", infoState.Reason)
 		assert.Equal(t, "Healthy", infoState.Health)
 		assert.True(t, infoState.Healthy)
+		assert.Empty(t, infoState.Error, "Error should be empty for nil info")
 	})
 
 	// Test with nil Cores
@@ -229,6 +232,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu cores found", coresState.Reason)
 		assert.Equal(t, "Healthy", coresState.Health)
 		assert.True(t, coresState.Healthy)
+		assert.Empty(t, coresState.Error, "Error should be empty for nil cores")
 	})
 
 	// Test with nil Usage
@@ -249,6 +253,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu usage found", usageState.Reason)
 		assert.Equal(t, "Healthy", usageState.Health)
 		assert.True(t, usageState.Healthy)
+		assert.Empty(t, usageState.Error, "Error should be empty for nil usage")
 	})
 }
 
@@ -262,7 +267,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		}
 		states, err := d.getStates()
 
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, states, 3)
 
 		// Find the info state
@@ -271,6 +276,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, infoState.Reason, "failed to get CPU information")
 		assert.Equal(t, "Unhealthy", infoState.Health)
 		assert.False(t, infoState.Healthy)
+		assert.Equal(t, "info error", infoState.Error, "Error should contain the error message")
 	})
 
 	// Test with Cores with error
@@ -283,7 +289,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		}
 		states, err := d.getStates()
 
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, states, 3)
 
 		// Find the cores state
@@ -292,6 +298,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, coresState.Reason, "failed to get CPU cores")
 		assert.Equal(t, "Unhealthy", coresState.Health)
 		assert.False(t, coresState.Healthy)
+		assert.Equal(t, "cores error", coresState.Error, "Error should contain the error message")
 	})
 
 	// Test with Usage with error
@@ -303,7 +310,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		}
 		states, err := d.getStates()
 
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, states, 3)
 
 		// Find the usage state
@@ -312,6 +319,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, usageState.Reason, "failed to get CPU usage")
 		assert.Equal(t, "Unhealthy", usageState.Health)
 		assert.False(t, usageState.Healthy)
+		assert.Equal(t, "usage error", usageState.Error, "Error should contain the error message")
 	})
 }
 
@@ -523,20 +531,13 @@ func TestDataGetReasonEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates()
+			assert.NoError(t, err)
 
 			if tc.data == nil {
-				assert.NoError(t, err)
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, "no data yet", states[0].Reason)
 				return
-			}
-
-			// Check if we expect an error
-			if tc.data.getError() != nil {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
 			}
 
 			assert.Len(t, states, 3) // Info, Cores, Usage states

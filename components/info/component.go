@@ -261,6 +261,13 @@ func (d *Data) getHealth() (string, bool) {
 	return health, healthy
 }
 
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
 func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
@@ -276,6 +283,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	state := components.State{
 		Name:   Name,
 		Reason: d.getReason(),
+		Error:  d.getError(),
 	}
 	state.Health, state.Healthy = d.getHealth()
 
@@ -284,5 +292,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, d.err
+	return []components.State{state}, nil
 }

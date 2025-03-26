@@ -222,7 +222,6 @@ func TestDataGetStates(t *testing.T) {
 		name           string
 		data           Data
 		ignoreConnErr  bool
-		expectError    bool
 		stateCount     int
 		expectedHealth string
 	}{
@@ -234,7 +233,6 @@ func TestDataGetStates(t *testing.T) {
 				err:                 nil,
 			},
 			ignoreConnErr:  false,
-			expectError:    false,
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -246,7 +244,6 @@ func TestDataGetStates(t *testing.T) {
 				err:                 nil,
 			},
 			ignoreConnErr:  false,
-			expectError:    false,
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -258,7 +255,6 @@ func TestDataGetStates(t *testing.T) {
 				err:                 errors.New("test error"),
 			},
 			ignoreConnErr:  false,
-			expectError:    true,
 			stateCount:     1,
 			expectedHealth: components.StateUnhealthy,
 		},
@@ -271,7 +267,6 @@ func TestDataGetStates(t *testing.T) {
 				connErr:             true,
 			},
 			ignoreConnErr:  true,
-			expectError:    true, // Error is still returned even if ignored for health
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -284,7 +279,6 @@ func TestDataGetStates(t *testing.T) {
 				connErr:             true,
 			},
 			ignoreConnErr:  false,
-			expectError:    true,
 			stateCount:     1,
 			expectedHealth: components.StateUnhealthy,
 		},
@@ -293,11 +287,8 @@ func TestDataGetStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			states, err := tt.data.getStates(tt.ignoreConnErr)
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err)
+
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
@@ -392,6 +383,7 @@ func TestComponentStates(t *testing.T) {
 
 	states, err := comp.States(ctx)
 	assert.NoError(t, err)
+
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, components.StateHealthy, states[0].Health)
@@ -423,7 +415,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	states, err = comp.States(ctx)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, components.StateHealthy, states[0].Health)
 	assert.Equal(t, true, states[0].Healthy)
@@ -448,7 +440,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Get states and verify error handling with ignoreConnectionErrors=true
 	states, err := comp.States(ctx)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, components.StateHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
 
@@ -460,7 +452,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Get states and verify error handling with ignoreConnectionErrors=false
 	states, err = comp2.States(ctx)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, components.StateUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
 
 	// Test with client version newer than daemon error
@@ -480,7 +472,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Get states and verify special error message
 	states, err = comp.States(ctx)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Contains(t, states[0].Reason, "not supported")
 	assert.Contains(t, states[0].Reason, "needs upgrading docker daemon")
@@ -546,13 +538,13 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify the connection error is handled correctly through States
 		states, err := comp.States(ctx)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, components.StateHealthy, states[0].Health) // Should be healthy with ignoreConnectionErrors=true
 
 		// Now test with ignoreConnectionErrors=false
 		comp.ignoreConnectionErrors = false
 		states, err = comp.States(ctx)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health) // Should be unhealthy with ignoreConnectionErrors=false
 	})
 
@@ -642,7 +634,7 @@ func TestCheckOnceMetrics(t *testing.T) {
 		// by checking that States returns unhealthy state
 		comp.ignoreConnectionErrors = false
 		states, err := comp.States(ctx)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
 	})
 }

@@ -162,4 +162,5 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
 }

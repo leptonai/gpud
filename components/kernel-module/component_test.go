@@ -331,12 +331,7 @@ func TestDataGetStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			states, err := tt.data.getStates(tt.modulesToCheck)
-
-			if tt.wantError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err)
 
 			require.Len(t, states, 1)
 			state := states[0]
@@ -345,6 +340,16 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, tt.wantReason, state.Reason)
 			assert.Equal(t, tt.wantHealth, state.Health)
 			assert.Equal(t, tt.wantHealthy, state.Healthy)
+
+			// Check Error field is set correctly
+			if tt.wantError {
+				assert.NotEmpty(t, state.Error, "Error should be set when there's an error")
+				if tt.data != nil && tt.data.err != nil {
+					assert.Equal(t, tt.data.err.Error(), state.Error, "Error should match Data.err")
+				}
+			} else {
+				assert.Empty(t, state.Error, "Error should be empty when there's no error")
+			}
 
 			// Check that ExtraInfo exists for non-nil data
 			if tt.data != nil {

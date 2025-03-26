@@ -279,6 +279,13 @@ func (i *Info) getHealth() (string, bool) {
 	return health, healthy
 }
 
+func (i *Info) getError() string {
+	if i == nil || i.err == nil {
+		return ""
+	}
+	return i.err.Error()
+}
+
 type Cores struct {
 	Logical int `json:"logical"`
 
@@ -304,6 +311,13 @@ func (c *Cores) getHealth() (string, bool) {
 		health = components.StateUnhealthy
 	}
 	return health, healthy
+}
+
+func (c *Cores) getError() string {
+	if c == nil || c.err == nil {
+		return ""
+	}
+	return c.err.Error()
 }
 
 type Usage struct {
@@ -347,20 +361,11 @@ func (u *Usage) getHealth() (string, bool) {
 	return health, healthy
 }
 
-func (d *Data) getError() error {
-	if d == nil {
-		return nil
+func (u *Usage) getError() string {
+	if u == nil || u.err == nil {
+		return ""
 	}
-	if d.Info != nil && d.Info.err != nil {
-		return d.Info.err
-	}
-	if d.Cores != nil && d.Cores.err != nil {
-		return d.Cores.err
-	}
-	if d.Usage != nil && d.Usage.err != nil {
-		return d.Usage.err
-	}
-	return nil
+	return u.err.Error()
 }
 
 func (d *Data) getStates() ([]components.State, error) {
@@ -378,6 +383,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	stateInfo := components.State{
 		Name:   "info",
 		Reason: d.Info.getReason(),
+		Error:  d.Info.getError(),
 	}
 	stateInfo.Health, stateInfo.Healthy = d.Info.getHealth()
 	if d.Info != nil {
@@ -391,6 +397,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	stateCores := components.State{
 		Name:   "cores",
 		Reason: d.Cores.getReason(),
+		Error:  d.Cores.getError(),
 	}
 	stateCores.Health, stateCores.Healthy = d.Cores.getHealth()
 	if d.Cores != nil {
@@ -404,6 +411,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	stateUsage := components.State{
 		Name:   "usage",
 		Reason: d.Usage.getReason(),
+		Error:  d.Usage.getError(),
 	}
 	stateUsage.Health, stateUsage.Healthy = d.Usage.getHealth()
 	if d.Usage != nil {
@@ -418,5 +426,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		stateInfo,
 		stateCores,
 		stateUsage,
-	}, d.getError()
+	}, nil
 }

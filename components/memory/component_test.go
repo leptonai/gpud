@@ -198,8 +198,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 	}
 
 	states, err := d.getStates()
-	assert.Error(t, err)
-	assert.Equal(t, testError, err)
+	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.False(t, states[0].Healthy)
