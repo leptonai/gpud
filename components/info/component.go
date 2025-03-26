@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -242,10 +243,17 @@ func (d *Data) getReason() string {
 	if d == nil {
 		return "no info data"
 	}
+
 	if d.err != nil {
+		// if the context is canceled or timeout, we assume the next course of action is unknown
+		// thus, treating it as healthy (or transient failure)
+		if errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled) {
+			return fmt.Sprintf("check failed with %s -- transient error, please retry", d.err)
+		}
 		return fmt.Sprintf("failed to get info data -- %s", d.err)
 	}
-	r := fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
+
+	r := fmt.Sprintf("daemon version: %s, mac address: %s", d.DaemonVersion, d.MacAddress)
 	if len(d.Annotations) > 0 {
 		r += fmt.Sprintf(", annotations: %q", d.Annotations)
 	}
@@ -254,6 +262,14 @@ func (d *Data) getReason() string {
 
 func (d *Data) getHealth() (string, bool) {
 	healthy := d == nil || d.err == nil
+
+	// if the context is canceled or timeout, we assume the next course of action is unknown
+	// thus, treating it as healthy (or transient failure)
+	if d != nil && !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
+		healthy = true
+	}
+
 	health := components.StateHealthy
 	if !healthy {
 		health = components.StateUnhealthy

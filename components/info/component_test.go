@@ -2,6 +2,7 @@ package info
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -121,6 +122,18 @@ func TestDataGetHealth(t *testing.T) {
 	assert.Equal(t, components.StateUnhealthy, health)
 	assert.False(t, healthy)
 
+	// Test with context.DeadlineExceeded error
+	data = &Data{err: context.DeadlineExceeded}
+	health, healthy = data.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
+
+	// Test with context.Canceled error
+	data = &Data{err: context.Canceled}
+	health, healthy = data.getHealth()
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
+
 	// Test without error
 	data = &Data{}
 	health, healthy = data.getHealth()
@@ -136,20 +149,49 @@ func TestDataGetReason(t *testing.T) {
 	reason := nilData.getReason()
 	assert.Equal(t, "no info data", reason)
 
-	// Test with error
-	data := &Data{err: assert.AnError}
+	// Test with generic error
+	data := &Data{err: errors.New("test error")}
 	reason = data.getReason()
-	assert.Contains(t, reason, "failed to get info data")
+	assert.Equal(t, "failed to get info data -- test error", reason)
 
-	// Test without error
+	// Test with context.DeadlineExceeded error
+	data = &Data{err: context.DeadlineExceeded}
+	reason = data.getReason()
+	assert.Equal(t, "check failed with context deadline exceeded -- transient error, please retry", reason)
+
+	// Test with context.Canceled error
+	data = &Data{err: context.Canceled}
+	reason = data.getReason()
+	assert.Equal(t, "check failed with context canceled -- transient error, please retry", reason)
+
+	// Test without error and with all fields populated
 	data = &Data{
-		MacAddress:  "00:11:22:33:44:55",
-		Annotations: map[string]string{"test": "value"},
+		DaemonVersion: "test-version",
+		MacAddress:    "00:11:22:33:44:55",
+		Annotations:   map[string]string{"test": "value", "env": "dev"},
 	}
 	reason = data.getReason()
-	assert.Contains(t, reason, "daemon version")
+	assert.Contains(t, reason, "daemon version: test-version")
 	assert.Contains(t, reason, "mac address: 00:11:22:33:44:55")
-	assert.Contains(t, reason, "annotations")
+	assert.Contains(t, reason, `annotations: map["env":"dev" "test":"value"]`)
+
+	// Test without error and without annotations
+	data = &Data{
+		DaemonVersion: "test-version",
+		MacAddress:    "00:11:22:33:44:55",
+		Annotations:   map[string]string{},
+	}
+	reason = data.getReason()
+	assert.Contains(t, "daemon version: test-version, mac address: 00:11:22:33:44:55", reason)
+
+	// Test with version.Version from the actual package
+	data = &Data{
+		MacAddress:  "00:11:22:33:44:55",
+		Annotations: map[string]string{},
+	}
+	reason = data.getReason()
+	assert.Contains(t, reason, "daemon version: ")
+	assert.Contains(t, reason, "mac address: 00:11:22:33:44:55")
 }
 
 func TestDataGetStatesNil(t *testing.T) {
