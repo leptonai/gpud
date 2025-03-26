@@ -356,7 +356,11 @@ func TestDataGetStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates()
 
-			assert.NoError(t, err, "getStates should not return an error")
+			if tc.data.err != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 			assert.Len(t, states, 1, "getStates should return exactly one state")
 
 			state := states[0]

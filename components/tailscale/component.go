@@ -170,5 +170,6 @@ func (d *Data) getStates() ([]components.State, error) {
 		Reason: d.getReason(),
 	}
 	state.Health, state.Healthy = d.getHealth()
-	return []components.State{state}, nil
+
+	return []components.State{state}, d.err
 }
