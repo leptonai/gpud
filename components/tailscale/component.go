@@ -155,7 +155,7 @@ func (d *Data) getHealth() (string, bool) {
 
 	// if the context is canceled or timeout, we assume the next course of action is unknown
 	// thus, treating it as healthy (or transient failure)
-	if !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
+	if d != nil && !healthy && (errors.Is(d.err, context.DeadlineExceeded) || errors.Is(d.err, context.Canceled)) {
 		log.Logger.Warnw("check canceled or timeout -- transient error, please retry", "error", d.err)
 		healthy = true
 	}
