@@ -458,10 +458,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			if componentState.Error != "" &&
 				(strings.Contains(componentState.Error, context.DeadlineExceeded.Error()) ||
 					strings.Contains(componentState.Error, context.Canceled.Error())) {
-				log.Logger.Warnw("set healthy state due to deadline exceeded or canceled error", "component", componentName, "error", componentState.Error)
-
-				currState.States[i].Health = components.StateHealthy
-				currState.States[i].Healthy = true
+				log.Logger.Errorw("state error due to deadline exceeded or canceled error", "component", componentName, "error", componentState.Error)
 			}
 		}
 	}
