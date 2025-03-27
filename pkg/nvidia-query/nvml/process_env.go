@@ -1,6 +1,7 @@
 package nvml
 
 // ports "DCGM_FR_BAD_CUDA_ENV"; The environment has variables that hurt CUDA
+// This is derived from "DCGM_FR_BAD_CUDA_ENV" in DCGM.
 // ref. https://github.com/NVIDIA/DCGM/blob/903d745504f50153be8293f8566346f9de3b3c93/nvvs/plugin_src/software/Software.cpp#L839-L876
 var BAD_CUDA_ENV_KEYS = map[string]string{
 	"NSIGHT_CUDA_DEBUGGER":              "Setting NSIGHT_CUDA_DEBUGGER=1 can degrade the performance of an application, since the debugger is made resident. See https://docs.nvidia.com/nsight-visual-studio-edition/3.2/Content/Attach_CUDA_to_Process.htm.",

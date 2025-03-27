@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -119,15 +118,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		})
 	}()
 
-	for k, desc := range nvml.BAD_CUDA_ENV_KEYS {
-		if os.Getenv(k) == "1" {
-			if o.BadEnvVarsForCUDA == nil {
-				o.BadEnvVarsForCUDA = make(map[string]string)
-			}
-			o.BadEnvVarsForCUDA[k] = desc
-		}
-	}
-
 	log.Logger.Debugw("checking lsmod peermem")
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
 	o.LsmodPeermem, err = peermem.CheckLsmodPeermemModule(cctx)
@@ -201,11 +191,6 @@ type Output struct {
 
 	// GPU device count from the /dev directory.
 	GPUDeviceCount int `json:"gpu_device_count"`
-
-	// BadEnvVarsForCUDA is a map of environment variables that are known to hurt CUDA.
-	// that is set globally for the host.
-	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
-	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
 
 	LsmodPeermem       *peermem.LsmodPeermemModuleOutput `json:"lsmod_peermem,omitempty"`
 	LsmodPeermemErrors []string                          `json:"lsmod_peermem_errors,omitempty"`
@@ -283,14 +268,6 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 	fmt.Printf("%s GPU device count '%d' (from /dev)\n", checkMark, o.GPUDeviceCount)
 	fmt.Printf("%s GPU count '%d'\n", checkMark, o.GPUCountFromNVML())
 	fmt.Printf("%s GPU product name '%s'\n", checkMark, o.GPUProductNameFromNVML())
-
-	if len(o.BadEnvVarsForCUDA) > 0 {
-		for k, v := range o.BadEnvVarsForCUDA {
-			fmt.Printf("%s bad cuda env var: %s=%s\n", wrongSign, k, v)
-		}
-	} else {
-		fmt.Printf("%s successfully checked bad cuda env vars (none found)\n", checkMark)
-	}
 
 	if len(o.LsmodPeermemErrors) > 0 {
 		fmt.Printf("%s lsmod peermem check failed with %d error(s)\n", wrongSign, len(o.LsmodPeermemErrors))
