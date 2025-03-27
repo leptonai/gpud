@@ -106,7 +106,7 @@ func (c *component) CheckOnce() {
 	}()
 
 	prevFailed := false
-	for _ = range 5 {
+	for i := 0; i < 5; i++ {
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 		blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
 			return dt == "disk"
@@ -138,7 +138,7 @@ func (c *component) CheckOnce() {
 	}
 
 	prevFailed = false
-	for _ = range 5 {
+	for i := 0; i < 5; i++ {
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 		parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
 			return fs == "ext4"

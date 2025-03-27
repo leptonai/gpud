@@ -43,15 +43,15 @@ func TestRegisterCollectors(t *testing.T) {
 	// Set some test metrics
 	now := time.Now()
 	c.setLastUpdateUnixSeconds(float64(now.Unix()))
-	c.setAllocatedFileHandles(ctx, 1000, now)
-	c.setRunningPIDs(ctx, 500, now)
-	c.setLimit(ctx, 2000, now)
-	c.setAllocatedFileHandlesPercent(ctx, 50.0, now)
-	c.setUsedPercent(ctx, 25.0, now)
-	c.setThresholdRunningPIDs(ctx, 1500)
-	c.setThresholdRunningPIDsPercent(ctx, 75.0, now)
-	c.setThresholdAllocatedFileHandles(ctx, 1800)
-	c.setThresholdAllocatedFileHandlesPercent(ctx, 90.0, now)
+	_ = c.setAllocatedFileHandles(ctx, 1000, now)
+	_ = c.setRunningPIDs(ctx, 500, now)
+	_ = c.setLimit(ctx, 2000, now)
+	_ = c.setAllocatedFileHandlesPercent(ctx, 50.0, now)
+	_ = c.setUsedPercent(ctx, 25.0, now)
+	c.setThresholdRunningPIDs(1500)
+	_ = c.setThresholdRunningPIDsPercent(ctx, 75.0, now)
+	_ = c.setThresholdAllocatedFileHandles(ctx, 1800)
+	_ = c.setThresholdAllocatedFileHandlesPercent(ctx, 90.0, now)
 
 	// Verify collectors are registered
 	metrics, err := reg.Gather()
@@ -125,8 +125,7 @@ func TestMetricsOperations(t *testing.T) {
 	err = c.setUsedPercent(ctx, 25.0, now)
 	require.NoError(t, err)
 
-	err = c.setThresholdRunningPIDs(ctx, 1500)
-	require.NoError(t, err)
+	c.setThresholdRunningPIDs(1500)
 
 	err = c.setThresholdRunningPIDsPercent(ctx, 75.0, now)
 	require.NoError(t, err)

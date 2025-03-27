@@ -44,8 +44,8 @@ func TestRegisterCollectors(t *testing.T) {
 	deviceName := "test_device"
 	now := time.Now()
 	c.setLastUpdateUnixSeconds(float64(now.Unix()))
-	c.setConnectionsCongestedPercent(ctx, deviceName, 75.0, now)
-	c.setConnectionsMaxBackgroundPercent(ctx, deviceName, 80.0, now)
+	_ = c.setConnectionsCongestedPercent(ctx, deviceName, 75.0, now)
+	_ = c.setConnectionsMaxBackgroundPercent(ctx, deviceName, 80.0, now)
 
 	// Verify collectors are registered
 	metrics, err := reg.Gather()

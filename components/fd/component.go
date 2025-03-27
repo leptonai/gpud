@@ -274,13 +274,7 @@ func (c *component) CheckOnce() {
 	d.ThresholdRunningPIDs = c.thresholdRunningPIDs
 	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = c.setThresholdRunningPIDs(cctx, float64(c.thresholdRunningPIDs))
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	c.setThresholdRunningPIDs(float64(c.thresholdRunningPIDs))
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	err = c.setThresholdRunningPIDsPercent(cctx, thresholdRunningPIDsPct, d.ts)

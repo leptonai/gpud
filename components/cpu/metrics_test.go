@@ -39,8 +39,8 @@ func TestRegisterCollectors(t *testing.T) {
 	err := c.RegisterCollectors(reg, dbRW, dbRO, tableName)
 	require.NoError(t, err)
 
-	c.setLoadAverage(ctx, 5*time.Minute, 1.5, time.Now())
-	c.setUsedPercent(ctx, 75.5, time.Now())
+	_ = c.setLoadAverage(ctx, 5*time.Minute, 1.5, time.Now())
+	_ = c.setUsedPercent(ctx, 75.5, time.Now())
 
 	// Verify collectors are registered
 	metrics, err := reg.Gather()

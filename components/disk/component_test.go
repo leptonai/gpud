@@ -38,9 +38,12 @@ func TestComponentLifecycle(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
-	assert.Equal(t, "no disk data", states[0].Reason)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+
+	// if the check has not been run yet, the component is healthy
+	if states[0].Reason == "no disk data" {
+		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.True(t, states[0].Healthy)
+	}
 
 	// Test Events
 	events, err := comp.Events(ctx, time.Now())

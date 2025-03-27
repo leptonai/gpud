@@ -44,10 +44,10 @@ func TestRegisterCollectors(t *testing.T) {
 	mountPoint := "/test/mount"
 	now := time.Now()
 	c.setLastUpdateUnixSeconds(float64(now.Unix()))
-	c.setTotalBytes(ctx, mountPoint, 1000000, now)
+	_ = c.setTotalBytes(ctx, mountPoint, 1000000, now)
 	c.setFreeBytes(mountPoint, 500000)
-	c.setUsedBytes(ctx, mountPoint, 500000, now)
-	c.setUsedBytesPercent(ctx, mountPoint, 50.0, now)
+	_ = c.setUsedBytes(ctx, mountPoint, 500000, now)
+	_ = c.setUsedBytesPercent(ctx, mountPoint, 50.0, now)
 	c.setUsedInodesPercent(mountPoint, 45.0)
 
 	// Verify collectors are registered

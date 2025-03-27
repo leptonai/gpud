@@ -43,10 +43,10 @@ func TestRegisterCollectors(t *testing.T) {
 	// Set some test metrics
 	now := time.Now()
 	c.setLastUpdateUnixSeconds(float64(now.Unix()))
-	c.setTotalBytes(ctx, 16000000000, now) // 16GB
-	c.setAvailableBytes(4000000000)        // 4GB
-	c.setUsedBytes(ctx, 12000000000, now)  // 12GB
-	c.setUsedPercent(ctx, 75.0, now)
+	_ = c.setTotalBytes(ctx, 16000000000, now) // 16GB
+	c.setAvailableBytes(4000000000)            // 4GB
+	_ = c.setUsedBytes(ctx, 12000000000, now)  // 12GB
+	_ = c.setUsedPercent(ctx, 75.0, now)
 	c.setFreeBytes(4000000000) // 4GB
 
 	// Verify collectors are registered

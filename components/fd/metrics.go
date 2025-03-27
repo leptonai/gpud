@@ -179,8 +179,12 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read used percents: %w", err)
 	}
+	thresholdUsedPercents, err := c.readThresholdUsedPercents(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read threshold used percents: %w", err)
+	}
 
-	ms := make([]components.Metric, 0, len(allocatedFileHandles)+len(runningPIDs)+len(limits)+len(allocatedPercents)+len(usedPercents))
+	ms := make([]components.Metric, 0, len(allocatedFileHandles)+len(runningPIDs)+len(limits)+len(allocatedPercents)+len(usedPercents)+len(thresholdUsedPercents))
 	for _, m := range allocatedFileHandles {
 		ms = append(ms, components.Metric{Metric: m})
 	}
@@ -194,6 +198,9 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 		ms = append(ms, components.Metric{Metric: m})
 	}
 	for _, m := range usedPercents {
+		ms = append(ms, components.Metric{Metric: m})
+	}
+	for _, m := range thresholdUsedPercents {
 		ms = append(ms, components.Metric{Metric: m})
 	}
 
@@ -288,9 +295,8 @@ func (c *component) setUsedPercent(ctx context.Context, pct float64, currentTime
 	return nil
 }
 
-func (c *component) setThresholdRunningPIDs(ctx context.Context, limit float64) error {
+func (c *component) setThresholdRunningPIDs(limit float64) {
 	thresholdRunningPIDs.Set(limit)
-	return nil
 }
 
 func (c *component) setThresholdRunningPIDsPercent(ctx context.Context, pct float64, currentTime time.Time) error {

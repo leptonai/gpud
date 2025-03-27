@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	metrics_state "github.com/leptonai/gpud/pkg/metrics/state"
+	metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

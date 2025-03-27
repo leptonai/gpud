@@ -44,7 +44,7 @@ func TestRegisterCollectors(t *testing.T) {
 	providerRegion := "us-west-2"
 	now := time.Now()
 	c.setLastUpdateUnixSeconds(float64(now.Unix()))
-	c.setEdgeInMilliseconds(ctx, providerRegion, 50.0)
+	_ = c.setEdgeInMilliseconds(ctx, providerRegion, 50.0)
 
 	// Verify collectors are registered
 	metrics, err := reg.Gather()
