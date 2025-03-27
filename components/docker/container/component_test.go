@@ -66,6 +66,41 @@ func TestData_getReason(t *testing.T) {
 			},
 			expectedText: "failed to list containers",
 		},
+		// Additional test cases for different error scenarios
+		{
+			name: "Connection refusal",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        errors.New("connection refused"),
+				connErr:    true,
+			},
+			expectedText: "connection error to docker daemon",
+		},
+		{
+			name: "Daemon not running",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        errors.New("Is the docker daemon running?"),
+				connErr:    true,
+			},
+			expectedText: "connection error to docker daemon",
+		},
+		{
+			name: "Permission denied error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        errors.New("permission denied"),
+			},
+			expectedText: "failed to list containers",
+		},
+		{
+			name: "Docker network error",
+			data: Data{
+				Containers: []DockerContainer{{ID: "test-id"}},
+				err:        errors.New("network error communicating with Docker daemon"),
+			},
+			expectedText: "failed to list containers",
+		},
 	}
 
 	for _, tt := range tests {
@@ -74,6 +109,10 @@ func TestData_getReason(t *testing.T) {
 			assert.Contains(t, result, tt.expectedText)
 		})
 	}
+
+	// Test with nil data
+	var nilData *Data
+	assert.Equal(t, "no container found or docker is not running", nilData.getReason())
 }
 
 func TestDataGetHealth(t *testing.T) {
@@ -122,6 +161,45 @@ func TestDataGetHealth(t *testing.T) {
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
+		// Additional test cases for error scenarios
+		{
+			name: "Permission denied error - not ignored",
+			data: Data{
+				err: errors.New("permission denied"),
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateUnhealthy,
+			expectedHealthy: false,
+		},
+		{
+			name: "Docker service inactive error - not ignored",
+			data: Data{
+				err:                 errors.New("docker service is not active"),
+				DockerServiceActive: false,
+			},
+			ignoreConnErr:   false,
+			expectedHealth:  components.StateUnhealthy,
+			expectedHealthy: false,
+		},
+		{
+			name: "Docker not found error - ignored doesn't matter for non-connection errors",
+			data: Data{
+				err: errors.New("docker not found"),
+			},
+			ignoreConnErr:   true, // Should still be unhealthy since it's not a connection error
+			expectedHealth:  components.StateUnhealthy,
+			expectedHealthy: false,
+		},
+		{
+			name: "Is docker daemon running - ignored",
+			data: Data{
+				err:     errors.New("Is the docker daemon running?"),
+				connErr: true,
+			},
+			ignoreConnErr:   true,
+			expectedHealth:  components.StateHealthy,
+			expectedHealthy: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,15 +209,21 @@ func TestDataGetHealth(t *testing.T) {
 			assert.Equal(t, tt.expectedHealthy, healthy)
 		})
 	}
+
+	// Test with nil data
+	var nilData *Data
+	health, healthy := nilData.getHealth(false)
+	assert.Equal(t, components.StateHealthy, health)
+	assert.True(t, healthy)
 }
 
 func TestDataGetStates(t *testing.T) {
 	tests := []struct {
-		name          string
-		data          Data
-		ignoreConnErr bool
-		expectError   bool
-		stateCount    int
+		name           string
+		data           Data
+		ignoreConnErr  bool
+		stateCount     int
+		expectedHealth string
 	}{
 		{
 			name: "No containers",
@@ -148,9 +232,9 @@ func TestDataGetStates(t *testing.T) {
 				Containers:          []DockerContainer{},
 				err:                 nil,
 			},
-			ignoreConnErr: false,
-			expectError:   false,
-			stateCount:    1,
+			ignoreConnErr:  false,
+			stateCount:     1,
+			expectedHealth: components.StateHealthy,
 		},
 		{
 			name: "With containers",
@@ -159,24 +243,74 @@ func TestDataGetStates(t *testing.T) {
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 nil,
 			},
-			ignoreConnErr: false,
-			expectError:   false,
-			stateCount:    1,
+			ignoreConnErr:  false,
+			stateCount:     1,
+			expectedHealth: components.StateHealthy,
+		},
+		{
+			name: "With error not ignored",
+			data: Data{
+				DockerServiceActive: true,
+				Containers:          []DockerContainer{{ID: "test-id"}},
+				err:                 errors.New("test error"),
+			},
+			ignoreConnErr:  false,
+			stateCount:     1,
+			expectedHealth: components.StateUnhealthy,
+		},
+		{
+			name: "With connection error ignored",
+			data: Data{
+				DockerServiceActive: true,
+				Containers:          []DockerContainer{{ID: "test-id"}},
+				err:                 errors.New("connection error"),
+				connErr:             true,
+			},
+			ignoreConnErr:  true,
+			stateCount:     1,
+			expectedHealth: components.StateHealthy,
+		},
+		{
+			name: "With connection error not ignored",
+			data: Data{
+				DockerServiceActive: true,
+				Containers:          []DockerContainer{{ID: "test-id"}},
+				err:                 errors.New("connection error"),
+				connErr:             true,
+			},
+			ignoreConnErr:  false,
+			stateCount:     1,
+			expectedHealth: components.StateUnhealthy,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			states, err := tt.data.getStates(tt.ignoreConnErr)
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err)
+
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, tt.expectedHealth, states[0].Health)
+
+			// For cases with containers, check ExtraInfo
+			if len(tt.data.Containers) > 0 {
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+			}
 		})
 	}
+
+	// Test with nil data
+	var nilData *Data
+	states, err := nilData.getStates(false)
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
 func TestComponentName(t *testing.T) {
@@ -249,6 +383,7 @@ func TestComponentStates(t *testing.T) {
 
 	states, err := comp.States(ctx)
 	assert.NoError(t, err)
+
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, components.StateHealthy, states[0].Health)
@@ -286,11 +421,7 @@ func TestComponentStates(t *testing.T) {
 	assert.Equal(t, true, states[0].Healthy)
 }
 
-// Improve checkOnce test coverage
 func TestCheckOnceErrorConditions(t *testing.T) {
-	// We're not initializing logger in tests to avoid dependencies
-	// If the real implementation relies on the logger, consider using a mocking framework
-
 	ctx := context.Background()
 	comp := New(ctx, true).(*component)
 
@@ -440,9 +571,6 @@ func TestDirectCheckOnce(t *testing.T) {
 
 // TestCheckOnceMetrics tests that metrics are set correctly in CheckOnce
 func TestCheckOnceMetrics(t *testing.T) {
-	// Since we can't easily mock the metrics package directly,
-	// we'll test the logic that determines whether to set success or failure metrics
-
 	ctx := context.Background()
 
 	// Test case 1: Success case - no error

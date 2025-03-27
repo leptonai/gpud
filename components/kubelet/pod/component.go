@@ -157,7 +157,7 @@ type Data struct {
 }
 
 func (d *Data) getReason() string {
-	if d == nil || len(d.Pods) == 0 {
+	if d == nil || (d.err == nil && len(d.Pods) == 0) {
 		return "no pod found or kubelet is not running"
 	}
 
@@ -186,6 +186,13 @@ func (d *Data) getHealth(ignoreConnErr bool) (string, bool) {
 	return health, healthy
 }
 
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
 func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	if d == nil {
 		return []components.State{
@@ -201,6 +208,7 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 	state := components.State{
 		Name:   Name,
 		Reason: d.getReason(),
+		Error:  d.getError(),
 	}
 	state.Health, state.Healthy = d.getHealth(ignoreConnErr)
 

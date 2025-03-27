@@ -1,6 +1,9 @@
 package fd
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -103,4 +106,252 @@ func TestDataGetStates(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.NotEmpty(t, states[0].ExtraInfo)
+	assert.Empty(t, states[0].Error, "Error should be empty for healthy state")
+}
+
+func TestDataGetReasonEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name       string
+		data       *Data
+		contains   []string
+		notcontain string
+	}{
+		{
+			name: "zero usage",
+			data: &Data{
+				Usage:                                0,
+				ThresholdAllocatedFileHandles:        1000,
+				ThresholdAllocatedFileHandlesPercent: "0.00",
+			},
+			contains: []string{"current file descriptors: 0", "threshold: 1000"},
+		},
+		{
+			name: "high usage but below threshold",
+			data: &Data{
+				Usage:                                700,
+				ThresholdAllocatedFileHandles:        1000,
+				ThresholdAllocatedFileHandlesPercent: "70.00",
+			},
+			contains:   []string{"current file descriptors: 700", "threshold: 1000"},
+			notcontain: ErrFileHandlesAllocationExceedsWarning,
+		},
+		{
+			name: "very high usage",
+			data: &Data{
+				Usage:                                950,
+				ThresholdAllocatedFileHandles:        1000,
+				ThresholdAllocatedFileHandlesPercent: "95.00",
+			},
+			contains: []string{"current file descriptors: 950", ErrFileHandlesAllocationExceedsWarning},
+		},
+		{
+			name: "various error messages",
+			data: &Data{
+				err: fmt.Errorf("failed to read /proc/sys/fs/file-nr"),
+			},
+			contains: []string{"failed to get file descriptors data", "failed to read /proc/sys/fs/file-nr"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason := tc.data.getReason()
+			for _, substr := range tc.contains {
+				assert.Contains(t, reason, substr)
+			}
+			if tc.notcontain != "" {
+				assert.NotContains(t, reason, tc.notcontain)
+			}
+		})
+	}
+}
+
+func TestDataGetHealthEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name          string
+		data          *Data
+		expectedState string
+		expectHealthy bool
+	}{
+		{
+			name: "exactly at warning threshold",
+			data: &Data{
+				ThresholdAllocatedFileHandlesPercent: "80.00", // Exactly at warning threshold
+			},
+			expectedState: "Healthy",
+			expectHealthy: true,
+		},
+		{
+			name: "slightly above warning threshold",
+			data: &Data{
+				ThresholdAllocatedFileHandlesPercent: "80.01", // Just above warning threshold
+			},
+			expectedState: "Degraded",
+			expectHealthy: false,
+		},
+		{
+			name: "at 100% capacity",
+			data: &Data{
+				ThresholdAllocatedFileHandlesPercent: "100.00",
+			},
+			expectedState: "Degraded",
+			expectHealthy: false,
+		},
+		{
+			name: "beyond 100% capacity",
+			data: &Data{
+				ThresholdAllocatedFileHandlesPercent: "120.00", // Over 100%
+			},
+			expectedState: "Degraded",
+			expectHealthy: false,
+		},
+		{
+			name: "with complex error",
+			data: &Data{
+				err: fmt.Errorf("multiple errors: %w: %v",
+					fmt.Errorf("primary error"),
+					fmt.Errorf("secondary error")),
+			},
+			expectedState: "Unhealthy",
+			expectHealthy: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			health, healthy := tc.data.getHealth()
+			assert.Equal(t, tc.expectedState, health)
+			assert.Equal(t, tc.expectHealthy, healthy)
+		})
+	}
+}
+
+func TestDataGetStatesWithError(t *testing.T) {
+	testCases := []struct {
+		name           string
+		data           *Data
+		expectedHealth string
+		expectError    bool
+	}{
+		{
+			name: "with error",
+			data: &Data{
+				Usage:                                500,
+				ThresholdAllocatedFileHandles:        1000,
+				ThresholdAllocatedFileHandlesPercent: "50.00",
+				err:                                  errors.New("failed to read file descriptors"),
+			},
+			expectedHealth: "Unhealthy",
+			expectError:    true,
+		},
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedHealth: "Healthy",
+			expectError:    false,
+		},
+		{
+			name: "invalid percentage format",
+			data: &Data{
+				Usage:                                500,
+				ThresholdAllocatedFileHandles:        1000,
+				ThresholdAllocatedFileHandlesPercent: "invalid", // Invalid percentage
+			},
+			expectedHealth: "Healthy", // Should still be healthy since the percentage parsing error is handled internally
+			expectError:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			states, err := tc.data.getStates()
+			assert.NoError(t, err)
+
+			assert.Len(t, states, 1)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+
+			// Check Error field is set when there's an error
+			if tc.expectError {
+				assert.NotEmpty(t, states[0].Error, "Error should be set")
+				if tc.data != nil && tc.data.err != nil {
+					assert.Equal(t, tc.data.err.Error(), states[0].Error, "Error should match Data.err")
+				}
+			} else {
+				assert.Empty(t, states[0].Error, "Error should be empty when there's no error")
+			}
+
+			// For all non-nil data cases, check ExtraInfo
+			if tc.data != nil {
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+
+				// Verify we can unmarshal the JSON data
+				var decodedData Data
+				err := json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &decodedData)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDataGetHealthThresholdBreach(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		percentageValue      string
+		expectedHealthState  string
+		expectedHealthStatus bool
+	}{
+		{
+			name:                 "just below threshold (79.99%)",
+			percentageValue:      "79.99",
+			expectedHealthState:  "Healthy",
+			expectedHealthStatus: true,
+		},
+		{
+			name:                 "at threshold (80.00%)",
+			percentageValue:      "80.00",
+			expectedHealthState:  "Healthy",
+			expectedHealthStatus: true,
+		},
+		{
+			name:                 "just above threshold (80.01%)",
+			percentageValue:      "80.01",
+			expectedHealthState:  "Degraded",
+			expectedHealthStatus: false,
+		},
+		{
+			name:                 "moderately above threshold (85.00%)",
+			percentageValue:      "85.00",
+			expectedHealthState:  "Degraded",
+			expectedHealthStatus: false,
+		},
+		{
+			name:                 "far above threshold (95.00%)",
+			percentageValue:      "95.00",
+			expectedHealthState:  "Degraded",
+			expectedHealthStatus: false,
+		},
+		{
+			name:                 "at maximum (100.00%)",
+			percentageValue:      "100.00",
+			expectedHealthState:  "Degraded",
+			expectedHealthStatus: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &Data{
+				ThresholdAllocatedFileHandlesPercent: tc.percentageValue,
+			}
+
+			health, healthy := d.getHealth()
+
+			assert.Equal(t, tc.expectedHealthState, health,
+				"Health state should be %s at %s", tc.expectedHealthState, tc.percentageValue)
+			assert.Equal(t, tc.expectedHealthStatus, healthy,
+				"Health status should be %v at %s", tc.expectedHealthStatus, tc.percentageValue)
+		})
+	}
 }

@@ -356,13 +356,21 @@ func TestDataGetStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates()
 
-			assert.NoError(t, err, "getStates should not return an error")
+			// No longer checking if err is returned from getStates
+			assert.NoError(t, err)
 			assert.Len(t, states, 1, "getStates should return exactly one state")
 
 			state := states[0]
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedReason, state.Reason, "State reason should match expected")
 			assert.Equal(t, tc.expectedHealth, state.Health, "State health should match expected")
+
+			// Check that Error field is set correctly
+			if tc.data != nil && tc.data.err != nil {
+				assert.Equal(t, tc.data.err.Error(), state.Error, "State error should match Data.err")
+			} else {
+				assert.Empty(t, state.Error, "State error should be empty when there's no error")
+			}
 		})
 	}
 }

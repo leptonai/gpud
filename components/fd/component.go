@@ -410,10 +410,29 @@ func (d *Data) getThresholdAllocatedFileHandlesPercent() (float64, error) {
 	return strconv.ParseFloat(d.ThresholdAllocatedFileHandlesPercent, 64)
 }
 
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   "file_descriptors",
 		Reason: d.getReason(),
+		Error:  d.getError(),
 	}
 	state.Health, state.Healthy = d.getHealth()
 

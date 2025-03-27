@@ -3,7 +3,9 @@ package cpu
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -168,6 +170,7 @@ func TestDataGetStates(t *testing.T) {
 	stateNames := []string{}
 	for _, state := range states {
 		stateNames = append(stateNames, state.Name)
+		assert.Empty(t, state.Error, "Error should be empty for healthy states")
 	}
 	assert.Contains(t, stateNames, "info")
 	assert.Contains(t, stateNames, "cores")
@@ -185,6 +188,7 @@ func TestNilDataGetStates(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
 }
 
 func TestDataWithNilFieldsGetStates(t *testing.T) {
@@ -206,6 +210,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu info found", infoState.Reason)
 		assert.Equal(t, "Healthy", infoState.Health)
 		assert.True(t, infoState.Healthy)
+		assert.Empty(t, infoState.Error, "Error should be empty for nil info")
 	})
 
 	// Test with nil Cores
@@ -227,6 +232,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu cores found", coresState.Reason)
 		assert.Equal(t, "Healthy", coresState.Health)
 		assert.True(t, coresState.Healthy)
+		assert.Empty(t, coresState.Error, "Error should be empty for nil cores")
 	})
 
 	// Test with nil Usage
@@ -247,6 +253,7 @@ func TestDataWithNilFieldsGetStates(t *testing.T) {
 		assert.Equal(t, "no cpu usage found", usageState.Reason)
 		assert.Equal(t, "Healthy", usageState.Health)
 		assert.True(t, usageState.Healthy)
+		assert.Empty(t, usageState.Error, "Error should be empty for nil usage")
 	})
 }
 
@@ -269,6 +276,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, infoState.Reason, "failed to get CPU information")
 		assert.Equal(t, "Unhealthy", infoState.Health)
 		assert.False(t, infoState.Healthy)
+		assert.Equal(t, "info error", infoState.Error, "Error should contain the error message")
 	})
 
 	// Test with Cores with error
@@ -290,6 +298,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, coresState.Reason, "failed to get CPU cores")
 		assert.Equal(t, "Unhealthy", coresState.Health)
 		assert.False(t, coresState.Healthy)
+		assert.Equal(t, "cores error", coresState.Error, "Error should contain the error message")
 	})
 
 	// Test with Usage with error
@@ -310,6 +319,7 @@ func TestDataWithErrorFieldsGetStates(t *testing.T) {
 		assert.Contains(t, usageState.Reason, "failed to get CPU usage")
 		assert.Equal(t, "Unhealthy", usageState.Health)
 		assert.False(t, usageState.Healthy)
+		assert.Equal(t, "usage error", usageState.Error, "Error should contain the error message")
 	})
 }
 
@@ -459,4 +469,171 @@ func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 
 func (m *mockEventBucket) Close() {
 	// No-op
+}
+
+func TestDataGetReasonEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name     string
+		data     *Data
+		contains []string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			contains: []string{"no data yet"},
+		},
+		{
+			name: "data with error",
+			data: &Data{
+				Info:  &Info{err: fmt.Errorf("CPU info error")},
+				Cores: &Cores{},
+				Usage: &Usage{},
+			},
+			contains: []string{"failed to get CPU information", "CPU info error"},
+		},
+		{
+			name: "data with cores error",
+			data: &Data{
+				Info:  &Info{Arch: "x86_64"},
+				Cores: &Cores{err: fmt.Errorf("CPU cores error")},
+				Usage: &Usage{},
+			},
+			contains: []string{"failed to get CPU cores", "CPU cores error"},
+		},
+		{
+			name: "data with usage error",
+			data: &Data{
+				Info:  &Info{Arch: "x86_64"},
+				Cores: &Cores{Logical: 8},
+				Usage: &Usage{err: fmt.Errorf("CPU usage error")},
+			},
+			contains: []string{"failed to get CPU usage", "CPU usage error"},
+		},
+		{
+			name: "data with valid values",
+			data: &Data{
+				Info: &Info{
+					Arch:      "x86_64",
+					ModelName: "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz",
+				},
+				Cores: &Cores{Logical: 8},
+				Usage: &Usage{
+					UsedPercent:  "25.50",
+					LoadAvg1Min:  "1.25",
+					LoadAvg5Min:  "1.50",
+					LoadAvg15Min: "1.75",
+				},
+			},
+			contains: []string{"x86_64", "Intel(R) Core(TM) i7-9700K", "logical: 8 cores", "25.50%", "1.25", "1.50", "1.75"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			states, err := tc.data.getStates()
+			assert.NoError(t, err)
+
+			if tc.data == nil {
+				assert.Len(t, states, 1)
+				assert.Equal(t, Name, states[0].Name)
+				assert.Equal(t, "no data yet", states[0].Reason)
+				return
+			}
+
+			assert.Len(t, states, 3) // Info, Cores, Usage states
+
+			// Check if reason contains expected substrings
+			for _, state := range states {
+				for _, substr := range tc.contains {
+					if (state.Name == "info" && strings.Contains(substr, "x86_64")) ||
+						(state.Name == "cores" && strings.Contains(substr, "cores")) ||
+						(state.Name == "usage" && (strings.Contains(substr, "%") ||
+							strings.Contains(substr, "1.25") ||
+							strings.Contains(substr, "1.50") ||
+							strings.Contains(substr, "1.75"))) {
+						assert.Contains(t, state.Reason, substr)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDataGetHealthWithErrors(t *testing.T) {
+	testCases := []struct {
+		name          string
+		data          *Data
+		expectedInfo  string
+		expectedCores string
+		expectedUsage string
+	}{
+		{
+			name: "all components healthy",
+			data: &Data{
+				Info:  &Info{Arch: "x86_64"},
+				Cores: &Cores{Logical: 8},
+				Usage: &Usage{UsedPercent: "25.50"},
+			},
+			expectedInfo:  "Healthy",
+			expectedCores: "Healthy",
+			expectedUsage: "Healthy",
+		},
+		{
+			name: "info unhealthy",
+			data: &Data{
+				Info:  &Info{err: errors.New("info error")},
+				Cores: &Cores{Logical: 8},
+				Usage: &Usage{UsedPercent: "25.50"},
+			},
+			expectedInfo:  "Unhealthy",
+			expectedCores: "Healthy",
+			expectedUsage: "Healthy",
+		},
+		{
+			name: "cores unhealthy",
+			data: &Data{
+				Info:  &Info{Arch: "x86_64"},
+				Cores: &Cores{err: errors.New("cores error")},
+				Usage: &Usage{UsedPercent: "25.50"},
+			},
+			expectedInfo:  "Healthy",
+			expectedCores: "Unhealthy",
+			expectedUsage: "Healthy",
+		},
+		{
+			name: "usage unhealthy",
+			data: &Data{
+				Info:  &Info{Arch: "x86_64"},
+				Cores: &Cores{Logical: 8},
+				Usage: &Usage{err: errors.New("usage error")},
+			},
+			expectedInfo:  "Healthy",
+			expectedCores: "Healthy",
+			expectedUsage: "Unhealthy",
+		},
+		{
+			name: "all components unhealthy",
+			data: &Data{
+				Info:  &Info{err: errors.New("info error")},
+				Cores: &Cores{err: errors.New("cores error")},
+				Usage: &Usage{err: errors.New("usage error")},
+			},
+			expectedInfo:  "Unhealthy",
+			expectedCores: "Unhealthy",
+			expectedUsage: "Unhealthy",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			health, _ := tc.data.Info.getHealth()
+			assert.Equal(t, tc.expectedInfo, health)
+
+			health, _ = tc.data.Cores.getHealth()
+			assert.Equal(t, tc.expectedCores, health)
+
+			health, _ = tc.data.Usage.getHealth()
+			assert.Equal(t, tc.expectedUsage, health)
+		})
+	}
 }

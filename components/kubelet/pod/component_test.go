@@ -425,6 +425,7 @@ func Test_getStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates(tc.ignoreConnErr)
 			require.NoError(t, err)
+
 			require.Len(t, states, tc.expectedLen)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
@@ -677,12 +678,11 @@ func TestCheckKubeletReadOnlyPort_ConnError(t *testing.T) {
 
 func Test_componentStates(t *testing.T) {
 	testCases := []struct {
-		name             string
-		lastData         Data
-		ignoreConnErr    bool
-		expectedLen      int
-		expectedHealth   string
-		expectStateError bool
+		name           string
+		lastData       Data
+		ignoreConnErr  bool
+		expectedLen    int
+		expectedHealth string
 	}{
 		{
 			name: "healthy state",
@@ -692,10 +692,9 @@ func Test_componentStates(t *testing.T) {
 					{Name: "pod1"},
 				},
 			},
-			ignoreConnErr:    false,
-			expectedLen:      1,
-			expectedHealth:   "Healthy",
-			expectStateError: false,
+			ignoreConnErr:  false,
+			expectedLen:    1,
+			expectedHealth: "Healthy",
 		},
 		{
 			name: "unhealthy state",
@@ -703,10 +702,9 @@ func Test_componentStates(t *testing.T) {
 				NodeName: "test-node",
 				err:      errors.New("some error"),
 			},
-			ignoreConnErr:    false,
-			expectedLen:      1,
-			expectedHealth:   "Unhealthy",
-			expectStateError: false,
+			ignoreConnErr:  false,
+			expectedLen:    1,
+			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "connection error - ignored",
@@ -715,10 +713,9 @@ func Test_componentStates(t *testing.T) {
 				err:      errors.New("connection refused"),
 				connErr:  true,
 			},
-			ignoreConnErr:    true,
-			expectedLen:      1,
-			expectedHealth:   "Healthy",
-			expectStateError: false,
+			ignoreConnErr:  true,
+			expectedLen:    1,
+			expectedHealth: "Healthy",
 		},
 	}
 
@@ -730,17 +727,12 @@ func Test_componentStates(t *testing.T) {
 			}
 
 			states, err := c.States(context.Background())
+			assert.NoError(t, err)
+			require.Len(t, states, tc.expectedLen)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
-			if tc.expectStateError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				require.Len(t, states, tc.expectedLen)
-				assert.Equal(t, tc.expectedHealth, states[0].Health)
-
-				if len(tc.lastData.Pods) > 0 {
-					assert.Contains(t, states[0].ExtraInfo, "data")
-				}
+			if len(tc.lastData.Pods) > 0 {
+				assert.Contains(t, states[0].ExtraInfo, "data")
 			}
 		})
 	}
@@ -994,6 +986,7 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 
 			states, err := c.States(context.Background())
 			assert.NoError(t, err)
+
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 		})
@@ -1079,4 +1072,128 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
+}
+
+func TestDataGetStatesErrorReturn(t *testing.T) {
+	testCases := []struct {
+		name           string
+		data           Data
+		ignoreConnErr  bool
+		expectedHealth string
+	}{
+		{
+			name: "standard error returned",
+			data: Data{
+				err: errors.New("standard error"),
+			},
+			ignoreConnErr:  false,
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "empty pods with error",
+			data: Data{
+				Pods: []PodStatus{},
+				err:  errors.New("no pods error"),
+			},
+			ignoreConnErr:  false,
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "connection error not ignored",
+			data: Data{
+				NodeName: "test-node",
+				err:      errors.New("connection refused"),
+				connErr:  true,
+			},
+			ignoreConnErr:  false,
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "connection error ignored but still returned",
+			data: Data{
+				NodeName: "test-node",
+				err:      errors.New("connection refused"),
+				connErr:  true,
+			},
+			ignoreConnErr:  true,
+			expectedHealth: "Healthy",
+		},
+		{
+			name: "no error with pods",
+			data: Data{
+				NodeName: "test-node",
+				Pods:     []PodStatus{{Name: "pod1"}},
+				err:      nil,
+			},
+			ignoreConnErr:  false,
+			expectedHealth: "Healthy",
+		},
+		{
+			name: "kubelet service error",
+			data: Data{
+				NodeName:             "test-node",
+				KubeletServiceActive: false,
+				err:                  errors.New("kubelet service not active"),
+			},
+			ignoreConnErr:  false,
+			expectedHealth: "Unhealthy",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			states, err := tc.data.getStates(tc.ignoreConnErr)
+			assert.NoError(t, err)
+
+			// Verify state properties
+			require.Len(t, states, 1)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, Name, states[0].Name)
+
+			// Verify health status matches expected
+			assert.Equal(t, tc.expectedHealth == "Healthy", states[0].Healthy)
+
+			// Check for extra info if we have pods
+			if len(tc.data.Pods) > 0 {
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+			}
+		})
+	}
+}
+
+func TestDataGetStatesWithSpecificErrors(t *testing.T) {
+	// Test with context deadline exceeded error
+	deadlineErr := context.DeadlineExceeded
+	deadlineData := Data{
+		NodeName: "test-node",
+		err:      deadlineErr,
+	}
+	states, err := deadlineData.getStates(false)
+	assert.NoError(t, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Contains(t, states[0].Reason, deadlineErr.Error())
+
+	// Test with context canceled error
+	canceledErr := context.Canceled
+	canceledData := Data{
+		NodeName: "test-node",
+		err:      canceledErr,
+	}
+	states, err = canceledData.getStates(false)
+	assert.NoError(t, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Contains(t, states[0].Reason, canceledErr.Error())
+
+	// Test with formatted error message
+	customErr := fmt.Errorf("custom error: %v", "details")
+	customData := Data{
+		NodeName: "test-node",
+		err:      customErr,
+	}
+	states, err = customData.getStates(false)
+	assert.NoError(t, err)
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Contains(t, states[0].Reason, "custom error: details")
 }

@@ -261,3 +261,102 @@ func TestDataGetHealth(t *testing.T) {
 		})
 	}
 }
+
+func TestDataGetStates(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		modulesToCheck []string
+		wantHealthy    bool
+		wantHealth     string
+		wantReason     string
+		wantError      bool
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			modulesToCheck: []string{"module1"},
+			wantHealthy:    true,
+			wantHealth:     components.StateHealthy,
+			wantReason:     "no data yet",
+			wantError:      false,
+		},
+		{
+			name:           "with error",
+			data:           &Data{err: assert.AnError},
+			modulesToCheck: []string{"module1"},
+			wantHealthy:    false,
+			wantHealth:     components.StateUnhealthy,
+			wantReason:     "failed to read modules -- assert.AnError general error for testing",
+			wantError:      true,
+		},
+		{
+			name: "no modules to check",
+			data: &Data{
+				LoadedModules: []string{},
+				loadedModules: map[string]struct{}{},
+			},
+			modulesToCheck: nil,
+			wantHealthy:    true,
+			wantHealth:     components.StateHealthy,
+			wantReason:     "no modules to check",
+			wantError:      false,
+		},
+		{
+			name: "all modules present",
+			data: &Data{
+				LoadedModules: []string{"module1", "module2"},
+				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
+			},
+			modulesToCheck: []string{"module1", "module2"},
+			wantHealthy:    true,
+			wantHealth:     components.StateHealthy,
+			wantReason:     "all modules are loaded",
+			wantError:      false,
+		},
+		{
+			name: "missing modules",
+			data: &Data{
+				LoadedModules: []string{"module1"},
+				loadedModules: map[string]struct{}{"module1": {}},
+			},
+			modulesToCheck: []string{"module1", "module2"},
+			wantHealthy:    false,
+			wantHealth:     components.StateUnhealthy,
+			wantReason:     `missing modules: ["module2"]`,
+			wantError:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			states, err := tt.data.getStates(tt.modulesToCheck)
+			assert.NoError(t, err)
+
+			require.Len(t, states, 1)
+			state := states[0]
+
+			assert.Equal(t, Name, state.Name)
+			assert.Equal(t, tt.wantReason, state.Reason)
+			assert.Equal(t, tt.wantHealth, state.Health)
+			assert.Equal(t, tt.wantHealthy, state.Healthy)
+
+			// Check Error field is set correctly
+			if tt.wantError {
+				assert.NotEmpty(t, state.Error, "Error should be set when there's an error")
+				if tt.data != nil && tt.data.err != nil {
+					assert.Equal(t, tt.data.err.Error(), state.Error, "Error should match Data.err")
+				}
+			} else {
+				assert.Empty(t, state.Error, "Error should be empty when there's no error")
+			}
+
+			// Check that ExtraInfo exists for non-nil data
+			if tt.data != nil {
+				assert.Contains(t, state.ExtraInfo, "data")
+				assert.Contains(t, state.ExtraInfo, "encoding")
+				assert.Equal(t, "json", state.ExtraInfo["encoding"])
+			}
+		})
+	}
+}

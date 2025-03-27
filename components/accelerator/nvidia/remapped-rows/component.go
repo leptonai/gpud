@@ -284,7 +284,7 @@ func (d *Data) getReason() string {
 func (d *Data) getHealth() (string, bool) {
 	healthy := d == nil || d.err == nil
 
-	if healthy && d.MemoryErrorManagementCapabilities.RowRemapping {
+	if d != nil && healthy && d.MemoryErrorManagementCapabilities.RowRemapping {
 		for _, remappedRows := range d.RemappedRows {
 			if remappedRows.QualifiesForRMA() {
 				healthy = false
@@ -304,6 +304,13 @@ func (d *Data) getHealth() (string, bool) {
 	return health, healthy
 }
 
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
 func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
@@ -319,6 +326,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	state := components.State{
 		Name:   "row_remapping",
 		Reason: d.getReason(),
+		Error:  d.getError(),
 	}
 	state.Health, state.Healthy = d.getHealth()
 
