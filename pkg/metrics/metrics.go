@@ -1,5 +1,5 @@
-// Package gpudmetrics implements metrics collection and reporting.
-package gpudmetrics
+// Package metrics implements metrics collection and reporting.
+package metrics
 
 import (
 	"context"

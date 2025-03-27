@@ -1,4 +1,4 @@
-package gpudmetrics
+package metrics
 
 import (
 	"context"

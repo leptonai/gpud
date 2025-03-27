@@ -76,7 +76,6 @@ import (
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency "github.com/leptonai/gpud/components/network/latency"
-	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
@@ -690,22 +689,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case kubelet_pod.Name:
 			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
 
-		case network_latency_id.Name:
-			cfg := network_latency.Config{
-				Query:                      defaultQueryCfg,
-				GlobalMillisecondThreshold: network_latency.DefaultGlobalMillisecondThreshold,
-			}
-			if configValue != nil {
-				parsed, err := network_latency.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, network_latency.New(ctx, cfg))
+		case network_latency.Name:
+			allComponents = append(allComponents, network_latency.New(ctx))
 
 		default:
 			return nil, fmt.Errorf("unknown component %s", k)
