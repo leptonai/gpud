@@ -87,6 +87,7 @@ import (
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
@@ -94,6 +95,8 @@ import (
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
+	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
+	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -142,6 +145,36 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err := sqlite.Register(promReg); err != nil {
 		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
 	}
+
+	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(promReg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scraper: %w", err)
+	}
+	metricsSQLiteStore, err := pkgmetricsstore.NewSQLiteStore(ctx, dbRW, dbRO, pkgmetricsstore.DefaultTableName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics store: %w", err)
+	}
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			ms, err := promScraper.Scrape(ctx)
+			if err != nil {
+				log.Logger.Errorw("failed to scrape metrics", "error", err)
+				continue
+			}
+
+			if err := metricsSQLiteStore.Record(ctx, ms...); err != nil {
+				log.Logger.Errorw("failed to record metric", "error", err)
+			}
+		}
+	}()
 
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
@@ -891,6 +924,26 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	promHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
+	})
+
+	router.GET("/metrics/components", func(c *gin.Context) {
+		now := time.Now().UTC()
+		metricsSince := now.Add(-DefaultQuerySince)
+		if sinceRaw := c.Query("since"); sinceRaw != "" {
+			dur, err := time.ParseDuration(sinceRaw)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse duration: " + err.Error()})
+				return
+			}
+			metricsSince = now.Add(-dur)
+		}
+
+		r, err := metricsSQLiteStore.Read(c, metricsSince)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to read metrics: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, r)
 	})
 
 	router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))

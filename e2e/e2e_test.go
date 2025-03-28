@@ -222,7 +222,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/v1/metrics requests", func() {
-
 		It("request without compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -264,7 +263,36 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 		})
+	})
 
+	Describe("/metrics requests", func() {
+		It("request prometheus metrics without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			GinkgoLogr.Info("response size", "size", string(body))
+		})
+
+		It("request components metrics without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics/components", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			GinkgoLogr.Info("response size", "size", string(body))
+		})
 	})
 
 	Describe("states with client/v1", func() {
