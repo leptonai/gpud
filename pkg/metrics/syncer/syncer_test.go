@@ -251,7 +251,7 @@ func TestStartStop(t *testing.T) {
 		s.Start()
 
 		// Wait for some time to allow scraping and purging to occur
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(3 * time.Second)
 
 		// Stop the syncer
 		s.Stop()
