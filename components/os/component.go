@@ -13,10 +13,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/host"
 	procs "github.com/shirou/gopsutil/v4/process"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	pkg_host "github.com/leptonai/gpud/pkg/host"
@@ -33,6 +31,7 @@ var _ components.Component = &component{}
 type component struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
+	eventStore  eventstore.Store
 	eventBucket eventstore.Bucket
 
 	lastMu   sync.RWMutex
@@ -49,6 +48,7 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 	return &component{
 		ctx:         cctx,
 		cancel:      ccancel,
+		eventStore:  eventStore,
 		eventBucket: eventBucket,
 	}, nil
 }
@@ -137,7 +137,7 @@ func (c *component) CheckOnce() {
 
 	d.MachineMetadata = currentMachineMetadata
 
-	if err := recordRebootEvent(c.ctx, c.eventBucket, reboot.LastReboot); err != nil {
+	if err := reboot.RecordEvent(c.ctx, c.eventStore, Name, reboot.LastReboot); err != nil {
 		log.Logger.Warnw("failed to create reboot event", "error", err)
 	}
 
@@ -364,49 +364,4 @@ func init() {
 	if err != nil {
 		log.Logger.Warnw("failed to get system manufacturer", "error", err)
 	}
-}
-
-func recordRebootEvent(ctx context.Context, eventBucket eventstore.Bucket, lastRebootTime func(context.Context) (time.Time, error)) error {
-	bootTime, err := lastRebootTime(ctx)
-	if err != nil {
-		return err
-	}
-
-	// if now - event time > retention, then skip
-	if time.Since(bootTime) >= eventstore.DefaultRetention {
-		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(bootTime), "retention", eventstore.DefaultRetention)
-		return nil
-	}
-
-	// calculate event
-	rebootEvent := components.Event{
-		Time:    metav1.Time{Time: bootTime},
-		Name:    "reboot",
-		Type:    common.EventTypeWarning,
-		Message: fmt.Sprintf("system reboot detected %v", bootTime),
-	}
-
-	// get db latest
-	lastEvent, err := eventBucket.Latest(ctx)
-	if err != nil {
-		return err
-	}
-
-	// if latest != "" and latest.timestamp == current event, skip
-	if lastEvent != nil && lastEvent.Time.Time.Sub(bootTime).Abs() < time.Minute {
-		return nil
-	}
-
-	// else insert event
-	return eventBucket.Insert(ctx, rebootEvent)
-}
-
-func GetRebootEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) ([]components.Event, error) {
-	bucket, err := eventStore.LoadBucketWithNoPurge(Name)
-	if err != nil {
-		return nil, err
-	}
-	defer bucket.Close()
-
-	return bucket.Get(ctx, since)
 }

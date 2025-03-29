@@ -15,11 +15,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/os"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/reboot"
 )
 
 const Name = "accelerator-nvidia-error-sxid"
@@ -219,7 +219,7 @@ func (c *SXIDComponent) SetHealthy() error {
 
 func (c *SXIDComponent) updateCurrentState() error {
 	var rebootErr string
-	rebootEvents, err := os.GetRebootEvents(c.rootCtx, c.eventStore, time.Now().Add(-DefaultRetentionPeriod))
+	rebootEvents, err := reboot.GetEvents(c.rootCtx, c.eventStore, "os", time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)

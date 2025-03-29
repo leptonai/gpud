@@ -16,11 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/os"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/reboot"
 )
 
 const Name = "accelerator-nvidia-error-xid"
@@ -118,7 +118,7 @@ func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
 }
 
 func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	events, err := os.GetRebootEvents(ctx, c.eventStore, since)
+	events, err := reboot.GetEvents(c.rootCtx, c.eventStore, "os", since)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (c *XIDComponent) SetHealthy() error {
 
 func (c *XIDComponent) updateCurrentState() error {
 	var rebootErr string
-	rebootEvents, err := os.GetRebootEvents(c.rootCtx, c.eventStore, time.Now().Add(-DefaultRetentionPeriod))
+	rebootEvents, err := reboot.GetEvents(c.rootCtx, c.eventStore, "os", time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
