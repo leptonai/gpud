@@ -2,10 +2,13 @@ package xid
 
 import (
 	"context"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
@@ -133,44 +136,67 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 }
 
 func TestXIDComponent_Events(t *testing.T) {
+	t.Parallel()
+
 	// initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	component := New(ctx, store)
-	assert.NotNil(t, component)
+	require.NotNil(t, component)
+
 	watcher, err := pkg_dmesg.NewWatcher()
-	assert.NoError(t, err)
-	go component.start(watcher, 1*time.Second)
+	require.NoError(t, err)
+
+	// Start component in background
+	go component.start(watcher, 100*time.Millisecond) // Use shorter interval for testing
 	defer func() {
-		if err := component.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		err := component.Close()
+		assert.NoError(t, err, "failed to close component")
 	}()
 
+	// Create timestamp for events
+	now := time.Now().UTC()
+
+	// Create test events
 	testEvents := []components.Event{
-		createTestEvent(time.Now()),
+		createTestEvent(now),
+		createTestEvent(now.Add(1 * time.Minute)),
 	}
 
-	// insert test events
+	// Get bucket directly for testing
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	// Insert test events directly into the bucket
 	for _, event := range testEvents {
-		select {
-		case component.extraEventCh <- &event:
-		default:
-			t.Error("failed to insert event into channel")
-		}
+		err := bucket.Insert(ctx, event)
+		require.NoError(t, err, "failed to insert test event")
 	}
 
-	// wait for events to be processed
-	time.Sleep(5 * time.Second)
+	// Test part 1: Verify events are retrievable directly from bucket
+	// Note: We don't use component.Events() because it only returns OS reboot events
+	bucketEvents, err := bucket.Get(ctx, now.Add(-1*time.Hour))
+	require.NoError(t, err)
+	require.Len(t, bucketEvents, len(testEvents), "should have same number of events in bucket")
 
-	events, err := component.Events(ctx, time.Now().Add(-1*time.Hour))
-	assert.NoError(t, err)
-	assert.Len(t, events, len(testEvents))
-	for i, event := range events {
+	// Sort and compare events
+	sortEvents := func(evts []components.Event) {
+		sort.Slice(evts, func(i, j int) bool {
+			return evts[i].Time.Time.Before(evts[j].Time.Time)
+		})
+	}
+
+	sortEvents(bucketEvents)
+	sortEvents(testEvents)
+
+	for i, event := range bucketEvents {
 		assert.Equal(t, testEvents[i].Time.Time.Unix(), event.Time.Time.Unix())
 		assert.Equal(t, testEvents[i].Name, event.Name)
 		assert.Equal(t, testEvents[i].Type, event.Type)
@@ -178,6 +204,55 @@ func TestXIDComponent_Events(t *testing.T) {
 		assert.Equal(t, testEvents[i].ExtraInfo, event.ExtraInfo)
 		assert.Equal(t, testEvents[i].SuggestedActions, event.SuggestedActions)
 	}
+
+	// Test part 2: Test extraEventCh functionality
+	// Use a test event with a future timestamp
+	testChannelEvent := createTestEvent(now.Add(2 * time.Minute))
+
+	// Use a WaitGroup to ensure the event is processed
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Create a goroutine to check when the event appears in the bucket
+	go func() {
+		defer wg.Done()
+
+		checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer checkCancel()
+
+		// Poll for the event until it appears or timeout
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			events, err := bucket.Get(checkCtx, testChannelEvent.Time.Time.Add(-1*time.Second))
+			if err != nil {
+				continue
+			}
+
+			for _, e := range events {
+				if e.Name == testChannelEvent.Name &&
+					e.Message == testChannelEvent.Message &&
+					e.Time.Time.Unix() == testChannelEvent.Time.Time.Unix() {
+					return // Found the event, exit goroutine
+				}
+			}
+
+			select {
+			case <-ticker.C:
+				continue
+			case <-checkCtx.Done():
+				t.Errorf("timeout waiting for event to be processed")
+				return
+			}
+		}
+	}()
+
+	// Send event through the channel
+	component.extraEventCh <- &testChannelEvent
+
+	// Wait for event processing to complete
+	wg.Wait()
 }
 
 func TestXIDComponent_States(t *testing.T) {

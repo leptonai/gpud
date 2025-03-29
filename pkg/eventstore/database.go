@@ -89,6 +89,10 @@ func (d *database) Bucket(name string) (Bucket, error) {
 	return newTable(d.dbRW, d.dbRO, name, d.retention, checkInterval)
 }
 
+func (d *database) LoadBucketWithNoPurge(name string) (Bucket, error) {
+	return newTable(d.dbRW, d.dbRO, name, 0, 0)
+}
+
 func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, checkInterval time.Duration) (*table, error) {
 	tableName := defaultTableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -131,6 +135,10 @@ func (t *table) Name() string {
 }
 
 func (t *table) runPurge() {
+	if t.checkInterval == 0 {
+		return
+	}
+
 	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention, "checkInterval", t.checkInterval)
 	for {
 		select {
@@ -150,6 +158,9 @@ func (t *table) runPurge() {
 }
 
 func (t *table) Close() {
+	if t == nil {
+		return
+	}
 	log.Logger.Infow("closing the store", "table", t.table)
 	if t.rootCancel != nil {
 		t.rootCancel()
@@ -157,6 +168,9 @@ func (t *table) Close() {
 }
 
 func (t *table) Insert(ctx context.Context, ev components.Event) error {
+	if t == nil {
+		return nil
+	}
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
@@ -167,6 +181,9 @@ func (t *table) Find(ctx context.Context, ev components.Event) (*components.Even
 
 // Get queries the event in the descending order of timestamp (latest event first).
 func (t *table) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+	if t == nil {
+		return nil, nil
+	}
 	return getEvents(ctx, t.dbRO, t.table, since)
 }
 

@@ -1671,3 +1671,202 @@ func TestUnmarshalIfValid(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadBucketWithNoPurge(t *testing.T) {
+	// Remove t.Parallel() - each test will create its own database connection
+
+	tests := []struct {
+		name       string
+		bucketName string
+		testFunc   func(t *testing.T, store Store, ctx context.Context)
+	}{
+		{
+			name:       "insert and retrieve events",
+			bucketName: "events_bucket",
+			testFunc: func(t *testing.T, store Store, ctx context.Context) {
+				bucket, err := store.LoadBucketWithNoPurge("events_bucket")
+				assert.NoError(t, err)
+				defer bucket.Close()
+
+				// Create and insert test event
+				testEvent := components.Event{
+					Time:    metav1.Time{Time: time.Now().UTC()},
+					Name:    "test_event",
+					Type:    common.EventTypeInfo,
+					Message: "Test message",
+					ExtraInfo: map[string]string{
+						"key1": "value1",
+						"key2": "value2",
+					},
+				}
+
+				err = bucket.Insert(ctx, testEvent)
+				assert.NoError(t, err)
+
+				// Retrieve and verify the event
+				events, err := bucket.Get(ctx, time.Now().UTC().Add(-1*time.Minute))
+				assert.NoError(t, err)
+				if assert.Equal(t, 1, len(events), "Expected 1 event but got %d", len(events)) {
+					assert.Equal(t, "test_event", events[0].Name)
+					assert.Equal(t, common.EventTypeInfo, events[0].Type)
+					assert.Equal(t, "Test message", events[0].Message)
+					assert.Equal(t, "value1", events[0].ExtraInfo["key1"])
+					assert.Equal(t, "value2", events[0].ExtraInfo["key2"])
+				}
+			},
+		},
+		{
+			name:       "bucket with special characters in name",
+			bucketName: "special-bucket name",
+			testFunc: func(t *testing.T, store Store, ctx context.Context) {
+				bucket, err := store.LoadBucketWithNoPurge("special-bucket name")
+				assert.NoError(t, err)
+				defer bucket.Close()
+
+				assert.Equal(t, defaultTableName("special-bucket name"), bucket.Name())
+
+				// Insert and retrieve event to verify functionality
+				testEvent := components.Event{
+					Time:    metav1.Time{Time: time.Now().UTC()},
+					Name:    "test_event",
+					Type:    common.EventTypeInfo,
+					Message: "Special bucket test",
+				}
+
+				err = bucket.Insert(ctx, testEvent)
+				assert.NoError(t, err)
+
+				events, err := bucket.Get(ctx, time.Now().UTC().Add(-1*time.Minute))
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(events))
+			},
+		},
+		{
+			name:       "purge operation with no purging",
+			bucketName: "purge_test_bucket",
+			testFunc: func(t *testing.T, store Store, ctx context.Context) {
+				bucket, err := store.LoadBucketWithNoPurge("purge_test_bucket")
+				assert.NoError(t, err)
+				defer bucket.Close()
+
+				// Insert old events (30 days old)
+				oldTime := time.Now().UTC().Add(-30 * 24 * time.Hour)
+				oldEvent := components.Event{
+					Time:    metav1.Time{Time: oldTime},
+					Name:    "old_event",
+					Type:    common.EventTypeWarning,
+					Message: "This event is very old",
+				}
+
+				err = bucket.Insert(ctx, oldEvent)
+				assert.NoError(t, err)
+
+				// Even though the event is older than store retention,
+				// the bucket should not purge it since it was created with NoPurge
+				events, err := bucket.Get(ctx, oldTime.Add(-1*time.Minute))
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(events))
+
+				// Manually trigger purge (this should work)
+				purgeTime := time.Now().UTC().Add(-1 * time.Hour).Unix()
+				count, err := bucket.Purge(ctx, purgeTime)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, count)
+
+				// Verify event was purged
+				events, err = bucket.Get(ctx, oldTime.Add(-1*time.Minute))
+				assert.NoError(t, err)
+				assert.Equal(t, 0, len(events))
+			},
+		},
+		{
+			name:       "compare purge vs no-purge buckets",
+			bucketName: "comparison_bucket",
+			testFunc: func(t *testing.T, store Store, ctx context.Context) {
+				// First, we test the bucket loaded with no purge
+				noPurgeBucket, err := store.LoadBucketWithNoPurge("comparison_bucket")
+				assert.NoError(t, err)
+				defer noPurgeBucket.Close()
+
+				// Create a separate bucket with the same name, but with purge enabled
+				purgeBucket, err := store.Bucket("comparison_bucket")
+				assert.NoError(t, err)
+				defer purgeBucket.Close()
+
+				// Verify the buckets have the same name
+				assert.Equal(t, noPurgeBucket.Name(), purgeBucket.Name())
+
+				// Insert identical events in both buckets
+				testEvent := components.Event{
+					Time:    metav1.Time{Time: time.Now().UTC()},
+					Name:    "shared_event",
+					Type:    common.EventTypeInfo,
+					Message: "Event in both buckets",
+				}
+
+				err = noPurgeBucket.Insert(ctx, testEvent)
+				assert.NoError(t, err)
+
+				err = purgeBucket.Insert(ctx, testEvent)
+				assert.NoError(t, err)
+
+				// Verify both buckets can find the events
+				purgeEvents, err := purgeBucket.Get(ctx, time.Now().UTC().Add(-1*time.Minute))
+				assert.NoError(t, err)
+				assert.Equal(t, 2, len(purgeEvents)) // Should have 2 events since both buckets insert to the same database table
+
+				// Test that data from one bucket is visible to the other
+				foundEvent, err := noPurgeBucket.Find(ctx, testEvent)
+				assert.NoError(t, err)
+				assert.NotNil(t, foundEvent)
+				if foundEvent != nil {
+					assert.Equal(t, testEvent.Name, foundEvent.Name)
+				}
+
+				// Test manually triggering a purge affects both buckets since they share the same underlying table
+				oldEvent := components.Event{
+					Time:    metav1.Time{Time: time.Now().UTC().Add(-48 * time.Hour)},
+					Name:    "old_event",
+					Type:    common.EventTypeWarning,
+					Message: "This is an old event",
+				}
+
+				err = noPurgeBucket.Insert(ctx, oldEvent)
+				assert.NoError(t, err)
+
+				// Verify old event is inserted and visible
+				oldEvents, err := noPurgeBucket.Get(ctx, time.Now().UTC().Add(-72*time.Hour))
+				assert.NoError(t, err)
+				assert.Equal(t, 3, len(oldEvents)) // 2 recent events + 1 old event
+
+				// Manually trigger purge on purge bucket (with auto-purge)
+				purgeTime := time.Now().UTC().Add(-24 * time.Hour).Unix()
+				count, err := purgeBucket.Purge(ctx, purgeTime)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, count) // Should purge 1 old event
+
+				// Verify event was purged from both buckets
+				oldEventsAfterPurge, err := noPurgeBucket.Get(ctx, time.Now().UTC().Add(-72*time.Hour))
+				assert.NoError(t, err)
+				assert.Equal(t, 2, len(oldEventsAfterPurge)) // Only the 2 recent events should remain
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt // Capture range variable
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a new database for each test to avoid interference
+			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+			defer cleanup()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			store, err := New(dbRW, dbRO, 24*time.Hour) // Set a nonzero retention
+			assert.NoError(t, err)
+
+			tt.testFunc(t, store, ctx)
+		})
+	}
+}

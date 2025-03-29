@@ -40,8 +40,8 @@ import (
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
-	os_id "github.com/leptonai/gpud/components/os/id"
-	component_pci_id "github.com/leptonai/gpud/components/pci/id"
+	os "github.com/leptonai/gpud/components/os"
+	component_pci "github.com/leptonai/gpud/components/pci"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
@@ -97,7 +97,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			fd.Name:            nil,
 			info.Name:          nil,
 			memory.Name:        nil,
-			os_id.Name:         nil,
+			os.Name:            nil,
 			kernel_module.Name: nil,
 		},
 
@@ -142,7 +142,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	cfg.Components[network_latency_id.Name] = nil
 
 	if runtime.GOOS == "linux" {
-		cfg.Components[component_pci_id.Name] = nil
+		cfg.Components[component_pci.Name] = nil
 	}
 
 	if runtime.GOOS == "linux" {

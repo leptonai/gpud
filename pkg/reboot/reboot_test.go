@@ -2,11 +2,16 @@ package reboot
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestReboot(t *testing.T) {
+	if os.Geteuid() == 0 { // running as root
+		t.Skip("skipping test for root user")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
