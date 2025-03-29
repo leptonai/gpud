@@ -227,9 +227,9 @@ func TestRecordEventEdgeCases(t *testing.T) {
 		assert.Len(t, events, 0)
 	})
 
-	// Test with cancelled context
-	t.Run("cancelled context", func(t *testing.T) {
-		cancelledCtx, cancel := context.WithCancel(ctx)
+	// Test with canceled context
+	t.Run("canceled context", func(t *testing.T) {
+		canceledCtx, cancel := context.WithCancel(ctx)
 		cancel() // Cancel immediately
 
 		recentTime := time.Now().Add(-1 * time.Hour)
@@ -237,7 +237,7 @@ func TestRecordEventEdgeCases(t *testing.T) {
 			return recentTime, nil
 		}
 
-		err = RecordEvent(cancelledCtx, store, "os", mockLastReboot)
+		err = RecordEvent(canceledCtx, store, "os", mockLastReboot)
 		assert.Error(t, err)
 	})
 }
