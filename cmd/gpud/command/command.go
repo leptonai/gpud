@@ -54,6 +54,8 @@ var (
 	ibstatCommand string
 
 	checkInfiniBand bool
+
+	experimentalGlobalMetricsStore bool
 )
 
 const (
@@ -251,6 +253,13 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "kubelet-ignore-connection-errors",
 					Usage:       "ignore connection errors to kubelet read-only port, useful when kubelet readOnlyPort is disabled (default: false)",
 					Destination: &kubeletIgnoreConnectionErrors,
+				},
+
+				// experimental
+				&cli.BoolFlag{
+					Name:        "experimental-global-metrics-store",
+					Usage:       "enable experimental global metrics store (default: false)",
+					Destination: &experimentalGlobalMetricsStore,
 				},
 
 				// only for testing

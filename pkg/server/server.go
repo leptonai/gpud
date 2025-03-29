@@ -87,7 +87,6 @@ import (
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
@@ -97,6 +96,7 @@ import (
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
+	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -154,27 +154,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics store: %w", err)
 	}
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-
-			ms, err := promScraper.Scrape(ctx)
-			if err != nil {
-				log.Logger.Errorw("failed to scrape metrics", "error", err)
-				continue
-			}
-
-			if err := metricsSQLiteStore.Record(ctx, ms...); err != nil {
-				log.Logger.Errorw("failed to record metric", "error", err)
-			}
-		}
-	}()
+	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 3*24*time.Hour)
+	syncer.Start()
 
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
@@ -911,7 +892,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	ghler := newGlobalHandler(config, components.GetAllComponents())
+	ghler := newGlobalHandler(config, components.GetAllComponents(), metricsSQLiteStore)
 	registeredPaths := ghler.registerComponentRoutes(v1)
 	for i := range registeredPaths {
 		registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
@@ -924,26 +905,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	promHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
-	})
-
-	router.GET("/metrics/components", func(c *gin.Context) {
-		now := time.Now().UTC()
-		metricsSince := now.Add(-DefaultQuerySince)
-		if sinceRaw := c.Query("since"); sinceRaw != "" {
-			dur, err := time.ParseDuration(sinceRaw)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse duration: " + err.Error()})
-				return
-			}
-			metricsSince = now.Add(-dur)
-		}
-
-		r, err := metricsSQLiteStore.Read(c, metricsSince)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to read metrics: " + err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, r)
 	})
 
 	router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -990,12 +951,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint)
 
-	go func(nvmlInstance nvidia_query_nvml.InstanceV2) {
+	go func(nvmlInstance nvidia_query_nvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
 			if nvmlInstance != nil {
 				if err := nvmlInstance.Shutdown(); err != nil {
 					log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
 				}
+			}
+			if metricsSyncer != nil {
+				metricsSyncer.Stop()
 			}
 		}()
 
@@ -1014,7 +978,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			s.Stop()
 			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
 		}
-	}(nvmlInstanceV2)
+	}(nvmlInstanceV2, syncer)
 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames

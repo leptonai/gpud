@@ -80,14 +80,22 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to rand value")
 
 		By("start gpud command")
-		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "run",
+
+		args := []string{
+			"run",
 			`--log-file=""`, // stdout/stderr
 			"--log-level=debug",
 			"--web-enable=false",
 			"--enable-auto-update=false",
 			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
 			fmt.Sprintf("--listen-address=%s", ep),
-		)
+		}
+
+		if os.Getenv("ENABLE_EXPERIMENTAL_FEATURES") == "true" {
+			args = append(args, "--experimental-global-metrics-store")
+		}
+
+		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
@@ -153,7 +161,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			body, err := io.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			GinkgoLogr.Info("response size", "size", string(body))
+			fmt.Println("/v1/states RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/v1/states response size", "size", string(body))
+			fmt.Println("/v1/states RESPONSE BODY:", string(body))
+			GinkgoLogr.Info("/v1/states response", "response", string(body))
 
 			var componentStates []v1.LeptonComponentStates
 			err = json.Unmarshal(body, &componentStates)
@@ -223,6 +234,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 	Describe("/v1/metrics requests", func() {
 		It("request without compress", func() {
+			time.Sleep(time.Minute + 10*time.Second)
+
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
@@ -235,7 +248,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			body, err := io.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			GinkgoLogr.Info("response size", "size", string(body))
+			fmt.Println("/v1/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/v1/metrics response size", "size", string(body))
+			fmt.Println("/v1/metrics RESPONSE BODY:", string(body))
+			GinkgoLogr.Info("/v1/metrics response", "response", string(body))
 
 			var metrics v1.LeptonMetrics
 			err = json.Unmarshal(body, &metrics)
@@ -266,6 +282,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/metrics requests", func() {
+
 		It("request prometheus metrics without compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -277,22 +294,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			body, err := io.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			GinkgoLogr.Info("response size", "size", string(body))
+
+			fmt.Println("/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/metrics response size", "size", string(body))
+			fmt.Println("/metrics RESPONSE BODY:", string(body))
+			GinkgoLogr.Info("/metrics response", "response", string(body))
 		})
 
-		It("request components metrics without compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics/components", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			body, err := io.ReadAll(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			GinkgoLogr.Info("response size", "size", string(body))
-		})
 	})
 
 	Describe("states with client/v1", func() {

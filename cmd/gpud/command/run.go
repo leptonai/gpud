@@ -84,6 +84,8 @@ func cmdRun(cliContext *cli.Context) error {
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
 
+	cfg.EnableGlobalMetricsStore = experimentalGlobalMetricsStore
+
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

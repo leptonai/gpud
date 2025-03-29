@@ -16,6 +16,34 @@ import (
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 )
 
+const (
+	// DefaultTableName is the default table name for the metrics.
+	DefaultTableName = "gpud_metrics"
+
+	// ColumnUnixMilliseconds represents the Unix timestamp of the metric.
+	ColumnUnixMilliseconds = "unix_milliseconds"
+
+	// ColumnComponentName represents the name of the component this metric
+	// belongs to.
+	ColumnComponentName = "component_name"
+
+	// ColumnMetricName represents the name of the metric.
+	ColumnMetricName = "metric_name"
+
+	// ColumnMetricLabel represents the label of the metric
+	// such as GPU ID, etc. (as a secondary metric name).
+	ColumnMetricLabel = "metric_label"
+
+	// ColumnMetricValue represents the numeric value of the metric.
+	ColumnMetricValue = "metric_value"
+)
+
+var (
+	ErrEmptyTableName     = errors.New("table name is empty")
+	ErrEmptyComponentName = errors.New("component name is empty")
+	ErrEmptyMetricName    = errors.New("metric name is empty")
+)
+
 var _ pkgmetrics.Store = &sqliteStore{}
 
 type sqliteStore struct {
@@ -46,34 +74,6 @@ func (s *sqliteStore) Read(ctx context.Context, since time.Time) (pkgmetrics.Met
 func (s *sqliteStore) Purge(ctx context.Context, before time.Time) (int, error) {
 	return purge(ctx, s.dbRW, s.table, before)
 }
-
-const (
-	// DefaultTableName is the default table name for the metrics.
-	DefaultTableName = "gpud_metrics"
-
-	// ColumnUnixMilliseconds represents the Unix timestamp of the metric.
-	ColumnUnixMilliseconds = "unix_milliseconds"
-
-	// ColumnComponentName represents the name of the component this metric
-	// belongs to.
-	ColumnComponentName = "component_name"
-
-	// ColumnMetricName represents the name of the metric.
-	ColumnMetricName = "metric_name"
-
-	// ColumnMetricLabel represents the label of the metric
-	// such as GPU ID, etc. (as a secondary metric name).
-	ColumnMetricLabel = "metric_label"
-
-	// ColumnMetricValue represents the numeric value of the metric.
-	ColumnMetricValue = "metric_value"
-)
-
-var (
-	ErrEmptyTableName     = errors.New("table name is empty")
-	ErrEmptyComponentName = errors.New("component name is empty")
-	ErrEmptyMetricName    = errors.New("metric name is empty")
-)
 
 func CreateTable(ctx context.Context, dbRW *sql.DB, table string) error {
 	if table == "" {

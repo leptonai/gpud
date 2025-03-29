@@ -10,6 +10,7 @@ import (
 	lep_components "github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/query"
 
 	"github.com/gin-gonic/gin"
@@ -422,6 +423,19 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 			return
 		}
 		metricsSince = now.Add(-dur)
+	}
+
+	if g.cfg.EnableGlobalMetricsStore {
+		log.Logger.Infow("[experimental] reading metrics from global metrics store")
+
+		metrics, err := g.metricsStore.Read(c, metricsSince)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to read metrics: " + err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, pkgmetrics.ConvertToLeptonMetrics(metrics))
+		return
 	}
 
 	var metrics v1.LeptonMetrics

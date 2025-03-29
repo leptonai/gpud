@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 const SubSystem = "cpu"
@@ -35,17 +36,18 @@ var (
 			Name:      "load_average",
 			Help:      "tracks the load average for the last period",
 		},
-		[]string{"last_period"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
 	)
 	loadAverage5minAverager = components_metrics.NewNoOpAverager()
 
-	usedPercent = prometheus.NewGauge(
+	usedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "used_percent",
 			Help:      "tracks the current file descriptor usage percentage",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
@@ -55,7 +57,7 @@ var (
 			Name:      "used_percent_avg",
 			Help:      "tracks the file descriptor usage percentage with average for the last period",
 		},
-		[]string{"last_period"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
 	)
 )
 
@@ -77,7 +79,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, currentTime time.Time) error {
-	loadAverage.WithLabelValues(duration.String()).Set(avg)
+	loadAverage.WithLabelValues("cpu", duration.String()).Set(avg)
 
 	switch duration {
 	case 5 * time.Minute:
@@ -96,7 +98,7 @@ func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, cu
 }
 
 func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
-	usedPercent.Set(pct)
+	usedPercent.WithLabelValues("cpu").Set(pct)
 
 	if err := usedPercentAverager.Observe(
 		ctx,
@@ -114,7 +116,7 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues(duration.String()).Set(avg)
+		usedPercentAverage.WithLabelValues("cpu", duration.String()).Set(avg)
 	}
 
 	return nil

@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+const (
+	// MetricComponentLabelKey is the key for the component of the metric.
+	MetricComponentLabelKey = "gpud_component"
+
+	// MetricLabelKey is the key for the label of the metric.
+	MetricLabelKey = "gpud_metric_label"
+)
+
 // Metric represents a metric row in the database table.
 type Metric struct {
 	// UnixMilliseconds represents the Unix timestamp of the metric.
@@ -39,11 +47,3 @@ type Store interface {
 	// Purge purges the metrics data points before the given time.
 	Purge(ctx context.Context, before time.Time) (int, error)
 }
-
-const (
-	// MetricComponentLabelKey is the key for the component of the metric.
-	MetricComponentLabelKey = "gpud_component"
-
-	// MetricLabelKey is the key for the label of the metric.
-	MetricLabelKey = "gpud_metric_label"
-)

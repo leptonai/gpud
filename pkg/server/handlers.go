@@ -12,11 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	lep_components "github.com/leptonai/gpud/components"
 	lep_config "github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
-	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/yaml"
 )
 
@@ -26,9 +27,11 @@ type globalHandler struct {
 
 	componentNamesMu sync.RWMutex
 	componentNames   []string
+
+	metricsStore pkgmetrics.Store
 }
 
-func newGlobalHandler(cfg *lep_config.Config, components map[string]lep_components.Component) *globalHandler {
+func newGlobalHandler(cfg *lep_config.Config, components map[string]lep_components.Component, metricsStore pkgmetrics.Store) *globalHandler {
 	var componentNames []string
 	for name := range components {
 		componentNames = append(componentNames, name)
@@ -39,6 +42,7 @@ func newGlobalHandler(cfg *lep_config.Config, components map[string]lep_componen
 		cfg:            cfg,
 		components:     components,
 		componentNames: componentNames,
+		metricsStore:   metricsStore,
 	}
 }
 

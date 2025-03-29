@@ -64,7 +64,7 @@ func TestPrometheusScraper(t *testing.T) {
 
 	// should not be included since the component label does not exist
 	lastUpdateUnixSeconds.Set(123)
-	currentCelsius.WithLabelValues("gpud-temerature-0", "GPU-0").Set(100)
+	currentCelsius.WithLabelValues("gpud-temp-0", "GPU-0").Set(100)
 	slowdownUsedPercent.WithLabelValues("gpud-clock-events-0", "GPU-0").Set(98)
 	insertUpdateTotal.WithLabelValues("gpud-db-0").Inc()
 
@@ -85,7 +85,7 @@ func TestPrometheusScraper(t *testing.T) {
 	require.Equal(t, "", ms[0].Label)
 	require.Equal(t, float64(1), ms[0].Value)
 
-	require.Equal(t, "gpud-temerature-0", ms[1].Component)
+	require.Equal(t, "gpud-temp-0", ms[1].Component)
 	require.Equal(t, "test_current_celsius", ms[1].Name)
 	require.Equal(t, "GPU-0", ms[1].Label)
 	require.Equal(t, float64(100), ms[1].Value)

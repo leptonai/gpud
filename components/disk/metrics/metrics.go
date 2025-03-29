@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,7 +35,7 @@ var (
 			Name:      "total_bytes",
 			Help:      "tracks the total bytes of the disk",
 		},
-		[]string{"mount_point"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
 	)
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
@@ -45,7 +46,7 @@ var (
 			Name:      "free_bytes",
 			Help:      "tracks the current free bytes of the disk",
 		},
-		[]string{"mount_point"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
 	)
 
 	usedBytes = prometheus.NewGaugeVec(
@@ -55,7 +56,7 @@ var (
 			Name:      "used_bytes",
 			Help:      "tracks the current free bytes of the disk",
 		},
-		[]string{"mount_point"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
 	)
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
@@ -65,7 +66,7 @@ var (
 			Name:      "used_bytes_avg",
 			Help:      "tracks the disk bytes usage with average for the last period",
 		},
-		[]string{"mount_point", "last_period"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is mount point
 	)
 
 	usedBytesPercent = prometheus.NewGaugeVec(
@@ -75,7 +76,7 @@ var (
 			Name:      "used_bytes_percent",
 			Help:      "tracks the current disk bytes usage percentage",
 		},
-		[]string{"mount_point"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
 	)
 	usedBytesPercentAverager = components_metrics.NewNoOpAverager()
 	usedBytesPercentAverage  = prometheus.NewGaugeVec(
@@ -85,7 +86,7 @@ var (
 			Name:      "used_bytes_percent_avg",
 			Help:      "tracks the disk bytes usage percentage with average for the last period",
 		},
-		[]string{"mount_point", "last_period"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is mount point
 	)
 
 	usedInodesPercent = prometheus.NewGaugeVec(
@@ -95,7 +96,7 @@ var (
 			Name:      "used_inodes_percent",
 			Help:      "tracks the current disk inodes usage percentage",
 		},
-		[]string{"mount_point"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
 	)
 )
 
@@ -122,7 +123,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetTotalBytes(ctx context.Context, mountPoint string, bytes float64, currentTime time.Time) error {
-	totalBytes.WithLabelValues(mountPoint).Set(bytes)
+	totalBytes.WithLabelValues("disk", mountPoint).Set(bytes)
 
 	if err := totalBytesAverager.Observe(
 		ctx,
@@ -137,11 +138,11 @@ func SetTotalBytes(ctx context.Context, mountPoint string, bytes float64, curren
 }
 
 func SetFreeBytes(mountPoint string, bytes float64) {
-	freeBytes.WithLabelValues(mountPoint).Set(bytes)
+	freeBytes.WithLabelValues("disk", mountPoint).Set(bytes)
 }
 
 func SetUsedBytes(ctx context.Context, mountPoint string, bytes float64, currentTime time.Time) error {
-	usedBytes.WithLabelValues(mountPoint).Set(bytes)
+	usedBytes.WithLabelValues("disk", mountPoint).Set(bytes)
 
 	if err := usedBytesAverager.Observe(
 		ctx,
@@ -161,14 +162,14 @@ func SetUsedBytes(ctx context.Context, mountPoint string, bytes float64, current
 		if err != nil {
 			return err
 		}
-		usedBytesAverage.WithLabelValues(mountPoint, duration.String()).Set(avg)
+		usedBytesAverage.WithLabelValues("disk", mountPoint, duration.String()).Set(avg)
 	}
 
 	return nil
 }
 
 func SetUsedBytesPercent(ctx context.Context, mountPoint string, pct float64, currentTime time.Time) error {
-	usedBytesPercent.WithLabelValues(mountPoint).Set(pct)
+	usedBytesPercent.WithLabelValues("disk", mountPoint).Set(pct)
 
 	if err := usedBytesPercentAverager.Observe(
 		ctx,
@@ -188,14 +189,14 @@ func SetUsedBytesPercent(ctx context.Context, mountPoint string, pct float64, cu
 		if err != nil {
 			return err
 		}
-		usedBytesPercentAverage.WithLabelValues(mountPoint, duration.String()).Set(avg)
+		usedBytesPercentAverage.WithLabelValues("disk", mountPoint, duration.String()).Set(avg)
 	}
 
 	return nil
 }
 
 func SetUsedInodesPercent(mountPoint string, pct float64) {
-	usedInodesPercent.WithLabelValues(mountPoint).Set(pct)
+	usedInodesPercent.WithLabelValues("disk", mountPoint).Set(pct)
 }
 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {

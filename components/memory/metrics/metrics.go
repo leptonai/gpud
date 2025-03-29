@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -27,32 +28,35 @@ var (
 		},
 	)
 
-	totalBytes = prometheus.NewGauge(
+	totalBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "total_bytes",
 			Help:      "tracks the total memory in bytes",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
-	availableBytes = prometheus.NewGauge(
+	availableBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "available_bytes",
 			Help:      "tracks the available memory in bytes",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 
-	usedBytes = prometheus.NewGauge(
+	usedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "used_bytes",
 			Help:      "tracks the used memory in bytes",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
@@ -65,13 +69,14 @@ var (
 		[]string{"last_period"},
 	)
 
-	usedPercent = prometheus.NewGauge(
+	usedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "used_percent",
 			Help:      "tracks the percentage of memory used",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
@@ -84,13 +89,14 @@ var (
 		[]string{"last_period"},
 	)
 
-	freeBytes = prometheus.NewGauge(
+	freeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "free_bytes",
 			Help:      "tracks the free memory in bytes",
 		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
 	)
 )
 
@@ -117,7 +123,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetTotalBytes(ctx context.Context, bytes float64, currentTime time.Time) error {
-	totalBytes.Set(bytes)
+	totalBytes.WithLabelValues("memory").Set(bytes)
 
 	if err := totalBytesAverager.Observe(
 		ctx,
@@ -131,11 +137,11 @@ func SetTotalBytes(ctx context.Context, bytes float64, currentTime time.Time) er
 }
 
 func SetAvailableBytes(bytes float64) {
-	availableBytes.Set(bytes)
+	availableBytes.WithLabelValues("memory").Set(bytes)
 }
 
 func SetUsedBytes(ctx context.Context, bytes float64, currentTime time.Time) error {
-	usedBytes.Set(bytes)
+	usedBytes.WithLabelValues("memory").Set(bytes)
 
 	if err := usedBytesAverager.Observe(
 		ctx,
@@ -160,7 +166,7 @@ func SetUsedBytes(ctx context.Context, bytes float64, currentTime time.Time) err
 }
 
 func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
-	usedPercent.Set(pct)
+	usedPercent.WithLabelValues("memory").Set(pct)
 
 	if err := usedPercentAverager.Observe(ctx, pct, components_metrics.WithCurrentTime(currentTime)); err != nil {
 		return err
@@ -178,7 +184,7 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 }
 
 func SetFreeBytes(bytes float64) {
-	freeBytes.Set(bytes)
+	freeBytes.WithLabelValues("memory").Set(bytes)
 }
 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
