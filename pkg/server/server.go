@@ -94,6 +94,9 @@ import (
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
+	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
+	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
+	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
@@ -142,6 +145,17 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err := sqlite.Register(promReg); err != nil {
 		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
 	}
+
+	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(promReg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scraper: %w", err)
+	}
+	metricsSQLiteStore, err := pkgmetricsstore.NewSQLiteStore(ctx, dbRW, dbRO, pkgmetricsstore.DefaultTableName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics store: %w", err)
+	}
+	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 3*24*time.Hour)
+	syncer.Start()
 
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
@@ -878,7 +892,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	ghler := newGlobalHandler(config, components.GetAllComponents())
+	ghler := newGlobalHandler(config, components.GetAllComponents(), metricsSQLiteStore)
 	registeredPaths := ghler.registerComponentRoutes(v1)
 	for i := range registeredPaths {
 		registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
@@ -937,12 +951,15 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint)
 
-	go func(nvmlInstance nvidia_query_nvml.InstanceV2) {
+	go func(nvmlInstance nvidia_query_nvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
 			if nvmlInstance != nil {
 				if err := nvmlInstance.Shutdown(); err != nil {
 					log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
 				}
+			}
+			if metricsSyncer != nil {
+				metricsSyncer.Stop()
 			}
 		}()
 
@@ -961,7 +978,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			s.Stop()
 			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
 		}
-	}(nvmlInstanceV2)
+	}(nvmlInstanceV2, syncer)
 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames

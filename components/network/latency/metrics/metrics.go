@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 const SubSystem = "network_latency"
@@ -31,7 +32,7 @@ var (
 			Name:      "edge_in_milliseconds",
 			Help:      "tracks the edge latency in milliseconds",
 		},
-		[]string{"provider_region"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is provider region
 	)
 	edgeInMillisecondsAverager = components_metrics.NewNoOpAverager()
 )
@@ -49,7 +50,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetEdgeInMilliseconds(ctx context.Context, providerRegion string, latencyInMilliseconds float64, currentTime time.Time) error {
-	edgeInMilliseconds.WithLabelValues(providerRegion).Set(latencyInMilliseconds)
+	edgeInMilliseconds.WithLabelValues("network-latency", providerRegion).Set(latencyInMilliseconds)
 
 	if err := edgeInMillisecondsAverager.Observe(
 		ctx,

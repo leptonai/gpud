@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-
-	"github.com/prometheus/client_golang/prometheus"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 const SubSystem = "fuse"
@@ -31,7 +32,7 @@ var (
 			Name:      "connections_congested_percent_against_threshold",
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
-		[]string{"device_name"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
 	)
 	connsCongestedPctAverager = components_metrics.NewNoOpAverager()
 
@@ -42,7 +43,7 @@ var (
 			Name:      "connections_max_background_percent_against_threshold",
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
-		[]string{"device_name"},
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
 	)
 	connsMaxBackgroundPctAverager = components_metrics.NewNoOpAverager()
 )
@@ -65,7 +66,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetConnectionsCongestedPercent(ctx context.Context, deviceName string, pct float64, currentTime time.Time) error {
-	connsCongestedPct.WithLabelValues(deviceName).Set(pct)
+	connsCongestedPct.WithLabelValues("fuse", deviceName).Set(pct)
 
 	if err := connsCongestedPctAverager.Observe(
 		ctx,
@@ -80,7 +81,7 @@ func SetConnectionsCongestedPercent(ctx context.Context, deviceName string, pct 
 }
 
 func SetConnectionsMaxBackgroundPercent(ctx context.Context, deviceName string, pct float64, currentTime time.Time) error {
-	connsMaxBackgroundPct.WithLabelValues(deviceName).Set(pct)
+	connsMaxBackgroundPct.WithLabelValues("fuse", deviceName).Set(pct)
 
 	if err := connsMaxBackgroundPctAverager.Observe(
 		ctx,

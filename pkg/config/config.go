@@ -63,6 +63,9 @@ type Config struct {
 
 	// A list of nvidia tool command paths to overwrite the default paths.
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
+
+	// Enable experimental global metrics store
+	EnableGlobalMetricsStore bool `json:"enable_global_metrics_store"`
 }
 
 // Configures the local web configuration.
