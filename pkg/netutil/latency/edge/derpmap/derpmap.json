@@ -676,6 +676,39 @@
         }
       ]
     },
+    "28": {
+      "RegionID": 28,
+      "RegionCode": "hel",
+      "RegionName": "Helsinki",
+      "Latitude": 60.170833,
+      "Longitude": 24.9375,
+      "Nodes": [
+        {
+          "Name": "28b",
+          "RegionID": 28,
+          "HostName": "derp28b.tailscale.com",
+          "IPv4": "65.109.143.62",
+          "IPv6": "2a01:4f9:c012:d55c::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "28c",
+          "RegionID": 28,
+          "HostName": "derp28c.tailscale.com",
+          "IPv4": "95.217.2.165",
+          "IPv6": "2a01:4f9:c012:cd74::1",
+          "CanPort80": true
+        },
+        {
+          "Name": "28d",
+          "RegionID": 28,
+          "HostName": "derp28d.tailscale.com",
+          "IPv4": "157.180.28.32",
+          "IPv6": "2a01:4f9:c012:2e5b::1",
+          "CanPort80": true
+        }
+      ]
+    },
     "3": {
       "RegionID": 3,
       "RegionCode": "sin",
