@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -31,8 +32,10 @@ var (
 			Name:      "running_total",
 			Help:      "tracks the current per-GPU process counter",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-processes",
+	})
 	runningProcessesTotalAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -49,7 +52,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetRunningProcessesTotal(ctx context.Context, gpuID string, processes int, currentTime time.Time) error {
-	runningProcesses.WithLabelValues(gpuID).Set(float64(processes))
+	runningProcesses.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(processes))
 
 	if err := runningProcessesTotalAverager.Observe(
 		ctx,

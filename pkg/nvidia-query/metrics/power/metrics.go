@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,8 +35,10 @@ var (
 			Name:      "current_usage_milli_watts",
 			Help:      "tracks the current power in milliwatts",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+	})
 	currentUsageMilliWattsAverager = components_metrics.NewNoOpAverager()
 	currentUsageMilliWattsAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -44,8 +47,10 @@ var (
 			Name:      "current_usage_milli_watts_avg",
 			Help:      "tracks the current power in milliwatts with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+	})
 
 	enforcedLimitMilliWatts = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -54,8 +59,10 @@ var (
 			Name:      "enforced_limit_milli_watts",
 			Help:      "tracks the enforced power limit in milliwatts",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+	})
 	enforcedLimitMilliWattsAverager = components_metrics.NewNoOpAverager()
 
 	usedPercent = prometheus.NewGaugeVec(
@@ -65,8 +72,10 @@ var (
 			Name:      "used_percent",
 			Help:      "tracks the percentage of power used",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+	})
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -75,8 +84,10 @@ var (
 			Name:      "used_percent_avg",
 			Help:      "tracks the used power in percent with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+	})
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -102,7 +113,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetUsageMilliWatts(ctx context.Context, gpuID string, milliWatts float64, currentTime time.Time) error {
-	currentUsageMilliWatts.WithLabelValues(gpuID).Set(milliWatts)
+	currentUsageMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(milliWatts)
 
 	if err := currentUsageMilliWattsAverager.Observe(
 		ctx,
@@ -122,14 +133,14 @@ func SetUsageMilliWatts(ctx context.Context, gpuID string, milliWatts float64, c
 		if err != nil {
 			return err
 		}
-		currentUsageMilliWattsAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		currentUsageMilliWattsAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil
 }
 
 func SetEnforcedLimitMilliWatts(ctx context.Context, gpuID string, milliWatts float64, currentTime time.Time) error {
-	enforcedLimitMilliWatts.WithLabelValues(gpuID).Set(milliWatts)
+	enforcedLimitMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(milliWatts)
 
 	if err := enforcedLimitMilliWattsAverager.Observe(
 		ctx,
@@ -144,7 +155,7 @@ func SetEnforcedLimitMilliWatts(ctx context.Context, gpuID string, milliWatts fl
 }
 
 func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime time.Time) error {
-	usedPercent.WithLabelValues(gpuID).Set(pct)
+	usedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(pct)
 
 	if err := usedPercentAverager.Observe(
 		ctx,
@@ -164,7 +175,7 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		usedPercentAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil

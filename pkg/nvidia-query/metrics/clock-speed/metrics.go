@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,8 +35,10 @@ var (
 			Name:      "graphics_mhz",
 			Help:      "tracks the current GPU clock speeds in MHz",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-clock-speed",
+	})
 	graphicsMHzAverager = components_metrics.NewNoOpAverager()
 	graphicsMHzAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -44,8 +47,10 @@ var (
 			Name:      "graphics_mhz_avg",
 			Help:      "tracks the GPU clock speeds in MHz with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-clock-speed",
+	})
 
 	memoryMHz = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -54,8 +59,10 @@ var (
 			Name:      "memory_mhz",
 			Help:      "tracks the current GPU memory utilization percent",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-clock-speed",
+	})
 	memoryMHzAverager = components_metrics.NewNoOpAverager()
 	memoryMHzAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -64,8 +71,10 @@ var (
 			Name:      "memory_mhz_avg",
 			Help:      "tracks the GPU memory clock speed in MHz with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-clock-speed",
+	})
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -86,7 +95,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetGraphicsMHz(ctx context.Context, gpuID string, pct uint32, currentTime time.Time) error {
-	graphicsMHz.WithLabelValues(gpuID).Set(float64(pct))
+	graphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(pct))
 
 	if err := graphicsMHzAverager.Observe(
 		ctx,
@@ -106,14 +115,14 @@ func SetGraphicsMHz(ctx context.Context, gpuID string, pct uint32, currentTime t
 		if err != nil {
 			return err
 		}
-		graphicsMHzAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		graphicsMHzAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil
 }
 
 func SetMemoryMHz(ctx context.Context, gpuID string, pct uint32, currentTime time.Time) error {
-	memoryMHz.WithLabelValues(gpuID).Set(float64(pct))
+	memoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(pct))
 
 	if err := memoryMHzAverager.Observe(
 		ctx,
@@ -133,7 +142,7 @@ func SetMemoryMHz(ctx context.Context, gpuID string, pct uint32, currentTime tim
 		if err != nil {
 			return err
 		}
-		memoryMHzAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		memoryMHzAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil

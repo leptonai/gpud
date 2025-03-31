@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,8 +35,10 @@ var (
 			Name:      "total_bytes",
 			Help:      "tracks the total memory in bytes",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
 	reservedBytes = prometheus.NewGaugeVec(
@@ -45,8 +48,10 @@ var (
 			Name:      "reserved_bytes",
 			Help:      "tracks the reserved memory in bytes",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 
 	usedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -55,8 +60,10 @@ var (
 			Name:      "used_bytes",
 			Help:      "tracks the used memory in bytes",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -65,8 +72,10 @@ var (
 			Name:      "used_bytes_average",
 			Help:      "tracks the used memory in bytes with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 
 	freeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -75,8 +84,10 @@ var (
 			Name:      "free_bytes",
 			Help:      "tracks the free memory in bytes",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 
 	usedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,8 +96,10 @@ var (
 			Name:      "used_percent",
 			Help:      "tracks the percentage of memory used",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -95,8 +108,10 @@ var (
 			Name:      "used_percent_avg",
 			Help:      "tracks the percentage of memory used with average for the last period",
 		},
-		[]string{"gpu_id", "last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	})
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -122,7 +137,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetTotalBytes(ctx context.Context, gpuID string, bytes float64, currentTime time.Time) error {
-	totalBytes.WithLabelValues(gpuID).Set(bytes)
+	totalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(bytes)
 
 	if err := totalBytesAverager.Observe(
 		ctx,
@@ -137,11 +152,11 @@ func SetTotalBytes(ctx context.Context, gpuID string, bytes float64, currentTime
 }
 
 func SetReservedBytes(gpuID string, bytes float64) {
-	reservedBytes.WithLabelValues(gpuID).Set(bytes)
+	reservedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(bytes)
 }
 
 func SetUsedBytes(ctx context.Context, gpuID string, bytes float64, currentTime time.Time) error {
-	usedBytes.WithLabelValues(gpuID).Set(bytes)
+	usedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(bytes)
 
 	if err := usedBytesAverager.Observe(
 		ctx,
@@ -161,18 +176,18 @@ func SetUsedBytes(ctx context.Context, gpuID string, bytes float64, currentTime 
 		if err != nil {
 			return err
 		}
-		usedBytesAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		usedBytesAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil
 }
 
 func SetFreeBytes(gpuID string, bytes float64) {
-	freeBytes.WithLabelValues(gpuID).Set(bytes)
+	freeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(bytes)
 }
 
 func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime time.Time) error {
-	usedPercent.WithLabelValues(gpuID).Set(pct)
+	usedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(pct)
 
 	if err := usedPercentAverager.Observe(
 		ctx,
@@ -192,7 +207,7 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues(gpuID, duration.String()).Set(avg)
+		usedPercentAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID, "last_period": duration.String()}).Set(avg)
 	}
 
 	return nil

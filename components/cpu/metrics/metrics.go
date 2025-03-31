@@ -37,7 +37,9 @@ var (
 			Help:      "tracks the load average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "cpu",
+	})
 	loadAverage5minAverager = components_metrics.NewNoOpAverager()
 
 	usedPercent = prometheus.NewGaugeVec(
@@ -48,7 +50,9 @@ var (
 			Help:      "tracks the current file descriptor usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "cpu",
+	})
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -58,7 +62,9 @@ var (
 			Help:      "tracks the file descriptor usage percentage with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "cpu",
+	})
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -79,7 +85,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, currentTime time.Time) error {
-	loadAverage.WithLabelValues("cpu", duration.String()).Set(avg)
+	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 
 	switch duration {
 	case 5 * time.Minute:
@@ -98,7 +104,7 @@ func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, cu
 }
 
 func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
-	usedPercent.WithLabelValues("cpu").Set(pct)
+	usedPercent.With(prometheus.Labels{}).Set(pct)
 
 	if err := usedPercentAverager.Observe(
 		ctx,
@@ -116,7 +122,7 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues("cpu", duration.String()).Set(avg)
+		usedPercentAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 	}
 
 	return nil

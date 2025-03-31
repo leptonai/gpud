@@ -9,6 +9,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,8 +35,10 @@ var (
 			Name:      "hw_slowdown",
 			Help:      "tracks hardware slowdown event -- HW Slowdown is engaged due to high temperature, power brake assertion, or high power draw",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-hw-slowdown",
+	})
 	hwSlowdownAverager = components_metrics.NewNoOpAverager()
 
 	hwSlowdownThermal = prometheus.NewGaugeVec(
@@ -45,8 +48,10 @@ var (
 			Name:      "hw_slowdown_thermal",
 			Help:      "tracks hardware thermal slowdown event -- HW Thermal Slowdown is engaged (temperature being too high",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-hw-slowdown",
+	})
 	hwSlowdownThermalAverager = components_metrics.NewNoOpAverager()
 
 	hwSlowdownPowerBrake = prometheus.NewGaugeVec(
@@ -56,8 +61,10 @@ var (
 			Name:      "hw_slowdown_power_brake",
 			Help:      "tracks hardware power brake slowdown event -- HW Power Brake Slowdown is engaged (External Power Brake Assertion being triggered)",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-hw-slowdown",
+	})
 	hwSlowdownPowerBrakeAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -90,7 +97,7 @@ func SetHWSlowdown(ctx context.Context, gpuID string, b bool, currentTime time.T
 	if b {
 		v = float64(1.0)
 	}
-	hwSlowdown.WithLabelValues(gpuID).Set(v)
+	hwSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := hwSlowdownAverager.Observe(
 		ctx,
@@ -109,7 +116,7 @@ func SetHWSlowdownThermal(ctx context.Context, gpuID string, b bool, currentTime
 	if b {
 		v = float64(1.0)
 	}
-	hwSlowdownThermal.WithLabelValues(gpuID).Set(v)
+	hwSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := hwSlowdownThermalAverager.Observe(
 		ctx,
@@ -128,7 +135,7 @@ func SetHWSlowdownPowerBrake(ctx context.Context, gpuID string, b bool, currentT
 	if b {
 		v = float64(1.0)
 	}
-	hwSlowdownPowerBrake.WithLabelValues(gpuID).Set(v)
+	hwSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := hwSlowdownPowerBrakeAverager.Observe(
 		ctx,

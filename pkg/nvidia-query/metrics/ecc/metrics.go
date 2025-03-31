@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -31,8 +32,10 @@ var (
 			Name:      "aggregate_total_corrected",
 			Help:      "tracks the current aggregate total corrected",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+	})
 	aggregateTotalCorrectedAverager = components_metrics.NewNoOpAverager()
 
 	aggregateTotalUncorrected = prometheus.NewGaugeVec(
@@ -42,8 +45,10 @@ var (
 			Name:      "aggregate_total_uncorrected",
 			Help:      "tracks the current aggregate total uncorrected",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+	})
 	aggregateTotalUncorrectedAverager = components_metrics.NewNoOpAverager()
 
 	volatileTotalCorrected = prometheus.NewGaugeVec(
@@ -53,8 +58,10 @@ var (
 			Name:      "volatile_total_corrected",
 			Help:      "tracks the current volatile total corrected",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+	})
 	volatileTotalCorrectedAverager = components_metrics.NewNoOpAverager()
 
 	volatileTotalUncorrected = prometheus.NewGaugeVec(
@@ -64,8 +71,10 @@ var (
 			Name:      "volatile_total_uncorrected",
 			Help:      "tracks the current volatile total uncorrected",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+	})
 	volatileTotalUncorrectedAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -97,7 +106,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetAggregateTotalCorrected(ctx context.Context, gpuID string, cnt float64, currentTime time.Time) error {
-	aggregateTotalCorrected.WithLabelValues(gpuID).Set(cnt)
+	aggregateTotalCorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(cnt)
 
 	if err := aggregateTotalCorrectedAverager.Observe(
 		ctx,
@@ -112,7 +121,7 @@ func SetAggregateTotalCorrected(ctx context.Context, gpuID string, cnt float64, 
 }
 
 func SetAggregateTotalUncorrected(ctx context.Context, gpuID string, cnt float64, currentTime time.Time) error {
-	aggregateTotalUncorrected.WithLabelValues(gpuID).Set(cnt)
+	aggregateTotalUncorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(cnt)
 
 	if err := aggregateTotalUncorrectedAverager.Observe(
 		ctx,
@@ -127,7 +136,7 @@ func SetAggregateTotalUncorrected(ctx context.Context, gpuID string, cnt float64
 }
 
 func SetVolatileTotalCorrected(ctx context.Context, gpuID string, cnt float64, currentTime time.Time) error {
-	volatileTotalCorrected.WithLabelValues(gpuID).Set(cnt)
+	volatileTotalCorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(cnt)
 
 	if err := volatileTotalCorrectedAverager.Observe(
 		ctx,
@@ -142,7 +151,7 @@ func SetVolatileTotalCorrected(ctx context.Context, gpuID string, cnt float64, c
 }
 
 func SetVolatileTotalUncorrected(ctx context.Context, gpuID string, cnt float64, currentTime time.Time) error {
-	volatileTotalUncorrected.WithLabelValues(gpuID).Set(cnt)
+	volatileTotalUncorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(cnt)
 
 	if err := volatileTotalUncorrectedAverager.Observe(
 		ctx,

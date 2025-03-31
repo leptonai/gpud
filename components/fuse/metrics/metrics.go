@@ -33,7 +33,9 @@ var (
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "fuse",
+	})
 	connsCongestedPctAverager = components_metrics.NewNoOpAverager()
 
 	connsMaxBackgroundPct = prometheus.NewGaugeVec(
@@ -44,7 +46,9 @@ var (
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "fuse",
+	})
 	connsMaxBackgroundPctAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -66,7 +70,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetConnectionsCongestedPercent(ctx context.Context, deviceName string, pct float64, currentTime time.Time) error {
-	connsCongestedPct.WithLabelValues("fuse", deviceName).Set(pct)
+	connsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: deviceName}).Set(pct)
 
 	if err := connsCongestedPctAverager.Observe(
 		ctx,
@@ -81,7 +85,7 @@ func SetConnectionsCongestedPercent(ctx context.Context, deviceName string, pct 
 }
 
 func SetConnectionsMaxBackgroundPercent(ctx context.Context, deviceName string, pct float64, currentTime time.Time) error {
-	connsMaxBackgroundPct.WithLabelValues("fuse", deviceName).Set(pct)
+	connsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: deviceName}).Set(pct)
 
 	if err := connsMaxBackgroundPctAverager.Observe(
 		ctx,

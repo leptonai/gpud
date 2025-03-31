@@ -33,7 +33,9 @@ var (
 			Help:      "tracks the edge latency in milliseconds",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is provider region
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "network-latency",
+	})
 	edgeInMillisecondsAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -50,7 +52,7 @@ func SetLastUpdateUnixSeconds(unixSeconds float64) {
 }
 
 func SetEdgeInMilliseconds(ctx context.Context, providerRegion string, latencyInMilliseconds float64, currentTime time.Time) error {
-	edgeInMilliseconds.WithLabelValues("network-latency", providerRegion).Set(latencyInMilliseconds)
+	edgeInMilliseconds.With(prometheus.Labels{pkgmetrics.MetricLabelKey: providerRegion}).Set(latencyInMilliseconds)
 
 	if err := edgeInMillisecondsAverager.Observe(
 		ctx,
