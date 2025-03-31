@@ -4,15 +4,14 @@ package fabricmanager
 
 import (
 	"context"
-	"errors"
 	"os/exec"
 	"time"
 
 	"github.com/leptonai/gpud/components"
 	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
-	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/systemd"
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
@@ -76,13 +75,15 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}, nil
 	}
 
-	defaultConn := systemd.GetDefaultDbusConn()
-	if defaultConn == nil {
-		log.Logger.Errorw("systemd dbus connection not available")
-		return nil, errors.New("systemd dbus connection not available")
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	dbusConn, err := systemd.NewDbusConn(ctx)
+	if err != nil {
+		return nil, err
 	}
+	defer dbusConn.Close()
 
-	active, err := checkFabricManagerActive(ctx, defaultConn)
+	active, err := checkFabricManagerActive(ctx, dbusConn)
 	if err != nil {
 		return nil, err
 	}

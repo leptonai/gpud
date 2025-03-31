@@ -13,11 +13,6 @@ import (
 )
 
 func New(ctx context.Context, cfg Config) (components.Component, error) {
-	if err := ConnectDbus(); err != nil {
-		log.Logger.Warnw("failed to connect to dbus", "error", err)
-		return nil, err
-	}
-
 	cfg.Query.SetDefaultsIfNotSet()
 	setDefaultPoller(cfg)
 

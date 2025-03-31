@@ -100,16 +100,22 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 		o := &Output{SystemdVersion: ver}
 
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		dbusConn, err := systemd.NewDbusConn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer dbusConn.Close()
+
 		for _, unit := range cfg.Units {
 			active := false
 
-			defaultConn := GetDefaultDbusConn()
-			if defaultConn != nil {
-				cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-				active, err = defaultConn.IsActive(cctx, unit)
-				ccancel()
-			}
-			if defaultConn == nil || err != nil {
+			cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+			active, err = dbusConn.IsActive(cctx, unit)
+			ccancel()
+
+			if err != nil {
 				log.Logger.Warnw("failed to check active status", "unit", unit, "error", err)
 				active, err = systemd.IsActive(unit)
 				if err != nil {
@@ -140,51 +146,5 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 
 		return o, nil
-	}
-}
-
-var (
-	defaultDbusConnOnce sync.Once
-
-	defaultDbusConnMu     sync.Mutex
-	defaultDbusConn       *systemd.DbusConn
-	defaultDbusConnCancel context.CancelFunc
-)
-
-func ConnectDbus() error {
-	var err error
-	defaultDbusConnOnce.Do(func() {
-		for i := 0; i < 10; i++ {
-			var ctx context.Context
-			ctx, defaultDbusConnCancel = context.WithCancel(context.Background())
-			defaultDbusConn, err = systemd.NewDbusConn(ctx)
-			if err != nil {
-				defaultDbusConnCancel()
-				log.Logger.Errorw("failed to connect to dbus", "error", err)
-				time.Sleep(time.Duration(i) * time.Second)
-				continue
-			}
-			log.Logger.Debugw("successfully connect to dbus")
-			return
-		}
-	})
-	return err
-}
-
-func GetDefaultDbusConn() *systemd.DbusConn {
-	defaultDbusConnMu.Lock()
-	defer defaultDbusConnMu.Unlock()
-	return defaultDbusConn
-}
-
-func CloseDefaultDbusConn() {
-	defaultDbusConnMu.Lock()
-	defer defaultDbusConnMu.Unlock()
-
-	if defaultDbusConn != nil {
-		defaultDbusConn.Close()
-	}
-	if defaultDbusConnCancel != nil {
-		defaultDbusConnCancel()
 	}
 }
