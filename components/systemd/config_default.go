@@ -8,8 +8,7 @@ func DefaultConfig() Config {
 	return Config{
 		Query: query_config.DefaultConfig(),
 		Units: []string{
-			"systemd-logind.service",
-			"systemd-journald.service",
+			// TODO: move these to its own component
 			"network.target",
 			"local-fs.target",
 		},
