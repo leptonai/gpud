@@ -18,23 +18,22 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
-	pkg_host "github.com/leptonai/gpud/pkg/host"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/query"
-	"github.com/leptonai/gpud/pkg/reboot"
 )
 
 type Output struct {
-	VirtualizationEnvironment   pkg_host.VirtualizationEnvironment `json:"virtualization_environment"`
-	SystemManufacturer          string                             `json:"system_manufacturer"`
-	MachineMetadata             MachineMetadata                    `json:"machine_metadata"`
-	MachineRebooted             bool                               `json:"machine_rebooted"`
-	Host                        Host                               `json:"host"`
-	Kernel                      Kernel                             `json:"kernel"`
-	Platform                    Platform                           `json:"platform"`
-	Uptimes                     Uptimes                            `json:"uptimes"`
-	ProcessCountZombieProcesses int                                `json:"process_count_zombie_processes"`
+	VirtualizationEnvironment   pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
+	SystemManufacturer          string                            `json:"system_manufacturer"`
+	MachineMetadata             MachineMetadata                   `json:"machine_metadata"`
+	MachineRebooted             bool                              `json:"machine_rebooted"`
+	Host                        Host                              `json:"host"`
+	Kernel                      Kernel                            `json:"kernel"`
+	Platform                    Platform                          `json:"platform"`
+	Uptimes                     Uptimes                           `json:"uptimes"`
+	ProcessCountZombieProcesses int                               `json:"process_count_zombie_processes"`
 }
 
 type Host struct {
@@ -231,25 +230,25 @@ func init() {
 
 	// Get boot ID (Linux-specific)
 	var err error
-	currentMachineMetadata.BootID, err = pkg_host.GetBootID()
+	currentMachineMetadata.BootID, err = pkghost.GetBootID()
 	if err != nil {
 		log.Logger.Warnw("failed to get boot id", "error", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	currentMachineMetadata.DmidecodeUUID, err = pkg_host.DmidecodeUUID(ctx)
+	currentMachineMetadata.DmidecodeUUID, err = pkghost.DmidecodeUUID(ctx)
 	cancel()
 	if err != nil {
 		log.Logger.Debugw("failed to get dmidecode uuid", "error", err)
 	}
 
-	currentMachineMetadata.OSMachineID, err = pkg_host.GetOSMachineID()
+	currentMachineMetadata.OSMachineID, err = pkghost.ReadOSMachineID()
 	if err != nil {
 		log.Logger.Warnw("failed to get os machine id", "error", err)
 	}
 
 	cctx, ccancel := context.WithTimeout(context.Background(), 20*time.Second)
-	currentSystemManufacturer, err = pkg_host.SystemManufacturer(cctx)
+	currentSystemManufacturer, err = pkghost.SystemManufacturer(cctx)
 	ccancel()
 	if err != nil {
 		log.Logger.Warnw("failed to get system manufacturer", "error", err)
@@ -277,7 +276,7 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-var getSystemdDetectVirtFunc = pkg_host.SystemdDetectVirt
+var getSystemdDetectVirtFunc = pkghost.SystemdDetectVirt
 
 func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
@@ -298,7 +297,7 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 		// for some reason, init failed
 		if currentSystemManufacturer == "" && runtime.GOOS == "linux" {
 			cctx, ccancel = context.WithTimeout(ctx, 20*time.Second)
-			currentSystemManufacturer, err = pkg_host.SystemManufacturer(cctx)
+			currentSystemManufacturer, err = pkghost.SystemManufacturer(cctx)
 			ccancel()
 			if err != nil {
 				log.Logger.Warnw("failed to get system manufacturer", "error", err)
@@ -308,7 +307,7 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 
 		o.MachineMetadata = currentMachineMetadata
 
-		if err = createRebootEvent(ctx, eventBucket, reboot.LastReboot); err != nil {
+		if err = createRebootEvent(ctx, eventBucket, pkghost.LastReboot); err != nil {
 			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 

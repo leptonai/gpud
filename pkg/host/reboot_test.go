@@ -1,19 +1,20 @@
-package reboot
+package host
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestReboot(t *testing.T) {
+func TestRunReboot(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := Reboot(ctx)
-	if err != ErrNotRoot {
-		t.Errorf("Reboot() expected error %v, got %v", ErrNotRoot, err)
-	}
+	// Test with a non-root user
+	err := runReboot(ctx, "echo reboot")
+	assert.NoError(t, err)
 }
 
 func TestLastRebootHelper(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
@@ -32,6 +33,22 @@ type VirtualizationEnvironment struct {
 	// Whether the host is running in a KVM.
 	// Set to "false" if the host is not running in a KVM.
 	IsKVM bool `json:"is_kvm"`
+}
+
+var currentVirtEnv VirtualizationEnvironment
+
+func init() {
+	var err error
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	currentVirtEnv, err = SystemdDetectVirt(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
+	}
+}
+
+func CurrentVirtEnv() VirtualizationEnvironment {
+	return currentVirtEnv
 }
 
 // SystemdDetectVirt detects the virtualization type of the host, using "systemd-detect-virt".
@@ -102,6 +119,22 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	}
 
 	return virt, nil
+}
+
+var currentSystemManufacturer string
+
+func init() {
+	var err error
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	currentSystemManufacturer, err = SystemManufacturer(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
+	}
+}
+
+func CurrentSystemManufacturer() string {
+	return currentSystemManufacturer
 }
 
 // SystemManufacturer detects the system manufacturer, using "dmidecode".

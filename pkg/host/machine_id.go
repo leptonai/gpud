@@ -5,12 +5,35 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
+
+var currentMachineID string
+
+func init() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var err error
+	currentMachineID, err = GetMachineID(ctx)
+	if err != nil {
+		log.Logger.Errorw("failed to get machine id", "error", err)
+	}
+}
+
+func CurrentMachineID() string {
+	return currentMachineID
+}
 
 // Returns the UUID of the machine host.
 // Returns an empty string if the UUID is not found.
@@ -21,9 +44,30 @@ func GetMachineID(ctx context.Context) (string, error) {
 		log.Logger.Warnw("failed to get UUID from dmidecode, trying to read from file", "error", err)
 
 		// otherwise, try to read from file
-		return GetOSMachineID()
+		return ReadOSMachineID()
 	}
 	return uuid, nil
+}
+
+var currentDmidecodeUUID string
+
+func init() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var err error
+	currentDmidecodeUUID, err = DmidecodeUUID(ctx)
+	if err != nil {
+		log.Logger.Errorw("failed to get UUID from dmidecode", "error", err)
+	}
+}
+
+func CurrentDmidecodeUUID() string {
+	return currentDmidecodeUUID
 }
 
 // Fetches the UUIF of the machine host, using the "dmidecode".
@@ -83,19 +127,37 @@ func extractUUID(line string) string {
 	return strings.TrimSpace(strings.TrimPrefix(line, "UUID: "))
 }
 
+var currentOSMachineID string
+
+func init() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	var err error
+	currentOSMachineID, err = ReadOSMachineID()
+	if err != nil {
+		log.Logger.Errorw("failed to get machine id", "error", err)
+	}
+}
+
+func CurrentOSMachineID() string {
+	return currentOSMachineID
+}
+
 // ref. https://github.com/google/cadvisor/blob/854445c010e0b634fcd855a20681ae986da235df/machine/info.go#L39
 var machineIDPaths = []string{
 	"/etc/machine-id",
 	"/var/lib/dbus/machine-id",
 }
 
-// Returns the OS-level UUID based on /etc/machine-id or /var/lib/dbus/machine-id.
+// ReadOSMachineID returns the OS-level UUID based on /etc/machine-id or /var/lib/dbus/machine-id.
 // Returns an empty string if the UUID is not found.
-func GetOSMachineID() (string, error) {
-	return getOSMachineID(machineIDPaths)
+func ReadOSMachineID() (string, error) {
+	return readOSMachineID(machineIDPaths)
 }
 
-func getOSMachineID(files []string) (string, error) {
+func readOSMachineID(files []string) (string, error) {
 	for _, path := range files {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue

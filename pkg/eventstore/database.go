@@ -64,7 +64,7 @@ type table struct {
 	rootCtx       context.Context
 	rootCancel    context.CancelFunc
 	retention     time.Duration
-	checkInterval time.Duration
+	purgeInterval time.Duration
 
 	table string
 	dbRW  *sql.DB
@@ -79,17 +79,31 @@ func New(dbRW *sql.DB, dbRO *sql.DB, retention time.Duration) (Store, error) {
 	}, nil
 }
 
-func (d *database) Bucket(name string) (Bucket, error) {
+func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	// actual check interval should be lower than the retention period
 	// in case of GPUd restarts
-	checkInterval := d.retention / 5
-	if checkInterval < time.Second {
-		checkInterval = time.Second
+	purgeInterval := d.retention / 5
+	if purgeInterval < time.Second {
+		purgeInterval = time.Second
 	}
-	return newTable(d.dbRW, d.dbRO, name, d.retention, checkInterval)
+	if op.disablePurge {
+		d.retention = 0
+		purgeInterval = 0
+	}
+
+	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval)
 }
 
-func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, checkInterval time.Duration) (*table, error) {
+func (d *database) LoadBucketWithNoPurge(name string) (Bucket, error) {
+	return newTable(d.dbRW, d.dbRO, name, 0, 0)
+}
+
+func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
 	tableName := defaultTableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
@@ -106,7 +120,7 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 		dbRW:          dbRW,
 		dbRO:          dbRO,
 		retention:     retention,
-		checkInterval: checkInterval,
+		purgeInterval: purgeInterval,
 	}
 	if retention > time.Second {
 		go t.runPurge()
@@ -131,12 +145,12 @@ func (t *table) Name() string {
 }
 
 func (t *table) runPurge() {
-	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention, "checkInterval", t.checkInterval)
+	log.Logger.Infow("start purging", "table", t.table, "retention", t.retention, "checkInterval", t.purgeInterval)
 	for {
 		select {
 		case <-t.rootCtx.Done():
 			return
-		case <-time.After(t.checkInterval):
+		case <-time.After(t.purgeInterval):
 		}
 
 		now := time.Now().UTC()
