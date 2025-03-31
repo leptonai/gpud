@@ -2,6 +2,7 @@ package derpmap
 
 // maps the DERP "RegionName" to the nearest AWS region name.
 // ref. https://aws.amazon.com/about-aws/global-infrastructure/regions_az/
+// ref. https://aws.amazon.com/about-aws/global-infrastructure/localzones/locations/
 var derpRegionNameToAWSRegion = map[string]string{
 	"Amsterdam":     "eu-west-1",
 	"Ashburn":       "us-east-1",
@@ -11,6 +12,7 @@ var derpRegionNameToAWSRegion = map[string]string{
 	"Denver":        "us-west-1",
 	"Dubai":         "me-central-1",
 	"Frankfurt":     "eu-central-1",
+	"Helsinki":      "eu-north-1-hel-1a",
 	"Hong Kong":     "ap-east-1",
 	"Honolulu":      "us-west-3",
 	"Johannesburg":  "af-south-1",
