@@ -77,13 +77,8 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	dbusConn, err := systemd.NewDbusConn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer dbusConn.Close()
 
-	active, err := checkFabricManagerActive(ctx, dbusConn)
+	active, err := systemd.CheckServiceActive(ctx, "nvidia-fabricmanager")
 	if err != nil {
 		return nil, err
 	}
@@ -148,12 +143,4 @@ func fabricManagerExists() bool {
 		return false
 	}
 	return p != ""
-}
-
-func checkFabricManagerActive(ctx context.Context, conn *pkg_systemd.DbusConn) (bool, error) {
-	active, err := conn.IsActive(ctx, "nvidia-fabricmanager")
-	if err != nil {
-		return false, err
-	}
-	return active, nil
 }

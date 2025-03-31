@@ -100,6 +100,10 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 		o := &Output{SystemdVersion: ver}
 
+		// create a new dbus connection on demand
+		// as the long-running connection may fail in the middle
+		// e.g.,
+		//  read unix @->/run/dbus/system_bus_socket: use of closed network connection)
 		ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
 		dbusConn, err := systemd.NewDbusConn(ctx)

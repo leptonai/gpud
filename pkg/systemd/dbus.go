@@ -75,6 +75,10 @@ func checkActiveState(props map[string]interface{}, unitName string) (bool, erro
 }
 
 func CheckServiceActive(ctx context.Context, name string) (bool, error) {
+	// create a new dbus connection on demand
+	// as the long-running connection may fail in the middle
+	// e.g.,
+	//  read unix @->/run/dbus/system_bus_socket: use of closed network connection)
 	conn, err := NewDbusConn(ctx)
 	if err != nil {
 		return false, err
