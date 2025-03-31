@@ -31,7 +31,6 @@ type component struct {
 
 	logLineProcessor *dmesg.LogLineProcessor
 	eventBucket      eventstore.Bucket
-	gatherer         prometheus.Gatherer
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
@@ -158,7 +157,6 @@ func (c *component) Close() error {
 var _ components.PromRegisterer = (*component)(nil)
 
 func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
 	return metrics.Register(reg, dbRW, dbRO, tableName)
 }
 
