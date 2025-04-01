@@ -5,31 +5,148 @@ import (
 	"testing"
 	"time"
 
-	query_config "github.com/leptonai/gpud/pkg/query/config"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestComponent(t *testing.T) {
-	t.Parallel()
+func TestComponentName(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx, []string{}, []string{}).(*component)
+	defer c.Close()
 
+	assert.Equal(t, Name, c.Name())
+}
+
+func TestNewComponent(t *testing.T) {
+	ctx := context.Background()
+	mountPoints := []string{"/mnt/test1"}
+	mountTargets := []string{"/mnt/test2"}
+
+	c := New(ctx, mountPoints, mountTargets).(*component)
+	defer c.Close()
+
+	// Check if mount points are correctly added to the tracking map
+	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/test1")
+	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/test2")
+}
+
+func TestComponentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	component := New(
-		ctx,
-		Config{
-			Query: query_config.Config{
-				Interval: metav1.Duration{Duration: 5 * time.Second},
-			},
-		},
-	)
+	c := New(ctx, []string{}, []string{}).(*component)
+	defer c.Close()
 
-	time.Sleep(time.Second)
+	err := c.Start()
+	assert.NoError(t, err)
+}
 
-	states, err := component.States(ctx)
-	if err != nil {
-		t.Fatalf("failed to get state: %v", err)
+func TestComponentClose(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx, []string{}, []string{}).(*component)
+
+	err := c.Close()
+	assert.NoError(t, err)
+}
+
+func TestComponentEvents(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx, []string{}, []string{}).(*component)
+	defer c.Close()
+
+	events, err := c.Events(ctx, time.Now())
+	assert.NoError(t, err)
+	assert.Empty(t, events)
+}
+
+func TestEmptyDataStates(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx, []string{}, []string{}).(*component)
+	defer c.Close()
+
+	// No data set yet
+	states, err := c.States(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "no disk data", states[0].Reason)
+	assert.Equal(t, "Healthy", states[0].Health)
+	assert.True(t, states[0].Healthy)
+}
+
+func TestDataWithError(t *testing.T) {
+	d := &Data{
+		err: assert.AnError,
 	}
-	t.Logf("states: %+v", states)
+
+	reason := d.getReason()
+	assert.Contains(t, reason, "failed to get disk data")
+
+	health, healthy := d.getHealth()
+	assert.Equal(t, "Unhealthy", health)
+	assert.False(t, healthy)
+}
+
+func TestDataWithPartitionsAndDevices(t *testing.T) {
+	d := &Data{
+		ExtPartitions: disk.Partitions{
+			{Device: "/dev/sda1", MountPoint: "/mnt/data1"},
+			{Device: "/dev/sda2", MountPoint: "/mnt/data2"},
+		},
+		BlockDevices: disk.BlockDevices{
+			{Name: "sda", Type: "disk"},
+			{Name: "sdb", Type: "disk"},
+			{Name: "sdc", Type: "disk"},
+		},
+	}
+
+	reason := d.getReason()
+	assert.Equal(t, "found 2 ext4 partitions and 3 block devices", reason)
+
+	health, healthy := d.getHealth()
+	assert.Equal(t, "Healthy", health)
+	assert.True(t, healthy)
+}
+
+func TestDataGetStates(t *testing.T) {
+	d := &Data{
+		ExtPartitions: disk.Partitions{
+			{Device: "/dev/sda1", MountPoint: "/mnt/data1"},
+		},
+		BlockDevices: disk.BlockDevices{
+			{Name: "sda", Type: "disk"},
+		},
+	}
+
+	states, err := d.getStates()
+	require.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "disk", states[0].Name)
+	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
+	assert.Equal(t, "Healthy", states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.Contains(t, states[0].ExtraInfo, "encoding")
+}
+
+func TestRegisterCollectors(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	comp := New(ctx, []string{}, []string{})
+
+	// Check that the component implements PromRegisterer
+	promRegisterer, ok := comp.(components.PromRegisterer)
+	assert.True(t, ok, "component should implement PromRegisterer")
+
+	// Create a new registry
+	registry := prometheus.NewRegistry()
+
+	// Register the collectors
+	err := promRegisterer.RegisterCollectors(registry, nil, nil, "")
+	assert.NoError(t, err)
+
+	// Check that the metrics are registered
+	_, err = registry.Gather()
+	assert.NoError(t, err)
 }

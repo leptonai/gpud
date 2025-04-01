@@ -30,7 +30,6 @@ import (
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
-	disk_id "github.com/leptonai/gpud/components/disk/id"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
 	fuse "github.com/leptonai/gpud/components/fuse"
@@ -88,7 +87,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		// default components that work both in mac/linux
 		Components: map[string]any{
 			cpu.Name:           nil,
-			disk_id.Name:       disk.DefaultConfig(),
+			disk.Name:          nil,
 			fuse.Name:          nil,
 			fd.Name:            nil,
 			info.Name:          nil,
