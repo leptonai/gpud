@@ -77,7 +77,6 @@ import (
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
-	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
@@ -91,6 +90,7 @@ import (
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
@@ -139,6 +139,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
+	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
 
 	promReg := prometheus.NewRegistry()
 	if err := sqlite.Register(promReg); err != nil {
@@ -253,12 +254,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	allComponents := make([]components.Component, 0)
-	if _, ok := config.Components[os_id.Name]; !ok {
-		c, err := os.New(ctx, os.Config{Query: defaultQueryCfg}, eventStore)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create component %s: %w", os_id.Name, err)
-		}
-		allComponents = append(allComponents, c)
+	if _, ok := config.Components[os.Name]; !ok {
+		allComponents = append(allComponents, os.New(ctx, rebootEventStore))
 	}
 
 	for k, configValue := range config.Components {
@@ -343,23 +340,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case os_id.Name:
-			cfg := os.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := os.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := os.New(ctx, cfg, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case os.Name:
+			allComponents = append(allComponents, os.New(ctx, rebootEventStore))
 
 		case systemd_id.Name:
 			cfg := component_systemd.Config{Query: defaultQueryCfg}
@@ -404,11 +386,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_badenvs.New(ctx))
 
 		case nvidia_xid.Name:
-			allComponents = append(allComponents, nvidia_xid.New(ctx, eventStore))
+			allComponents = append(allComponents, nvidia_xid.New(ctx, rebootEventStore, eventStore))
 
 		case nvidia_sxid.Name:
 			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_sxid.New(ctx, eventStore))
+			allComponents = append(allComponents, nvidia_sxid.New(ctx, rebootEventStore, eventStore))
 
 		case nvidia_hw_slowdown_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
