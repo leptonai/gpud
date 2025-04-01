@@ -76,7 +76,6 @@ import (
 	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/components/pci"
-	pci_id "github.com/leptonai/gpud/components/pci/id"
 	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
@@ -277,16 +276,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case pci_id.Name:
-			cfg := pci.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := pci.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			c, err := pci.New(ctx, cfg, eventStore)
+		case pci.Name:
+			c, err := pci.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
