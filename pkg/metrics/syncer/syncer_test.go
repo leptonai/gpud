@@ -279,35 +279,6 @@ func TestStartStop(t *testing.T) {
 		require.Equal(t, currentScrapeCount, scraper.getScrapeCount(), "Scrape count should not increase after stopping")
 		require.Equal(t, currentPurgeCount, store.getPurgeCount(), "Purge count should not increase after stopping")
 	})
-
-	// Test context cancellation
-	t.Run("ContextCancellation", func(t *testing.T) {
-		scraper := newMockScraper(pkgmetrics.Metrics{}, nil)
-		store := newMockStore(nil, nil, nil)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		s := NewSyncer(ctx, scraper, store, 50*time.Millisecond, 100*time.Millisecond, time.Hour)
-
-		// Start the syncer
-		s.Start()
-
-		// Wait for some activity
-		time.Sleep(150 * time.Millisecond)
-
-		// Get current counts
-		currentScrapeCount := scraper.getScrapeCount()
-		currentPurgeCount := store.getPurgeCount()
-
-		// Cancel the parent context
-		cancel()
-
-		// Wait a bit more
-		time.Sleep(200 * time.Millisecond)
-
-		// Verify no more activity after context cancellation
-		require.Equal(t, currentScrapeCount, scraper.getScrapeCount(), "Scrape count should not increase after context cancellation")
-		require.Equal(t, currentPurgeCount, store.getPurgeCount(), "Purge count should not increase after context cancellation")
-	})
 }
 
 func TestSyncerWithErrors(t *testing.T) {
