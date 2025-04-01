@@ -39,7 +39,7 @@ import (
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
-	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
+	network_latency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
@@ -139,7 +139,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	cfg.Components[containerd_pod.Name] = nil
 	cfg.Components[kubelet_pod.Name] = nil
 
-	cfg.Components[network_latency_id.Name] = nil
+	cfg.Components[network_latency.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[component_pci_id.Name] = nil
