@@ -230,7 +230,7 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 	return func(ctx context.Context) (_ any, e error) {
 		o := &Output{}
 
-		o.VirtualizationEnvironment = pkghost.VirtEnv()
+		o.VirtualizationEnvironment = pkghost.VirtualizationEnv()
 		o.SystemManufacturer = pkghost.SystemManufacturer()
 
 		o.MachineMetadata = MachineMetadata{

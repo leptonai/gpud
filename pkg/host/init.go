@@ -138,7 +138,7 @@ func DmidecodeUUID() string {
 	return currentDmidecodeUUID
 }
 
-func VirtEnv() VirtualizationEnvironment {
+func VirtualizationEnv() VirtualizationEnvironment {
 	return currentVirtEnv
 }
 
