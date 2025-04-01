@@ -169,7 +169,6 @@ func (c *component) CheckOnce() {
 		Info:  &c.info,
 		Cores: &c.cores,
 	}
-	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
 	defer func() {
 		c.lastMu.Lock()
 		c.lastData = &d

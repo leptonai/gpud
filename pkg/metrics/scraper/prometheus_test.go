@@ -41,7 +41,9 @@ func TestPrometheusScraper(t *testing.T) {
 			Help:      "tracks the percentage of slowdown used",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey},
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "gpud-clock-events-0",
+	})
 	insertUpdateTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
@@ -50,7 +52,9 @@ func TestPrometheusScraper(t *testing.T) {
 			Help:      "total number of inserts and updates",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "gpud-db-0",
+	})
 
 	reg := prometheus.NewRegistry()
 	require.NoError(t, reg.Register(lastUpdateUnixSeconds))
@@ -65,8 +69,8 @@ func TestPrometheusScraper(t *testing.T) {
 	// should not be included since the component label does not exist
 	lastUpdateUnixSeconds.Set(123)
 	currentCelsius.WithLabelValues("gpud-temp-0", "GPU-0").Set(100)
-	slowdownUsedPercent.WithLabelValues("gpud-clock-events-0", "GPU-0").Set(98)
-	insertUpdateTotal.WithLabelValues("gpud-db-0").Inc()
+	slowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: "GPU-0"}).Set(98)
+	insertUpdateTotal.With(prometheus.Labels{}).Inc()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

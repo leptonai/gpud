@@ -19,14 +19,9 @@ const SubSystem = "cpu"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "cpu",
+	}
 
 	// ref. https://www.digitalocean.com/community/tutorials/load-average-in-linux
 	loadAverage = prometheus.NewGaugeVec(
@@ -37,7 +32,7 @@ var (
 			Help:      "tracks the load average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	)
+	).MustCurryWith(componentLabel)
 	loadAverage5minAverager = components_metrics.NewNoOpAverager()
 
 	usedPercent = prometheus.NewGaugeVec(
@@ -48,7 +43,7 @@ var (
 			Help:      "tracks the current file descriptor usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -58,7 +53,7 @@ var (
 			Help:      "tracks the file descriptor usage percentage with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	)
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -74,12 +69,8 @@ func ReadUsedPercents(ctx context.Context, since time.Time) (components_metrics_
 	return usedPercentAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, currentTime time.Time) error {
-	loadAverage.WithLabelValues("cpu", duration.String()).Set(avg)
+	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 
 	switch duration {
 	case 5 * time.Minute:
@@ -98,7 +89,7 @@ func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, cu
 }
 
 func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
-	usedPercent.WithLabelValues("cpu").Set(pct)
+	usedPercent.With(prometheus.Labels{}).Set(pct)
 
 	if err := usedPercentAverager.Observe(
 		ctx,
@@ -116,7 +107,7 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues("cpu", duration.String()).Set(avg)
+		usedPercentAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 	}
 
 	return nil
@@ -125,9 +116,6 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(loadAverage); err != nil {
 		return err
 	}

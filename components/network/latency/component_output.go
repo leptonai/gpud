@@ -99,8 +99,6 @@ func createGetFunc(cfg Config) query.GetFunc {
 
 	return func(ctx context.Context) (_ any, e error) {
 		now := time.Now().UTC()
-		nowUTC := float64(now.Unix())
-		metrics.SetLastUpdateUnixSeconds(nowUTC)
 
 		o := &Output{}
 

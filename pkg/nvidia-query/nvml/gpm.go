@@ -178,7 +178,6 @@ func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
 	}
 
 	now := time.Now().UTC()
-	metrics_gpm.SetLastUpdateUnixSeconds(float64(now.Unix()))
 
 	for i, m := range metrics {
 		metrics[i].Time = metav1.NewTime(now)

@@ -250,8 +250,6 @@ func CreateGet(cfg Config) query.GetFunc {
 		}
 
 		now := time.Now().UTC()
-		nowUTC := float64(now.Unix())
-		metrics.SetLastUpdateUnixSeconds(nowUTC)
 
 		devToUsage := make(map[string]disk.Usage)
 		for _, p := range o.DiskExtPartitions {

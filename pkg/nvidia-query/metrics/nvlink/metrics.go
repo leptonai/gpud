@@ -8,6 +8,7 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -15,14 +16,9 @@ import (
 const SubSystem = "accelerator_nvidia_nvlink"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
+	}
 
 	featureEnabled = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -31,8 +27,8 @@ var (
 			Name:      "feature_enabled",
 			Help:      "tracks the NVLink feature enabled (aggregated for all links per GPU)",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	featureEnabledAverager = components_metrics.NewNoOpAverager()
 
 	replayErrors = prometheus.NewGaugeVec(
@@ -42,8 +38,8 @@ var (
 			Name:      "replay_errors",
 			Help:      "tracks the relay errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	replayErrorsAverager = components_metrics.NewNoOpAverager()
 
 	recoveryErrors = prometheus.NewGaugeVec(
@@ -53,8 +49,8 @@ var (
 			Name:      "recovery_errors",
 			Help:      "tracks the recovery errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	recoveryErrorsAverager = components_metrics.NewNoOpAverager()
 
 	crcErrors = prometheus.NewGaugeVec(
@@ -64,8 +60,8 @@ var (
 			Name:      "crc_errors",
 			Help:      "tracks the CRC errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	crcErrorsAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -92,16 +88,12 @@ func ReadCRCErrors(ctx context.Context, since time.Time) (components_metrics_sta
 	return crcErrorsAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetFeatureEnabled(ctx context.Context, gpuID string, enabled bool, currentTime time.Time) error {
 	v := float64(0)
 	if enabled {
 		v = float64(1)
 	}
-	featureEnabled.WithLabelValues(gpuID).Set(v)
+	featureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := featureEnabledAverager.Observe(
 		ctx,
@@ -116,7 +108,7 @@ func SetFeatureEnabled(ctx context.Context, gpuID string, enabled bool, currentT
 }
 
 func SetReplayErrors(ctx context.Context, gpuID string, errors uint64, currentTime time.Time) error {
-	replayErrors.WithLabelValues(gpuID).Set(float64(errors))
+	replayErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(errors))
 
 	if err := replayErrorsAverager.Observe(
 		ctx,
@@ -131,7 +123,7 @@ func SetReplayErrors(ctx context.Context, gpuID string, errors uint64, currentTi
 }
 
 func SetRecoveryErrors(ctx context.Context, gpuID string, errors uint64, currentTime time.Time) error {
-	recoveryErrors.WithLabelValues(gpuID).Set(float64(errors))
+	recoveryErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(errors))
 
 	if err := recoveryErrorsAverager.Observe(
 		ctx,
@@ -146,7 +138,7 @@ func SetRecoveryErrors(ctx context.Context, gpuID string, errors uint64, current
 }
 
 func SetCRCErrors(ctx context.Context, gpuID string, errors uint64, currentTime time.Time) error {
-	crcErrors.WithLabelValues(gpuID).Set(float64(errors))
+	crcErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(errors))
 
 	if err := crcErrorsAverager.Observe(
 		ctx,
@@ -163,9 +155,6 @@ func SetCRCErrors(ctx context.Context, gpuID string, errors uint64, currentTime 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(featureEnabled); err != nil {
 		return err
 	}

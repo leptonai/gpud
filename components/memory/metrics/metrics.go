@@ -19,14 +19,9 @@ const SubSystem = "memory"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "memory",
+	}
 
 	totalBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -36,7 +31,7 @@ var (
 			Help:      "tracks the total memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
 	availableBytes = prometheus.NewGaugeVec(
@@ -47,7 +42,7 @@ var (
 			Help:      "tracks the available memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 
 	usedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -57,7 +52,7 @@ var (
 			Help:      "tracks the used memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -66,8 +61,8 @@ var (
 			Name:      "used_bytes_average",
 			Help:      "tracks the used memory in bytes with average for the last period",
 		},
-		[]string{"last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
+	).MustCurryWith(componentLabel)
 
 	usedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -77,7 +72,7 @@ var (
 			Help:      "tracks the percentage of memory used",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -86,8 +81,8 @@ var (
 			Name:      "used_percent_avg",
 			Help:      "tracks the percentage of memory used with average for the last period",
 		},
-		[]string{"last_period"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
+	).MustCurryWith(componentLabel)
 
 	freeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -97,7 +92,7 @@ var (
 			Help:      "tracks the free memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	)
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -118,12 +113,8 @@ func ReadUsedPercents(ctx context.Context, since time.Time) (components_metrics_
 	return usedPercentAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetTotalBytes(ctx context.Context, bytes float64, currentTime time.Time) error {
-	totalBytes.WithLabelValues("memory").Set(bytes)
+	totalBytes.With(prometheus.Labels{}).Set(bytes)
 
 	if err := totalBytesAverager.Observe(
 		ctx,
@@ -137,11 +128,11 @@ func SetTotalBytes(ctx context.Context, bytes float64, currentTime time.Time) er
 }
 
 func SetAvailableBytes(bytes float64) {
-	availableBytes.WithLabelValues("memory").Set(bytes)
+	availableBytes.With(prometheus.Labels{}).Set(bytes)
 }
 
 func SetUsedBytes(ctx context.Context, bytes float64, currentTime time.Time) error {
-	usedBytes.WithLabelValues("memory").Set(bytes)
+	usedBytes.With(prometheus.Labels{}).Set(bytes)
 
 	if err := usedBytesAverager.Observe(
 		ctx,
@@ -159,14 +150,14 @@ func SetUsedBytes(ctx context.Context, bytes float64, currentTime time.Time) err
 		if err != nil {
 			return err
 		}
-		usedBytesAverage.WithLabelValues(duration.String()).Set(avg)
+		usedBytesAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 	}
 
 	return nil
 }
 
 func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) error {
-	usedPercent.WithLabelValues("memory").Set(pct)
+	usedPercent.With(prometheus.Labels{}).Set(pct)
 
 	if err := usedPercentAverager.Observe(ctx, pct, components_metrics.WithCurrentTime(currentTime)); err != nil {
 		return err
@@ -177,22 +168,19 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 		if err != nil {
 			return err
 		}
-		usedPercentAverage.WithLabelValues(duration.String()).Set(avg)
+		usedPercentAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: duration.String()}).Set(avg)
 	}
 
 	return nil
 }
 
 func SetFreeBytes(bytes float64) {
-	freeBytes.WithLabelValues("memory").Set(bytes)
+	freeBytes.With(prometheus.Labels{}).Set(bytes)
 }
 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(totalBytes); err != nil {
 		return err
 	}

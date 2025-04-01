@@ -51,8 +51,6 @@ func CreateGet(cfg Config, eventBucket eventstore.Bucket) query.GetFunc {
 		}
 
 		now := time.Now().UTC()
-		nowUTC := float64(now.Unix())
-		metrics.SetLastUpdateUnixSeconds(nowUTC)
 
 		foundDev := make(map[string]fuse.ConnectionInfo)
 		for _, info := range infos {

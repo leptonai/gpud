@@ -256,6 +256,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			var metrics v1.LeptonMetrics
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+
+			// should not be empty
+			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
 		})
 
 		It("request with compress", func() {

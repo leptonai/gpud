@@ -10,19 +10,15 @@ import (
 
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 const SubSystem = "accelerator_nvidia_remapped_rows"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-remapped-rows",
+	}
 
 	uncorrectableErrors = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -31,8 +27,8 @@ var (
 			Name:      "due_to_uncorrectable_errors",
 			Help:      "tracks the number of rows remapped due to uncorrectable errors",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	uncorrectableErrorsAverager = components_metrics.NewNoOpAverager()
 
 	remappingPending = prometheus.NewGaugeVec(
@@ -42,8 +38,8 @@ var (
 			Name:      "remapping_pending",
 			Help:      "set to 1 if this GPU requires a reset to actually remap the row",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	remappingPendingAverager = components_metrics.NewNoOpAverager()
 
 	remappingFailed = prometheus.NewGaugeVec(
@@ -53,8 +49,8 @@ var (
 			Name:      "remapping_failed",
 			Help:      "set to 1 if a remapping has failed in the past",
 		},
-		[]string{"gpu_id"},
-	)
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+	).MustCurryWith(componentLabel)
 	remappingFailedAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -76,12 +72,8 @@ func ReadRemappingFailed(ctx context.Context, since time.Time) (components_metri
 	return remappingFailedAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetRemappedDueToUncorrectableErrors(ctx context.Context, gpuID string, cnt uint32, currentTime time.Time) error {
-	uncorrectableErrors.WithLabelValues(gpuID).Set(float64(cnt))
+	uncorrectableErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(float64(cnt))
 
 	if err := uncorrectableErrorsAverager.Observe(
 		ctx,
@@ -100,7 +92,7 @@ func SetRemappingPending(ctx context.Context, gpuID string, pending bool, curren
 	if pending {
 		v = float64(1)
 	}
-	remappingPending.WithLabelValues(gpuID).Set(v)
+	remappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := remappingPendingAverager.Observe(
 		ctx,
@@ -119,7 +111,7 @@ func SetRemappingFailed(ctx context.Context, gpuID string, failed bool, currentT
 	if failed {
 		v = float64(1)
 	}
-	remappingFailed.WithLabelValues(gpuID).Set(v)
+	remappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: gpuID}).Set(v)
 
 	if err := remappingFailedAverager.Observe(
 		ctx,
@@ -136,9 +128,6 @@ func SetRemappingFailed(ctx context.Context, gpuID string, failed bool, currentT
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(uncorrectableErrors); err != nil {
 		return err
 	}
