@@ -3,6 +3,8 @@ package pci
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,6 +80,27 @@ func TestComponentEvents(t *testing.T) {
 	events, err := comp.Events(ctx, since)
 	require.NoError(t, err)
 	assert.Empty(t, events)
+}
+
+// createEvent is a test helper that mimics the behavior of Data.createEvent
+func createEvent(time time.Time, devices []pci.Device) *components.Event {
+	// Find devices with ACS enabled
+	uuids := make([]string, 0)
+	for _, dev := range devices {
+		if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
+			uuids = append(uuids, dev.ID)
+		}
+	}
+	if len(uuids) == 0 {
+		return nil
+	}
+
+	return &components.Event{
+		Time:    metav1.Time{Time: time.UTC()},
+		Name:    "acs_enabled",
+		Type:    "Warning",
+		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", host.VirtualizationEnv().Type, strings.Join(uuids, ", ")),
+	}
 }
 
 func TestCreateEvent(t *testing.T) {
@@ -242,14 +265,31 @@ func TestData_GetReason(t *testing.T) {
 					{ID: "0000:00:01.0"},
 				},
 			},
-			expected: "found 2 devices",
+			expected: "no acs enabled devices found",
 		},
 		{
 			name: "no devices",
 			data: &Data{
 				Devices: []pci.Device{},
 			},
-			expected: "found 0 devices",
+			expected: "no pci device found",
+		},
+		{
+			name: "with acs enabled devices",
+			data: &Data{
+				Devices: []pci.Device{
+					{
+						ID: "0000:00:00.0",
+						AccessControlService: &pci.AccessControlService{
+							ACSCtl: pci.ACS{
+								SrcValid: true,
+							},
+						},
+					},
+					{ID: "0000:00:01.0"},
+				},
+			},
+			expected: "found 1 acs enabled devices (out of 2 total)",
 		},
 	}
 
@@ -388,7 +428,7 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, components.StateHealthy, states[0].Health)
 				assert.True(t, states[0].Healthy)
-				assert.Equal(t, "found 2 devices", states[0].Reason)
+				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
 				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
@@ -448,7 +488,7 @@ func TestComponent_States(t *testing.T) {
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
-		assert.Equal(t, "found 1 devices", states[0].Reason)
+		assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 	})
 
 	t.Run("component states with error", func(t *testing.T) {

@@ -154,7 +154,7 @@ func (c *component) CheckOnce() {
 		return
 	}
 
-	ev := createEvent(nowUTC, d.Devices)
+	ev := d.createEvent(nowUTC)
 	if ev == nil {
 		return
 	}
@@ -180,6 +180,25 @@ type Data struct {
 	err error `json:"-"`
 }
 
+func (d *Data) listACSEnabledDeviceUUIDs() []string {
+	if d == nil || len(d.Devices) == 0 {
+		return nil
+	}
+
+	uuids := make([]string, 0)
+	for _, dev := range d.Devices {
+		// check whether ACS is enabled on PCI bridges
+		if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
+			uuids = append(uuids, dev.ID)
+		}
+	}
+	if len(uuids) == 0 {
+		return nil
+	}
+
+	return uuids
+}
+
 func (d *Data) getReason() string {
 	if d == nil {
 		return "no pci data"
@@ -187,8 +206,16 @@ func (d *Data) getReason() string {
 	if d.err != nil {
 		return fmt.Sprintf("failed to get pci data -- %s", d.err)
 	}
+	if len(d.Devices) == 0 {
+		return "no pci device found"
+	}
 
-	return fmt.Sprintf("found %d devices", len(d.Devices))
+	acsEnabledDevices := d.listACSEnabledDeviceUUIDs()
+	if len(acsEnabledDevices) == 0 {
+		return "no acs enabled devices found"
+	}
+
+	return fmt.Sprintf("found %d acs enabled devices (out of %d total)", len(acsEnabledDevices), len(d.Devices))
 }
 
 func (d *Data) getHealth() (string, bool) {
@@ -235,15 +262,8 @@ func (d *Data) getStates() ([]components.State, error) {
 	return []components.State{state}, nil
 }
 
-func createEvent(time time.Time, devices []pci.Device) *components.Event {
-	uuids := make([]string, 0)
-	for _, dev := range devices {
-		// check whether ACS is enabled on PCI bridges
-		if dev.AccessControlService != nil  && dev.AccessControlService.ACSCtl.SrcValid {
-			uuids = append(uuids, dev.ID)
-		}
-	}
-
+func (d *Data) createEvent(time time.Time) *components.Event {
+	uuids := d.listACSEnabledDeviceUUIDs()
 	if len(uuids) == 0 {
 		return nil
 	}

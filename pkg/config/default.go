@@ -136,9 +136,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 	cfg.Components[network_latency.Name] = nil
 
-	if runtime.GOOS == "linux" {
-		cfg.Components[component_pci.Name] = nil
-	}
+	cfg.Components[component_pci.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[tailscale.Name] = nil
