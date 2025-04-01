@@ -150,3 +150,61 @@ func TestRegisterCollectors(t *testing.T) {
 	_, err = registry.Gather()
 	assert.NoError(t, err)
 }
+
+func TestDataGetError(t *testing.T) {
+	// Test with error
+	d := &Data{
+		err: assert.AnError,
+	}
+	errStr := d.getError()
+	assert.Equal(t, assert.AnError.Error(), errStr)
+
+	// Test without error
+	d = &Data{}
+	errStr = d.getError()
+	assert.Empty(t, errStr)
+
+	// Test with nil data
+	var nilData *Data
+	errStr = nilData.getError()
+	assert.Empty(t, errStr)
+}
+
+func TestDataGetStatesWithError(t *testing.T) {
+	d := &Data{
+		err: assert.AnError,
+	}
+
+	states, err := d.getStates()
+	require.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "disk", states[0].Name)
+	assert.Contains(t, states[0].Reason, "failed to get disk data")
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, assert.AnError.Error(), states[0].Error)
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.Contains(t, states[0].ExtraInfo, "encoding")
+}
+
+func TestComponentStatesWithError(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx, []string{}, []string{}).(*component)
+	defer c.Close()
+
+	// Manually set lastData with an error
+	c.lastMu.Lock()
+	c.lastData = &Data{
+		err: assert.AnError,
+	}
+	c.lastMu.Unlock()
+
+	states, err := c.States(ctx)
+	require.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "disk", states[0].Name)
+	assert.Contains(t, states[0].Reason, "failed to get disk data")
+	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, assert.AnError.Error(), states[0].Error)
+}
