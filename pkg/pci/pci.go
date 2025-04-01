@@ -16,12 +16,7 @@ import (
 )
 
 // Lists all PCI devices.
-func List(ctx context.Context, opts ...OpOption) (Devices, error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, err
-	}
-
+func List(ctx context.Context) (Devices, error) {
 	lspciPath, err := file.LocateExecutable("lspci")
 	if err != nil {
 		return nil, nil
@@ -45,7 +40,7 @@ func List(ctx context.Context, opts ...OpOption) (Devices, error) {
 	}()
 
 	scanner := bufio.NewScanner(p.StdoutReader())
-	devs, err := parseLspciVVV(ctx, scanner, op.nameMatchFunc)
+	devs, err := parseLspciVVV(ctx, scanner, nil)
 	if err != nil {
 		return nil, err
 	}

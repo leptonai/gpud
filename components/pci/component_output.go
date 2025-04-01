@@ -21,18 +21,6 @@ import (
 	"github.com/leptonai/gpud/pkg/query"
 )
 
-var currentVirtEnv host.VirtualizationEnvironment
-
-func init() {
-	var err error
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	currentVirtEnv, err = host.SystemdDetectVirt(ctx)
-	cancel()
-	if err != nil {
-		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
-	}
-}
-
 var (
 	defaultPollerOnce sync.Once
 	defaultPoller     query.Poller
@@ -66,11 +54,11 @@ func CreateGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 		// Virtual machines require ACS to function, hence disabling ACS is not an option.
 		//
 		// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
-		if currentVirtEnv.IsKVM {
+		if host.VirtualizationEnv().IsKVM {
 			return nil, nil
 		}
 		// unknown virtualization environment
-		if currentVirtEnv.Type == "" {
+		if host.VirtualizationEnv().Type == "" {
 			return nil, nil
 		}
 
@@ -143,6 +131,6 @@ func createEvent(time time.Time, devices []pci.Device) *components.Event {
 		Time:    metav1.Time{Time: time.UTC()},
 		Name:    "acs_enabled",
 		Type:    common.EventTypeWarning,
-		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", currentVirtEnv.Type, strings.Join(uuids, ", ")),
+		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", host.VirtualizationEnv().Type, strings.Join(uuids, ", ")),
 	}
 }

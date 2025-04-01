@@ -1,5 +1,4 @@
-// Package reboot provides a function to reboot the system.
-package reboot
+package host
 
 import (
 	"bytes"
@@ -64,44 +63,9 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 		cmd = "sudo systemctl reboot"
 	}
 
-	proc, err := process.New(
-		process.WithCommand(cmd),
-		process.WithRunAsBashScript(),
-	)
-	if err != nil {
-		return err
-	}
-
-	rebootFunc := func() error {
-		if err := proc.Start(ctx); err != nil {
-			return err
-		}
-		defer func() {
-			if err := proc.Close(ctx); err != nil {
-				log.Logger.Warnw("failed to abort command", "err", err)
-			}
-		}()
-
-		if err := process.Read(
-			ctx,
-			proc,
-			process.WithReadStdout(),
-			process.WithReadStderr(),
-			process.WithProcessLine(func(line string) {
-				fmt.Println("stdout:", line)
-			}),
-		); err != nil {
-			return err
-		}
-
-		// actually, this should not print if reboot worked
-		log.Logger.Infow("successfully rebooted", "command", cmd)
-		return nil
-	}
-
 	if options.delaySeconds == 0 {
 		log.Logger.Infow("rebooting immediately", "command", cmd)
-		return rebootFunc()
+		return runReboot(ctx, cmd)
 	}
 
 	go func() {
@@ -113,7 +77,7 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 			return
 		}
 
-		rerr := rebootFunc()
+		rerr := runReboot(ctx, cmd)
 
 		// actually, this should not print if reboot worked
 		log.Logger.Warnw("successfully rebooted", "command", cmd, "error", rerr)
@@ -124,6 +88,41 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 		"delaySeconds", options.delaySeconds,
 		"command", cmd,
 	)
+	return nil
+}
+
+func runReboot(ctx context.Context, cmd string) error {
+	proc, err := process.New(
+		process.WithCommand(cmd),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := proc.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		if err := proc.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
+	if err := process.Read(
+		ctx,
+		proc,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			fmt.Println("stdout:", line)
+		}),
+	); err != nil {
+		return err
+	}
+
+	// actually, this should not print if reboot worked
+	log.Logger.Infow("successfully rebooted", "command", cmd)
 	return nil
 }
 

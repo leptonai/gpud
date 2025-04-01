@@ -20,10 +20,10 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/query"
-	"github.com/leptonai/gpud/pkg/reboot"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
 )
@@ -62,7 +62,7 @@ func (s *Session) serve() {
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		if payload.Method == "reboot" {
-			rerr := reboot.Reboot(ctx, reboot.WithDelaySeconds(0))
+			rerr := pkghost.Reboot(ctx, pkghost.WithDelaySeconds(0))
 
 			if rerr != nil {
 				log.Logger.Errorf("failed to trigger reboot machine: %v", rerr)
@@ -443,7 +443,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 	for i, componentState := range currState.States {
 		if !componentState.Healthy {
 			if lastRebootTime == nil {
-				rebootTime, err := reboot.LastReboot(context.Background())
+				rebootTime, err := pkghost.LastReboot(context.Background())
 				lastRebootTime = &rebootTime
 				if err != nil {
 					log.Logger.Errorw("failed to get last reboot time", "error", err)

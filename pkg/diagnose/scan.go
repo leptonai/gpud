@@ -62,13 +62,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		fmt.Printf("%s detected boot ID %q\n", checkMark, bootID)
 	}
 
-	virtEnv, err := host.SystemdDetectVirt(ctx)
+	virtEnv, err := host.GetSystemdDetectVirt(ctx)
 	if err != nil {
 		log.Logger.Warnw("error detecting virtualization environment", "error", err)
 	} else {
 		fmt.Printf("%s detected virtualization environment %q\n", checkMark, virtEnv.Type)
 	}
-	manufacturer, err := host.SystemManufacturer(ctx)
+	manufacturer, err := host.GetSystemManufacturer(ctx)
 	if err != nil {
 		log.Logger.Warnw("error detecting system manufacturer", "error", err)
 	} else {

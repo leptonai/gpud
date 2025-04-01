@@ -34,8 +34,8 @@ type VirtualizationEnvironment struct {
 	IsKVM bool `json:"is_kvm"`
 }
 
-// SystemdDetectVirt detects the virtualization type of the host, using "systemd-detect-virt".
-func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
+// GetSystemdDetectVirt detects the virtualization type of the host, using "systemd-detect-virt".
+func GetSystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	detectExecPath, err := file.LocateExecutable("systemd-detect-virt")
 	if err != nil {
 		return VirtualizationEnvironment{}, nil
@@ -104,8 +104,8 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	return virt, nil
 }
 
-// SystemManufacturer detects the system manufacturer, using "dmidecode".
-func SystemManufacturer(ctx context.Context) (string, error) {
+// GetSystemManufacturer detects the system manufacturer, using "dmidecode".
+func GetSystemManufacturer(ctx context.Context) (string, error) {
 	dmidecodePath, err := file.LocateExecutable("dmidecode")
 	if err != nil {
 		return "", nil

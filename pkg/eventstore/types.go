@@ -12,7 +12,7 @@ const (
 )
 
 type Store interface {
-	Bucket(name string) (Bucket, error)
+	Bucket(name string, opts ...OpOption) (Bucket, error)
 }
 
 type Bucket interface {
@@ -26,4 +26,26 @@ type Bucket interface {
 	Latest(ctx context.Context) (*components.Event, error)
 	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
 	Close()
+}
+
+type Op struct {
+	disablePurge bool
+}
+
+type OpOption func(*Op)
+
+func (op *Op) applyOpts(opts []OpOption) error {
+	for _, opt := range opts {
+		opt(op)
+	}
+
+	return nil
+}
+
+// WithDisablePurge specifies that the purge should be disabled.
+// This is useful for loading the bucket for read-only operations.
+func WithDisablePurge() OpOption {
+	return func(op *Op) {
+		op.disablePurge = true
+	}
 }
