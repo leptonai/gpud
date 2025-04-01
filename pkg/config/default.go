@@ -40,7 +40,7 @@ import (
 	"github.com/leptonai/gpud/components/library"
 	"github.com/leptonai/gpud/components/memory"
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
-	os_id "github.com/leptonai/gpud/components/os/id"
+	"github.com/leptonai/gpud/components/os"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
 	component_systemd "github.com/leptonai/gpud/components/systemd"
 	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
@@ -97,7 +97,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			fd.Name:            nil,
 			info.Name:          nil,
 			memory.Name:        nil,
-			os_id.Name:         nil,
+			os.Name:            nil,
 			kernel_module.Name: nil,
 		},
 

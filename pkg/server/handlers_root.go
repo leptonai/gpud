@@ -23,9 +23,8 @@ import (
 	disk_id "github.com/leptonai/gpud/components/disk/id"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/memory"
-	"github.com/leptonai/gpud/components/os"
-	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/pkg/config"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/version"
@@ -44,20 +43,6 @@ var rootTmpl = template.Must(template.ParseFS(rootTemplateFS, rootTemplateName))
 
 func createRootHandler(handlerDescs []componentHandlerDescription, webConfig config.Web) func(c *gin.Context) {
 	pid := stdos.Getpid()
-
-	osComponent, err := components.GetComponent(os_id.Name)
-	if err != nil {
-		panic(fmt.Sprintf("component %q required but not set", os_id.Name))
-	}
-
-	var osOutputProvider components.OutputProvider
-	if outputProvider, ok := osComponent.(interface{ Unwrap() interface{} }); ok {
-		if op, ok := outputProvider.Unwrap().(components.OutputProvider); ok {
-			osOutputProvider = op
-		} else {
-			panic(fmt.Sprintf("component %q does not implement components.OutputProvider", os_id.Name))
-		}
-	}
 
 	cpuChart := false
 	if c, err := components.GetComponent(cpu.Name); c != nil && err == nil {
@@ -162,15 +147,6 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 	}
 
 	return func(c *gin.Context) {
-		osOutputRaw, err := osOutputProvider.Output()
-		if err != nil {
-			panic(err)
-		}
-		osOutput, ok := osOutputRaw.(*os.Output)
-		if !ok {
-			panic(fmt.Sprintf("expected *os.Output, got %T", osOutputRaw))
-		}
-
 		accelerator := "N/A"
 		acceleratorDriver := "N/A"
 		gpuAttached := "N/A"
@@ -203,15 +179,15 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 				"PID":               pid,
 				"MemoryAlloc":       alloc,
 				"MemoryRSS":         rss,
-				"KernelArch":        osOutput.Kernel.Arch,
-				"KernelVersion":     osOutput.Kernel.Version,
-				"PlatformName":      osOutput.Platform.Name,
-				"PlatformVersion":   osOutput.Platform.Version,
+				"KernelArch":        pkghost.Arch(),
+				"KernelVersion":     pkghost.KernelVersion(),
+				"PlatformName":      pkghost.Platform(),
+				"PlatformVersion":   pkghost.PlatformVersion(),
 				"Accelerator":       accelerator,
 				"AcceleratorDriver": acceleratorDriver,
 				"GPUAttached":       gpuAttached,
-				"Uptime":            osOutput.Uptimes.SecondsHumanized,
-				"UptimeSeconds":     osOutput.Uptimes.Seconds,
+				"Uptime":            "",
+				"UptimeSeconds":     "",
 
 				"Admin":                       webConfig.Admin,
 				"Paths":                       handlerDescs,

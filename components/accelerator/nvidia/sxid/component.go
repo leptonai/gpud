@@ -15,9 +15,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	os_id "github.com/leptonai/gpud/components/os/id"
 	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -38,18 +38,19 @@ const (
 var _ components.Component = &SXIDComponent{}
 
 type SXIDComponent struct {
-	rootCtx      context.Context
-	cancel       context.CancelFunc
-	currState    components.State
-	extraEventCh chan *components.Event
-	eventBucket  eventstore.Bucket
-	mu           sync.RWMutex
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	currState        components.State
+	extraEventCh     chan *components.Event
+	rebootEventStore pkghost.RebootEventStore
+	eventBucket      eventstore.Bucket
+	mu               sync.RWMutex
 
 	// experimental
 	kmsgWatcher kmsg.Watcher
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
+func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *SXIDComponent {
 	cctx, ccancel := context.WithCancel(ctx)
 
 	extraEventCh := make(chan *components.Event, 256)
@@ -73,11 +74,12 @@ func New(ctx context.Context, eventStore eventstore.Store) *SXIDComponent {
 	}
 
 	return &SXIDComponent{
-		rootCtx:      cctx,
-		cancel:       ccancel,
-		extraEventCh: extraEventCh,
-		eventBucket:  eventBucket,
-		kmsgWatcher:  kmsgWatcher,
+		rootCtx:          cctx,
+		cancel:           ccancel,
+		extraEventCh:     extraEventCh,
+		rebootEventStore: rebootEventStore,
+		eventBucket:      eventBucket,
+		kmsgWatcher:      kmsgWatcher,
 	}
 }
 
@@ -217,7 +219,7 @@ func (c *SXIDComponent) SetHealthy() error {
 
 func (c *SXIDComponent) updateCurrentState() error {
 	var rebootErr string
-	rebootEvents, err := getRebootEvents(c.rootCtx)
+	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
@@ -234,18 +236,6 @@ func (c *SXIDComponent) updateCurrentState() error {
 	}
 	c.mu.Unlock()
 	return nil
-}
-
-func getRebootEvents(ctx context.Context) ([]components.Event, error) {
-	osComponent, err := components.GetComponent(os_id.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get os component: %w", err)
-	}
-	osEvents, err := osComponent.Events(ctx, time.Now().Add(-DefaultRetentionPeriod))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get os events: %w", err)
-	}
-	return osEvents, nil
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice
