@@ -239,10 +239,7 @@ func createEvent(time time.Time, devices []pci.Device) *components.Event {
 	uuids := make([]string, 0)
 	for _, dev := range devices {
 		// check whether ACS is enabled on PCI bridges
-		if dev.AccessControlService == nil {
-			continue
-		}
-		if dev.AccessControlService.ACSCtl.SrcValid {
+		if dev.AccessControlService != nil  && dev.AccessControlService.ACSCtl.SrcValid {
 			uuids = append(uuids, dev.ID)
 		}
 	}
