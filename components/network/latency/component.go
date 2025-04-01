@@ -182,7 +182,7 @@ func (d *Data) getError() string {
 
 func (d *Data) getStates(globalMillisecondThreshold int64) ([]components.State, error) {
 	state := components.State{
-		Name:   "network-latency",
+		Name:   Name,
 		Reason: d.getReason(globalMillisecondThreshold),
 		Error:  d.getError(),
 	}
