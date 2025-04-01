@@ -226,8 +226,6 @@ func getDefaultPoller() query.Poller {
 	return defaultPoller
 }
 
-var getSystemdDetectVirtFunc = pkghost.SystemdDetectVirt
-
 func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, e error) {
 	return func(ctx context.Context) (_ any, e error) {
 		o := &Output{}
