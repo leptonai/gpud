@@ -242,7 +242,7 @@ func TestStartStop(t *testing.T) {
 
 		ctx := context.Background()
 		scrapeInterval := time.Second
-		purgeInterval := 10 * time.Second
+		purgeInterval := time.Second
 		retainDuration := 1 * time.Hour
 
 		s := NewSyncer(ctx, scraper, store, scrapeInterval, purgeInterval, retainDuration)
