@@ -260,15 +260,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			// should not be empty
 			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
 
-			// make sure "network-latency" component is present (as it's enabled by default)
-			found := false
+			// make sure "disk", "network-latency", etc. components are present (as it's enabled by default)
+			found := make(map[string]bool)
 			for _, m := range metrics {
-				if m.Component == "network-latency" {
-					found = true
-					break
-				}
+				found[m.Component] = true
 			}
-			Expect(found).To(BeTrue(), "expected network-latency component to be present")
+			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
+			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
 		})
 
 		It("request with compress", func() {
