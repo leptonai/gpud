@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/pkg/common"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/dmesg"
@@ -22,30 +21,28 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
-var (
-	defaultExpectedPortStatesMu sync.RWMutex
-	defaultExpectedPortStates   = infiniband.ExpectedPortStates{
-		AtLeastPorts: 0,
-		AtLeastRate:  0,
-	}
-)
+// Name is the name of the infiniband check component.
+const Name = "accelerator-nvidia-infiniband"
 
-func GetDefaultExpectedPortStates() infiniband.ExpectedPortStates {
-	defaultExpectedPortStatesMu.RLock()
-	defer defaultExpectedPortStatesMu.RUnlock()
-	return defaultExpectedPortStates
-}
+var _ components.Component = &component{}
 
-func SetDefaultExpectedPortStates(states infiniband.ExpectedPortStates) {
-	log.Logger.Infow("setting default expected port states", "at_least_ports", states.AtLeastPorts, "at_least_rate", states.AtLeastRate)
+type component struct {
+	rootCtx          context.Context
+	cancel           context.CancelFunc
+	eventBucket      eventstore.Bucket
+	logLineProcessor *dmesg.LogLineProcessor
+	toolOverwrites   nvidia_common.ToolOverwrites
 
-	defaultExpectedPortStatesMu.Lock()
-	defer defaultExpectedPortStatesMu.Unlock()
-	defaultExpectedPortStates = states
+	lastEventMu        sync.Mutex
+	lastEvent          *components.Event
+	lastEventThreshold infiniband.ExpectedPortStates
+
+	// experimental
+	kmsgWatcher kmsg.Watcher
 }
 
 func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_infiniband_id.Name)
+	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
@@ -75,21 +72,72 @@ func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia
 	return c, nil
 }
 
-var _ components.Component = &component{}
+func (c *component) Name() string { return Name }
 
-type component struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	eventBucket      eventstore.Bucket
-	logLineProcessor *dmesg.LogLineProcessor
-	toolOverwrites   nvidia_common.ToolOverwrites
+func (c *component) Start() error { return nil }
 
-	lastEventMu        sync.Mutex
-	lastEvent          *components.Event
-	lastEventThreshold infiniband.ExpectedPortStates
+func (c *component) States(ctx context.Context) ([]components.State, error) {
+	return c.getStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
+}
 
-	// experimental
-	kmsgWatcher kmsg.Watcher
+var noDataEvents = []components.State{
+	{
+		Name:    "ibstat",
+		Health:  components.StateHealthy,
+		Healthy: true, //TODO: depreciate Healthy field
+		Reason:  msgThresholdNotSetSkipped,
+	},
+}
+
+func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
+	// in rare cases, some machines have "ibstat" installed that returns empty output
+	// not failing the ibstat check, thus we need manual check on the thresholds here
+	// before we call the ibstat command
+	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
+		return noDataEvents, nil
+	}
+
+	lastEvent, err := c.checkOnceIbstat(now.UTC(), thresholds)
+	if err != nil {
+		return nil, err
+	}
+	if lastEvent == nil {
+		var err error
+		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+		lastEvent, err = c.eventBucket.Latest(cctx)
+		ccancel()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if lastEvent == nil {
+		return noDataEvents, nil
+	}
+
+	return []components.State{convertToState(lastEvent)}, nil
+}
+
+func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+	thresholds := GetDefaultExpectedPortStates()
+	if _, err := c.checkOnceIbstat(time.Now().UTC(), thresholds); err != nil {
+		return nil, err
+	}
+	return c.eventBucket.Get(ctx, since)
+}
+
+func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
+	log.Logger.Debugw("querying metrics", "since", since)
+
+	return nil, nil
+}
+
+func (c *component) Close() error {
+	log.Logger.Debugw("closing component")
+
+	c.cancel()
+	c.eventBucket.Close()
+
+	return nil
 }
 
 func convertToState(ev *components.Event) components.State {
@@ -111,7 +159,7 @@ func convertToState(ev *components.Event) components.State {
 // if the last event happened within the last 10 seconds, skip the check and return the cached last event
 // if unhealthy ibstat status is found, it persists the unhealthy event in the database
 // if a unexpected error is found, it returns the error (regardless of the ibstat status)
-func (c *component) checkIbstatOnce(ts time.Time, thresholds infiniband.ExpectedPortStates) (*components.Event, error) {
+func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.ExpectedPortStates) (*components.Event, error) {
 	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
 		return nil, nil
 	}
@@ -213,74 +261,6 @@ func (c *component) checkIbstatOnce(ts time.Time, thresholds infiniband.Expected
 	}
 
 	return c.lastEvent, nil
-}
-
-func (c *component) Name() string { return nvidia_infiniband_id.Name }
-
-func (c *component) Start() error { return nil }
-
-func (c *component) States(ctx context.Context) ([]components.State, error) {
-	return c.getStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
-}
-
-var noDataEvents = []components.State{
-	{
-		Name:    "ibstat",
-		Health:  components.StateHealthy,
-		Healthy: true, //TODO: depreciate Healthy field
-		Reason:  msgThresholdNotSetSkipped,
-	},
-}
-
-func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
-	// in rare cases, some machines have "ibstat" installed that returns empty output
-	// not failing the ibstat check, thus we need manual check on the thresholds here
-	// before we call the ibstat command
-	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
-		return noDataEvents, nil
-	}
-
-	lastEvent, err := c.checkIbstatOnce(now.UTC(), thresholds)
-	if err != nil {
-		return nil, err
-	}
-	if lastEvent == nil {
-		var err error
-		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-		lastEvent, err = c.eventBucket.Latest(cctx)
-		ccancel()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if lastEvent == nil {
-		return noDataEvents, nil
-	}
-
-	return []components.State{convertToState(lastEvent)}, nil
-}
-
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	thresholds := GetDefaultExpectedPortStates()
-	if _, err := c.checkIbstatOnce(time.Now().UTC(), thresholds); err != nil {
-		return nil, err
-	}
-	return c.eventBucket.Get(ctx, since)
-}
-
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
-func (c *component) Close() error {
-	log.Logger.Debugw("closing component")
-	c.cancel()
-
-	c.eventBucket.Close()
-
-	return nil
 }
 
 var (

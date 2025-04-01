@@ -297,7 +297,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	assert.Nil(t, state.SuggestedActions)
 
 	// Test with different thresholds that should result in unhealthy state
-	lastEvent, err := c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err := c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 12, // More ports than available
 		AtLeastRate:  400,
 	})
@@ -440,7 +440,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			}
 
 			now := time.Now().UTC()
-			lastEvent, err := c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+			lastEvent, err := c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			})
@@ -491,12 +491,12 @@ func TestCheckIbstatOnce(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Test case 1: No thresholds set
-	lastEvent, err := c.checkIbstatOnce(now, infiniband.ExpectedPortStates{})
+	lastEvent, err := c.checkOnceIbstat(now, infiniband.ExpectedPortStates{})
 	assert.NoError(t, err, "should not error when no thresholds are set")
 	assert.Nil(t, lastEvent)
 
 	// Test case 2: With thresholds but no ibstat command
-	lastEvent, err = c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -505,7 +505,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 
 	// Test case 3: With mock ibstat command returning healthy state
 	c.toolOverwrites.IbstatCommand = "cat testdata/ibstat.47.0.h100.all.active.1"
-	lastEvent, err = c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	})
@@ -513,7 +513,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 	assert.NotNil(t, lastEvent)
 
 	// Test case 4: With mock ibstat command returning unhealthy state
-	lastEvent, err = c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 12,
 		AtLeastRate:  400,
 	})
@@ -521,7 +521,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 	assert.NotNil(t, lastEvent)
 
 	// Test case 5: Duplicate event should not be inserted
-	lastEvent, err = c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 12,
 		AtLeastRate:  400,
 	})
@@ -532,7 +532,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 	canceledCtx, cancelFunc := context.WithCancel(context.Background())
 	cancelFunc()
 	c.rootCtx = canceledCtx
-	lastEvent, err = c.checkIbstatOnce(now, infiniband.ExpectedPortStates{
+	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})

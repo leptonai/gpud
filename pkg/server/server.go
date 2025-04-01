@@ -43,7 +43,6 @@ import (
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
@@ -562,7 +561,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_infiniband_id.Name:
+		case nvidia_infiniband.Name:
 			c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
