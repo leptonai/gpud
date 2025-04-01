@@ -79,8 +79,6 @@ import (
 	"github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/components/pci"
 	pci_id "github.com/leptonai/gpud/components/pci/id"
-	component_systemd "github.com/leptonai/gpud/components/systemd"
-	systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
@@ -342,24 +340,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 		case os.Name:
 			allComponents = append(allComponents, os.New(ctx, rebootEventStore))
-
-		case systemd_id.Name:
-			cfg := component_systemd.Config{Query: defaultQueryCfg}
-			if configValue != nil {
-				parsed, err := component_systemd.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := component_systemd.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
 
 		case tailscale.Name:
 			allComponents = append(allComponents, tailscale.New(ctx))

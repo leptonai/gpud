@@ -42,15 +42,11 @@ import (
 	network_latency_id "github.com/leptonai/gpud/components/network/latency/id"
 	"github.com/leptonai/gpud/components/os"
 	component_pci_id "github.com/leptonai/gpud/components/pci/id"
-	component_systemd "github.com/leptonai/gpud/components/systemd"
-	component_systemd_id "github.com/leptonai/gpud/components/systemd/id"
 	"github.com/leptonai/gpud/components/tailscale"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 
 	"github.com/mitchellh/go-homedir"
@@ -143,19 +139,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[component_pci_id.Name] = nil
-	}
-
-	if runtime.GOOS == "linux" {
-		if pkd_systemd.SystemdExists() && pkd_systemd.SystemctlExists() {
-			if err := systemd.CreateDefaultEnvFile(); err != nil {
-				log.Logger.Debugw("failed to create default systemd env file", "error", err)
-			}
-
-			log.Logger.Debugw("auto-detected systemd -- configuring systemd component")
-			cfg.Components[component_systemd_id.Name] = component_systemd.DefaultConfig()
-		}
-	} else {
-		log.Logger.Debugw("auto-detect systemd not supported -- skipping", "os", runtime.GOOS)
 	}
 
 	if runtime.GOOS == "linux" {
