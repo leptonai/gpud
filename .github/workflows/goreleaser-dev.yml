@@ -23,21 +23,6 @@ jobs:
     strategy:
       matrix:
         job:
-          # use ubuntu20.04 as default one, for backward compatibility
-          - os: ubuntu-20.04
-            platform: linux
-            target: linux_amd64
-
-          - os: ubuntu-20.04
-            platform: linux
-            target: linux_amd64
-            goreleaser_suffix: _ubuntu20.04
-
-          - os: ubuntu-20.04
-            platform: linux
-            target: linux_arm64
-            goreleaser_suffix: _ubuntu20.04
-
           - os: ubuntu-22.04
             platform: linux
             target: linux_amd64

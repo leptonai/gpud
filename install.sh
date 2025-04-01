@@ -74,18 +74,18 @@ main() {
     OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
     OS_VERSION=$(echo "$VERSION" | tr -d '"')
   else
-    # e.g., ubuntu20.04, ubuntu22.04, ubuntu24.04
+    # e.g., ubuntu22.04, ubuntu24.04
     OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
     OS_VERSION=$(lsb_release -r -s 2>/dev/null || echo "")
   fi
 
   if [ "$OS_NAME" = "ubuntu" ]; then
     case "$OS_VERSION" in
-      20.04|22.04|24.04)
+      22.04|24.04)
         OS_DISTRO="_${OS_NAME}${OS_VERSION}"
         ;;
       *)
-        echo "Ubuntu version $OS_VERSION is not supported, only 20.04, 22.04, and 24.04 are supported."
+        echo "Ubuntu version $OS_VERSION is not supported, only 22.04, and 24.04 are supported."
         exit 1
         ;;
     esac

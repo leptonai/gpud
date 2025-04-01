@@ -31,7 +31,7 @@ func detectUbuntuVersion() string {
 		return ""
 	}
 	version := strings.TrimSpace(string(outputBytes))
-	if version == "20.04" || version == "22.04" || version == "24.04" {
+	if version == "22.04" || version == "24.04" {
 		return "ubuntu" + version
 	}
 	return ""
