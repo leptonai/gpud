@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -230,7 +229,6 @@ func Test_describeReason(t *testing.T) {
 				NodeName: "test-node",
 				Pods:     []PodStatus{{ID: "test-pod"}},
 				err:      errors.New("connection refused"),
-				connErr:  true,
 			},
 			expected: `connection error to node "test-node" -- connection refused`,
 		},
@@ -240,13 +238,13 @@ func Test_describeReason(t *testing.T) {
 				Pods: []PodStatus{{ID: "test-pod"}},
 				err:  errors.New("some error"),
 			},
-			expected: "failed to list pods from kubelet read-only port -- some error",
+			expected: "list pods from kubelet read-only port failed 0 time(s) (some error)",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			reason := tc.data.getReason()
+			reason := tc.data.getReason(0)
 			assert.Equal(t, tc.expected, reason)
 		})
 	}
@@ -257,32 +255,38 @@ func Test_getHealth(t *testing.T) {
 		name            string
 		data            Data
 		ignoreConnErr   bool
+		failedCount     int
+		threshold       int
 		expectedHealth  string
 		expectedHealthy bool
 	}{
 		{
 			name:            "no error",
 			data:            Data{},
+			failedCount:     0,
+			threshold:       5,
 			expectedHealth:  "Healthy",
 			expectedHealthy: true,
 		},
 		{
 			name: "connection error - ignored",
 			data: Data{
-				err:     errors.New("connection refused"),
-				connErr: true,
+				err: errors.New("connection refused"),
 			},
 			ignoreConnErr:   true,
+			failedCount:     0,
+			threshold:       5,
 			expectedHealth:  "Healthy",
 			expectedHealthy: true,
 		},
 		{
 			name: "connection error - not ignored",
 			data: Data{
-				err:     errors.New("connection refused"),
-				connErr: true,
+				err: errors.New("connection refused"),
 			},
 			ignoreConnErr:   false,
+			failedCount:     0,
+			threshold:       5,
 			expectedHealth:  "Unhealthy",
 			expectedHealthy: false,
 		},
@@ -292,6 +296,17 @@ func Test_getHealth(t *testing.T) {
 				err: errors.New("some error"),
 			},
 			ignoreConnErr:   true,
+			failedCount:     0,
+			threshold:       5,
+			expectedHealth:  "Unhealthy",
+			expectedHealthy: false,
+		},
+		{
+			name:            "failed count exceeded threshold",
+			data:            Data{},
+			ignoreConnErr:   true,
+			failedCount:     6,
+			threshold:       5,
 			expectedHealth:  "Unhealthy",
 			expectedHealthy: false,
 		},
@@ -299,7 +314,7 @@ func Test_getHealth(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			health, healthy := tc.data.getHealth(tc.ignoreConnErr)
+			health, healthy := tc.data.getHealth(tc.ignoreConnErr, tc.failedCount, tc.threshold)
 			assert.Equal(t, tc.expectedHealth, health)
 			assert.Equal(t, tc.expectedHealthy, healthy)
 		})
@@ -376,14 +391,16 @@ func Test_getStates(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		ignoreConnErr  bool
+		failedCount    int
+		lastHealthy    bool
 		expectedLen    int
 		expectedHealth string
 	}{
 		{
 			name:           "no pods",
 			data:           Data{},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedLen:    1,
 			expectedHealth: "Healthy",
 		},
@@ -395,35 +412,44 @@ func Test_getStates(t *testing.T) {
 					{Name: "pod2"},
 				},
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedLen:    1,
 			expectedHealth: "Healthy",
 		},
 		{
-			name: "with error - not ignored",
+			name: "with error - unhealthy",
 			data: Data{
-				err:     errors.New("some error"),
-				connErr: false,
+				err: errors.New("some error"),
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    false,
 			expectedLen:    1,
 			expectedHealth: "Unhealthy",
 		},
 		{
-			name: "with connection error - ignored",
+			name: "with connection error - healthy",
 			data: Data{
-				err:     errors.New("connection refused"),
-				connErr: true,
+				err: errors.New("connection refused"),
 			},
-			ignoreConnErr:  true,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedLen:    1,
 			expectedHealth: "Healthy",
+		},
+		{
+			name:           "with failed count above threshold - unhealthy",
+			data:           Data{},
+			failedCount:    6,
+			lastHealthy:    false,
+			expectedLen:    1,
+			expectedHealth: "Unhealthy",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates(tc.ignoreConnErr)
+			states, err := tc.data.getStates(tc.failedCount, tc.lastHealthy)
 			require.NoError(t, err)
 
 			require.Len(t, states, tc.expectedLen)
@@ -601,139 +627,66 @@ func Test_defaultHTTPClient(t *testing.T) {
 	assert.True(t, transport.DisableCompression)
 }
 
-func TestCheckKubeletReadOnlyPort(t *testing.T) {
-	// Setup a test server that returns "ok" for /healthz endpoint
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-		} else {
-			http.Error(w, "Not found", http.StatusNotFound)
-		}
-	}))
-	defer srv.Close()
-
-	// Extract port from test server URL
-	portRaw := srv.URL[len("http://127.0.0.1:"):]
-	port, _ := strconv.ParseInt(portRaw, 10, 32)
-
-	// Test successful check
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err := checkKubeletReadOnlyPortHealthz(ctx, int(port))
-	assert.NoError(t, err)
-
-	// Test with invalid response
-	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("not ok"))
-		}
-	}))
-	defer badSrv.Close()
-
-	portRaw = badSrv.URL[len("http://127.0.0.1:"):]
-	port, _ = strconv.ParseInt(portRaw, 10, 32)
-
-	err = checkKubeletReadOnlyPortHealthz(ctx, int(port))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected 'ok'")
-
-	// Test with non-200 response
-	badSrv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}))
-	defer badSrv2.Close()
-
-	portRaw = badSrv2.URL[len("http://127.0.0.1:"):]
-	port, _ = strconv.ParseInt(portRaw, 10, 32)
-
-	err = checkKubeletReadOnlyPortHealthz(ctx, int(port))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed")
-}
-
-// Test with a closed server to check connection error handling
-func TestCheckKubeletReadOnlyPort_ConnError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-		}
-	}))
-
-	portRaw := srv.URL[len("http://127.0.0.1:"):]
-	port, _ := strconv.ParseInt(portRaw, 10, 32)
-
-	// Close the server before testing
-	srv.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	err := checkKubeletReadOnlyPortHealthz(ctx, int(port))
-	assert.Error(t, err)
-}
-
 func Test_componentStates(t *testing.T) {
 	testCases := []struct {
 		name           string
-		lastData       Data
+		data           Data
 		ignoreConnErr  bool
-		expectedLen    int
+		failedCount    int
+		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
-			name: "healthy state",
-			lastData: Data{
-				NodeName: "test-node",
-				Pods: []PodStatus{
-					{Name: "pod1"},
-				},
-			},
+			name:           "healthy state",
+			data:           Data{},
 			ignoreConnErr:  false,
-			expectedLen:    1,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
 			name: "unhealthy state",
-			lastData: Data{
-				NodeName: "test-node",
-				err:      errors.New("some error"),
+			data: Data{
+				err: errors.New("test error"),
 			},
 			ignoreConnErr:  false,
-			expectedLen:    1,
+			failedCount:    0,
+			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "connection error - ignored",
-			lastData: Data{
-				NodeName: "test-node",
-				err:      errors.New("connection refused"),
-				connErr:  true,
+			data: Data{
+				err: errors.New("connection refused"),
 			},
 			ignoreConnErr:  true,
-			expectedLen:    1,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedHealth: "Healthy",
+		},
+		{
+			name:           "failed count above threshold",
+			data:           Data{},
+			ignoreConnErr:  true,
+			failedCount:    6,
+			lastHealthy:    false,
+			expectedHealth: "Unhealthy",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
+				lastData:               &tc.data,
 				ignoreConnectionErrors: tc.ignoreConnErr,
-				lastData:               &tc.lastData,
+				failedCount:            tc.failedCount,
+				lastHealthy:            tc.lastHealthy,
 			}
 
 			states, err := c.States(context.Background())
-			assert.NoError(t, err)
-			require.Len(t, states, tc.expectedLen)
+			require.NoError(t, err)
+			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
-
-			if len(tc.lastData.Pods) > 0 {
-				assert.Contains(t, states[0].ExtraInfo, "data")
-			}
 		})
 	}
 }
@@ -755,57 +708,6 @@ func Test_componentClose(t *testing.T) {
 	default:
 		t.Error("Expected context to be canceled after Close()")
 	}
-}
-
-// TestCheckKubeletReadOnlyPortListening tests the CheckKubeletReadOnlyPortListening function
-func TestCheckKubeletReadOnlyPortListening(t *testing.T) {
-	// Test the case where a healthy kubelet server is running
-	t.Run("healthy kubelet server", func(t *testing.T) {
-		// Setup a test server that mocks both the TCP connection and healthz endpoint
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/healthz" {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("ok"))
-			} else {
-				http.Error(w, "Not found", http.StatusNotFound)
-			}
-		}))
-		defer srv.Close()
-
-		// Extract port from test server URL
-		portStr := srv.URL[len("http://127.0.0.1:"):]
-		port, _ := strconv.ParseInt(portStr, 10, 32)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		result := checkKubeletReadOnlyPortListening(ctx, int(port))
-		if runtime.GOOS == "linux" {
-			t.Logf("On Linux system, result is %v", result)
-		} else {
-			assert.True(t, result)
-		}
-	})
-
-	// Test with a closed server to check connection error handling
-	t.Run("connection refused", func(t *testing.T) {
-		if runtime.GOOS == "linux" {
-			// Skip if actually running on Linux, can't reliably test
-			t.Skip("Skipping test on actual Linux system")
-		}
-
-		// Use a closed server to force connection refused error
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-		portStr := srv.URL[len("http://127.0.0.1:"):]
-		port, _ := strconv.ParseInt(portStr, 10, 32)
-		srv.Close() // Close immediately to force connection error
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		result := checkKubeletReadOnlyPortListening(ctx, int(port))
-		assert.False(t, result)
-	})
 }
 
 // Test context cancellation for listPodsFromKubeletReadOnlyPort
@@ -900,10 +802,6 @@ func TestListPodsFromKubeletReadOnlyPort_HTTPError(t *testing.T) {
 
 // Test_componentCheckOnce tests the checkOnce method of the component
 func Test_componentCheckOnce(t *testing.T) {
-	// We can't easily mock process.CheckRunningByPid since it's in an external package
-	// So we'll only test the pod retrieval part and check the fields we can control
-
-	// Setup a test server that returns pod data
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" {
 			w.WriteHeader(http.StatusOK)
@@ -923,18 +821,24 @@ func Test_componentCheckOnce(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create a counter to verify checkKubeletRunning is called
+	kubeletRunningCalled := 0
+
 	// Create component with our test port
 	c := &component{
 		ctx:                      ctx,
 		cancel:                   cancel,
 		checkDependencyInstalled: func() bool { return true },
+		checkKubeletRunning:      func() bool { kubeletRunningCalled++; return true },
 		kubeletReadOnlyPort:      int(port),
-		checkServiceActive:       func(ctx context.Context) (bool, error) { return true, nil },
 		ignoreConnectionErrors:   false,
 	}
 
 	// Run the check
 	c.CheckOnce()
+
+	// Verify checkKubeletRunning was called
+	assert.Equal(t, 1, kubeletRunningCalled, "checkKubeletRunning should be called once")
 
 	// Verify the last data
 	c.lastMu.RLock()
@@ -944,35 +848,36 @@ func Test_componentCheckOnce(t *testing.T) {
 	assert.Equal(t, "mynodehostname", c.lastData.NodeName)
 	assert.Len(t, c.lastData.Pods, 2)
 	assert.Nil(t, c.lastData.err)
-	assert.False(t, c.lastData.connErr)
 }
 
 // Test_componentStates_IgnoreConnectionErrors tests the States method with ignoreConnectionErrors=true
 func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
-		lastData       Data
+		data           Data
 		ignoreConnErr  bool
+		failedCount    int
+		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
 			name: "connection error - ignored",
-			lastData: Data{
-				NodeName: "test-node",
-				err:      errors.New("connection refused"),
-				connErr:  true,
+			data: Data{
+				err: errors.New("connection refused"),
 			},
 			ignoreConnErr:  true,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
 			name: "connection error - not ignored",
-			lastData: Data{
-				NodeName: "test-node",
-				err:      errors.New("connection refused"),
-				connErr:  true,
+			data: Data{
+				err: errors.New("connection refused"),
 			},
 			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 	}
@@ -980,13 +885,14 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
+				lastData:               &tc.data,
 				ignoreConnectionErrors: tc.ignoreConnErr,
-				lastData:               &tc.lastData,
+				failedCount:            tc.failedCount,
+				lastHealthy:            tc.lastHealthy,
 			}
 
 			states, err := c.States(context.Background())
-			assert.NoError(t, err)
-
+			require.NoError(t, err)
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 		})
@@ -997,18 +903,20 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 func Test_componentStates_ContextCancellation(t *testing.T) {
 	c := &component{
 		lastData: &Data{
-			NodeName: "test-node",
-			Pods:     []PodStatus{{Name: "pod1"}},
+			Pods: []PodStatus{{Name: "test-pod"}},
 		},
+		ignoreConnectionErrors: true,
+		failedCount:            0,
+		lastHealthy:            true,
 	}
 
-	// Create a context that's already canceled
+	// Create a canceled context
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
+	cancel()
 
-	// States should still work with canceled context since it uses already cached data
+	// Should still return states using cached data
 	states, err := c.States(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "Healthy", states[0].Health)
 }
@@ -1029,43 +937,10 @@ func Test_componentConstructor(t *testing.T) {
 	assert.NotNil(t, c.cancel)
 }
 
-// TestCheckKubeletReadOnlyPort_ReadError tests error handling when reading response body fails
-func TestCheckKubeletReadOnlyPort_ReadError(t *testing.T) {
-	// Create a server that returns a problematic reader
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			// Set the content length but don't actually write the body
-			// This will cause the io.ReadAll to fail
-			w.Header().Set("Content-Length", "100")
-			w.WriteHeader(http.StatusOK)
-			// Only write a small part of the promised data
-			_, _ = w.Write([]byte("o"))
-			// Then close the connection to force a read error
-			hj, ok := w.(http.Hijacker)
-			if !ok {
-				t.Fatal("ResponseWriter does not support hijacking")
-			}
-			conn, _, _ := hj.Hijack()
-			conn.Close()
-		}
-	}))
-	defer srv.Close()
-
-	portStr := srv.URL[len("http://127.0.0.1:"):]
-	port, _ := strconv.ParseInt(portStr, 10, 32)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// This should result in a read error
-	err := checkKubeletReadOnlyPortHealthz(ctx, int(port))
-	assert.Error(t, err)
-}
-
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getStates(false)
+	states, err := d.getStates(0, true)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -1078,7 +953,8 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		ignoreConnErr  bool
+		failedCount    int
+		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
@@ -1086,7 +962,8 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 			data: Data{
 				err: errors.New("standard error"),
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
@@ -1095,28 +972,29 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				Pods: []PodStatus{},
 				err:  errors.New("no pods error"),
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
-			name: "connection error not ignored",
+			name: "connection error - healthy",
 			data: Data{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
-				connErr:  true,
 			},
-			ignoreConnErr:  false,
-			expectedHealth: "Unhealthy",
-		},
-		{
-			name: "connection error ignored but still returned",
-			data: Data{
-				NodeName: "test-node",
-				err:      errors.New("connection refused"),
-				connErr:  true,
-			},
-			ignoreConnErr:  true,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedHealth: "Healthy",
+		},
+		{
+			name: "connection error - unhealthy",
+			data: Data{
+				NodeName: "test-node",
+				err:      errors.New("connection refused"),
+			},
+			failedCount:    0,
+			lastHealthy:    false,
+			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "no error with pods",
@@ -1125,7 +1003,8 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				Pods:     []PodStatus{{Name: "pod1"}},
 				err:      nil,
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
@@ -1135,14 +1014,24 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				KubeletServiceActive: false,
 				err:                  errors.New("kubelet service not active"),
 			},
-			ignoreConnErr:  false,
+			failedCount:    0,
+			lastHealthy:    false,
+			expectedHealth: "Unhealthy",
+		},
+		{
+			name: "failed count above threshold",
+			data: Data{
+				NodeName: "test-node",
+			},
+			failedCount:    6,
+			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates(tc.ignoreConnErr)
+			states, err := tc.data.getStates(tc.failedCount, tc.lastHealthy)
 			assert.NoError(t, err)
 
 			// Verify state properties
@@ -1170,7 +1059,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		NodeName: "test-node",
 		err:      deadlineErr,
 	}
-	states, err := deadlineData.getStates(false)
+	states, err := deadlineData.getStates(0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, deadlineErr.Error())
@@ -1181,7 +1070,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		NodeName: "test-node",
 		err:      canceledErr,
 	}
-	states, err = canceledData.getStates(false)
+	states, err = canceledData.getStates(0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, canceledErr.Error())
@@ -1192,8 +1081,143 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		NodeName: "test-node",
 		err:      customErr,
 	}
-	states, err = customData.getStates(false)
+	states, err = customData.getStates(0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error: details")
+}
+
+// Test_componentCheckOnce_KubeletNotRunning tests the checkOnce method of the component when kubelet is not running
+func Test_componentCheckOnce_KubeletNotRunning(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create component with checkKubeletRunning that returns false
+	c := &component{
+		ctx:                      ctx,
+		cancel:                   cancel,
+		checkDependencyInstalled: func() bool { return true },
+		checkKubeletRunning:      func() bool { return false }, // Kubelet not running
+		kubeletReadOnlyPort:      10255,
+		ignoreConnectionErrors:   false,
+	}
+
+	// Run the check
+	c.CheckOnce()
+
+	// Verify the last data
+	c.lastMu.RLock()
+	defer c.lastMu.RUnlock()
+
+	// Should return early so empty pods and no errors
+	assert.Empty(t, c.lastData.NodeName)
+	assert.Empty(t, c.lastData.Pods)
+	assert.Nil(t, c.lastData.err)
+}
+
+// Test behavior with different checkDependencyInstalled and checkKubeletRunning combinations
+func Test_componentCheckOnce_Dependencies(t *testing.T) {
+	testCases := []struct {
+		name                    string
+		dependencyInstalled     bool
+		kubeletRunning          bool
+		expectDataToBeCollected bool
+	}{
+		{
+			name:                    "dependency installed and kubelet running",
+			dependencyInstalled:     true,
+			kubeletRunning:          true,
+			expectDataToBeCollected: true,
+		},
+		{
+			name:                    "dependency installed but kubelet not running",
+			dependencyInstalled:     true,
+			kubeletRunning:          false,
+			expectDataToBeCollected: false,
+		},
+		{
+			name:                    "dependency not installed",
+			dependencyInstalled:     false,
+			kubeletRunning:          true, // Doesn't matter since dependency check comes first
+			expectDataToBeCollected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a test server if needed for this test case
+			var srv *httptest.Server
+			var port int
+
+			if tc.expectDataToBeCollected {
+				// Only create server if we expect to actually query it
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					http.ServeFile(w, r, "kubelet-readonly-pods.json")
+				}))
+				defer srv.Close()
+
+				portStr := srv.URL[len("http://127.0.0.1:"):]
+				portVal, _ := strconv.ParseInt(portStr, 10, 32)
+				port = int(portVal)
+			} else {
+				// Use a dummy port for tests that won't reach the HTTP call
+				port = 10255
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Create component with the test conditions
+			c := &component{
+				ctx:                      ctx,
+				cancel:                   cancel,
+				checkDependencyInstalled: func() bool { return tc.dependencyInstalled },
+				checkKubeletRunning:      func() bool { return tc.kubeletRunning },
+				kubeletReadOnlyPort:      port,
+				ignoreConnectionErrors:   false,
+			}
+
+			// Run the check
+			c.CheckOnce()
+
+			// Verify the behavior
+			c.lastMu.RLock()
+			defer c.lastMu.RUnlock()
+
+			if !tc.expectDataToBeCollected {
+				// Should return early with default data
+				assert.Empty(t, c.lastData.NodeName)
+				assert.Empty(t, c.lastData.Pods)
+				assert.Nil(t, c.lastData.err)
+			} else {
+				// Should attempt to collect data
+				assert.NotEmpty(t, c.lastData.NodeName)
+				assert.NotEmpty(t, c.lastData.Pods)
+			}
+		})
+	}
+}
+
+// Test that the component constructors sets checkKubeletRunning correctly
+func Test_componentConstructor_CheckKubeletRunning(t *testing.T) {
+	ctx := context.Background()
+	testPort := 12345
+	comp := New(ctx, testPort, true)
+
+	// Type assertion
+	c, ok := comp.(*component)
+	require.True(t, ok, "Component should be of type *component")
+
+	// Check fields
+	assert.Equal(t, testPort, c.kubeletReadOnlyPort)
+
+	// The checkKubeletRunning function should be set
+	assert.NotNil(t, c.checkKubeletRunning)
+
+	// We can't directly test the function's logic since it depends on the network,
+	// but we can verify it's there and doesn't panic when called
+	assert.NotPanics(t, func() {
+		_ = c.checkKubeletRunning()
+	})
 }

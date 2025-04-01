@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -30,37 +29,6 @@ func isConnectionRefusedError(err error) bool {
 	return strings.Contains(err.Error(), "connection refused")
 }
 
-func checkKubeletReadOnlyPortHealthz(ctx context.Context, port int) error {
-	u := fmt.Sprintf("http://localhost:%d/healthz", port)
-
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return err
-	}
-	req = req.WithContext(ctx)
-
-	resp, err := defaultHTTPClient().Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("checking kubelet read-only port failed %d", resp.StatusCode)
-	}
-
-	// make sure it's healthy 'ok' response
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if string(b) != "ok" {
-		return fmt.Errorf("kubelet read-only port /healthz expected 'ok', got %q", string(b))
-	}
-
-	return nil
-}
-
 func checkKubeletInstalled() bool {
 	p, err := pkg_file.LocateExecutable("kubelet")
 	if err == nil {
@@ -68,33 +36,6 @@ func checkKubeletInstalled() bool {
 		return true
 	}
 	log.Logger.Debugw("kubelet not found in PATH", "error", err)
-	return false
-}
-
-// checkKubeletReadOnlyPortListening checks if the kubelet read-only port is listening.
-// It first checks if the kubelet is running and then checks if the port is open.
-func checkKubeletReadOnlyPortListening(ctx context.Context, port int) bool {
-	// check if the TCP port is open/used
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 3*time.Second)
-	if err != nil {
-		log.Logger.Debugw("tcp port is not open", "port", port, "error", err)
-	} else {
-		log.Logger.Debugw("tcp port is open", "port", port)
-		conn.Close()
-
-		kerr := checkKubeletReadOnlyPortHealthz(ctx, port)
-		// check
-		if kerr != nil {
-			log.Logger.Debugw("kubelet readonly port is not open", "port", port, "error", kerr)
-		} else {
-			log.Logger.Debugw("auto-detected kubelet readonly port -- configuring k8s pod components", "port", port)
-
-			// "kubelet_pod" requires kubelet read-only port
-			// assume if kubelet is running, it opens the most common read-only port 10255
-			return true
-		}
-	}
-
 	return false
 }
 
