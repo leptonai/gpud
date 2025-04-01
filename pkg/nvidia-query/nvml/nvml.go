@@ -450,7 +450,7 @@ func initAndCheckNVMLSupported(nvmlLib nvml.Interface) (bool, error) {
 	if ret == nvml.SUCCESS {
 		return true, nil
 	}
-	if ret == nvml.ERROR_LIBRARY_NOT_FOUND {
+	if nvml_lib.IsLibraryNotFoundError(ret) {
 		return false, nil
 	}
 	return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))

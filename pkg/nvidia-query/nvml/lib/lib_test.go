@@ -11,5 +11,5 @@ func TestLibrary(t *testing.T) {
 	nv := New(
 		WithInitReturn(nvml.SUCCESS),
 	)
-	assert.Equal(t, nv.NVML().Init(), nvml.SUCCESS)
+	assert.Equal(t, nvml.SUCCESS, nv.NVML().Init())
 }
