@@ -35,7 +35,10 @@ type VirtualizationEnvironment struct {
 	IsKVM bool `json:"is_kvm"`
 }
 
-var currentVirtEnv VirtualizationEnvironment
+var (
+	currentVirtEnv            VirtualizationEnvironment
+	currentSystemManufacturer string
+)
 
 func init() {
 	var err error
@@ -45,10 +48,21 @@ func init() {
 	if err != nil {
 		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
 	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	currentSystemManufacturer, err = SystemManufacturer(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
+	}
 }
 
 func CurrentVirtEnv() VirtualizationEnvironment {
 	return currentVirtEnv
+}
+
+func CurrentSystemManufacturer() string {
+	return currentSystemManufacturer
 }
 
 // SystemdDetectVirt detects the virtualization type of the host, using "systemd-detect-virt".
@@ -119,22 +133,6 @@ func SystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error) {
 	}
 
 	return virt, nil
-}
-
-var currentSystemManufacturer string
-
-func init() {
-	var err error
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	currentSystemManufacturer, err = SystemManufacturer(ctx)
-	cancel()
-	if err != nil {
-		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
-	}
-}
-
-func CurrentSystemManufacturer() string {
-	return currentSystemManufacturer
 }
 
 // SystemManufacturer detects the system manufacturer, using "dmidecode".

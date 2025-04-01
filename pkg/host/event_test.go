@@ -227,7 +227,7 @@ func TestOSEventStore(t *testing.T) {
 
 	// Test creating new event recorder
 	t.Run("create new event recorder", func(t *testing.T) {
-		recorder := NewEventRecorder(store)
+		recorder := NewRebootEventStore(store)
 		assert.NotNil(t, recorder)
 	})
 
@@ -245,7 +245,7 @@ func TestOSEventStore(t *testing.T) {
 			return recentTime, nil
 		}
 
-		recorder := &osEventStore{
+		recorder := &rebootEventStore{
 			getLastRebootTime: mockLastReboot,
 			eventStore:        store,
 		}
@@ -273,7 +273,7 @@ func TestOSEventStore(t *testing.T) {
 		require.NoError(t, err)
 		bucket.Close()
 
-		recorder := &osEventStore{
+		recorder := &rebootEventStore{
 			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
 				return time.Now(), nil
 			},
@@ -322,7 +322,7 @@ func TestEventStoreInterface(t *testing.T) {
 	t.Parallel()
 
 	// Verify that osEventStore implements EventStore interface
-	var _ EventStore = &osEventStore{}
+	var _ RebootEventStore = &rebootEventStore{}
 }
 
 func TestRecordEventWithContextTimeout(t *testing.T) {

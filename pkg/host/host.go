@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	currentHostID          string
-	currentArch            string
-	currentKernelVersion   string
-	currentPlatform        string
-	currentPlatformFamily  string
-	currentPlatformVersion string
-	currentBootTime        uint64
+	currentHostID              string
+	currentArch                string
+	currentKernelVersion       string
+	currentPlatform            string
+	currentPlatformFamily      string
+	currentPlatformVersion     string
+	currentBootTimeUnixSeconds uint64
 )
 
 func init() {
@@ -39,7 +39,7 @@ func init() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	currentBootTime, err = host.BootTimeWithContext(ctx)
+	currentBootTimeUnixSeconds, err = host.BootTimeWithContext(ctx)
 	if err != nil {
 		log.Logger.Errorw("failed to get boot time", "error", err)
 	}
@@ -69,6 +69,6 @@ func CurrentPlatformVersion() string {
 	return currentPlatformVersion
 }
 
-func CurrentBootTime() uint64 {
-	return currentBootTime
+func CurrentBootTimeUnixSeconds() uint64 {
+	return currentBootTimeUnixSeconds
 }

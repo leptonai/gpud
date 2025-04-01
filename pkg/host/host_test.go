@@ -47,7 +47,7 @@ func TestCurrentPlatformVersion(t *testing.T) {
 }
 
 func TestCurrentBootTime(t *testing.T) {
-	bootTime := CurrentBootTime()
+	bootTime := CurrentBootTimeUnixSeconds()
 	if bootTime == 0 {
 		t.Error("CurrentBootTime() returned 0")
 	}

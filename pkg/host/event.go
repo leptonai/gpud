@@ -15,30 +15,30 @@ import (
 
 const defaultBucketName = "os"
 
-type EventStore interface {
+type RebootEventStore interface {
 	RecordReboot(ctx context.Context) error
 	GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error)
 }
 
-var _ EventStore = &osEventStore{}
+var _ RebootEventStore = &rebootEventStore{}
 
-type osEventStore struct {
+type rebootEventStore struct {
 	getLastRebootTime func(context.Context) (time.Time, error)
 	eventStore        eventstore.Store
 }
 
-func NewEventRecorder(eventStore eventstore.Store) EventStore {
-	return &osEventStore{
+func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
+	return &rebootEventStore{
 		getLastRebootTime: LastReboot,
 		eventStore:        eventStore,
 	}
 }
 
-func (s *osEventStore) RecordReboot(ctx context.Context) error {
+func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, s.getLastRebootTime)
 }
 
-func (s *osEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 

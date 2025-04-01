@@ -2,9 +2,7 @@ package os
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	os_id "github.com/leptonai/gpud/components/os/id"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -135,11 +132,11 @@ func (o *Output) States() ([]components.State, error) {
 		{
 			Name:    StateNameMachineMetadata,
 			Healthy: true,
-			Reason:  fmt.Sprintf("boot id: %s, dmidecode uuid: %s, os machine id: %s", currentMachineMetadata.BootID, currentMachineMetadata.DmidecodeUUID, currentMachineMetadata.OSMachineID),
+			Reason:  fmt.Sprintf("boot id: %s, dmidecode uuid: %s, os machine id: %s", pkghost.CurrentBootID(), pkghost.CurrentDmidecodeUUID(), pkghost.CurrentOSMachineID()),
 			ExtraInfo: map[string]string{
-				StateKeyMachineMetadataBootID:        currentMachineMetadata.BootID,
-				StateKeyMachineMetadataDmidecodeUUID: currentMachineMetadata.DmidecodeUUID,
-				StateKeyMachineMetadataOSMachineID:   currentMachineMetadata.OSMachineID,
+				StateKeyMachineMetadataBootID:        pkghost.CurrentBootID(),
+				StateKeyMachineMetadataDmidecodeUUID: pkghost.CurrentDmidecodeUUID(),
+				StateKeyMachineMetadataOSMachineID:   pkghost.CurrentOSMachineID(),
 			},
 		},
 		{
@@ -209,53 +206,6 @@ type MachineMetadata struct {
 }
 
 var (
-	currentMachineMetadata    MachineMetadata
-	currentSystemManufacturer string
-)
-
-func init() {
-	// Linux-specific operations
-	if runtime.GOOS != "linux" {
-		return
-	}
-
-	// File descriptor limit check is Linux-specific
-	if file.CheckFDLimitSupported() {
-		limit, err := file.GetLimit()
-		if limit > 0 && err == nil {
-			// set to 20% of system limit
-			DefaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
-		}
-	}
-
-	// Get boot ID (Linux-specific)
-	var err error
-	currentMachineMetadata.BootID, err = pkghost.GetBootID()
-	if err != nil {
-		log.Logger.Warnw("failed to get boot id", "error", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	currentMachineMetadata.DmidecodeUUID, err = pkghost.DmidecodeUUID(ctx)
-	cancel()
-	if err != nil {
-		log.Logger.Debugw("failed to get dmidecode uuid", "error", err)
-	}
-
-	currentMachineMetadata.OSMachineID, err = pkghost.ReadOSMachineID()
-	if err != nil {
-		log.Logger.Warnw("failed to get os machine id", "error", err)
-	}
-
-	cctx, ccancel := context.WithTimeout(context.Background(), 20*time.Second)
-	currentSystemManufacturer, err = pkghost.SystemManufacturer(cctx)
-	ccancel()
-	if err != nil {
-		log.Logger.Warnw("failed to get system manufacturer", "error", err)
-	}
-}
-
-var (
 	defaultPollerOnce sync.Once
 	defaultPoller     query.Poller
 )
@@ -282,66 +232,25 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 	return func(ctx context.Context) (_ any, e error) {
 		o := &Output{}
 
-		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-		virtEnv, err := getSystemdDetectVirtFunc(cctx)
-		ccancel()
-		if err != nil {
-			// ignore "context.DeadlineExceeded" since it's not a critical error and it's non-actionable
-			if !errors.Is(err, context.DeadlineExceeded) {
-				return nil, fmt.Errorf("failed to get virtualization environment using 'systemd-detect-virt': %w", err)
-			}
-			log.Logger.Warnw("failed to get virtualization environment using 'systemd-detect-virt'", "error", err)
+		o.VirtualizationEnvironment = pkghost.CurrentVirtEnv()
+		o.SystemManufacturer = pkghost.CurrentSystemManufacturer()
+
+		o.MachineMetadata = MachineMetadata{
+			BootID:        pkghost.CurrentBootID(),
+			DmidecodeUUID: pkghost.CurrentDmidecodeUUID(),
+			OSMachineID:   pkghost.CurrentOSMachineID(),
 		}
-		o.VirtualizationEnvironment = virtEnv
 
-		// for some reason, init failed
-		if currentSystemManufacturer == "" && runtime.GOOS == "linux" {
-			cctx, ccancel = context.WithTimeout(ctx, 20*time.Second)
-			currentSystemManufacturer, err = pkghost.SystemManufacturer(cctx)
-			ccancel()
-			if err != nil {
-				log.Logger.Warnw("failed to get system manufacturer", "error", err)
-			}
-		}
-		o.SystemManufacturer = currentSystemManufacturer
-
-		o.MachineMetadata = currentMachineMetadata
-
-		if err = createRebootEvent(ctx, eventBucket, pkghost.LastReboot); err != nil {
+		if err := createRebootEvent(ctx, eventBucket, pkghost.LastReboot); err != nil {
 			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 
-		hostID, err := host.HostID()
-		if err != nil {
-			return nil, err
-		}
-		o.Host = Host{ID: hostID}
+		o.Host = Host{ID: pkghost.CurrentHostID()}
+		o.Kernel = Kernel{Arch: pkghost.CurrentArch(), Version: pkghost.CurrentKernelVersion()}
+		o.Platform = Platform{Name: pkghost.CurrentPlatform(), Family: pkghost.CurrentPlatformFamily(), Version: pkghost.CurrentPlatformVersion()}
 
-		arch, err := host.KernelArch()
-		if err != nil {
-			return nil, err
-		}
-		kernelVer, err := host.KernelVersion()
-		if err != nil {
-			return nil, err
-		}
-		o.Kernel = Kernel{Arch: arch, Version: kernelVer}
-
-		platform, family, version, err := host.PlatformInformation()
-		if err != nil {
-			return nil, err
-		}
-		o.Platform = Platform{Name: platform, Family: family, Version: version}
-
-		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
+		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
 		uptime, err := host.UptimeWithContext(cctx)
-		ccancel()
-		if err != nil {
-			return nil, err
-		}
-
-		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
-		boottime, err := host.BootTimeWithContext(cctx)
 		ccancel()
 		if err != nil {
 			return nil, err
@@ -351,8 +260,8 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 		o.Uptimes = Uptimes{
 			Seconds:             uptime,
 			SecondsHumanized:    humanize.RelTime(now.Add(time.Duration(-int64(uptime))*time.Second), now, "ago", "from now"),
-			BootTimeUnixSeconds: boottime,
-			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(boottime), 0), now, "ago", "from now"),
+			BootTimeUnixSeconds: pkghost.CurrentBootTimeUnixSeconds(),
+			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(pkghost.CurrentBootTimeUnixSeconds()), 0), now, "ago", "from now"),
 		}
 
 		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
