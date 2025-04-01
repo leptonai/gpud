@@ -359,7 +359,7 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 
 func (o *output) checkUUID(ctx context.Context) error {
 	if commandExists("dmidecode") {
-		machineID, err := host.DmidecodeUUID(ctx)
+		machineID, err := host.GetDmidecodeUUID(ctx)
 		if err != nil {
 			return err
 		}

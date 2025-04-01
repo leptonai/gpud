@@ -72,21 +72,21 @@ func loadInfo() {
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	currentDmidecodeUUID, err = DmidecodeUUID(ctx)
+	currentDmidecodeUUID, err = GetDmidecodeUUID(ctx)
 	cancel()
 	if err != nil {
 		log.Logger.Errorw("failed to get UUID from dmidecode", "error", err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	currentVirtEnv, err = SystemdDetectVirt(ctx)
+	currentVirtEnv, err = GetSystemdDetectVirt(ctx)
 	cancel()
 	if err != nil {
 		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	currentSystemManufacturer, err = SystemManufacturer(ctx)
+	currentSystemManufacturer, err = GetSystemManufacturer(ctx)
 	cancel()
 	if err != nil {
 		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
@@ -98,54 +98,54 @@ func loadInfo() {
 	}
 }
 
-func CurrentHostID() string {
+func HostID() string {
 	return currentHostID
 }
 
-func CurrentArch() string {
+func Arch() string {
 	return currentArch
 }
 
-func CurrentKernelVersion() string {
+func KernelVersion() string {
 	return currentKernelVersion
 }
 
-func CurrentPlatform() string {
+func Platform() string {
 	return currentPlatform
 }
 
-func CurrentPlatformFamily() string {
+func PlatformFamily() string {
 	return currentPlatformFamily
 }
 
-func CurrentPlatformVersion() string {
+func PlatformVersion() string {
 	return currentPlatformVersion
 }
 
-func CurrentBootTimeUnixSeconds() uint64 {
+func BootTimeUnixSeconds() uint64 {
 	return currentBootTimeUnixSeconds
 }
 
-func CurrentBootID() string {
+func BootID() string {
 	return currentBootID
 }
 
-func CurrentMachineID() string {
+func MachineID() string {
 	return currentMachineID
 }
 
-func CurrentDmidecodeUUID() string {
+func DmidecodeUUID() string {
 	return currentDmidecodeUUID
 }
 
-func CurrentVirtEnv() VirtualizationEnvironment {
+func VirtEnv() VirtualizationEnvironment {
 	return currentVirtEnv
 }
 
-func CurrentSystemManufacturer() string {
+func SystemManufacturer() string {
 	return currentSystemManufacturer
 }
 
-func CurrentOSMachineID() string {
+func OSMachineID() string {
 	return currentOSMachineID
 }

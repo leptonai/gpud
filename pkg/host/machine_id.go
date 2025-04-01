@@ -16,7 +16,7 @@ import (
 // Returns an empty string if the UUID is not found.
 func GetMachineID(ctx context.Context) (string, error) {
 	// hw-based UUID first
-	uuid, err := DmidecodeUUID(ctx)
+	uuid, err := GetDmidecodeUUID(ctx)
 	if err != nil {
 		log.Logger.Warnw("failed to get UUID from dmidecode, trying to read from file", "error", err)
 
@@ -31,7 +31,7 @@ func GetMachineID(ctx context.Context) (string, error) {
 //
 // ref.
 // UUID=$(dmidecode -t 1 | grep -i UUID | awk '{print $2}')
-func DmidecodeUUID(ctx context.Context) (string, error) {
+func GetDmidecodeUUID(ctx context.Context) (string, error) {
 	dmidecodePath, err := file.LocateExecutable("dmidecode")
 	if err != nil {
 		return "", errors.New("dmidecode not found")

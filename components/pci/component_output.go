@@ -54,11 +54,11 @@ func CreateGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 		// Virtual machines require ACS to function, hence disabling ACS is not an option.
 		//
 		// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
-		if host.CurrentVirtEnv().IsKVM {
+		if host.VirtEnv().IsKVM {
 			return nil, nil
 		}
 		// unknown virtualization environment
-		if host.CurrentVirtEnv().Type == "" {
+		if host.VirtEnv().Type == "" {
 			return nil, nil
 		}
 
@@ -131,6 +131,6 @@ func createEvent(time time.Time, devices []pci.Device) *components.Event {
 		Time:    metav1.Time{Time: time.UTC()},
 		Name:    "acs_enabled",
 		Type:    common.EventTypeWarning,
-		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", host.CurrentVirtEnv().Type, strings.Join(uuids, ", ")),
+		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", host.VirtEnv().Type, strings.Join(uuids, ", ")),
 	}
 }

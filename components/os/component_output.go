@@ -132,11 +132,11 @@ func (o *Output) States() ([]components.State, error) {
 		{
 			Name:    StateNameMachineMetadata,
 			Healthy: true,
-			Reason:  fmt.Sprintf("boot id: %s, dmidecode uuid: %s, os machine id: %s", pkghost.CurrentBootID(), pkghost.CurrentDmidecodeUUID(), pkghost.CurrentOSMachineID()),
+			Reason:  fmt.Sprintf("boot id: %s, dmidecode uuid: %s, os machine id: %s", pkghost.BootID(), pkghost.DmidecodeUUID(), pkghost.OSMachineID()),
 			ExtraInfo: map[string]string{
-				StateKeyMachineMetadataBootID:        pkghost.CurrentBootID(),
-				StateKeyMachineMetadataDmidecodeUUID: pkghost.CurrentDmidecodeUUID(),
-				StateKeyMachineMetadataOSMachineID:   pkghost.CurrentOSMachineID(),
+				StateKeyMachineMetadataBootID:        pkghost.BootID(),
+				StateKeyMachineMetadataDmidecodeUUID: pkghost.DmidecodeUUID(),
+				StateKeyMachineMetadataOSMachineID:   pkghost.OSMachineID(),
 			},
 		},
 		{
@@ -230,22 +230,22 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 	return func(ctx context.Context) (_ any, e error) {
 		o := &Output{}
 
-		o.VirtualizationEnvironment = pkghost.CurrentVirtEnv()
-		o.SystemManufacturer = pkghost.CurrentSystemManufacturer()
+		o.VirtualizationEnvironment = pkghost.VirtEnv()
+		o.SystemManufacturer = pkghost.SystemManufacturer()
 
 		o.MachineMetadata = MachineMetadata{
-			BootID:        pkghost.CurrentBootID(),
-			DmidecodeUUID: pkghost.CurrentDmidecodeUUID(),
-			OSMachineID:   pkghost.CurrentOSMachineID(),
+			BootID:        pkghost.BootID(),
+			DmidecodeUUID: pkghost.DmidecodeUUID(),
+			OSMachineID:   pkghost.OSMachineID(),
 		}
 
 		if err := createRebootEvent(ctx, eventBucket, pkghost.LastReboot); err != nil {
 			log.Logger.Warnw("failed to create reboot event", "error", err)
 		}
 
-		o.Host = Host{ID: pkghost.CurrentHostID()}
-		o.Kernel = Kernel{Arch: pkghost.CurrentArch(), Version: pkghost.CurrentKernelVersion()}
-		o.Platform = Platform{Name: pkghost.CurrentPlatform(), Family: pkghost.CurrentPlatformFamily(), Version: pkghost.CurrentPlatformVersion()}
+		o.Host = Host{ID: pkghost.HostID()}
+		o.Kernel = Kernel{Arch: pkghost.Arch(), Version: pkghost.KernelVersion()}
+		o.Platform = Platform{Name: pkghost.Platform(), Family: pkghost.PlatformFamily(), Version: pkghost.PlatformVersion()}
 
 		cctx, ccancel := context.WithTimeout(ctx, 10*time.Second)
 		uptime, err := host.UptimeWithContext(cctx)
@@ -258,8 +258,8 @@ func createGet(eventBucket eventstore.Bucket) func(ctx context.Context) (_ any, 
 		o.Uptimes = Uptimes{
 			Seconds:             uptime,
 			SecondsHumanized:    humanize.RelTime(now.Add(time.Duration(-int64(uptime))*time.Second), now, "ago", "from now"),
-			BootTimeUnixSeconds: pkghost.CurrentBootTimeUnixSeconds(),
-			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(pkghost.CurrentBootTimeUnixSeconds()), 0), now, "ago", "from now"),
+			BootTimeUnixSeconds: pkghost.BootTimeUnixSeconds(),
+			BootTimeHumanized:   humanize.RelTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0), now, "ago", "from now"),
 		}
 
 		cctx, ccancel = context.WithTimeout(ctx, 10*time.Second)
