@@ -92,7 +92,7 @@ func loadInfo() {
 		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
 	}
 
-	currentOSMachineID, err = ReadOSMachineID()
+	currentOSMachineID, err = GetOSMachineID()
 	if err != nil {
 		log.Logger.Errorw("failed to get machine id", "error", err)
 	}

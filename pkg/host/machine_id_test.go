@@ -93,7 +93,7 @@ func TestGetOSMachineID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := readOSMachineID(tc.files)
+			got, err := getOSMachineID(tc.files)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("getOSMachineID() error = %v, wantErr %v", err, tc.wantErr)
@@ -111,7 +111,7 @@ func TestGetOSMachineIDWithTestData(t *testing.T) {
 	// Test using the sample file in testdata directory
 	files := []string{"testdata/machine_id_sample"}
 
-	id, err := readOSMachineID(files)
+	id, err := getOSMachineID(files)
 	if err != nil {
 		t.Fatalf("Failed to get machine ID from test file: %v", err)
 	}

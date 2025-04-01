@@ -10,10 +10,10 @@ const bootIDPath = "/proc/sys/kernel/random/boot_id"
 
 // Returns an empty string if the boot ID is not found.
 func GetBootID() (string, error) {
-	return readBootID(bootIDPath)
+	return getBootID(bootIDPath)
 }
 
-func readBootID(file string) (string, error) {
+func getBootID(file string) (string, error) {
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		return "", nil
 	}

@@ -21,7 +21,7 @@ func GetMachineID(ctx context.Context) (string, error) {
 		log.Logger.Warnw("failed to get UUID from dmidecode, trying to read from file", "error", err)
 
 		// otherwise, try to read from file
-		return ReadOSMachineID()
+		return GetOSMachineID()
 	}
 	return uuid, nil
 }
@@ -89,13 +89,13 @@ var machineIDPaths = []string{
 	"/var/lib/dbus/machine-id",
 }
 
-// ReadOSMachineID returns the OS-level UUID based on /etc/machine-id or /var/lib/dbus/machine-id.
+// GetOSMachineID returns the OS-level UUID based on /etc/machine-id or /var/lib/dbus/machine-id.
 // Returns an empty string if the UUID is not found.
-func ReadOSMachineID() (string, error) {
-	return readOSMachineID(machineIDPaths)
+func GetOSMachineID() (string, error) {
+	return getOSMachineID(machineIDPaths)
 }
 
-func readOSMachineID(files []string) (string, error) {
+func getOSMachineID(files []string) (string, error) {
 	for _, path := range files {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue

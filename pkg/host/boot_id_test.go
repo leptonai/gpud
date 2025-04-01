@@ -66,7 +66,7 @@ func TestGetBootID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := readBootID(tc.file)
+			got, err := getBootID(tc.file)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("getBootID() error = %v, wantErr %v", err, tc.wantErr)
@@ -89,7 +89,7 @@ func TestGetBootIDWithTestData(t *testing.T) {
 	}
 	defer os.Remove(testFile)
 
-	id, err := readBootID(testFile)
+	id, err := getBootID(testFile)
 	if err != nil {
 		t.Fatalf("Failed to get boot ID from test file: %v", err)
 	}
