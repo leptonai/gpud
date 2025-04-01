@@ -10,7 +10,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
-	"github.com/leptonai/gpud/components/systemd"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
@@ -76,7 +75,12 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		}, nil
 	}
 
-	defaultConn := systemd.GetDefaultDbusConn()
+	cctx, cancel := context.WithCancel(c.rootCtx)
+	defer cancel()
+	defaultConn, err := pkg_systemd.NewDbusConn(cctx)
+	if err != nil {
+		return nil, err
+	}
 	if defaultConn == nil {
 		log.Logger.Errorw("systemd dbus connection not available")
 		return nil, errors.New("systemd dbus connection not available")
