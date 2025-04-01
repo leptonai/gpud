@@ -40,6 +40,7 @@ type component struct {
 	lastMu      sync.RWMutex
 	lastData    *Data
 	lastHealthy bool
+	lastReason  string
 }
 
 func New(ctx context.Context, kubeletReadOnlyPort int, ignoreConnectionErrors bool) components.Component {
@@ -82,7 +83,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates(c.failedCount, c.lastHealthy)
+	return lastData.getStates(c.lastReason, c.lastHealthy)
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -118,11 +119,15 @@ func (c *component) CheckOnce() {
 
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
+		c.lastHealthy = true
+		c.lastReason = "kubelet is not installed"
 		return
 	}
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
+		c.lastHealthy = true
+		c.lastReason = "kubelet is installed but not running"
 		return
 	}
 
@@ -138,29 +143,19 @@ func (c *component) CheckOnce() {
 	}
 
 	c.lastHealthy = d.err == nil
+	if d.err == nil {
+		c.lastReason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
+	}
+
 	if isConnectionRefusedError(d.err) && c.ignoreConnectionErrors {
+		// e.g.,
+		// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
 		c.lastHealthy = true
+		c.lastReason = "connection error but ignored"
 	} else if c.failedCount >= c.failedCountThreshold {
 		c.lastHealthy = false
+		c.lastReason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
 	}
-}
-
-func (d *Data) getHealth(ignoreConnErr bool, failedCount int, failedCountThreshold int) (string, bool) {
-	healthy := d == nil || d.err == nil
-
-	if d != nil && d.err != nil && isConnectionRefusedError(d.err) && ignoreConnErr {
-		healthy = true
-	}
-
-	if d != nil && failedCount >= failedCountThreshold {
-		healthy = false
-	}
-
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
 }
 
 type Data struct {
@@ -177,24 +172,6 @@ type Data struct {
 	err error `json:"-"`
 }
 
-func (d *Data) getReason(failedCount int) string {
-	if d == nil || (d.err == nil && len(d.Pods) == 0) {
-		return "no pod found or kubelet is not running"
-	}
-
-	if d.err != nil {
-		if isConnectionRefusedError(d.err) {
-			// e.g.,
-			// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
-			return fmt.Sprintf("connection error to node %q -- %v", d.NodeName, d.err)
-		}
-
-		return fmt.Sprintf("list pods from kubelet read-only port failed %d time(s) (%v)", failedCount, d.err)
-	}
-
-	return fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
-}
-
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -202,7 +179,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates(failedCount int, lastHealthy bool) ([]components.State, error) {
+func (d *Data) getStates(lastReason string, lastHealthy bool) ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
@@ -216,7 +193,7 @@ func (d *Data) getStates(failedCount int, lastHealthy bool) ([]components.State,
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(failedCount),
+		Reason: lastReason,
 		Error:  d.getError(),
 
 		Healthy: lastHealthy,
