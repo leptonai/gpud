@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestCurrentHostID(t *testing.T) {
+func TestInit(t *testing.T) {
 	hostID := CurrentHostID()
 	if hostID == "" {
 		t.Error("CurrentHostID() returned empty string")

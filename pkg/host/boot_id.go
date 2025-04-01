@@ -2,10 +2,7 @@ package host
 
 import (
 	"os"
-	"runtime"
 	"strings"
-
-	"github.com/leptonai/gpud/pkg/log"
 )
 
 // ref. https://github.com/google/cadvisor/blob/854445c010e0b634fcd855a20681ae986da235df/machine/info.go#L40
@@ -25,21 +22,4 @@ func readBootID(file string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(content)), nil
-}
-
-var currentBootID string
-
-func init() {
-	if runtime.GOOS != "linux" {
-		return
-	}
-	var err error
-	currentBootID, err = GetBootID()
-	if err != nil {
-		log.Logger.Errorw("failed to get boot id", "error", err)
-	}
-}
-
-func CurrentBootID() string {
-	return currentBootID
 }
