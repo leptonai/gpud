@@ -48,26 +48,6 @@ func TestRegister(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestSetLastUpdateUnixSeconds(t *testing.T) {
-	reg, cleanup := setupTestRegistry(t)
-	defer cleanup()
-
-	testTime := float64(1234567890)
-	SetLastUpdateUnixSeconds(testTime)
-
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-
-	found := false
-	for _, m := range metrics {
-		if m.GetName() == "accelerator_nvidia_remapped_rows_last_update_unix_seconds" {
-			found = true
-			assert.Equal(t, testTime, m.GetMetric()[0].GetGauge().GetValue())
-		}
-	}
-	assert.True(t, found, "Last update metric not found")
-}
-
 func TestSetRemappedDueToUncorrectableErrors(t *testing.T) {
 	reg, cleanup := setupTestRegistry(t)
 	defer cleanup()

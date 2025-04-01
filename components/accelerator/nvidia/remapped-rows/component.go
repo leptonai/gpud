@@ -155,7 +155,6 @@ func (c *component) CheckOnce() {
 
 		ts: time.Now().UTC(),
 	}
-	metrics.SetLastUpdateUnixSeconds(float64(d.ts.Unix()))
 	defer func() {
 		c.lastMu.Lock()
 		c.lastData = &d
