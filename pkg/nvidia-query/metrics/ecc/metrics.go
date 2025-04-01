@@ -16,14 +16,9 @@ import (
 const SubSystem = "accelerator_nvidia_ecc"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+	}
 
 	aggregateTotalCorrected = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -33,9 +28,7 @@ var (
 			Help:      "tracks the current aggregate total corrected",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
-	})
+	).MustCurryWith(componentLabel)
 	aggregateTotalCorrectedAverager = components_metrics.NewNoOpAverager()
 
 	aggregateTotalUncorrected = prometheus.NewGaugeVec(
@@ -46,9 +39,7 @@ var (
 			Help:      "tracks the current aggregate total uncorrected",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
-	})
+	).MustCurryWith(componentLabel)
 	aggregateTotalUncorrectedAverager = components_metrics.NewNoOpAverager()
 
 	volatileTotalCorrected = prometheus.NewGaugeVec(
@@ -59,9 +50,7 @@ var (
 			Help:      "tracks the current volatile total corrected",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
-	})
+	).MustCurryWith(componentLabel)
 	volatileTotalCorrectedAverager = components_metrics.NewNoOpAverager()
 
 	volatileTotalUncorrected = prometheus.NewGaugeVec(
@@ -72,9 +61,7 @@ var (
 			Help:      "tracks the current volatile total uncorrected",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
-	})
+	).MustCurryWith(componentLabel)
 	volatileTotalUncorrectedAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -99,10 +86,6 @@ func ReadVolatileTotalCorrected(ctx context.Context, since time.Time) (component
 
 func ReadVolatileTotalUncorrected(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return volatileTotalUncorrectedAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetAggregateTotalCorrected(ctx context.Context, gpuID string, cnt float64, currentTime time.Time) error {
@@ -168,9 +151,6 @@ func SetVolatileTotalUncorrected(ctx context.Context, gpuID string, cnt float64,
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(aggregateTotalCorrected); err != nil {
 		return err
 	}

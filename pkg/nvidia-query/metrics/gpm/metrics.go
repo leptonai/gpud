@@ -18,14 +18,9 @@ import (
 const SubSystem = "accelerator_nvidia_gpm"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
+	}
 
 	// gpuSMOccupancyPercent is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
 	// It's defined as NVML_GPM_METRIC_SM_OCCUPANCY or DCGM_FI_PROF_SM_OCCUPANCY in DCGM exporter.
@@ -40,9 +35,7 @@ var (
 			Help:      "tracks the current GPU SM occupancy, as a percentage of warps that were active vs theoretical maximum",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuSMOccupancyPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuIntUtilPercent is the percentage of time the GPU's SMs were doing integer operations (0.0 - 100.0).
@@ -55,9 +48,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing integer operations",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuIntUtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuAnyTensorUtilPercent is the percentage of time the GPU's SMs were doing ANY tensor operations (0.0 - 100.0).
@@ -70,9 +61,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing ANY tensor operations",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuAnyTensorUtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuDFMATensorUtilPercent is the percentage of time the GPU's SMs were doing DFMA tensor operations (0.0 - 100.0).
@@ -85,9 +74,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing DFMA tensor operations",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuDFMATensorUtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuHMMATensorUtilPercent is the percentage of time the GPU's SMs were doing HMMA tensor operations (0.0 - 100.0).
@@ -100,9 +87,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing HMMA tensor operations",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuHMMATensorUtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuIMMATensorUtilPercent is the percentage of time the GPU's SMs were doing IMMA tensor operations (0.0 - 100.0).
@@ -115,9 +100,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing IMMA tensor operations",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuIMMATensorUtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuFp64UtilPercent is the percentage of time the GPU's SMs were doing non-tensor FP64 math (0.0 - 100.0).
@@ -130,9 +113,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing non-tensor FP64 math",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuFp64UtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuFp32UtilPercent is the percentage of time the GPU's SMs were doing non-tensor FP32 math (0.0 - 100.0).
@@ -145,9 +126,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing non-tensor FP32 math",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuFp32UtilPercentAverager = components_metrics.NewNoOpAverager()
 
 	// gpuFp16UtilPercent is the percentage of time the GPU's SMs were doing non-tensor FP16 math (0.0 - 100.0).
@@ -160,9 +139,7 @@ var (
 		Help:      "tracks the percentage of time the GPU's SMs were doing non-tensor FP16 math",
 	},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
-	})
+	).MustCurryWith(componentLabel)
 	gpuFp16UtilPercentAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -212,10 +189,6 @@ func ReadGPUFp32UtilPercents(ctx context.Context, since time.Time) (components_m
 
 func ReadGPUFp16UtilPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return gpuFp16UtilPercentAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetGPUUtilPercent(ctx context.Context, metricID nvml.GpmMetricId, gpuID string, pct float64, currentTime time.Time) error {
@@ -322,9 +295,6 @@ func SetGPUUtilPercent(ctx context.Context, metricID nvml.GpmMetricId, gpuID str
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(gpuSMOccupancyPercent); err != nil {
 		return err
 	}

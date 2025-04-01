@@ -19,14 +19,9 @@ const SubSystem = "accelerator_nvidia_memory"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+	}
 
 	totalBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -36,9 +31,7 @@ var (
 			Help:      "tracks the total memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
 	reservedBytes = prometheus.NewGaugeVec(
@@ -49,9 +42,7 @@ var (
 			Help:      "tracks the reserved memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 
 	usedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -61,9 +52,7 @@ var (
 			Help:      "tracks the used memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -73,9 +62,7 @@ var (
 			Help:      "tracks the used memory in bytes with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 
 	freeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,9 +72,7 @@ var (
 			Help:      "tracks the free memory in bytes",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 
 	usedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -97,9 +82,7 @@ var (
 			Help:      "tracks the percentage of memory used",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -109,9 +92,7 @@ var (
 			Help:      "tracks the percentage of memory used with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
-	})
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -130,10 +111,6 @@ func ReadUsedBytes(ctx context.Context, since time.Time) (components_metrics_sta
 
 func ReadUsedPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return usedPercentAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetTotalBytes(ctx context.Context, gpuID string, bytes float64, currentTime time.Time) error {
@@ -216,9 +193,6 @@ func SetUsedPercent(ctx context.Context, gpuID string, pct float64, currentTime 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(totalBytes); err != nil {
 		return err
 	}

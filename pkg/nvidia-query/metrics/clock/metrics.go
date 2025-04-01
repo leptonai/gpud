@@ -19,15 +19,6 @@ const SubSystem = "accelerator_nvidia_clock"
 var (
 	initOnce sync.Once
 
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
-
 	hwSlowdown = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
@@ -86,10 +77,6 @@ func ReadHWSlowdownThermal(ctx context.Context, since time.Time) (components_met
 
 func ReadHWSlowdownPowerBrake(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return hwSlowdownPowerBrakeAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetHWSlowdown(ctx context.Context, gpuID string, b bool, currentTime time.Time) error {
@@ -152,9 +139,6 @@ func SetHWSlowdownPowerBrake(ctx context.Context, gpuID string, b bool, currentT
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(hwSlowdown); err != nil {
 		return err
 	}

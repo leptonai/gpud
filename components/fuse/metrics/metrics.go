@@ -16,14 +16,9 @@ import (
 const SubSystem = "fuse"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "fuse",
+	}
 
 	connsCongestedPct = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -33,9 +28,7 @@ var (
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "fuse",
-	})
+	).MustCurryWith(componentLabel)
 	connsCongestedPctAverager = components_metrics.NewNoOpAverager()
 
 	connsMaxBackgroundPct = prometheus.NewGaugeVec(
@@ -46,9 +39,7 @@ var (
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is device name
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "fuse",
-	})
+	).MustCurryWith(componentLabel)
 	connsMaxBackgroundPctAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -63,10 +54,6 @@ func ReadConnectionsCongestedPercents(ctx context.Context, since time.Time) (com
 
 func ReadConnectionsMaxBackgroundPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return connsMaxBackgroundPctAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetConnectionsCongestedPercent(ctx context.Context, deviceName string, pct float64, currentTime time.Time) error {
@@ -102,9 +89,6 @@ func SetConnectionsMaxBackgroundPercent(ctx context.Context, deviceName string, 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(connsCongestedPct); err != nil {
 		return err
 	}

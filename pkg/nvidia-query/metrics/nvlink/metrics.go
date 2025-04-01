@@ -16,14 +16,9 @@ import (
 const SubSystem = "accelerator_nvidia_nvlink"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
+	}
 
 	featureEnabled = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -33,9 +28,7 @@ var (
 			Help:      "tracks the NVLink feature enabled (aggregated for all links per GPU)",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
-	})
+	).MustCurryWith(componentLabel)
 	featureEnabledAverager = components_metrics.NewNoOpAverager()
 
 	replayErrors = prometheus.NewGaugeVec(
@@ -46,9 +39,7 @@ var (
 			Help:      "tracks the relay errors in NVLink (aggregated for all links per GPU)",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
-	})
+	).MustCurryWith(componentLabel)
 	replayErrorsAverager = components_metrics.NewNoOpAverager()
 
 	recoveryErrors = prometheus.NewGaugeVec(
@@ -59,9 +50,7 @@ var (
 			Help:      "tracks the recovery errors in NVLink (aggregated for all links per GPU)",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
-	})
+	).MustCurryWith(componentLabel)
 	recoveryErrorsAverager = components_metrics.NewNoOpAverager()
 
 	crcErrors = prometheus.NewGaugeVec(
@@ -72,9 +61,7 @@ var (
 			Help:      "tracks the CRC errors in NVLink (aggregated for all links per GPU)",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
-	})
+	).MustCurryWith(componentLabel)
 	crcErrorsAverager = components_metrics.NewNoOpAverager()
 )
 
@@ -99,10 +86,6 @@ func ReadRecoveryErrors(ctx context.Context, since time.Time) (components_metric
 
 func ReadCRCErrors(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return crcErrorsAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetFeatureEnabled(ctx context.Context, gpuID string, enabled bool, currentTime time.Time) error {
@@ -172,9 +155,6 @@ func SetCRCErrors(ctx context.Context, gpuID string, errors uint64, currentTime 
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(featureEnabled); err != nil {
 		return err
 	}

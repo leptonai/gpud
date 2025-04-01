@@ -19,14 +19,9 @@ const SubSystem = "accelerator_nvidia_temperature"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
+	}
 
 	currentCelsius = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -36,9 +31,7 @@ var (
 			Help:      "tracks the current temperature in celsius",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
-	})
+	).MustCurryWith(componentLabel)
 	currentCelsiusAverager = components_metrics.NewNoOpAverager()
 	currentCelsiusAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -48,9 +41,7 @@ var (
 			Help:      "tracks the current temperature in celsius with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
-	})
+	).MustCurryWith(componentLabel)
 
 	thresholdSlowdownCelsius = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -60,9 +51,7 @@ var (
 			Help:      "tracks the threshold temperature in celsius for slowdown",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
-	})
+	).MustCurryWith(componentLabel)
 	thresholdSlowdownCelsiusAverager = components_metrics.NewNoOpAverager()
 
 	slowdownUsedPercent = prometheus.NewGaugeVec(
@@ -73,9 +62,7 @@ var (
 			Help:      "tracks the percentage of slowdown used",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
-	})
+	).MustCurryWith(componentLabel)
 	slowdownUsedPercentAverager = components_metrics.NewNoOpAverager()
 	slowdownUsedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,9 +72,7 @@ var (
 			Help:      "tracks the percentage of slowdown used with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is GPU ID
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
-	})
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -106,10 +91,6 @@ func ReadThresholdSlowdownCelsius(ctx context.Context, since time.Time) (compone
 
 func ReadSlowdownUsedPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return slowdownUsedPercentAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetCurrentCelsius(ctx context.Context, gpuID string, temp float64, currentTime time.Time) error {
@@ -184,9 +165,6 @@ func SetSlowdownUsedPercent(ctx context.Context, gpuID string, pct float64, curr
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(currentCelsius); err != nil {
 		return err
 	}

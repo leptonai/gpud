@@ -19,14 +19,9 @@ const SubSystem = "cpu"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "cpu",
+	}
 
 	// ref. https://www.digitalocean.com/community/tutorials/load-average-in-linux
 	loadAverage = prometheus.NewGaugeVec(
@@ -37,9 +32,7 @@ var (
 			Help:      "tracks the load average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "cpu",
-	})
+	).MustCurryWith(componentLabel)
 	loadAverage5minAverager = components_metrics.NewNoOpAverager()
 
 	usedPercent = prometheus.NewGaugeVec(
@@ -50,9 +43,7 @@ var (
 			Help:      "tracks the current file descriptor usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "cpu",
-	})
+	).MustCurryWith(componentLabel)
 	usedPercentAverager = components_metrics.NewNoOpAverager()
 	usedPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -62,9 +53,7 @@ var (
 			Help:      "tracks the file descriptor usage percentage with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "cpu",
-	})
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -78,10 +67,6 @@ func ReadLoadAverage5mins(ctx context.Context, since time.Time) (components_metr
 
 func ReadUsedPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return usedPercentAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetLoadAverage(ctx context.Context, duration time.Duration, avg float64, currentTime time.Time) error {
@@ -131,9 +116,6 @@ func SetUsedPercent(ctx context.Context, pct float64, currentTime time.Time) err
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(loadAverage); err != nil {
 		return err
 	}

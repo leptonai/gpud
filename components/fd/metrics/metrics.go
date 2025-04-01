@@ -15,15 +15,6 @@ import (
 const SubSystem = "fd"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
-
 	allocatedFileHandles = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "",
@@ -147,10 +138,6 @@ func ReadThresholdUsedPercents(ctx context.Context, since time.Time) (components
 	return thresholdUsedPercentAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetAllocatedFileHandles(ctx context.Context, handles float64, currentTime time.Time) error {
 	allocatedFileHandles.Set(handles)
 
@@ -261,9 +248,6 @@ func SetThresholdAllocatedFileHandlesPercent(ctx context.Context, pct float64, c
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(allocatedFileHandles); err != nil {
 		return err
 	}

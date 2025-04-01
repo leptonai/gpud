@@ -16,15 +16,6 @@ import (
 const SubSystem = "network_latency"
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
-
 	edgeInMilliseconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
@@ -47,10 +38,6 @@ func ReadEdgeInMilliseconds(ctx context.Context, since time.Time) (components_me
 	return edgeInMillisecondsAverager.Read(ctx, components_metrics.WithSince(since))
 }
 
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
-}
-
 func SetEdgeInMilliseconds(ctx context.Context, providerRegion string, latencyInMilliseconds float64, currentTime time.Time) error {
 	edgeInMilliseconds.With(prometheus.Labels{pkgmetrics.MetricLabelKey: providerRegion}).Set(latencyInMilliseconds)
 
@@ -68,9 +55,6 @@ func SetEdgeInMilliseconds(ctx context.Context, providerRegion string, latencyIn
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(edgeInMilliseconds); err != nil {
 		return err
 	}

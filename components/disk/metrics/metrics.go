@@ -19,14 +19,9 @@ const SubSystem = "disk"
 var defaultPeriods = []time.Duration{5 * time.Minute}
 
 var (
-	lastUpdateUnixSeconds = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "last_update_unix_seconds",
-			Help:      "tracks the last update time in unix seconds",
-		},
-	)
+	componentLabel = prometheus.Labels{
+		pkgmetrics.MetricComponentLabelKey: "disk",
+	}
 
 	totalBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -36,9 +31,7 @@ var (
 			Help:      "tracks the total bytes of the disk",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 	totalBytesAverager = components_metrics.NewNoOpAverager()
 
 	freeBytes = prometheus.NewGaugeVec(
@@ -49,9 +42,7 @@ var (
 			Help:      "tracks the current free bytes of the disk",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 
 	usedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -61,9 +52,7 @@ var (
 			Help:      "tracks the current free bytes of the disk",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 	usedBytesAverager = components_metrics.NewNoOpAverager()
 	usedBytesAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -73,9 +62,7 @@ var (
 			Help:      "tracks the disk bytes usage with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 
 	usedBytesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -85,9 +72,7 @@ var (
 			Help:      "tracks the current disk bytes usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 	usedBytesPercentAverager = components_metrics.NewNoOpAverager()
 	usedBytesPercentAverage  = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -97,9 +82,7 @@ var (
 			Help:      "tracks the disk bytes usage percentage with average for the last period",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey, "last_period"}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 
 	usedInodesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -109,9 +92,7 @@ var (
 			Help:      "tracks the current disk inodes usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is mount point
-	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
-	})
+	).MustCurryWith(componentLabel)
 )
 
 func InitAveragers(dbRW *sql.DB, dbRO *sql.DB, tableName string) {
@@ -130,10 +111,6 @@ func ReadUsedBytes(ctx context.Context, since time.Time) (components_metrics_sta
 
 func ReadUsedBytesPercents(ctx context.Context, since time.Time) (components_metrics_state.Metrics, error) {
 	return usedBytesPercentAverager.Read(ctx, components_metrics.WithSince(since))
-}
-
-func SetLastUpdateUnixSeconds(unixSeconds float64) {
-	lastUpdateUnixSeconds.Set(unixSeconds)
 }
 
 func SetTotalBytes(ctx context.Context, mountPoint string, bytes float64, currentTime time.Time) error {
@@ -216,9 +193,6 @@ func SetUsedInodesPercent(mountPoint string, pct float64) {
 func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
 	InitAveragers(dbRW, dbRO, tableName)
 
-	if err := reg.Register(lastUpdateUnixSeconds); err != nil {
-		return err
-	}
 	if err := reg.Register(totalBytes); err != nil {
 		return err
 	}
