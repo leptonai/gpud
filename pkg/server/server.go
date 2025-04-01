@@ -69,7 +69,6 @@ import (
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/fuse"
-	fuse_id "github.com/leptonai/gpud/components/fuse/id"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
@@ -285,23 +284,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, disk.New(ctx, cfg))
 
-		case fuse_id.Name:
-			cfg := fuse.Config{
-				Query:                                defaultQueryCfg,
-				CongestedPercentAgainstThreshold:     fuse.DefaultCongestedPercentAgainstThreshold,
-				MaxBackgroundPercentAgainstThreshold: fuse.DefaultMaxBackgroundPercentAgainstThreshold,
-			}
-			if configValue != nil {
-				parsed, err := fuse.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := fuse.New(ctx, cfg, eventStore)
+		case fuse.Name:
+			c, err := fuse.New(ctx, fuse.DefaultCongestedPercentAgainstThreshold, fuse.DefaultMaxBackgroundPercentAgainstThreshold, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}

@@ -3,115 +3,109 @@ package fuse
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	fuse_id "github.com/leptonai/gpud/components/fuse/id"
-	"github.com/leptonai/gpud/components/fuse/metrics"
+	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/query"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-func New(ctx context.Context, cfg Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(fuse_id.Name)
-	if err != nil {
-		return nil, err
-	}
+const (
+	Name = "fuse"
 
-	cfg.Query.SetDefaultsIfNotSet()
-	setDefaultPoller(cfg, eventBucket)
-
-	cctx, ccancel := context.WithCancel(ctx)
-	getDefaultPoller().Start(cctx, cfg.Query, fuse_id.Name)
-
-	return &component{
-		cfg:         cfg,
-		ctx:         cctx,
-		cancel:      ccancel,
-		poller:      getDefaultPoller(),
-		eventBucket: eventBucket,
-	}, nil
-}
+	DefaultCongestedPercentAgainstThreshold     = float64(90)
+	DefaultMaxBackgroundPercentAgainstThreshold = float64(80)
+)
 
 var _ components.Component = &component{}
 
 type component struct {
-	cfg         Config
 	ctx         context.Context
 	cancel      context.CancelFunc
-	poller      query.Poller
 	eventBucket eventstore.Bucket
-	gatherer    prometheus.Gatherer
+
+	// congestedPercentAgainstThreshold is the percentage of the FUSE connections waiting
+	// at which we consider the system to be congested.
+	congestedPercentAgainstThreshold float64
+
+	// maxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
+	// at which we consider the system to be congested.
+	maxBackgroundPercentAgainstThreshold float64
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func (c *component) Name() string { return fuse_id.Name }
-
-func (c *component) Start() error { return nil }
-
-func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.Last()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", fuse_id.Name)
-		return []components.State{
-			{
-				Name:    fuse_id.Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
+// CongestedPercentAgainstThreshold is the percentage of the FUSE connections waiting
+// at which we consider the system to be congested.
+//
+// MaxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
+// at which we consider the system to be congested.
+func New(ctx context.Context, congestedPercentAgainstThreshold float64, maxBackgroundPercentAgainstThreshold float64, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
 
-	if last.Error != nil {
-		return []components.State{
-			{
-				Name:    fuse_id.Name,
-				Healthy: false,
-				Error:   last.Error.Error(),
-				Reason:  "last query failed",
-			},
-		}, nil
+	if congestedPercentAgainstThreshold == 0 {
+		congestedPercentAgainstThreshold = DefaultCongestedPercentAgainstThreshold
+	}
+	if maxBackgroundPercentAgainstThreshold == 0 {
+		maxBackgroundPercentAgainstThreshold = DefaultMaxBackgroundPercentAgainstThreshold
 	}
 
-	return []components.State{
-		{
-			Name:    fuse_id.Name,
-			Healthy: true,
-		},
-	}, nil
+	cctx, ccancel := context.WithCancel(ctx)
+	c := &component{
+		ctx:         cctx,
+		cancel:      ccancel,
+		eventBucket: eventBucket,
+
+		congestedPercentAgainstThreshold:     congestedPercentAgainstThreshold,
+		maxBackgroundPercentAgainstThreshold: maxBackgroundPercentAgainstThreshold,
+	}
+
+	return c, nil
+}
+
+func (c *component) Name() string { return Name }
+
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
+
+func (c *component) States(ctx context.Context) ([]components.State, error) {
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return c.eventBucket.Get(ctx, since)
-}
-
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	congestedPercents, err := metrics.ReadConnectionsCongestedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read congested percents: %w", err)
-	}
-	maxBackgroundPercents, err := metrics.ReadConnectionsMaxBackgroundPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read max background percents: %w", err)
-	}
-	ms := make([]components.Metric, 0, len(congestedPercents)+len(maxBackgroundPercents))
-	for _, m := range congestedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range maxBackgroundPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-
-	return ms, nil
 }
 
 func (c *component) Close() error {
@@ -119,17 +113,134 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	// safe to call stop multiple times
-	c.poller.Stop(fuse_id.Name)
-
 	c.eventBucket.Close()
 
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking fuse")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
+	infos, err := fuse.ListConnections()
+	if err != nil {
+		d.err = err
+		return
+	}
+
+	now := time.Now().UTC()
+
+	foundDev := make(map[string]fuse.ConnectionInfo)
+	for _, info := range infos {
+		// to dedup fuse connection stats by device name
+		if _, ok := foundDev[info.DeviceName]; ok {
+			continue
+		}
+
+		connsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.CongestedPercent)
+		connsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.MaxBackgroundPercent)
+
+		msgs := []string{}
+		if info.CongestedPercent > c.congestedPercentAgainstThreshold {
+			msgs = append(msgs, fmt.Sprintf("congested percent %.2f%% exceeds threshold %.2f%%", info.CongestedPercent, c.congestedPercentAgainstThreshold))
+		}
+		if info.MaxBackgroundPercent > c.maxBackgroundPercentAgainstThreshold {
+			msgs = append(msgs, fmt.Sprintf("max background percent %.2f%% exceeds threshold %.2f%%", info.MaxBackgroundPercent, c.maxBackgroundPercentAgainstThreshold))
+		}
+		if len(msgs) == 0 {
+			continue
+		}
+
+		ib, err := info.JSON()
+		if err != nil {
+			continue
+		}
+		ev := components.Event{
+			Time:    metav1.Time{Time: now.UTC()},
+			Name:    "fuse_connections",
+			Type:    common.EventTypeCritical,
+			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
+			ExtraInfo: map[string]string{
+				"data":     string(ib),
+				"encoding": "json",
+			},
+		}
+
+		found, err := c.eventBucket.Find(c.ctx, ev)
+		if err != nil {
+			d.err = err
+			return
+		}
+		if found == nil {
+			continue
+		}
+		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
+			d.err = err
+			return
+		}
+
+		foundDev[info.DeviceName] = info
+	}
+}
+
+type Data struct {
+	ConnectionInfos []fuse.ConnectionInfo `json:"connection_infos"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no fuse data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get fuse data -- %s", d.err)
+	}
+
+	return fmt.Sprintf("found %d fuse connections", len(d.ConnectionInfos))
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+
+	return health, healthy
+}
+
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   "fuse",
+		Reason: d.getReason(),
+		Error:  d.getError(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }
