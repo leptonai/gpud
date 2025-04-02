@@ -12,7 +12,7 @@ type Op struct {
 	netcheck  bool
 	diskcheck bool
 
-	dmesgCheck bool
+	kmsgCheck bool
 
 	checkInfiniband bool
 }
@@ -78,9 +78,9 @@ func WithDiskcheck(b bool) OpOption {
 	}
 }
 
-func WithDmesgCheck(b bool) OpOption {
+func WithKMsgCheck(b bool) OpOption {
 	return func(op *Op) {
-		op.dmesgCheck = b
+		op.kmsgCheck = b
 	}
 }
 

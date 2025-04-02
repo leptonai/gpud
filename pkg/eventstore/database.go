@@ -39,7 +39,7 @@ const (
 
 	// columnExtraInfo represents event extra info
 	// e.g.,
-	// data source: "dmesg", "nvml", "nvidia-smi".
+	// data source: "kmsg", "nvml", "nvidia-smi".
 	// event target: "gpu_id", "gpu_uuid".
 	// log detail: "oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0".
 	columnExtraInfo = "extra_info"

@@ -97,7 +97,7 @@ func TestTableInsertsReads(t *testing.T) {
 	for i := 0; i < eventsN; i++ {
 		events = append(events, components.Event{
 			Time:    metav1.Time{Time: first.Add(time.Duration(i) * time.Second)},
-			Name:    "dmesg",
+			Name:    "kmsg",
 			Type:    common.EventTypeWarning,
 			Message: fmt.Sprintf("OOM event %d occurred", i),
 			SuggestedActions: &common.SuggestedActions{
@@ -145,7 +145,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 	events := []components.Event{
 		{
 			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-			Name: "dmesg",
+			Name: "kmsg",
 			Type: common.EventTypeWarning,
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"old event"},
@@ -153,7 +153,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(-5 * time.Minute)},
-			Name: "dmesg",
+			Name: "kmsg",
 			Type: common.EventTypeWarning,
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"mid event"},
@@ -161,7 +161,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 		},
 		{
 			Time: metav1.Time{Time: baseTime},
-			Name: "dmesg",
+			Name: "kmsg",
 			Type: common.EventTypeWarning,
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"recent event"},
@@ -229,7 +229,7 @@ func TestMultipleEventTypes(t *testing.T) {
 	events := []components.Event{
 		{
 			Time: metav1.Time{Time: baseTime},
-			Name: "dmesg",
+			Name: "kmsg",
 			Type: common.EventTypeWarning,
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"oom event"},
@@ -245,7 +245,7 @@ func TestMultipleEventTypes(t *testing.T) {
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(2 * time.Second)},
-			Name: "dmesg",
+			Name: "kmsg",
 			Type: common.EventTypeWarning,
 			SuggestedActions: &common.SuggestedActions{
 				Descriptions: []string{"cgroup event"},
@@ -289,7 +289,7 @@ func TestPurgePartial(t *testing.T) {
 	events := []components.Event{
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-			Name:      "dmesg",
+			Name:      "kmsg",
 			Type:      common.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
 			SuggestedActions: &common.SuggestedActions{
@@ -298,7 +298,7 @@ func TestPurgePartial(t *testing.T) {
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
-			Name:      "dmesg",
+			Name:      "kmsg",
 			Type:      common.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
 			SuggestedActions: &common.SuggestedActions{
@@ -356,7 +356,7 @@ func TestFindEvent(t *testing.T) {
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-		Name:      "dmesg",
+		Name:      "kmsg",
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
 		SuggestedActions: &common.SuggestedActions{
@@ -402,7 +402,7 @@ func TestFindEventPartialMatch(t *testing.T) {
 	baseTime := time.Now().UTC()
 	testEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime},
-		Name:      "dmesg",
+		Name:      "kmsg",
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
 		SuggestedActions: &common.SuggestedActions{
@@ -449,7 +449,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	events := []components.Event{
 		{
 			Time:      metav1.Time{Time: baseTime},
-			Name:      "dmesg",
+			Name:      "kmsg",
 			Type:      common.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b", "c": "d"},
 			SuggestedActions: &common.SuggestedActions{
@@ -458,7 +458,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
-			Name:      "dmesg",
+			Name:      "kmsg",
 			Type:      common.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b"},
 			SuggestedActions: &common.SuggestedActions{
@@ -475,7 +475,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	// Search should return the first matching event
 	searchEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime},
-		Name:      "dmesg",
+		Name:      "kmsg",
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
 	}
@@ -582,7 +582,7 @@ func TestNullEventIDs(t *testing.T) {
 	baseTime := time.Now().UTC()
 	event := components.Event{
 		Time:      metav1.Time{Time: baseTime},
-		Name:      "dmesg",
+		Name:      "kmsg",
 		Type:      common.EventTypeWarning,
 		ExtraInfo: map[string]string{},
 		SuggestedActions: &common.SuggestedActions{

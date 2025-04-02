@@ -62,7 +62,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to mock lspci")
 
 		By("start gpud scan")
-		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "scan", "--dmesg-check=false")
+		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "scan", "--kmsg-check=false")
 		b, err := cmd.CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to run gpud scan:\n%s", string(b)))
 		GinkgoLogr.Info("gpud scan successfully", "output", string(b))
