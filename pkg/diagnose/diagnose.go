@@ -11,7 +11,6 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
@@ -139,17 +138,14 @@ func run(ctx context.Context, dir string, opts ...OpOption) error {
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if nvidiaInstalled && err == nil {
-		fmt.Printf("%s scanning dmesg with regexes\n", inProgress)
-		issueCnt, err := scanDmesg(ctx)
+		fmt.Printf("%s scanning kernel messages\n", inProgress)
+		issueCnt, err := scanKmsg(ctx)
 		if err != nil {
-			o.Results = append(o.Results, CommandResult{
-				Command: strings.Join(pkg_dmesg.DefaultDmesgScanCommands[0], " "),
-				Error:   err.Error(),
-			})
+			o.Results = append(o.Results, CommandResult{Error: err.Error()})
 		} else if issueCnt == 0 {
-			o.CheckSummary = append(o.CheckSummary, "dmesg scan passed")
+			o.CheckSummary = append(o.CheckSummary, "kernel messages scan passed")
 		} else {
-			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("dmesg scan detected %d issues", issueCnt))
+			o.CheckSummary = append(o.CheckSummary, fmt.Sprintf("kernel messages scan detected %d issues", issueCnt))
 		}
 	}
 

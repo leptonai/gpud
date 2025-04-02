@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/pkg/disk"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/fuse"
@@ -217,21 +216,19 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if op.dmesgCheck {
 		if os.Geteuid() != 0 {
-			return errors.New("requires sudo/root access in order to scan dmesg errors")
+			return errors.New("requires sudo/root access in order to scan kernel message errors")
 		}
 
-		fmt.Printf("%s scanning dmesg\n", inProgress)
-		issueCnt, err := scanDmesg(ctx)
+		fmt.Printf("%s scanning kernel messages\n", inProgress)
+		issueCount, err := scanKmsg(ctx)
 		if err != nil {
 			return err
 		}
-		if issueCnt == 0 {
-			fmt.Printf("%s scanned dmesg file -- found no issue\n", checkMark)
+		if issueCount == 0 {
+			fmt.Printf("%s scanned kernel messages -- found no issue\n", checkMark)
 		} else {
-			fmt.Printf("%s scanned dmesg file -- found %d issue(s)\n", warningSign, issueCnt)
+			fmt.Printf("%s scanned kernel messages -- found %d issue(s)\n", warningSign, issueCount)
 		}
-
-		scanKmsg(ctx)
 	}
 
 	if op.netcheck {
@@ -283,106 +280,50 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	return nil
 }
 
-func scanDmesg(ctx context.Context) (int, error) {
-	p, err := process.New(
-		process.WithCommands(pkg_dmesg.DefaultDmesgScanCommands),
-		process.WithRunAsBashScript(),
-	)
-	if err != nil {
-		return 0, err
-	}
-	if err := p.Start(ctx); err != nil {
-		return 0, err
-	}
-	defer func() {
-		if err := p.Close(ctx); err != nil {
-			log.Logger.Warnw("failed to abort command", "err", err)
-		}
-	}()
-
-	nowUTC := time.Now().UTC()
-	issueCnt := 0
-	if err := process.Read(
-		ctx,
-		p,
-		process.WithReadStdout(),
-		process.WithReadStderr(),
-		process.WithProcessLine(func(line string) {
-			parsed := pkg_dmesg.ParseDmesgLine(line)
-			ts := humanize.RelTime(parsed.Timestamp, nowUTC, "ago", "from now")
-
-			if found := nvidia_xid.Match(line); found != nil {
-				fmt.Printf("[XID found] (%s) %q\n", ts, parsed.Content)
-				issueCnt++
-				return
-			}
-
-			if found := nvidia_sxid.Match(line); found != nil {
-				fmt.Printf("[SXID found] (%s) %q\n", ts, parsed.Content)
-				issueCnt++
-				return
-			}
-		}),
-	); err != nil {
-		return 0, err
-	}
-
-	select {
-	case <-ctx.Done():
-		return 0, ctx.Err()
-	case err := <-p.Wait():
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	return issueCnt, nil
-}
-
-func scanKmsg(ctx context.Context) {
-	if os.Geteuid() != 0 {
-		fmt.Printf("%s skipping kmsg scan (requires sudo/root access)\n", checkMark)
-		return
-	}
-
-	fmt.Printf("%s scanning kmsg\n", inProgress)
-	msgs, err := kmsg.ReadAll(ctx)
+func scanKmsg(ctx context.Context) (int, error) {
+	messages, err := kmsg.ReadAll(ctx)
 	if err != nil {
 		fmt.Printf("%s failed to read kmsg: %v\n", warningSign, err)
-		return
+		return 0, err
 	}
 
-	fmt.Printf("%s scanned kmsg file -- found %d line(s)\n", checkMark, len(msgs))
-	if len(msgs) == 0 {
-		return
+	if len(messages) == 0 {
+		return 0, nil
 	}
 
-	ts := msgs[0].DescribeTimestamp(time.Now().UTC())
+	issueCount := 0
+	ts := messages[0].DescribeTimestamp(time.Now().UTC())
 	fmt.Printf("%s first kmsg line is %s old\n", checkMark, ts)
 
-	for _, msg := range msgs {
+	for _, msg := range messages {
+		if time.Since(msg.Timestamp.Time) > eventstore.DefaultRetention {
+			continue
+		}
+
 		ts = msg.DescribeTimestamp(time.Now().UTC())
 
 		if ev, m := cpu.Match(msg.Message); m != "" {
-			fmt.Printf("[cpu] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-		}
-		if ev, m := memory.Match(msg.Message); m != "" {
-			fmt.Printf("[memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-		}
-		if ev, m := fd.Match(msg.Message); m != "" {
-			fmt.Printf("[file descriptor] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-		}
-		if found := nvidia_xid.Match(msg.Message); found != nil {
-			fmt.Printf("[nvidia xid] (%s) %q\n", ts, msg.Message)
-		}
-		if found := nvidia_sxid.Match(msg.Message); found != nil {
-			fmt.Printf("[nvidia sxid] (%s) %q\n", ts, msg.Message)
-		}
-		if ev, m := nvidia_nccl.Match(msg.Message); m != "" {
-			fmt.Printf("[nvidia nccl] (%s) %s %s %q\n", ts, ev, m, msg.Message)
-		}
-		if ev, m := nvidia_peermem.Match(msg.Message); m != "" {
-			fmt.Printf("[nvidia peermem] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			fmt.Printf("[CPU] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			issueCount++
+		} else if ev, m := memory.Match(msg.Message); m != "" {
+			fmt.Printf("[Memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			issueCount++
+		} else if ev, m := fd.Match(msg.Message); m != "" {
+			fmt.Printf("[File Descriptor] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			issueCount++
+		} else if found := nvidia_xid.Match(msg.Message); found != nil {
+			fmt.Printf("[NVIDIA XID] (%s) %q\n", ts, msg.Message)
+			issueCount++
+		} else if found := nvidia_sxid.Match(msg.Message); found != nil {
+			fmt.Printf("[NVIDIA XID] (%s) %q\n", ts, msg.Message)
+			issueCount++
+		} else if ev, m := nvidia_nccl.Match(msg.Message); m != "" {
+			fmt.Printf("[NVIDIA NCCL] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			issueCount++
+		} else if ev, m := nvidia_peermem.Match(msg.Message); m != "" {
+			fmt.Printf("[NVIDIA Peermem] (%s) %s %s %q\n", ts, ev, m, msg.Message)
+			issueCount++
 		}
 	}
+	return issueCount, nil
 }

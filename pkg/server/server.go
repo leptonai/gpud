@@ -46,10 +46,8 @@ import (
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
-	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
-	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
 	nvidia_persistence_mode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
 	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
@@ -568,7 +566,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_peermem_id.Name:
+		case nvidia_peermem.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
@@ -604,7 +602,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_nccl_id.Name:
+		case nvidia_nccl.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
 			if configValue != nil {
 				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)

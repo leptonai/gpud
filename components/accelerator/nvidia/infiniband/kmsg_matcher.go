@@ -31,7 +31,7 @@ var (
 	compiledPortModuleHighTemperature = regexp.MustCompile(regexPortModuleHighTemperature)
 )
 
-// Returns true if the line indicates that the power inefficient event has been detected.
+// HasPCIPowerInsufficient returns true if the line indicates that the power inefficient event has been detected.
 // ref. https://github.com/torvalds/linux/blob/ac9c34d1e45a4c25174ced4fc0cfc33ff3ed08c7/drivers/net/ethernet/mellanox/mlx5/core/events.c#L295-L299
 func HasPCIPowerInsufficient(line string) bool {
 	if match := compiledPCIPowerInsufficient.FindStringSubmatch(line); match != nil {
@@ -40,7 +40,7 @@ func HasPCIPowerInsufficient(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates that the port module high temperature event has been detected.
+// HasPortModuleHighTemperature returns true if the line indicates that the port module high temperature event has been detected.
 // ref. https://github.com/torvalds/linux/blob/ac9c34d1e45a4c25174ced4fc0cfc33ff3ed08c7/drivers/net/ethernet/mellanox/mlx5/core/events.c#L252-L254
 func HasPortModuleHighTemperature(line string) bool {
 	if match := compiledPortModuleHighTemperature.FindStringSubmatch(line); match != nil {

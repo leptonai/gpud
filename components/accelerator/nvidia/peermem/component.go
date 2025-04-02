@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/dmesg"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -18,20 +16,28 @@ import (
 	"github.com/leptonai/gpud/pkg/query"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_peermem_id.Name)
+const (
+	Name = "accelerator-nvidia-peermem"
+)
+
+var _ components.Component = &component{}
+
+type component struct {
+	rootCtx     context.Context
+	cancel      context.CancelFunc
+	kmsgSyncer  *kmsg.Syncer
+	eventBucket eventstore.Bucket
+	poller      query.Poller
+}
+
+func New(ctx context.Context, cfg configcommon.Config, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
-	kmsgWatcher, err := kmsg.StartWatch(Match)
+	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
@@ -44,42 +50,28 @@ func New(ctx context.Context, cfg nvidia_common.Config, eventStore eventstore.St
 	}
 
 	cfg.Query.SetDefaultsIfNotSet()
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_peermem_id.Name)
+	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
 
 	return &component{
-		rootCtx:          ctx,
-		cancel:           ccancel,
-		logLineProcessor: logLineProcessor,
-		eventBucket:      eventBucket,
-		kmsgWatcher:      kmsgWatcher,
-		poller:           nvidia_query.GetDefaultPoller(),
+		rootCtx:     ctx,
+		cancel:      ccancel,
+		kmsgSyncer:  kmsgSyncer,
+		eventBucket: eventBucket,
+		poller:      nvidia_query.GetDefaultPoller(),
 	}, nil
 }
 
-var _ components.Component = &component{}
-
-type component struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	logLineProcessor *dmesg.LogLineProcessor
-	eventBucket      eventstore.Bucket
-	poller           query.Poller
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
-}
-
-func (c *component) Name() string { return nvidia_peermem_id.Name }
+func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
 	last, err := c.poller.LastSuccess()
 	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_peermem_id.Name)
+		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
 		return []components.State{
 			{
-				Name:    nvidia_peermem_id.Name,
+				Name:    Name,
 				Healthy: true,
 				Error:   query.ErrNoData.Error(),
 				Reason:  query.ErrNoData.Error(),
@@ -106,7 +98,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		cs := make([]components.State, 0)
 		for _, e := range allOutput.LsmodPeermemErrors {
 			cs = append(cs, components.State{
-				Name:    nvidia_peermem_id.Name,
+				Name:    Name,
 				Healthy: false,
 				Error:   e,
 				Reason:  "lsmod peermem query failed with " + e,
@@ -133,14 +125,9 @@ func (c *component) Close() error {
 	c.cancel()
 
 	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_peermem_id.Name)
+	_ = c.poller.Stop(Name)
 
-	c.logLineProcessor.Close()
+	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
-
-	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
-	}
-
 	return nil
 }

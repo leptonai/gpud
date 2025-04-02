@@ -14,7 +14,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/fd/metrics"
-	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -38,8 +37,10 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx         context.Context
+	cancel      context.CancelFunc
+	kmsgSyncer  *kmsg.Syncer
+	eventBucket eventstore.Bucket
 
 	// thresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
 	// at which we consider the system to be under high file descriptor usage.
@@ -49,12 +50,6 @@ type component struct {
 	// This is useful for triggering alerts when the system is under high load.
 	// And useful when the actual system fd-max is set to unlimited.
 	thresholdRunningPIDs uint64
-
-	logLineProcessor *dmesg.LogLineProcessor
-	eventBucket      eventstore.Bucket
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -66,30 +61,22 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.StartWatch(Match)
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO: deprecate
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
+	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
 	}
 
 	return &component{
-		ctx:    ctx,
-		cancel: ccancel,
+		ctx:         ctx,
+		cancel:      ccancel,
+		kmsgSyncer:  kmsgSyncer,
+		eventBucket: eventBucket,
 
 		thresholdAllocatedFileHandles: DefaultThresholdAllocatedFileHandles,
 		thresholdRunningPIDs:          DefaultThresholdRunningPIDs,
-
-		logLineProcessor: logLineProcessor,
-		eventBucket:      eventBucket,
-
-		kmsgWatcher: kmsgWatcher,
 	}, nil
 }
 
@@ -171,14 +158,8 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
-
-	c.logLineProcessor.Close()
+	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
-
-	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
-	}
-
 	return nil
 }
 
