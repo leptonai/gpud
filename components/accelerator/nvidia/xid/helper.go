@@ -10,16 +10,16 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query_xid "github.com/leptonai/gpud/pkg/nvidia-query/xid"
+	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 const (
 	StateHealthy   = 0
 	StateDegraded  = 1
 	StateUnhealthy = 2
-)
 
-const rebootThreshold = 2
+	rebootThreshold = 2
+)
 
 // EvolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
@@ -28,7 +28,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
 	var lastSuggestedAction *common.SuggestedActions
-	var lastXidErr *xidErrorFromDmesg
+	var lastXidErr *xidErrorEventDetail
 	lastHealth := StateHealthy
 	xidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
@@ -36,7 +36,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, xidRebootMap, lastXidErr)
 		if event.Name == EventNameErrorXid {
 			resolvedEvent := resolveXIDEvent(event)
-			var currXidErr xidErrorFromDmesg
+			var currXidErr xidErrorEventDetail
 			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
@@ -71,8 +71,8 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 				lastSuggestedAction = nil
 				lastXidErr = nil
 			}
-			for xid, count := range xidRebootMap {
-				xidRebootMap[xid] = count + 1
+			for v, count := range xidRebootMap {
+				xidRebootMap[v] = count + 1
 			}
 		} else if event.Name == "SetHealthy" {
 			lastHealth = StateHealthy
@@ -85,7 +85,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		if xidDetail, ok := nvidia_query_xid.GetDetail(int(lastXidErr.Xid)); ok {
+		if xidDetail, ok := xid.GetDetail(int(lastXidErr.Xid)); ok {
 			reason = fmt.Sprintf("XID %d(%s) detected on %s", lastXidErr.Xid, xidDetail.Name, lastXidErr.DeviceUUID)
 		} else {
 			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, lastXidErr.DeviceUUID)
@@ -117,7 +117,7 @@ func resolveXIDEvent(event components.Event) components.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
-			detail, ok := nvidia_query_xid.GetDetail(currXid)
+			detail, ok := xid.GetDetail(currXid)
 			if !ok {
 				return ret
 			}
@@ -125,9 +125,9 @@ func resolveXIDEvent(event components.Event) components.Event {
 			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
 			ret.SuggestedActions = detail.SuggestedActionsByGPUd
 
-			xidErr := xidErrorFromDmesg{
+			xidErr := xidErrorEventDetail{
 				Time:                      event.Time,
-				DataSource:                "dmesg",
+				DataSource:                "kmsg",
 				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
 				Xid:                       uint64(currXid),
 				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
@@ -141,8 +141,8 @@ func resolveXIDEvent(event components.Event) components.Event {
 	return ret
 }
 
-// xidErrorFromDmesg represents an Xid error from dmesg.
-type xidErrorFromDmesg struct {
+// xidErrorEventDetail represents an Xid error from kmsg.
+type xidErrorEventDetail struct {
 	// Time is the time of the event.
 	Time metav1.Time `json:"time"`
 
@@ -163,6 +163,6 @@ type xidErrorFromDmesg struct {
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 }
 
-func (xidErr xidErrorFromDmesg) JSON() ([]byte, error) {
-	return json.Marshal(xidErr)
+func (d *xidErrorEventDetail) JSON() ([]byte, error) {
+	return json.Marshal(d)
 }

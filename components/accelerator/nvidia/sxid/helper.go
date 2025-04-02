@@ -10,16 +10,16 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query_sxid "github.com/leptonai/gpud/pkg/nvidia-query/sxid"
+	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 const (
 	StateHealthy   = 0
 	StateDegraded  = 1
 	StateUnhealthy = 2
-)
 
-const rebootThreshold = 2
+	rebootThreshold = 2
+)
 
 // EvolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
@@ -28,16 +28,16 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
 	var lastSuggestedAction *common.SuggestedActions
-	var lastSXidErr *sxidErrorFromDmesg
+	var lastSXidErr *sxidErrorEventDetail
 	lastHealth := StateHealthy
 	sxidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, sxidRebootMap, lastSXidErr)
-		if event.Name == EventNameErroSXid {
+		if event.Name == EventNameErrorSXid {
 			resolvedEvent := resolveSXIDEvent(event)
-			var currSXidErr sxidErrorFromDmesg
-			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErroSXidData]), &currSXidErr); err != nil {
+			var currSXidErr sxidErrorEventDetail
+			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorSXidData]), &currSXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
@@ -71,8 +71,8 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 				lastSuggestedAction = nil
 				lastSXidErr = nil
 			}
-			for sxid, count := range sxidRebootMap {
-				sxidRebootMap[sxid] = count + 1
+			for v, count := range sxidRebootMap {
+				sxidRebootMap[v] = count + 1
 			}
 		} else if event.Name == "SetHealthy" {
 			lastHealth = StateHealthy
@@ -85,7 +85,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	if lastSXidErr == nil {
 		reason = "SXIDComponent is healthy"
 	} else {
-		if sxidDetail, ok := nvidia_query_sxid.GetDetail(int(lastSXidErr.SXid)); ok {
+		if sxidDetail, ok := sxid.GetDetail(int(lastSXidErr.SXid)); ok {
 			reason = fmt.Sprintf("SXID %d(%s) detected on %s", lastSXidErr.SXid, sxidDetail.Name, lastSXidErr.DeviceUUID)
 		} else {
 			reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
@@ -116,8 +116,8 @@ func translateToStateHealth(health int) string {
 func resolveSXIDEvent(event components.Event) components.Event {
 	ret := event
 	if event.ExtraInfo != nil {
-		if currSXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErroSXidData]); err == nil {
-			detail, ok := nvidia_query_sxid.GetDetail(currSXid)
+		if currSXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorSXidData]); err == nil {
+			detail, ok := sxid.GetDetail(currSXid)
 			if !ok {
 				return ret
 			}
@@ -125,9 +125,9 @@ func resolveSXIDEvent(event components.Event) components.Event {
 			ret.Message = fmt.Sprintf("SXID %d(%s) detected on %s", currSXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
 			ret.SuggestedActions = detail.SuggestedActionsByGPUd
 
-			sxidErr := sxidErrorFromDmesg{
+			sxidErr := sxidErrorEventDetail{
 				Time:                      event.Time,
-				DataSource:                "dmesg",
+				DataSource:                "kmsg",
 				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
 				SXid:                      uint64(currSXid),
 				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
@@ -135,14 +135,14 @@ func resolveSXIDEvent(event components.Event) components.Event {
 			}
 			raw, _ := sxidErr.JSON()
 
-			ret.ExtraInfo[EventKeyErroSXidData] = string(raw)
+			ret.ExtraInfo[EventKeyErrorSXidData] = string(raw)
 		}
 	}
 	return ret
 }
 
-// sxidErrorFromDmesg represents an SXid error from dmesg.
-type sxidErrorFromDmesg struct {
+// sxidErrorEventDetail represents an SXid error from kmsg.
+type sxidErrorEventDetail struct {
 	// Time is the time of the event.
 	Time metav1.Time `json:"time"`
 
@@ -163,6 +163,6 @@ type sxidErrorFromDmesg struct {
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 }
 
-func (sxidErr sxidErrorFromDmesg) JSON() ([]byte, error) {
-	return json.Marshal(sxidErr)
+func (d *sxidErrorEventDetail) JSON() ([]byte, error) {
+	return json.Marshal(d)
 }

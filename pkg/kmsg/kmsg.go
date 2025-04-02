@@ -21,6 +21,7 @@ limitations under the License.
 package kmsg
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -39,6 +40,32 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+var (
+	ErrWatcherAlreadyStarted = errors.New("watcher already started")
+
+	kmsgFilePath = cmp.Or(strings.TrimSpace(os.Getenv("KMSG_FILE_PATH")), "/dev/kmsg")
+)
+
+type Watcher interface {
+	// Watch reads from kmsg and provides a channel of messages.
+	// Watch will always close the provided channel before returning.
+	// Watch may be canceled by calling 'Close' on the parser.
+	//
+	// The caller should drain the channel after calling 'Close'.
+	Watch(chan<- Message) error
+	StartWatch() <-chan Message
+	Close() error
+}
+
+type watcher struct {
+	kmsgFile *os.File
+	bootTime time.Time
+
+	// set to true when the watcher is started
+	// used to prevent redundant reads on kmsg file
+	watchStarted atomic.Bool
+}
+
 // Message represents a given kmsg logline, including its timestamp (as
 // calculated based on offset from boot time), its possibly multi-line body,
 // and so on. More information about these mssages may be found here:
@@ -56,7 +83,7 @@ func (m Message) DescribeTimestamp(since time.Time) string {
 
 // ReadAll reads all messages from the kmsg file, with no follow mode.
 func ReadAll(ctx context.Context) ([]Message, error) {
-	kmsgFile, err := os.Open("/dev/kmsg")
+	kmsgFile, err := os.Open(kmsgFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -156,28 +183,9 @@ func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message
 	}
 }
 
-type Watcher interface {
-	// Watch reads from kmsg and provides a channel of messages.
-	// Watch will always close the provided channel before returning.
-	// Watch may be canceled by calling 'Close' on the parser.
-	//
-	// The caller should drain the channel after calling 'Close'.
-	Watch(chan<- Message) error
-	Close() error
-}
-
-type watcher struct {
-	kmsgFile *os.File
-	bootTime time.Time
-
-	// set to true when the watcher is started
-	// used to prevent redundant reads on kmsg file
-	watchStarted atomic.Bool
-}
-
-// Creates a new watcher that will read from /dev/kmsg.
+// NewWatcher creates a new watcher that will read from /dev/kmsg.
 func NewWatcher() (Watcher, error) {
-	kmsgFile, err := os.Open("/dev/kmsg")
+	kmsgFile, err := os.Open(kmsgFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -192,15 +200,13 @@ func NewWatcher() (Watcher, error) {
 	if err != nil {
 		return nil, err
 	}
-	bootTime := time.Unix(int64(ut), 0)
+	bootTime := time.Now().Add(-1 * (time.Duration(ut) * time.Second))
 
 	return &watcher{
 		kmsgFile: kmsgFile,
 		bootTime: bootTime,
 	}, nil
 }
-
-var ErrWatcherAlreadyStarted = errors.New("watcher already started")
 
 func (w *watcher) errIfStarted() error {
 	if w.watchStarted.CompareAndSwap(false, true) {
@@ -220,6 +226,16 @@ func (w *watcher) Watch(msgs chan<- Message) error {
 		msgs,
 		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
 	)
+}
+
+func (w *watcher) StartWatch() <-chan Message {
+	kmsgCh := make(chan Message, 2048)
+	go func() {
+		if err := w.Watch(kmsgCh); err != nil {
+			log.Logger.Errorw("kmsg watcher error", "err", err)
+		}
+	}()
+	return kmsgCh
 }
 
 func (w *watcher) Close() error {

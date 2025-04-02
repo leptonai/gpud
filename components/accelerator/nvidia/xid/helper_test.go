@@ -13,7 +13,7 @@ import (
 )
 
 func createXidEvent(eventTime time.Time, xid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
-	xidErr := xidErrorFromDmesg{
+	xidErr := xidErrorEventDetail{
 		Xid:        xid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
@@ -114,7 +114,7 @@ func TestXidErrorFromDmesgJSON(t *testing.T) {
 	testTime := metav1.Time{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)}
 
 	t.Run("successful marshaling", func(t *testing.T) {
-		xidErr := xidErrorFromDmesg{
+		xidErr := xidErrorEventDetail{
 			Time:       testTime,
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
@@ -130,7 +130,7 @@ func TestXidErrorFromDmesgJSON(t *testing.T) {
 		assert.NotNil(t, jsonBytes)
 
 		// Verify JSON structure by unmarshaling
-		var unmarshaled xidErrorFromDmesg
+		var unmarshaled xidErrorEventDetail
 		err = json.Unmarshal(jsonBytes, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, xidErr.Time.UTC(), unmarshaled.Time.UTC())
@@ -142,7 +142,7 @@ func TestXidErrorFromDmesgJSON(t *testing.T) {
 	})
 
 	t.Run("minimal fields", func(t *testing.T) {
-		xidErr := xidErrorFromDmesg{
+		xidErr := xidErrorEventDetail{
 			Time:       testTime,
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
@@ -153,7 +153,7 @@ func TestXidErrorFromDmesgJSON(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, jsonBytes)
 
-		var unmarshaled xidErrorFromDmesg
+		var unmarshaled xidErrorEventDetail
 		err = json.Unmarshal(jsonBytes, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, xidErr.Time.UTC(), unmarshaled.Time.UTC())

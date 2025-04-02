@@ -1,21 +1,20 @@
-// Package sxid tracks the NVIDIA GPU SXid errors scanning the dmesg.
+// Package sxid tracks the NVIDIA GPU SXid errors scanning the kmsg.
 // See fabric manager documentation https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf.
 package sxid
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -27,9 +26,9 @@ const Name = "accelerator-nvidia-error-sxid"
 const (
 	StateNameErrorSXid = "error_sxid"
 
-	EventNameErroSXid    = "error_sxid"
-	EventKeyErroSXidData = "data"
-	EventKeyDeviceUUID   = "device_uuid"
+	EventNameErrorSXid    = "error_sxid"
+	EventKeyErrorSXidData = "data"
+	EventKeyDeviceUUID    = "device_uuid"
 
 	DefaultRetentionPeriod   = eventstore.DefaultRetention
 	DefaultStateUpdatePeriod = 30 * time.Second
@@ -40,39 +39,29 @@ var _ components.Component = &SXIDComponent{}
 type SXIDComponent struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
-	currState        components.State
 	extraEventCh     chan *components.Event
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
+	kmsgWatcher      kmsg.Watcher
 	mu               sync.RWMutex
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
+	currState        components.State
 }
 
 func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *SXIDComponent {
-	cctx, ccancel := context.WithCancel(ctx)
-
-	extraEventCh := make(chan *components.Event, 256)
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
-		ccancel()
 		return nil
 	}
 
-	kmsgWatcher, err := kmsg.StartWatch(func(line string) (eventName string, message string) {
-		sxidErr := Match(line)
-		if sxidErr == nil {
-			return "", ""
-		}
-		return fmt.Sprintf("SXID %d %s", sxidErr.Detail.SXid, sxidErr.Detail.Name), sxidErr.Detail.Description
-	})
+	kmsgWatcher, err := kmsg.NewWatcher()
 	if err != nil {
-		ccancel()
+		log.Logger.Errorw("failed to create kmsg watcher", "error", err)
 		return nil
 	}
 
+	cctx, ccancel := context.WithCancel(ctx)
+	extraEventCh := make(chan *components.Event, 256)
 	return &SXIDComponent{
 		rootCtx:          cctx,
 		cancel:           ccancel,
@@ -86,26 +75,25 @@ func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventSt
 func (c *SXIDComponent) Name() string { return Name }
 
 func (c *SXIDComponent) Start() error {
-	initializeBackoff := 1 * time.Second
 	for {
-		if err := c.updateCurrentState(); err != nil {
-			if strings.Contains(err.Error(), context.Canceled.Error()) {
-				log.Logger.Infow("context canceled, exiting")
-				return nil
-			}
-			log.Logger.Errorw("failed to fetch current events", "error", err)
-			time.Sleep(initializeBackoff)
-			continue
+		err := c.updateCurrentState()
+		if err == nil {
+			break
 		}
-		break
-	}
-	watcher, err := pkg_dmesg.NewWatcher()
-	if err != nil {
-		log.Logger.Errorw("failed to create dmesg watcher", "error", err)
-		return nil
+		if errors.Is(err, context.Canceled) {
+			log.Logger.Infow("context canceled, exiting")
+			return nil
+		}
+		log.Logger.Errorw("failed to fetch current events", "error", err)
+		select {
+		case <-c.rootCtx.Done():
+			return nil
+		case <-time.After(1 * time.Second):
+		}
 	}
 
-	go c.start(watcher, DefaultStateUpdatePeriod)
+	kmsgCh := c.kmsgWatcher.StartWatch()
+	go c.start(kmsgCh, DefaultStateUpdatePeriod)
 
 	return nil
 }
@@ -139,13 +127,13 @@ func (c *SXIDComponent) Close() error {
 	c.cancel()
 
 	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
+		_ = c.kmsgWatcher.Close()
 	}
 
 	return nil
 }
 
-func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Duration) {
+func (c *SXIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -169,37 +157,45 @@ func (c *SXIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durat
 				log.Logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
-		case dmesgLine := <-watcher.Watch():
-			log.Logger.Debugw("dmesg line", "line", dmesgLine)
-			sxidErr := Match(dmesgLine.Content)
+		case message := <-kmsgCh:
+			sxidErr := Match(message.Message)
 			if sxidErr == nil {
-				log.Logger.Debugw("not xid event, skip")
-				continue
-			}
-			event := components.Event{
-				Time: metav1.Time{Time: dmesgLine.Timestamp.Add(time.Duration(rand.Intn(1000)) * time.Millisecond)},
-				Name: EventNameErroSXid,
-				ExtraInfo: map[string]string{
-					EventKeyErroSXidData: strconv.FormatInt(int64(sxidErr.SXid), 10),
-					EventKeyDeviceUUID:   sxidErr.DeviceUUID,
-				},
-			}
-			currEvent, err := c.eventBucket.Find(c.rootCtx, event)
-			if err != nil {
-				log.Logger.Errorw("failed to check event existence", "error", err)
+				log.Logger.Debugw("not sxid event, skip", "kmsg", message)
 				continue
 			}
 
-			if currEvent != nil {
-				log.Logger.Debugw("no new events created")
+			id := uuid.New()
+			var sxidName string
+			if sxidErr.Detail != nil {
+				sxidName = sxidErr.Detail.Name
+			}
+			logger := log.Logger.With("id", id, "sxid", sxidErr.SXid, "sxidName", sxidName, "deviceUUID", sxidErr.DeviceUUID)
+			logger.Infow("got sxid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
+
+			event := components.Event{
+				Time: message.Timestamp,
+				Name: EventNameErrorSXid,
+				ExtraInfo: map[string]string{
+					EventKeyErrorSXidData: strconv.FormatInt(int64(sxidErr.SXid), 10),
+					EventKeyDeviceUUID:    sxidErr.DeviceUUID,
+				},
+			}
+			sameEvent, err := c.eventBucket.Find(c.rootCtx, event)
+			if err != nil {
+				logger.Errorw("failed to check event existence", "error", err)
+				continue
+			}
+			if sameEvent != nil {
+				logger.Infow("find the same event, skip inserting it")
 				continue
 			}
 			if err = c.eventBucket.Insert(c.rootCtx, event); err != nil {
-				log.Logger.Errorw("failed to create event", "error", err)
+				logger.Errorw("failed to create event", "error", err)
 				continue
 			}
+			logger.Infow("inserted the event successfully")
 			if err = c.updateCurrentState(); err != nil {
-				log.Logger.Errorw("failed to update current state", "error", err)
+				logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
 		}

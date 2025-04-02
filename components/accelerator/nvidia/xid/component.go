@@ -1,22 +1,20 @@
-// Package xid tracks the NVIDIA GPU Xid errors scanning the dmesg
-// and using the NVIDIA Management Library (NVML).
+// Package xid tracks the NVIDIA GPU Xid errors scanning the kmsg
 // See Xid messages https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages.
 package xid
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -41,39 +39,28 @@ var _ components.Component = &XIDComponent{}
 type XIDComponent struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
-	currState        components.State
 	extraEventCh     chan *components.Event
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
+	kmsgWatcher      kmsg.Watcher
 	mu               sync.RWMutex
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
+	currState        components.State
 }
 
 func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *XIDComponent {
-	cctx, ccancel := context.WithCancel(ctx)
-
-	extraEventCh := make(chan *components.Event, 256)
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		log.Logger.Errorw("failed to create store", "error", err)
-		ccancel()
 		return nil
 	}
-
-	kmsgWatcher, err := kmsg.StartWatch(func(line string) (eventName string, message string) {
-		xidErr := Match(line)
-		if xidErr == nil {
-			return "", ""
-		}
-		return fmt.Sprintf("XID %d %s", xidErr.Detail.Xid, xidErr.Detail.Name), xidErr.Detail.Description
-	})
+	kmsgWatcher, err := kmsg.NewWatcher()
 	if err != nil {
-		ccancel()
+		log.Logger.Errorw("failed to create kmsg watcher", "error", err)
 		return nil
 	}
 
+	cctx, ccancel := context.WithCancel(ctx)
+	extraEventCh := make(chan *components.Event, 256)
 	return &XIDComponent{
 		rootCtx:          cctx,
 		cancel:           ccancel,
@@ -87,26 +74,25 @@ func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventSt
 func (c *XIDComponent) Name() string { return Name }
 
 func (c *XIDComponent) Start() error {
-	initializeBackoff := 1 * time.Second
 	for {
-		if err := c.updateCurrentState(); err != nil {
-			if strings.Contains(err.Error(), context.Canceled.Error()) {
-				log.Logger.Infow("context canceled, exiting")
-				return nil
-			}
-			log.Logger.Errorw("failed to fetch current events", "error", err)
-			time.Sleep(initializeBackoff)
-			continue
+		err := c.updateCurrentState()
+		if err == nil {
+			break
 		}
-		break
-	}
-	watcher, err := pkg_dmesg.NewWatcher()
-	if err != nil {
-		log.Logger.Errorw("failed to create dmesg watcher", "error", err)
-		return nil
+		if errors.Is(err, context.Canceled) {
+			log.Logger.Infow("context canceled, exiting")
+			return nil
+		}
+		log.Logger.Errorw("failed to fetch current events", "error", err)
+		select {
+		case <-c.rootCtx.Done():
+			return nil
+		case <-time.After(1 * time.Second):
+		}
 	}
 
-	go c.start(watcher, DefaultStateUpdatePeriod)
+	kmsgCh := c.kmsgWatcher.StartWatch()
+	go c.start(kmsgCh, DefaultStateUpdatePeriod)
 
 	return nil
 }
@@ -141,13 +127,12 @@ func (c *XIDComponent) Close() error {
 	c.cancel()
 
 	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
+		_ = c.kmsgWatcher.Close()
 	}
-
 	return nil
 }
 
-func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Duration) {
+func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
@@ -173,37 +158,45 @@ func (c *XIDComponent) start(watcher pkg_dmesg.Watcher, updatePeriod time.Durati
 				log.Logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
-		case dmesgLine := <-watcher.Watch():
-			log.Logger.Debugw("dmesg line", "line", dmesgLine)
-			xidErr := Match(dmesgLine.Content)
+		case message := <-kmsgCh:
+			xidErr := Match(message.Message)
 			if xidErr == nil {
-				log.Logger.Debugw("not xid event, skip")
+				log.Logger.Debugw("not xid event, skip", "kmsg", message)
 				continue
 			}
+
+			id := uuid.New()
+			var xidName string
+			if xidErr.Detail != nil {
+				xidName = xidErr.Detail.Name
+			}
+			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
+			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
+
 			event := components.Event{
-				Time: metav1.Time{Time: dmesgLine.Timestamp.Add(time.Duration(rand.Intn(1000)) * time.Millisecond)},
+				Time: message.Timestamp,
 				Name: EventNameErrorXid,
 				ExtraInfo: map[string]string{
 					EventKeyErrorXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
 					EventKeyDeviceUUID:   xidErr.DeviceUUID,
 				},
 			}
-			currEvent, err := c.eventBucket.Find(c.rootCtx, event)
+			sameEvent, err := c.eventBucket.Find(c.rootCtx, event)
 			if err != nil {
-				log.Logger.Errorw("failed to check event existence", "error", err)
+				logger.Errorw("failed to check event existence", "error", err)
 				continue
 			}
-
-			if currEvent != nil {
-				log.Logger.Debugw("no new events created")
+			if sameEvent != nil {
+				logger.Infow("find the same event, skip inserting it")
 				continue
 			}
 			if err = c.eventBucket.Insert(c.rootCtx, event); err != nil {
-				log.Logger.Errorw("failed to create event", "error", err)
+				logger.Errorw("failed to create event", "error", err)
 				continue
 			}
+			logger.Infow("inserted the event successfully")
 			if err = c.updateCurrentState(); err != nil {
-				log.Logger.Errorw("failed to update current state", "error", err)
+				logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
 		}

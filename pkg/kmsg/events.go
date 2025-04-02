@@ -23,13 +23,7 @@ func StartWatch(matchFunc func(line string) (eventName string, message string)) 
 	if err != nil {
 		return nil, err
 	}
-	kmsgCh := make(chan Message, 1024)
-	go func() {
-		werr := kmsgWatcher.Watch(kmsgCh)
-		if werr != nil {
-			log.Logger.Errorw("failed to watch kmsg", "err", werr)
-		}
-	}()
+	kmsgCh := kmsgWatcher.StartWatch()
 	go func() {
 		for m := range kmsgCh {
 			ev, msg := matchFunc(m.Message)
