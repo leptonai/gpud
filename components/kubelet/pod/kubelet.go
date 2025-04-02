@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,17 +16,6 @@ import (
 )
 
 const DefaultKubeletReadOnlyPort = 10255
-
-// isConnectionRefusedError checks if an error contains "connection refused".
-// e.g.,
-// Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused
-// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
-func isConnectionRefusedError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "connection refused")
-}
 
 func checkKubeletInstalled() bool {
 	p, err := pkg_file.LocateExecutable("kubelet")

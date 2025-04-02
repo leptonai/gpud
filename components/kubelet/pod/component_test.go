@@ -66,47 +66,6 @@ func TestGetFromKubeletReadOnlyPort_ParseError(t *testing.T) {
 	require.Nil(t, result, "result should be nil")
 }
 
-func Test_isConnectionRefusedError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "nil error",
-			err:  nil,
-			want: false,
-		},
-		{
-			name: "non-connection refused error",
-			err:  errors.New("some other error"),
-			want: false,
-		},
-		{
-			name: "connection refused error with localhost IPv4",
-			err:  errors.New(`Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused`),
-			want: true,
-		},
-		{
-			name: "connection refused error with localhost IPv6",
-			err:  errors.New(`Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused`),
-			want: true,
-		},
-		{
-			name: "connection refused with different format",
-			err:  fmt.Errorf("failed to connect: connection refused"),
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isConnectionRefusedError(tt.err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 	t.Parallel()
 
@@ -126,7 +85,6 @@ func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 	nodeName, pods, err := listPodsFromKubeletReadOnlyPort(ctx, int(port))
 
 	require.Error(t, err, "expected an error")
-	assert.True(t, isConnectionRefusedError(err), "expected connection refused error")
 	assert.Empty(t, nodeName, "node name should be empty")
 	assert.Nil(t, pods, "pods should be nil")
 }
@@ -264,16 +222,15 @@ func Test_getStates(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		lastReason     string
-		lastHealthy    bool
 		expectedLen    int
 		expectedHealth string
 	}{
 		{
-			name:           "no pods",
-			data:           Data{},
-			lastReason:     "test reason",
-			lastHealthy:    true,
+			name: "no pods",
+			data: Data{
+				healthy: true,
+				reason:  "test reason",
+			},
 			expectedLen:    1,
 			expectedHealth: "Healthy",
 		},
@@ -284,37 +241,38 @@ func Test_getStates(t *testing.T) {
 					{Name: "pod1"},
 					{Name: "pod2"},
 				},
+				healthy: true,
+				reason:  "test reason",
 			},
-			lastReason:     "test reason",
-			lastHealthy:    true,
 			expectedLen:    1,
 			expectedHealth: "Healthy",
 		},
 		{
 			name: "with error - unhealthy",
 			data: Data{
-				err: errors.New("some error"),
+				err:     errors.New("some error"),
+				healthy: false,
+				reason:  "test reason",
 			},
-			lastReason:     "test reason",
-			lastHealthy:    false,
 			expectedLen:    1,
 			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "with connection error - healthy",
 			data: Data{
-				err: errors.New("connection refused"),
+				err:     errors.New("connection refused"),
+				healthy: true,
+				reason:  "test reason",
 			},
-			lastReason:     "test reason",
-			lastHealthy:    true,
 			expectedLen:    1,
 			expectedHealth: "Healthy",
 		},
 		{
-			name:           "with failed count above threshold - unhealthy",
-			data:           Data{},
-			lastReason:     "test reason",
-			lastHealthy:    false,
+			name: "with failed count above threshold - unhealthy",
+			data: Data{
+				reason:  "test reason",
+				healthy: false,
+			},
 			expectedLen:    1,
 			expectedHealth: "Unhealthy",
 		},
@@ -322,7 +280,7 @@ func Test_getStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates(tc.lastReason, tc.lastHealthy)
+			states, err := tc.data.getStates()
 			require.NoError(t, err)
 
 			require.Len(t, states, tc.expectedLen)
@@ -504,45 +462,45 @@ func Test_componentStates(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		ignoreConnErr  bool
 		failedCount    int
-		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
-			name:           "healthy state",
-			data:           Data{},
-			ignoreConnErr:  false,
+			name: "healthy state",
+			data: Data{
+				healthy: true,
+				reason:  "test reason",
+			},
 			failedCount:    0,
-			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
 			name: "unhealthy state",
 			data: Data{
-				err: errors.New("test error"),
+				err:     errors.New("test error"),
+				healthy: false,
+				reason:  "test reason",
 			},
-			ignoreConnErr:  false,
 			failedCount:    0,
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "connection error - ignored",
 			data: Data{
-				err: errors.New("connection refused"),
+				err:     errors.New("connection refused"),
+				healthy: true,
+				reason:  "test reason",
 			},
-			ignoreConnErr:  true,
 			failedCount:    0,
-			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
-			name:           "failed count above threshold",
-			data:           Data{},
-			ignoreConnErr:  true,
+			name: "failed count above threshold",
+			data: Data{
+				healthy: false,
+				reason:  "test reason",
+			},
 			failedCount:    6,
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 	}
@@ -550,10 +508,8 @@ func Test_componentStates(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
-				lastData:               &tc.data,
-				ignoreConnectionErrors: tc.ignoreConnErr,
-				failedCount:            tc.failedCount,
-				lastHealthy:            tc.lastHealthy,
+				lastData:    &tc.data,
+				failedCount: tc.failedCount,
 			}
 
 			states, err := c.States(context.Background())
@@ -704,7 +660,6 @@ func Test_componentCheckOnce(t *testing.T) {
 		checkDependencyInstalled: func() bool { return true },
 		checkKubeletRunning:      func() bool { kubeletRunningCalled++; return true },
 		kubeletReadOnlyPort:      int(port),
-		ignoreConnectionErrors:   false,
 	}
 
 	// Run the check
@@ -723,34 +678,30 @@ func Test_componentCheckOnce(t *testing.T) {
 	assert.Nil(t, c.lastData.err)
 }
 
-// Test_componentStates_IgnoreConnectionErrors tests the States method with ignoreConnectionErrors=true
-func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
+// Test_componentStates_IgnoreConnectionErrors tests the States method
+func Test_componentStates_ConnectionErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		ignoreConnErr  bool
 		failedCount    int
-		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
-			name: "connection error - ignored",
+			name: "connection error - marked healthy",
 			data: Data{
-				err: errors.New("connection refused"),
+				err:     errors.New("connection refused"),
+				healthy: true,
 			},
-			ignoreConnErr:  true,
 			failedCount:    0,
-			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
-			name: "connection error - not ignored",
+			name: "connection error - marked unhealthy",
 			data: Data{
-				err: errors.New("connection refused"),
+				err:     errors.New("connection refused"),
+				healthy: false,
 			},
-			ignoreConnErr:  false,
 			failedCount:    0,
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 	}
@@ -758,10 +709,8 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
-				lastData:               &tc.data,
-				ignoreConnectionErrors: tc.ignoreConnErr,
-				failedCount:            tc.failedCount,
-				lastHealthy:            tc.lastHealthy,
+				lastData:    &tc.data,
+				failedCount: tc.failedCount,
 			}
 
 			states, err := c.States(context.Background())
@@ -776,11 +725,10 @@ func Test_componentStates_IgnoreConnectionErrors(t *testing.T) {
 func Test_componentStates_ContextCancellation(t *testing.T) {
 	c := &component{
 		lastData: &Data{
-			Pods: []PodStatus{{Name: "test-pod"}},
+			Pods:    []PodStatus{{Name: "test-pod"}},
+			healthy: true,
 		},
-		ignoreConnectionErrors: true,
-		failedCount:            0,
-		lastHealthy:            true,
+		failedCount: 0,
 	}
 
 	// Create a canceled context
@@ -797,15 +745,16 @@ func Test_componentStates_ContextCancellation(t *testing.T) {
 // Add test for component constructor
 func Test_componentConstructor(t *testing.T) {
 	ctx := context.Background()
-	comp := New(ctx, DefaultKubeletReadOnlyPort, true)
+	// Default port is not defined in the test file, set an explicit value
+	testPort := 10255
+	comp := New(ctx, testPort)
 
 	// Type assertion
 	c, ok := comp.(*component)
 	require.True(t, ok, "Component should be of type *component")
 
 	// Check fields
-	assert.Equal(t, DefaultKubeletReadOnlyPort, c.kubeletReadOnlyPort)
-	assert.True(t, c.ignoreConnectionErrors)
+	assert.Equal(t, testPort, c.kubeletReadOnlyPort)
 	assert.NotNil(t, c.ctx)
 	assert.NotNil(t, c.cancel)
 }
@@ -813,7 +762,7 @@ func Test_componentConstructor(t *testing.T) {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getStates("no data yet", true)
+	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -826,27 +775,25 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		lastReason     string
-		lastHealthy    bool
 		expectedHealth string
 	}{
 		{
 			name: "standard error returned",
 			data: Data{
-				err: errors.New("standard error"),
+				err:     errors.New("standard error"),
+				healthy: false,
+				reason:  "standard error",
 			},
-			lastReason:     "standard error",
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "empty pods with error",
 			data: Data{
-				Pods: []PodStatus{},
-				err:  errors.New("no pods error"),
+				Pods:    []PodStatus{},
+				err:     errors.New("no pods error"),
+				healthy: false,
+				reason:  "no pods error",
 			},
-			lastReason:     "no pods error",
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
@@ -854,9 +801,9 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 			data: Data{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
+				healthy:  true,
+				reason:   "connection refused",
 			},
-			lastReason:     "connection refused",
-			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
@@ -864,9 +811,9 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 			data: Data{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
+				healthy:  false,
+				reason:   "connection refused",
 			},
-			lastReason:     "connection refused",
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
@@ -875,9 +822,9 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				NodeName: "test-node",
 				Pods:     []PodStatus{{Name: "pod1"}},
 				err:      nil,
+				healthy:  true,
+				reason:   "success",
 			},
-			lastReason:     "success",
-			lastHealthy:    true,
 			expectedHealth: "Healthy",
 		},
 		{
@@ -886,25 +833,25 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				NodeName:             "test-node",
 				KubeletServiceActive: false,
 				err:                  errors.New("kubelet service not active"),
+				healthy:              false,
+				reason:               "kubelet service not active",
 			},
-			lastReason:     "kubelet service not active",
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 		{
 			name: "failed count above threshold",
 			data: Data{
 				NodeName: "test-node",
+				healthy:  false,
+				reason:   "failed threshold exceeded",
 			},
-			lastReason:     "failed threshold exceeded",
-			lastHealthy:    false,
 			expectedHealth: "Unhealthy",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates(tc.lastReason, tc.lastHealthy)
+			states, err := tc.data.getStates()
 			assert.NoError(t, err)
 
 			// Verify state properties
@@ -931,8 +878,10 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	deadlineData := Data{
 		NodeName: "test-node",
 		err:      deadlineErr,
+		healthy:  false,
+		reason:   "deadline exceeded",
 	}
-	states, err := deadlineData.getStates("deadline exceeded", false)
+	states, err := deadlineData.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, "deadline exceeded")
@@ -942,8 +891,10 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	canceledData := Data{
 		NodeName: "test-node",
 		err:      canceledErr,
+		healthy:  false,
+		reason:   "context canceled",
 	}
-	states, err = canceledData.getStates("context canceled", false)
+	states, err = canceledData.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, "context canceled")
@@ -953,8 +904,10 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	customData := Data{
 		NodeName: "test-node",
 		err:      customErr,
+		healthy:  false,
+		reason:   "custom error",
 	}
-	states, err = customData.getStates("custom error", false)
+	states, err = customData.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error")
@@ -972,7 +925,6 @@ func Test_componentCheckOnce_KubeletNotRunning(t *testing.T) {
 		checkDependencyInstalled: func() bool { return true },
 		checkKubeletRunning:      func() bool { return false }, // Kubelet not running
 		kubeletReadOnlyPort:      10255,
-		ignoreConnectionErrors:   false,
 	}
 
 	// Run the check
@@ -1048,7 +1000,6 @@ func Test_componentCheckOnce_Dependencies(t *testing.T) {
 				checkDependencyInstalled: func() bool { return tc.dependencyInstalled },
 				checkKubeletRunning:      func() bool { return tc.kubeletRunning },
 				kubeletReadOnlyPort:      port,
-				ignoreConnectionErrors:   false,
 			}
 
 			// Run the check
@@ -1072,11 +1023,11 @@ func Test_componentCheckOnce_Dependencies(t *testing.T) {
 	}
 }
 
-// Test that the component constructors sets checkKubeletRunning correctly
+// Test that the component constructor sets checkKubeletRunning correctly
 func Test_componentConstructor_CheckKubeletRunning(t *testing.T) {
 	ctx := context.Background()
 	testPort := 12345
-	comp := New(ctx, testPort, true)
+	comp := New(ctx, testPort)
 
 	// Type assertion
 	c, ok := comp.(*component)

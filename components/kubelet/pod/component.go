@@ -30,20 +30,14 @@ type component struct {
 	checkKubeletRunning      func() bool
 	kubeletReadOnlyPort      int
 
-	// In case the kubelet does not open the read-only port, we ignore such errors as
-	// 'Get "http://localhost:10255/pods": dial tcp 127.0.0.1:10255: connect: connection refused'.
-	ignoreConnectionErrors bool
-
 	failedCount          int
 	failedCountThreshold int
 
-	lastMu      sync.RWMutex
-	lastData    *Data
-	lastHealthy bool
-	lastReason  string
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func New(ctx context.Context, kubeletReadOnlyPort int, ignoreConnectionErrors bool) components.Component {
+func New(ctx context.Context, kubeletReadOnlyPort int) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
 		ctx:                      cctx,
@@ -52,10 +46,9 @@ func New(ctx context.Context, kubeletReadOnlyPort int, ignoreConnectionErrors bo
 		checkKubeletRunning: func() bool {
 			return netutil.IsPortOpen(kubeletReadOnlyPort)
 		},
-		kubeletReadOnlyPort:    kubeletReadOnlyPort,
-		ignoreConnectionErrors: ignoreConnectionErrors,
-		failedCount:            0,
-		failedCountThreshold:   defaultFailedCountThreshold,
+		kubeletReadOnlyPort:  kubeletReadOnlyPort,
+		failedCount:          0,
+		failedCountThreshold: defaultFailedCountThreshold,
 	}
 }
 
@@ -83,7 +76,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates(c.lastReason, c.lastHealthy)
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -119,15 +112,15 @@ func (c *component) CheckOnce() {
 
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
-		c.lastHealthy = true
-		c.lastReason = "kubelet is not installed"
+		d.healthy = true
+		d.reason = "kubelet is not installed"
 		return
 	}
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
-		c.lastHealthy = true
-		c.lastReason = "kubelet is installed but not running"
+		d.healthy = true
+		d.reason = "kubelet is installed but not running"
 		return
 	}
 
@@ -142,19 +135,14 @@ func (c *component) CheckOnce() {
 		c.failedCount = 0
 	}
 
-	c.lastHealthy = d.err == nil
+	d.healthy = d.err == nil
 	if d.err == nil {
-		c.lastReason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
+		d.reason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
 	}
 
-	if isConnectionRefusedError(d.err) && c.ignoreConnectionErrors {
-		// e.g.,
-		// Get "http://localhost:10255/pods": dial tcp [::1]:10255: connect: connection refused
-		c.lastHealthy = true
-		c.lastReason = "connection error but ignored"
-	} else if c.failedCount >= c.failedCountThreshold {
-		c.lastHealthy = false
-		c.lastReason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
+	if c.failedCount >= c.failedCountThreshold {
+		d.healthy = false
+		d.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
 	}
 }
 
@@ -170,6 +158,11 @@ type Data struct {
 	ts time.Time `json:"-"`
 	// error from the last check
 	err error `json:"-"`
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool `json:"-"`
+	// tracks the reason of the last check
+	reason string `json:"-"`
 }
 
 func (d *Data) getError() string {
@@ -179,7 +172,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates(lastReason string, lastHealthy bool) ([]components.State, error) {
+func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
@@ -193,13 +186,13 @@ func (d *Data) getStates(lastReason string, lastHealthy bool) ([]components.Stat
 
 	state := components.State{
 		Name:   Name,
-		Reason: lastReason,
+		Reason: d.reason,
 		Error:  d.getError(),
 
-		Healthy: lastHealthy,
+		Healthy: d.healthy,
 		Health:  components.StateHealthy,
 	}
-	if !lastHealthy {
+	if !d.healthy {
 		state.Health = components.StateUnhealthy
 	}
 
