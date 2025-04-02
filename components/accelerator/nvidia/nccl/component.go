@@ -7,54 +7,40 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
-	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(nvidia_nccl_id.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
-	kmsgWatcher, err := kmsg.StartWatch(Match)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
-	return &component{
-		rootCtx:          ctx,
-		cancel:           ccancel,
-		logLineProcessor: logLineProcessor,
-		eventBucket:      eventBucket,
-		kmsgWatcher:      kmsgWatcher,
-	}, nil
-}
+const (
+	Name = "accelerator-nvidia-nccl"
+)
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	logLineProcessor *dmesg.LogLineProcessor
-	eventBucket      eventstore.Bucket
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
+	kmsgSyncer  *kmsg.Syncer
+	eventBucket eventstore.Bucket
 }
 
-func (c *component) Name() string { return nvidia_nccl_id.Name }
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(Name)
+	if err != nil {
+		return nil, err
+	}
+
+	kmsgSyncer, err := kmsg.NewSyncer(ctx, Match, eventBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	return &component{
+		kmsgSyncer:  kmsgSyncer,
+		eventBucket: eventBucket,
+	}, nil
+}
+
+func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
@@ -79,14 +65,7 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
-	c.cancel()
-
-	c.logLineProcessor.Close()
+	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
-
-	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
-	}
-
 	return nil
 }

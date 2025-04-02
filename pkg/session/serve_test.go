@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 )
 
 // TestCreateNeedDeleteFiles tests the createNeedDeleteFiles function

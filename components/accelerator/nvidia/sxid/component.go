@@ -92,7 +92,10 @@ func (c *SXIDComponent) Start() error {
 		}
 	}
 
-	kmsgCh := c.kmsgWatcher.StartWatch()
+	kmsgCh, err := c.kmsgWatcher.Watch()
+	if err != nil {
+		return err
+	}
 	go c.start(kmsgCh, DefaultStateUpdatePeriod)
 
 	return nil

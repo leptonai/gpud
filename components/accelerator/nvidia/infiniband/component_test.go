@@ -14,9 +14,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/dmesg"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -276,7 +276,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 		rootCtx:     ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
-		toolOverwrites: nvidia_common.ToolOverwrites{
+		toolOverwrites: configcommon.ToolOverwrites{
 			IbstatCommand: "cat " + filepath.Join("testdata", "ibstat.47.0.h100.all.active.1"),
 		},
 	}
@@ -434,7 +434,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 				rootCtx:     ctx,
 				cancel:      cancel,
 				eventBucket: bucket,
-				toolOverwrites: nvidia_common.ToolOverwrites{
+				toolOverwrites: configcommon.ToolOverwrites{
 					IbstatCommand: tc.ibstatCommand,
 				},
 			}
@@ -485,7 +485,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 		rootCtx:        ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
-		toolOverwrites: nvidia_common.ToolOverwrites{},
+		toolOverwrites: configcommon.ToolOverwrites{},
 	}
 
 	now := time.Now().UTC()
@@ -559,7 +559,7 @@ func TestGetStates(t *testing.T) {
 		rootCtx:        ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
-		toolOverwrites: nvidia_common.ToolOverwrites{},
+		toolOverwrites: configcommon.ToolOverwrites{},
 	}
 
 	now := time.Now().UTC()
@@ -657,7 +657,7 @@ func TestGetStates(t *testing.T) {
 		rootCtx:        canceledCtx,
 		cancel:         func() {}, // Empty cancel func since we already canceled
 		eventBucket:    bucket,
-		toolOverwrites: nvidia_common.ToolOverwrites{},
+		toolOverwrites: configcommon.ToolOverwrites{},
 	}
 
 	_, err = cNew.getStates(canceledCtx, now, infiniband.ExpectedPortStates{
@@ -712,7 +712,7 @@ func TestEvents(t *testing.T) {
 		rootCtx:     ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
-		toolOverwrites: nvidia_common.ToolOverwrites{
+		toolOverwrites: configcommon.ToolOverwrites{
 			IbstatCommand: "cat testdata/ibstat.47.0.h100.all.active.1",
 		},
 	}
@@ -773,37 +773,20 @@ func TestClose(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
+	kmsgSyncer, err := kmsg.NewSyncer(ctx, func(line string) (string, string) {
+		return line, "test message"
+	}, bucket)
+	assert.NoError(t, err)
+
 	c := &component{
 		rootCtx:     ctx,
 		cancel:      func() {},
+		kmsgSyncer:  kmsgSyncer,
 		eventBucket: bucket,
 	}
 
 	err = c.Close()
 	assert.NoError(t, err)
-}
-
-// MockWatcher implements the dmesg.Watcher interface for testing
-type MockWatcher struct {
-	ch chan dmesg.LogLine
-}
-
-func NewMockWatcher() *MockWatcher {
-	return &MockWatcher{
-		ch: make(chan dmesg.LogLine, 100),
-	}
-}
-
-func (m *MockWatcher) Watch() <-chan dmesg.LogLine {
-	return m.ch
-}
-
-func (m *MockWatcher) Close() {
-	close(m.ch)
-}
-
-func (m *MockWatcher) SendLogLine(line dmesg.LogLine) {
-	m.ch <- line
 }
 
 // MockEventBucket implements the events_db.Store interface for testing
@@ -1038,13 +1021,13 @@ func TestNewWithLogLineProcessor(t *testing.T) {
 	defer cancel()
 
 	// Test successful creation
-	comp, err := New(ctx, store, nvidia_common.ToolOverwrites{})
+	comp, err := New(ctx, store, configcommon.ToolOverwrites{})
 	require.NoError(t, err)
 	defer comp.Close()
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
-	require.NotNil(t, c.logLineProcessor)
+	require.NotNil(t, c.kmsgSyncer)
 }
 
 // TestIntegrationWithLogLineProcessor tests that the component can process dmesg events

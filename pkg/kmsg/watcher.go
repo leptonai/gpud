@@ -47,13 +47,12 @@ var (
 )
 
 type Watcher interface {
-	// Watch reads from kmsg and provides a channel of messages.
-	// Watch will always close the provided channel before returning.
-	// Watch may be canceled by calling 'Close' on the parser.
+	// Watch starts a goroutine to read from kmsg and provide a channel of messages.
+	// Watcher is responsible for closing the channel when the watch is done.
+	// Watcher may be canceled by calling 'Close' on the parser.
 	//
 	// The caller should drain the channel after calling 'Close'.
-	Watch(chan<- Message) error
-	StartWatch() <-chan Message
+	Watch() (<-chan Message, error)
 	Close() error
 }
 
@@ -174,7 +173,7 @@ func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message
 
 		if deduper != nil {
 			if occurrences := deduper.addCache(*msg); occurrences > 1 {
-				log.Logger.Warnw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
+				log.Logger.Debugw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
 				continue
 			}
 		}
@@ -216,26 +215,19 @@ func (w *watcher) errIfStarted() error {
 	return ErrWatcherAlreadyStarted
 }
 
-func (w *watcher) Watch(msgs chan<- Message) error {
+func (w *watcher) Watch() (<-chan Message, error) {
 	if err := w.errIfStarted(); err != nil {
-		return err
+		return nil, err
 	}
-	return readFollow(
-		w.kmsgFile,
-		w.bootTime,
-		msgs,
-		newDeduper(defaultCacheExpiration, defaultCachePurgeInterval),
-	)
-}
-
-func (w *watcher) StartWatch() <-chan Message {
 	kmsgCh := make(chan Message, 2048)
 	go func() {
-		if err := w.Watch(kmsgCh); err != nil {
+		deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval)
+		err := readFollow(w.kmsgFile, w.bootTime, kmsgCh, deduper)
+		if err != nil {
 			log.Logger.Errorw("kmsg watcher error", "err", err)
 		}
 	}()
-	return kmsgCh
+	return kmsgCh, nil
 }
 
 func (w *watcher) Close() error {

@@ -16,9 +16,9 @@ import (
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
-	nvidia_nccl_id "github.com/leptonai/gpud/components/accelerator/nvidia/nccl/id"
+	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
-	nvidia_peermem_id "github.com/leptonai/gpud/components/accelerator/nvidia/peermem/id"
+	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
@@ -32,7 +32,7 @@ import (
 	"github.com/leptonai/gpud/components/disk"
 	docker_container "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
-	fuse "github.com/leptonai/gpud/components/fuse"
+	"github.com/leptonai/gpud/components/fuse"
 	"github.com/leptonai/gpud/components/info"
 	kernel_module "github.com/leptonai/gpud/components/kernel-module"
 	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
@@ -210,9 +210,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// optional
 		cfg.Components[nvidia_infiniband.Name] = nil
-
-		cfg.Components[nvidia_nccl_id.Name] = nil
-		cfg.Components[nvidia_peermem_id.Name] = nil
+		cfg.Components[nvidia_nccl.Name] = nil
+		cfg.Components[nvidia_peermem.Name] = nil
 		cfg.Components[nvidia_persistence_mode_id.Name] = nil
 		cfg.Components[nvidia_gsp_firmware_mode_id.Name] = nil
 	} else {

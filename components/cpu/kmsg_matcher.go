@@ -1,6 +1,8 @@
 package cpu
 
-import "regexp"
+import (
+	"regexp"
+)
 
 const (
 	// e.g.,
@@ -30,7 +32,7 @@ var (
 	compiledSoftLockup     = regexp.MustCompile(regexSoftLockup)
 )
 
-// Returns the task name and true if the line indicates that a task is hung too long.
+// HasBlockedTooLong returns the task name and true if the line indicates that a task is hung too long.
 func HasBlockedTooLong(line string) bool {
 	if match := compiledBlockedTooLong.FindStringSubmatch(line); match != nil {
 		return true
@@ -38,7 +40,7 @@ func HasBlockedTooLong(line string) bool {
 	return false
 }
 
-// Returns the task name and true if the line indicates a CPU soft lockup.
+// HasSoftLockup returns the task name and true if the line indicates a CPU soft lockup.
 func HasSoftLockup(line string) bool {
 	if match := compiledSoftLockup.FindStringSubmatch(line); match != nil {
 		return true

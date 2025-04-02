@@ -13,60 +13,50 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/dmesg"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
-// Name is the name of the infiniband check component.
-const Name = "accelerator-nvidia-infiniband"
+const (
+	Name = "accelerator-nvidia-infiniband"
+)
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	eventBucket      eventstore.Bucket
-	logLineProcessor *dmesg.LogLineProcessor
-	toolOverwrites   nvidia_common.ToolOverwrites
+	rootCtx        context.Context
+	cancel         context.CancelFunc
+	eventBucket    eventstore.Bucket
+	kmsgSyncer     *kmsg.Syncer
+	toolOverwrites configcommon.ToolOverwrites
 
 	lastEventMu        sync.Mutex
 	lastEvent          *components.Event
 	lastEventThreshold infiniband.ExpectedPortStates
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
 }
 
-func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites configcommon.ToolOverwrites) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
-	kmsgWatcher, err := kmsg.StartWatch(Match)
+	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
 	}
 
 	c := &component{
-		rootCtx:          cctx,
-		cancel:           ccancel,
-		eventBucket:      eventBucket,
-		logLineProcessor: logLineProcessor,
-		toolOverwrites:   toolOverwrites,
-		kmsgWatcher:      kmsgWatcher,
+		rootCtx:        cctx,
+		cancel:         ccancel,
+		eventBucket:    eventBucket,
+		kmsgSyncer:     kmsgSyncer,
+		toolOverwrites: toolOverwrites,
 	}
 
 	return c, nil

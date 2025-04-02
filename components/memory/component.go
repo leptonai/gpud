@@ -15,7 +15,6 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/components/memory/metrics"
-	"github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -27,15 +26,11 @@ const Name = "memory"
 var _ components.Component = &component{}
 
 type component struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	logLineProcessor *dmesg.LogLineProcessor
-	eventBucket      eventstore.Bucket
-	gatherer         prometheus.Gatherer
-
-	// experimental
-	kmsgWatcher kmsg.Watcher
+	ctx         context.Context
+	cancel      context.CancelFunc
+	kmsgSyncer  *kmsg.Syncer
+	eventBucket eventstore.Bucket
+	gatherer    prometheus.Gatherer
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -47,25 +42,19 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		return nil, err
 	}
 
-	kmsgWatcher, err := kmsg.StartWatch(Match)
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO: deprecate
 	cctx, ccancel := context.WithCancel(ctx)
-	logLineProcessor, err := dmesg.NewLogLineProcessor(cctx, Match, eventBucket)
+	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
 		ccancel()
 		return nil, err
 	}
 
 	return &component{
-		ctx:              cctx,
-		cancel:           ccancel,
-		logLineProcessor: logLineProcessor,
-		eventBucket:      eventBucket,
-		kmsgWatcher:      kmsgWatcher,
+		ctx:         cctx,
+		cancel:      ccancel,
+		kmsgSyncer:  kmsgSyncer,
+		eventBucket: eventBucket,
 	}, nil
 }
 
@@ -133,14 +122,8 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
-
-	c.logLineProcessor.Close()
+	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
-
-	if c.kmsgWatcher != nil {
-		c.kmsgWatcher.Close()
-	}
-
 	return nil
 }
 
