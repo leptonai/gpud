@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
+	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -175,7 +175,7 @@ func TestInfinibandUpdateConfig(t *testing.T) {
 	req := Request{
 		Method: "updateConfig",
 		UpdateConfig: map[string]string{
-			nvidia_infiniband_id.Name: string(configJSON),
+			nvidia_infiniband.Name: string(configJSON),
 		},
 	}
 
@@ -191,11 +191,11 @@ func TestInfinibandUpdateConfig(t *testing.T) {
 	// Verify the contents
 	assert.Equal(t, req.Method, unmarshaled.Method)
 	assert.Equal(t, req.UpdateConfig, unmarshaled.UpdateConfig)
-	assert.Contains(t, unmarshaled.UpdateConfig, nvidia_infiniband_id.Name)
+	assert.Contains(t, unmarshaled.UpdateConfig, nvidia_infiniband.Name)
 
 	// Verify the config can be unmarshaled back to a map
 	var unmarshaledConfig map[string]map[string]bool
-	err = json.Unmarshal([]byte(unmarshaled.UpdateConfig[nvidia_infiniband_id.Name]), &unmarshaledConfig)
+	err = json.Unmarshal([]byte(unmarshaled.UpdateConfig[nvidia_infiniband.Name]), &unmarshaledConfig)
 	require.NoError(t, err)
 
 	// Verify the contents of the config

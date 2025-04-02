@@ -14,7 +14,6 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	nvidia_infiniband_id "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/id"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
@@ -193,7 +192,7 @@ func (s *Session) serve() {
 					log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
 
 					switch componentName {
-					case nvidia_infiniband_id.Name:
+					case nvidia_infiniband.Name:
 						var updateCfg infiniband.ExpectedPortStates
 						if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
 							log.Logger.Warnw("failed to unmarshal update config", "error", err)
