@@ -102,7 +102,6 @@ func (c *component) getStates(ctx context.Context, now time.Time, thresholds inf
 		return nil, err
 	}
 	if lastEvent == nil {
-		var err error
 		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
 		lastEvent, err = c.eventBucket.Latest(cctx)
 		ccancel()
