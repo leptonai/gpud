@@ -42,7 +42,6 @@ func cmdRun(cliContext *cli.Context) error {
 
 	configOpts := []config.OpOption{
 		config.WithDockerIgnoreConnectionErrors(dockerIgnoreConnectionErrors),
-		config.WithKubeletIgnoreConnectionErrors(kubeletIgnoreConnectionErrors),
 		config.WithIbstatCommand(ibstatCommand),
 	}
 

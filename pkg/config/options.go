@@ -5,9 +5,8 @@ import (
 )
 
 type Op struct {
-	KernelModulesToCheck          []string
-	DockerIgnoreConnectionErrors  bool
-	KubeletIgnoreConnectionErrors bool
+	KernelModulesToCheck         []string
+	DockerIgnoreConnectionErrors bool
 
 	nvidia_common.ToolOverwrites
 }
@@ -35,12 +34,6 @@ func WithKernelModulesToCheck(modules ...string) OpOption {
 func WithDockerIgnoreConnectionErrors(b bool) OpOption {
 	return func(op *Op) {
 		op.DockerIgnoreConnectionErrors = b
-	}
-}
-
-func WithKubeletIgnoreConnectionErrors(b bool) OpOption {
-	return func(op *Op) {
-		op.KubeletIgnoreConnectionErrors = b
 	}
 }
 
