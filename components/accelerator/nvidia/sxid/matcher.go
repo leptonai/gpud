@@ -17,22 +17,22 @@ const (
 	// ref.
 	// "D.4 Non-Fatal NVSwitch SXid Errors"
 	// https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
-	RegexNVSwitchSXidDmesg = `SXid.*?: (\d+),`
+	RegexNVSwitchSXidKMessage = `SXid.*?: (\d+),`
 
 	// Regex to extract PCI device ID from NVSwitch SXid messages
 	RegexNVSwitchSXidDeviceUUID = `SXid \((PCI:[0-9a-fA-F:\.]+)\)`
 )
 
 var (
-	compiledRegexNVSwitchSXidDmesg      = regexp.MustCompile(RegexNVSwitchSXidDmesg)
+	compiledRegexNVSwitchSXidKMessage   = regexp.MustCompile(RegexNVSwitchSXidKMessage)
 	compiledRegexNVSwitchSXidDeviceUUID = regexp.MustCompile(RegexNVSwitchSXidDeviceUUID)
 )
 
-// Extracts the nvidia NVSwitch SXid error code from the dmesg log line.
+// ExtractNVSwitchSXid extracts the nvidia NVSwitch SXid error code from the dmesg log line.
 // Returns 0 if the error code is not found.
 // https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 func ExtractNVSwitchSXid(line string) int {
-	if match := compiledRegexNVSwitchSXidDmesg.FindStringSubmatch(line); match != nil {
+	if match := compiledRegexNVSwitchSXidKMessage.FindStringSubmatch(line); match != nil {
 		if id, err := strconv.Atoi(match[1]); err == nil {
 			return id
 		}
@@ -55,11 +55,11 @@ type SXidError struct {
 	Detail     *sxid.Detail `json:"detail,omitempty"`
 }
 
-func (sxidErr SXidError) YAML() ([]byte, error) {
+func (sxidErr *SXidError) YAML() ([]byte, error) {
 	return yaml.Marshal(sxidErr)
 }
 
-// Returns a matching xid error object if found.
+// Match returns a matching xid error object if found.
 // Otherwise, returns nil.
 func Match(line string) *SXidError {
 	extractedID := ExtractNVSwitchSXid(line)

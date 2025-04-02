@@ -13,7 +13,7 @@ import (
 )
 
 func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
-	sxidErr := sxidErrorFromDmesg{
+	sxidErr := sxidErrorEventDetail{
 		SXid:       sxid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
@@ -23,9 +23,9 @@ func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventTyp
 	}
 	sxidData, _ := json.Marshal(sxidErr)
 	ret := components.Event{
-		Name:      EventNameErroSXid,
+		Name:      EventNameErrorSXid,
 		Type:      eventType,
-		ExtraInfo: map[string]string{EventKeyErroSXidData: string(sxidData)},
+		ExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData)},
 	}
 	if !eventTime.IsZero() {
 		ret.Time = metav1.Time{Time: eventTime}
@@ -99,9 +99,9 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("invalid sxid", func(t *testing.T) {
 		events := []components.Event{
 			{
-				Name:      EventNameErroSXid,
+				Name:      EventNameErrorSXid,
 				Type:      common.EventTypeFatal,
-				ExtraInfo: map[string]string{EventKeyErroSXidData: "invalid json"},
+				ExtraInfo: map[string]string{EventKeyErrorSXidData: "invalid json"},
 			},
 		}
 		state := EvolveHealthyState(events)
@@ -114,7 +114,7 @@ func TestSXidErrorFromDmesgJSON(t *testing.T) {
 	testTime := metav1.Time{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)}
 
 	t.Run("successful marshaling", func(t *testing.T) {
-		sxidErr := sxidErrorFromDmesg{
+		sxidErr := sxidErrorEventDetail{
 			Time:       testTime,
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
@@ -130,7 +130,7 @@ func TestSXidErrorFromDmesgJSON(t *testing.T) {
 		assert.NotNil(t, jsonBytes)
 
 		// Verify JSON structure by unmarshaling
-		var unmarshaled sxidErrorFromDmesg
+		var unmarshaled sxidErrorEventDetail
 		err = json.Unmarshal(jsonBytes, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, sxidErr.Time.UTC(), unmarshaled.Time.UTC())
@@ -142,7 +142,7 @@ func TestSXidErrorFromDmesgJSON(t *testing.T) {
 	})
 
 	t.Run("minimal fields", func(t *testing.T) {
-		sxidErr := sxidErrorFromDmesg{
+		sxidErr := sxidErrorEventDetail{
 			Time:       testTime,
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
@@ -153,7 +153,7 @@ func TestSXidErrorFromDmesgJSON(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, jsonBytes)
 
-		var unmarshaled sxidErrorFromDmesg
+		var unmarshaled sxidErrorEventDetail
 		err = json.Unmarshal(jsonBytes, &unmarshaled)
 		assert.NoError(t, err)
 		assert.Equal(t, sxidErr.Time.UTC(), unmarshaled.Time.UTC())

@@ -17,7 +17,7 @@ const (
 	//
 	// ref.
 	// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-	RegexNVRMXidDmesg = `NVRM: Xid.*?: (\d+),`
+	RegexNVRMXidKMessage = `NVRM: Xid.*?: (\d+),`
 
 	// Regex to extract PCI device ID from NVRM Xid messages
 	// Matches both formats: (0000:03:00) and (PCI:0000:05:00)
@@ -25,15 +25,15 @@ const (
 )
 
 var (
-	compiledRegexNVRMXidDmesg      = regexp.MustCompile(RegexNVRMXidDmesg)
+	compiledRegexNVRMXidKMessage   = regexp.MustCompile(RegexNVRMXidKMessage)
 	compiledRegexNVRMXidDeviceUUID = regexp.MustCompile(RegexNVRMXidDeviceUUID)
 )
 
-// Extracts the nvidia Xid error code from the dmesg log line.
+// ExtractNVRMXid extracts the nvidia Xid error code from the dmesg log line.
 // Returns 0 if the error code is not found.
 // https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
 func ExtractNVRMXid(line string) int {
-	if match := compiledRegexNVRMXidDmesg.FindStringSubmatch(line); match != nil {
+	if match := compiledRegexNVRMXidKMessage.FindStringSubmatch(line); match != nil {
 		if id, err := strconv.Atoi(match[1]); err == nil {
 			return id
 		}
@@ -58,11 +58,11 @@ type XidError struct {
 	Detail     *xid.Detail `json:"detail,omitempty"`
 }
 
-func (xidErr XidError) YAML() ([]byte, error) {
+func (xidErr *XidError) YAML() ([]byte, error) {
 	return yaml.Marshal(xidErr)
 }
 
-// Returns a matching xid error object if found.
+// Match returns a matching xid error object if found.
 // Otherwise, returns nil.
 func Match(line string) *XidError {
 	extractedID := ExtractNVRMXid(line)

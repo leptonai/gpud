@@ -10,9 +10,9 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/common"
-	pkg_dmesg "github.com/leptonai/gpud/pkg/dmesg"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -153,9 +153,7 @@ func TestXIDComponent_Events(t *testing.T) {
 
 	component := New(ctx, rebootEventStore, store)
 	assert.NotNil(t, component)
-	watcher, err := pkg_dmesg.NewWatcher()
-	assert.NoError(t, err)
-	go component.start(watcher, 1*time.Second)
+	go component.start(make(chan kmsg.Message, 1), 1*time.Second)
 	defer func() {
 		if err := component.Close(); err != nil {
 			t.Error("failed to close component")
@@ -206,9 +204,7 @@ func TestXIDComponent_States(t *testing.T) {
 
 	component := New(ctx, rebootEventStore, store)
 	assert.NotNil(t, component)
-	watcher, err := pkg_dmesg.NewWatcher()
-	assert.NoError(t, err)
-	go component.start(watcher, 100*time.Millisecond)
+	go component.start(make(<-chan kmsg.Message, 1), 100*time.Millisecond)
 	defer func() {
 		if err := component.Close(); err != nil {
 			t.Error("failed to close component")
