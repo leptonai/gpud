@@ -317,7 +317,7 @@ func read(ctx context.Context, p process.Process, cacheExpiration time.Duration,
 			ts:  time.Now().UTC(),
 			err: fmt.Errorf("reading output failed: %v", err),
 		}:
-			log.Logger.Warnw("failed to read dmesg output", "err", err)
+			log.Logger.Warnw("failed to read from output", "err", err)
 		}
 	}
 }

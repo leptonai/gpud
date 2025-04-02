@@ -41,7 +41,7 @@ var (
 	pollGPMEvents bool
 	netcheck      bool
 	diskcheck     bool
-	dmesgCheck    bool
+	kmsgCheck     bool
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -518,9 +518,9 @@ cat summary.txt
 					Destination: &diskcheck,
 				},
 				&cli.BoolTFlag{
-					Name:        "dmesg-check",
-					Usage:       "enable dmesg checks (default: true)",
-					Destination: &dmesgCheck,
+					Name:        "kmsg-check",
+					Usage:       "enable kmsg checks (default: true)",
+					Destination: &kmsgCheck,
 				},
 				&cli.BoolFlag{
 					Name:        "check-ib",

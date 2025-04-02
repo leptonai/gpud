@@ -22,7 +22,7 @@ func cmdScan(cliContext *cli.Context) error {
 		diagnose.WithPollGPMEvents(pollGPMEvents),
 		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),
-		diagnose.WithDmesgCheck(dmesgCheck),
+		diagnose.WithKMsgCheck(kmsgCheck),
 		diagnose.WithIbstatCommand(ibstatCommand),
 		diagnose.WithCheckInfiniband(checkInfiniBand),
 	}

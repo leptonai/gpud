@@ -214,7 +214,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 	println()
 
-	if op.dmesgCheck {
+	if op.kmsgCheck {
 		if os.Geteuid() != 0 {
 			return errors.New("requires sudo/root access in order to scan kernel message errors")
 		}

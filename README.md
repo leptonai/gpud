@@ -105,7 +105,7 @@ sudo rm /etc/systemd/system/gpud.service
 
 - Monitor critical GPU and GPU fabric metrics (power, temperature).
 - Reports  GPU and GPU fabric status (nvidia-smi parser, error checking).
-- Detects critical GPU and GPU fabric errors (dmesg, hardware slowdown, NVML Xid event, DCGM).
+- Detects critical GPU and GPU fabric errors (kmsg, hardware slowdown, NVML Xid event, DCGM).
 - Monitor overall system metrics (CPU, memory, disk).
 
 Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components and their features.

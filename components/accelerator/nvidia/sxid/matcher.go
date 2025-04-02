@@ -28,7 +28,7 @@ var (
 	compiledRegexNVSwitchSXidDeviceUUID = regexp.MustCompile(RegexNVSwitchSXidDeviceUUID)
 )
 
-// ExtractNVSwitchSXid extracts the nvidia NVSwitch SXid error code from the dmesg log line.
+// ExtractNVSwitchSXid extracts the nvidia NVSwitch SXid error code from the kmsg log line.
 // Returns 0 if the error code is not found.
 // https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 func ExtractNVSwitchSXid(line string) int {
@@ -40,7 +40,7 @@ func ExtractNVSwitchSXid(line string) int {
 	return 0
 }
 
-// ExtractNVSwitchSXidDeviceUUID extracts the PCI device ID from the dmesg log line.
+// ExtractNVSwitchSXidDeviceUUID extracts the PCI device ID from the kmsg log line.
 // Returns empty string if the device ID is not found.
 func ExtractNVSwitchSXidDeviceUUID(line string) string {
 	if match := compiledRegexNVSwitchSXidDeviceUUID.FindStringSubmatch(line); match != nil {

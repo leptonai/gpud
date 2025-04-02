@@ -1030,7 +1030,7 @@ func TestNewWithLogLineProcessor(t *testing.T) {
 	require.NotNil(t, c.kmsgSyncer)
 }
 
-// TestIntegrationWithLogLineProcessor tests that the component can process dmesg events
+// TestIntegrationWithLogLineProcessor tests that the component can process kmsg events
 func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	// We are not using t.Parallel() here because we need to mock some global functions
 

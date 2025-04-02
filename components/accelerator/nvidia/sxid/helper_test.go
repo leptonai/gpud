@@ -110,7 +110,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 }
 
-func TestSXidErrorFromDmesgJSON(t *testing.T) {
+func Test_sxidErrorEventDetailJSON(t *testing.T) {
 	testTime := metav1.Time{Time: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)}
 
 	t.Run("successful marshaling", func(t *testing.T) {

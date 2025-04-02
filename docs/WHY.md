@@ -27,19 +27,19 @@ By addressing these challenges, GPUd simplifies GPU management, reduces human er
 ## Features
 
 - Metrics: supports time series metrics data in the custom format, in addition to the Prometheus format.
-- NVIDIA GPU errors: scans dmesg, NVML, and nvidia-smi for identifying the real-time and historical GPU errors.
+- NVIDIA GPU errors: scans kmsg, NVML, and nvidia-smi for identifying the real-time and historical GPU errors.
 - NVIDIA GPU ECC errors: queries nvidia-smi and NVML APIs.
 - NVIDIA GPU clock: scans nvidia-smi and NVML for hardware slowdown.
 - NVIDIA GPU utilization: GPU memory, GPU utilization, GPU streaming multiprocessors (SM) occupancy, etc..
 - NVIDIA GPU temperature: scans nvidia-smi and NVML for critical temperature thresholds and data.
 - NVIDIA GPU power: scans nvidia-smi and NVML for current power draw and limits.
 - NVIDIA GPU processes: uses NVML to list running processes.
-- NVIDIA NVLink & NVSwitch: scans dmesg for any issues, NVML for status and errors.
+- NVIDIA NVLink & NVSwitch: scans kmsg for any issues, NVML for status and errors.
 - NVIDIA fabric manager: checks nvidia-fabricmanager unit status.
 - NVIDIA InfiniBand: checks ibstat.
 - NVIDIA direct RDMA (Remote Direct Memory Access): check lsmod, peermem.
 - CPU, OS, memory, disk, file descriptor usage monitoring.
-- Regex-based dmesg streaming and scanning.
+- Regex-based kmsg streaming and scanning.
 - Workloads monitoring: supports containerd, docker, kubelet.
 
 ## System comparisons
