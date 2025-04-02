@@ -241,8 +241,8 @@ func TestStartStop(t *testing.T) {
 		store := newMockStore(nil, nil, nil)
 
 		ctx := context.Background()
-		scrapeInterval := 50 * time.Millisecond
-		purgeInterval := 100 * time.Millisecond
+		scrapeInterval := time.Second
+		purgeInterval := time.Second
 		retainDuration := 1 * time.Hour
 
 		s := NewSyncer(ctx, scraper, store, scrapeInterval, purgeInterval, retainDuration)
@@ -274,7 +274,8 @@ func TestStartStop(t *testing.T) {
 		currentScrapeCount := scraper.getScrapeCount()
 		currentPurgeCount := store.getPurgeCount()
 
-		time.Sleep(200 * time.Millisecond)
+		// enough time for sync ticker to cancel
+		time.Sleep(5 * scrapeInterval)
 
 		require.Equal(t, currentScrapeCount, scraper.getScrapeCount(), "Scrape count should not increase after stopping")
 		require.Equal(t, currentPurgeCount, store.getPurgeCount(), "Purge count should not increase after stopping")
