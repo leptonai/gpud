@@ -114,8 +114,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		EnableAutoUpdate: true,
 
-		DockerIgnoreConnectionErrors:  options.DockerIgnoreConnectionErrors,
-		KubeletIgnoreConnectionErrors: options.KubeletIgnoreConnectionErrors,
+		DockerIgnoreConnectionErrors: options.DockerIgnoreConnectionErrors,
 
 		KernelModulesToCheck: options.KernelModulesToCheck,
 

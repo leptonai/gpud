@@ -48,8 +48,7 @@ var (
 
 	kernelModulesToCheck cli.StringSlice
 
-	dockerIgnoreConnectionErrors  bool
-	kubeletIgnoreConnectionErrors bool
+	dockerIgnoreConnectionErrors bool
 
 	ibstatCommand string
 
@@ -249,12 +248,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "ignore connection errors to docker daemon, useful when docker daemon is not running (default: false)",
 					Destination: &dockerIgnoreConnectionErrors,
 				},
-				&cli.BoolFlag{
-					Name:        "kubelet-ignore-connection-errors",
-					Usage:       "ignore connection errors to kubelet read-only port, useful when kubelet readOnlyPort is disabled (default: false)",
-					Destination: &kubeletIgnoreConnectionErrors,
-				},
-
 				// experimental
 				&cli.BoolFlag{
 					Name:        "experimental-global-metrics-store",

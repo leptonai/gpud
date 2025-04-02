@@ -19,12 +19,10 @@ func TestOp_ApplyOpts(t *testing.T) {
 		err := op.ApplyOpts([]OpOption{
 			WithKernelModulesToCheck("mod1", "mod2"),
 			WithDockerIgnoreConnectionErrors(true),
-			WithKubeletIgnoreConnectionErrors(true),
 		})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"mod1", "mod2"}, op.KernelModulesToCheck)
 		assert.True(t, op.DockerIgnoreConnectionErrors)
-		assert.True(t, op.KubeletIgnoreConnectionErrors)
 	})
 }
 
@@ -81,26 +79,6 @@ func TestWithDockerIgnoreConnectionErrors(t *testing.T) {
 			opt := WithDockerIgnoreConnectionErrors(tt.value)
 			opt(op)
 			assert.Equal(t, tt.expected, op.DockerIgnoreConnectionErrors)
-		})
-	}
-}
-
-func TestWithKubeletIgnoreConnectionErrors(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    bool
-		expected bool
-	}{
-		{"set true", true, true},
-		{"set false", false, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op := &Op{}
-			opt := WithKubeletIgnoreConnectionErrors(tt.value)
-			opt(op)
-			assert.Equal(t, tt.expected, op.KubeletIgnoreConnectionErrors)
 		})
 	}
 }

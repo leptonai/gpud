@@ -627,7 +627,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
 
 		case kubelet_pod.Name:
-			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort, config.KubeletIgnoreConnectionErrors))
+			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort))
 
 		case network_latency.Name:
 			allComponents = append(allComponents, network_latency.New(ctx))

@@ -55,9 +55,6 @@ type Config struct {
 	// Set false to disable the docker connection errors
 	DockerIgnoreConnectionErrors bool `json:"docker_ignore_connection_errors"`
 
-	// Set false to disable the kubelet connection errors
-	KubeletIgnoreConnectionErrors bool `json:"kubelet_ignore_connection_errors"`
-
 	// A list of kernel modules to check for its existence.
 	KernelModulesToCheck []string `json:"kernel_modules_to_check"`
 
