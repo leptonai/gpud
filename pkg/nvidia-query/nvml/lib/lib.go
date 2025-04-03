@@ -76,6 +76,8 @@ func New(opts ...OpOption) Library {
 	return nvInterface
 }
 
+// Init initializes the NVML library.
+// It returns nvml.ERROR_LIBRARY_NOT_FOUND if the NVML library is not found.
 func (n *nvmlInterface) Init() nvml.Return {
 	if n.initReturn != nil {
 		return *n.initReturn

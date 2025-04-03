@@ -27,11 +27,11 @@ var ErrNVMLNotInstalled = fmt.Errorf("nvml not installed")
 // If NVML is not installed, it returns `ErrNVMLNotInstalled`.
 func NewInstanceV2() (InstanceV2, error) {
 	nvmlLib := nvml_lib.NewDefault()
-	installed, err := initAndCheckNVMLSupported(nvmlLib.NVML())
+	initSuccess, err := initAndCheckNVMLSupported(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
 	}
-	if !installed {
+	if !initSuccess {
 		return nil, ErrNVMLNotInstalled
 	}
 
