@@ -3,7 +3,6 @@ package fd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/fd/metrics"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -61,7 +59,6 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		return nil, err
 	}
 
-	// TODO: deprecate
 	cctx, ccancel := context.WithCancel(ctx)
 	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
@@ -111,62 +108,12 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	allocatedFileHandles, err := metrics.ReadAllocatedFileHandles(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read allocated file handles: %w", err)
-	}
-	runningPIDs, err := metrics.ReadRunningPIDs(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read running pids: %w", err)
-	}
-	limits, err := metrics.ReadLimits(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read limits: %w", err)
-	}
-	allocatedPercents, err := metrics.ReadAllocatedFileHandlesPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read allocated percents: %w", err)
-	}
-	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(allocatedFileHandles)+len(runningPIDs)+len(limits)+len(allocatedPercents)+len(usedPercents))
-	for _, m := range allocatedFileHandles {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range runningPIDs {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range limits {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range allocatedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
 	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
 	return nil
-}
-
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	return metrics.Register(reg, dbRW, dbRO, tableName)
 }
 
 // CheckOnce checks the current pods
@@ -188,14 +135,7 @@ func (c *component) CheckOnce() {
 		return
 	}
 	d.AllocatedFileHandles = allocatedFileHandles
-
-	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetAllocatedFileHandles(cctx, float64(allocatedFileHandles), d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(allocatedFileHandles))
 
 	runningPIDs, err := process.CountRunningPids()
 	if err != nil {
@@ -203,14 +143,7 @@ func (c *component) CheckOnce() {
 		return
 	}
 	d.RunningPIDs = runningPIDs
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetRunningPIDs(cctx, float64(runningPIDs), d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(runningPIDs))
 
 	// may fail for mac
 	// e.g.,
@@ -228,25 +161,11 @@ func (c *component) CheckOnce() {
 		return
 	}
 	d.Limit = limit
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetLimit(cctx, float64(limit), d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricLimit.With(prometheus.Labels{}).Set(float64(limit))
 
 	allocatedFileHandlesPct := calcUsagePct(allocatedFileHandles, limit)
 	d.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetAllocatedFileHandlesPercent(cctx, allocatedFileHandlesPct, d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(allocatedFileHandlesPct)
 
 	usageVal := runningPIDs // for mac
 	if usage > 0 {
@@ -254,14 +173,7 @@ func (c *component) CheckOnce() {
 	}
 	usedPct := calcUsagePct(usageVal, limit)
 	d.UsedPercent = fmt.Sprintf("%.2f", usedPct)
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedPercent(cctx, usedPct, d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 
 	fileHandlesSupported := file.CheckFileHandlesSupported()
 	d.FileHandlesSupported = fileHandlesSupported
@@ -272,21 +184,8 @@ func (c *component) CheckOnce() {
 	}
 	d.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
 	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdAllocatedFileHandles(cctx, float64(c.thresholdAllocatedFileHandles))
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdAllocatedFileHandlesPercent(cctx, thresholdAllocatedFileHandlesPct, d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
+	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
 
 	fdLimitSupported := file.CheckFDLimitSupported()
 	d.FDLimitSupported = fdLimitSupported
@@ -297,22 +196,8 @@ func (c *component) CheckOnce() {
 	}
 	d.ThresholdRunningPIDs = c.thresholdRunningPIDs
 	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdRunningPIDs(cctx, float64(c.thresholdRunningPIDs))
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetThresholdRunningPIDsPercent(cctx, thresholdRunningPIDsPct, d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
+	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
+	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
 }
 
 type Data struct {
