@@ -231,7 +231,7 @@ func (d *Data) getError() string {
 
 func (d *Data) getStates() ([]components.State, error) {
 	state := components.State{
-		Name:   "fuse",
+		Name:   Name,
 		Reason: d.getReason(),
 		Error:  d.getError(),
 	}

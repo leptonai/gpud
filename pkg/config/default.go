@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
+	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
@@ -181,7 +181,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_component_sxid.Name] = nil
 		cfg.Components[nvidia_info.Name] = nil
 
-		cfg.Components[nvidia_clock_speed_id.Name] = nil
+		cfg.Components[nvidia_clock_speed.Name] = nil
 		cfg.Components[nvidia_memory.Name] = nil
 
 		gpmSupported, err := nvidia_query_nvml.GPMSupported()
