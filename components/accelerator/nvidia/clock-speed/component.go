@@ -3,132 +3,161 @@ package clockspeed
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/leptonai/gpud/components"
-	nvidia_clock_speed_id "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed/id"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	nvidia_query_metrics_clockspeed "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock-speed"
-	"github.com/leptonai/gpud/pkg/query"
-
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
-	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_clock_speed_id.Name)
-
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
-	}, nil
-}
+const Name = "accelerator-nvidia-clock-speed"
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	getDevicesFunc    func() map[string]device.Device
+	getClockSpeedFunc func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error)
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func (c *component) Name() string { return nvidia_clock_speed_id.Name }
+func New(ctx context.Context, getDevicesFunc func() map[string]device.Device) components.Component {
+	cctx, ccancel := context.WithCancel(ctx)
+	return &component{
+		ctx:               cctx,
+		cancel:            ccancel,
+		getDevicesFunc:    getDevicesFunc,
+		getClockSpeedFunc: nvidianvml.GetClockSpeed,
+	}
+}
 
-func (c *component) Start() error { return nil }
+func (c *component) Name() string { return Name }
+
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_clock_speed_id.Name)
-		return []components.State{
-			{
-				Name:    nvidia_clock_speed_id.Name,
-				Healthy: true,
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-	}
-
-	output := ToOutput(allOutput)
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	graphicsMHzs, err := nvidia_query_metrics_clockspeed.ReadGraphicsMHzs(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read graphics clock speed: %w", err)
-	}
-	memoryMHzs, err := nvidia_query_metrics_clockspeed.ReadMemoryMHzs(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read memory clock speed: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(graphicsMHzs)+len(memoryMHzs))
-	for _, m := range graphicsMHzs {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range memoryMHzs {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_clock_speed_id.Name)
+	c.cancel()
 
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking clock speed")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return nvidia_query_metrics_clockspeed.Register(reg, dbRW, dbRO, tableName)
+	devs := c.getDevicesFunc()
+	for uuid, dev := range devs {
+		clockSpeed, err := c.getClockSpeedFunc(uuid, dev)
+		if err != nil {
+			d.err = err
+			return
+		}
+
+		graphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.GraphicsMHz))
+		memoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.MemoryMHz))
+
+		d.ClockSpeeds = append(d.ClockSpeeds, clockSpeed)
+	}
+}
+
+type Data struct {
+	ClockSpeeds []nvidianvml.ClockSpeed `json:"clock_speeds,omitempty"`
+
+	// timestamp of the last check
+	ts time.Time `json:"-"`
+	// error from the last check
+	err error `json:"-"`
+}
+
+func (d *Data) getReason() string {
+	if d == nil {
+		return "no clock speed data"
+	}
+	if d.err != nil {
+		return fmt.Sprintf("failed to get clock speed data -- %s", d.err)
+	}
+
+	return fmt.Sprintf("found %d GPU(s) for clock speed data", len(d.ClockSpeeds))
+}
+
+func (d *Data) getHealth() (string, bool) {
+	healthy := d == nil || d.err == nil
+	health := components.StateHealthy
+	if !healthy {
+		health = components.StateUnhealthy
+	}
+
+	return health, healthy
+}
+
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	state := components.State{
+		Name:   Name,
+		Reason: d.getReason(),
+		Error:  d.getError(),
+	}
+	state.Health, state.Healthy = d.getHealth()
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }

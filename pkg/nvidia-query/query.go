@@ -11,7 +11,6 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
-	metrics_clockspeed "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock-speed"
 	metrics_ecc "github.com/leptonai/gpud/pkg/nvidia-query/metrics/ecc"
 	metrics_memory "github.com/leptonai/gpud/pkg/nvidia-query/metrics/memory"
 	metrics_nvlink "github.com/leptonai/gpud/pkg/nvidia-query/metrics/nvlink"
@@ -372,10 +371,6 @@ func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Tim
 		}
 	}
 
-	if err := setClockSpeedMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
 	if err := setECCMetrics(ctx, dev, now); err != nil {
 		return err
 	}
@@ -415,16 +410,6 @@ func setClockMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) e
 		return err
 	}
 	if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setClockSpeedMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_clockspeed.SetGraphicsMHz(ctx, dev.UUID, dev.ClockSpeed.GraphicsMHz, now); err != nil {
-		return err
-	}
-	if err := metrics_clockspeed.SetMemoryMHz(ctx, dev.UUID, dev.ClockSpeed.MemoryMHz, now); err != nil {
 		return err
 	}
 	return nil
