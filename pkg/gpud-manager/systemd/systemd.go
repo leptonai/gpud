@@ -48,9 +48,6 @@ FLAGS="--log-level=info --log-file=/var/log/gpud.log"
 }
 
 func addLogFileFlagIfExists(file string) error {
-	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
 
 	readFile, err := os.OpenFile(file, os.O_RDONLY, 0644)
 	if err != nil {
