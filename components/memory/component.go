@@ -3,7 +3,6 @@ package memory
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/memory/metrics"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -26,11 +24,14 @@ const Name = "memory"
 var _ components.Component = &component{}
 
 type component struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	getVirtualMemoryFunc            func(context.Context) (*mem.VirtualMemoryStat, error)
+	getCurrentBPFJITBufferBytesFunc func(ctx context.Context) (uint64, error)
+
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
-	gatherer    prometheus.Gatherer
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -51,8 +52,12 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 	}
 
 	return &component{
-		ctx:         cctx,
-		cancel:      ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		getVirtualMemoryFunc:            mem.VirtualMemoryWithContext,
+		getCurrentBPFJITBufferBytesFunc: getCurrentBPFJITBufferBytes,
+
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: eventBucket,
 	}, nil
@@ -89,49 +94,12 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	totalBytes, err := metrics.ReadTotalBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read total bytes: %w", err)
-	}
-	usedBytes, err := metrics.ReadUsedBytes(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes: %w", err)
-	}
-	usedPercents, err := metrics.ReadUsedPercents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read used bytes percents: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(totalBytes)+len(usedBytes)+len(usedPercents))
-	for _, m := range totalBytes {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedBytes {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-	for _, m := range usedPercents {
-		ms = append(ms, components.Metric{Metric: m})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 	c.cancel()
 	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
 	return nil
-}
-
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
 }
 
 // CheckOnce checks the current pods
@@ -148,62 +116,50 @@ func (c *component) CheckOnce() {
 	}()
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	vm, err := mem.VirtualMemoryWithContext(cctx)
+	vm, err := c.getVirtualMemoryFunc(cctx)
 	ccancel()
 	if err != nil {
+		log.Logger.Errorw("failed to get virtual memory", "error", err)
 		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("failed to get virtual memory: %s", err)
 		return
 	}
-
 	d.TotalBytes = vm.Total
 	d.AvailableBytes = vm.Available
 	d.UsedBytes = vm.Used
+	d.UsedPercent = fmt.Sprintf("%.2f", vm.UsedPercent)
 	d.FreeBytes = vm.Free
 	d.VMAllocTotalBytes = vm.VmallocTotal
 	d.VMAllocUsedBytes = vm.VmallocUsed
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetTotalBytes(cctx, float64(vm.Total), d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
-
-	metrics.SetAvailableBytes(float64(vm.Available))
+	metricTotalBytes.With(prometheus.Labels{}).Set(float64(vm.Total))
+	metricAvailableBytes.With(prometheus.Labels{}).Set(float64(vm.Available))
+	metricUsedBytes.With(prometheus.Labels{}).Set(float64(vm.Used))
+	metricUsedPercent.With(prometheus.Labels{}).Set(vm.UsedPercent)
+	metricFreeBytes.With(prometheus.Labels{}).Set(float64(vm.Free))
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedBytes(cctx, float64(vm.Used), d.ts)
+	bpfJITBufferBytes, err := c.getCurrentBPFJITBufferBytesFunc(cctx)
 	ccancel()
 	if err != nil {
+		log.Logger.Errorw("failed to get bpf jit buffer bytes", "error", err)
 		d.err = err
-		return
-	}
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	err = metrics.SetUsedPercent(cctx, vm.UsedPercent, d.ts)
-	ccancel()
-	if err != nil {
-		d.err = err
-		return
-	}
-
-	metrics.SetFreeBytes(float64(vm.Free))
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	bpfJITBufferBytes, err := getCurrentBPFJITBufferBytes(cctx)
-	ccancel()
-	if err != nil {
-		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("failed to get bpf jit buffer bytes: %s", err)
 		return
 	}
 	d.BPFJITBufferBytes = bpfJITBufferBytes
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("using %s out of total %s", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes))
 }
 
 type Data struct {
 	TotalBytes     uint64 `json:"total_bytes"`
 	AvailableBytes uint64 `json:"available_bytes"`
 	UsedBytes      uint64 `json:"used_bytes"`
+	UsedPercent    string `json:"used_percent"`
 	FreeBytes      uint64 `json:"free_bytes"`
 
 	VMAllocTotalBytes uint64 `json:"vm_alloc_total_bytes"`
@@ -217,25 +173,11 @@ type Data struct {
 	ts time.Time `json:"-"`
 	// error from the last check
 	err error `json:"-"`
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no memory data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get memory data -- %s", d.err)
-	}
-	return fmt.Sprintf("using %s out of total %s", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes))
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool `json:"-"`
+	// tracks the reason of the last check
+	reason string `json:"-"`
 }
 
 func (d *Data) getError() string {
@@ -259,10 +201,15 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{
