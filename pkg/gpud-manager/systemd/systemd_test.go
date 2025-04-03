@@ -62,8 +62,7 @@ FLAGS="--log-level=debug"
 		// Create a file with existing flags including log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		existingContent := `# gpud environment variables
-FLAGS="--log-level=debug --log-file=/custom/path.log"
-`
+FLAGS="--log-level=debug --log-file=/custom/path.log"`
 		err = os.WriteFile(testFile, []byte(existingContent), 0644)
 		require.NoError(t, err)
 
@@ -88,8 +87,7 @@ func TestAddLogFileFlagIfExists(t *testing.T) {
 		// Create a file without FLAGS line
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		originalContent := `# gpud environment variables
-SOME_OTHER_VAR="value"
-`
+SOME_OTHER_VAR="value"`
 		err = os.WriteFile(testFile, []byte(originalContent), 0644)
 		require.NoError(t, err)
 
@@ -135,8 +133,7 @@ FLAGS="--log-level=debug"
 		// Create a file with FLAGS already containing log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		originalContent := `# gpud environment variables
-FLAGS="--log-level=debug --log-file=/custom/path.log"
-`
+FLAGS="--log-level=debug --log-file=/custom/path.log"`
 		err = os.WriteFile(testFile, []byte(originalContent), 0644)
 		require.NoError(t, err)
 
@@ -161,8 +158,7 @@ FLAGS="--log-level=debug --log-file=/custom/path.log"
 		originalContent := `# gpud environment variables
 FLAGS="--log-level=debug"
 # Another section
-FLAGS="--other-flag=true"
-`
+FLAGS="--other-flag=true"`
 		err = os.WriteFile(testFile, []byte(originalContent), 0644)
 		require.NoError(t, err)
 

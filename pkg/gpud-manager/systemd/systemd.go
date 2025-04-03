@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"tailscale.com/atomicfile"
 )
 
 //go:embed gpud.service
@@ -29,21 +31,15 @@ func CreateDefaultEnvFile() error {
 	return writeEnvFile(DefaultEnvFile)
 }
 
+const defaultEnvFileContent = `# gpud environment variables are set here
+FLAGS="--log-level=info --log-file=/var/log/gpud.log"
+`
+
 func writeEnvFile(file string) error {
 	if _, err := os.Stat(file); err == nil {
 		return addLogFileFlagIfExists(file)
 	}
-
-	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(`# gpud environment variables are set here
-FLAGS="--log-level=info --log-file=/var/log/gpud.log"
-`)
-	return err
+	return atomicfile.WriteFile(file, []byte(defaultEnvFileContent), 0644)
 }
 
 func addLogFileFlagIfExists(file string) error {
@@ -51,15 +47,7 @@ func addLogFileFlagIfExists(file string) error {
 	if err != nil {
 		return err
 	}
-
-	writeFile, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	defer writeFile.Close()
-
-	_, err = writeFile.WriteString(strings.Join(lines, "\n"))
-	return err
+	return atomicfile.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
 }
 
 // processEnvFileLines reads all lines from the environment file and processes each line,
