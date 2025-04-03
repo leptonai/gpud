@@ -5,13 +5,19 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/log"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 var (
 	currentHostID              string
 	currentArch                string
+	currentCPUModelName        string
+	currentCPUModel            string
+	currentCPUFamily           string
+	currentCPULogicalCores     int
 	currentKernelVersion       string
 	currentPlatform            string
 	currentPlatformFamily      string
@@ -31,14 +37,40 @@ func init() {
 
 func loadInfo() {
 	var err error
+
 	currentHostID, err = host.HostID()
 	if err != nil {
 		log.Logger.Errorw("failed to get host id", "error", err)
 	}
+
 	currentArch, err = host.KernelArch()
 	if err != nil {
 		log.Logger.Errorw("failed to get kernel arch", "error", err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	infos, err := cpu.InfoWithContext(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Errorw("failed to get cpu info", "error", err)
+	}
+	if len(infos) == 0 {
+		log.Logger.Errorw("no cpu info found")
+	} else {
+		currentCPUModelName = infos[0].ModelName
+		currentCPUModel = infos[0].Model
+		currentCPUFamily = infos[0].Family
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	logicalCores, err := cpu.CountsWithContext(ctx, true)
+	cancel()
+	if err != nil {
+		log.Logger.Errorw("failed to get cpu logical cores", "error", err)
+	} else {
+		currentCPULogicalCores = logicalCores
+	}
+
 	currentKernelVersion, err = host.KernelVersion()
 	if err != nil {
 		log.Logger.Errorw("failed to get kernel version", "error", err)
@@ -48,7 +80,7 @@ func loadInfo() {
 		log.Logger.Errorw("failed to get platform information", "error", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	currentBootTimeUnixSeconds, err = host.BootTimeWithContext(ctx)
 	cancel()
 	if err != nil {
@@ -104,6 +136,22 @@ func HostID() string {
 
 func Arch() string {
 	return currentArch
+}
+
+func CPUModelName() string {
+	return currentCPUModelName
+}
+
+func CPUModel() string {
+	return currentCPUModel
+}
+
+func CPUFamily() string {
+	return currentCPUFamily
+}
+
+func CPULogicalCores() int {
+	return currentCPULogicalCores
 }
 
 func KernelVersion() string {
