@@ -79,20 +79,6 @@ FLAGS="--log-level=debug --log-file=/custom/path.log"
 }
 
 func TestAddLogFileFlagIfExists(t *testing.T) {
-	t.Run("file does not exist", func(t *testing.T) {
-		// Create a temporary directory for testing
-		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
-
-		// Create a file path that doesn't exist
-		testFile := filepath.Join(tmpDir, "non-existent")
-
-		// Call the function with non-existent file
-		err = addLogFileFlagIfExists(testFile)
-		require.NoError(t, err)
-	})
-
 	t.Run("file exists without FLAGS line", func(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")

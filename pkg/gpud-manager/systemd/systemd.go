@@ -4,7 +4,6 @@ package systemd
 import (
 	"bufio"
 	_ "embed"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -48,10 +47,27 @@ FLAGS="--log-level=info --log-file=/var/log/gpud.log"
 }
 
 func addLogFileFlagIfExists(file string) error {
-
-	readFile, err := os.OpenFile(file, os.O_RDONLY, 0644)
+	lines, err := processEnvFileLines(file)
 	if err != nil {
 		return err
+	}
+
+	writeFile, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer writeFile.Close()
+
+	_, err = writeFile.WriteString(strings.Join(lines, "\n"))
+	return err
+}
+
+// processEnvFileLines reads all lines from the environment file and processes each line,
+// adding the log-file flag to the FLAGS variable if it doesn't already exist.
+func processEnvFileLines(file string) ([]string, error) {
+	readFile, err := os.OpenFile(file, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
 	}
 	defer readFile.Close()
 
@@ -79,12 +95,9 @@ func addLogFileFlagIfExists(file string) error {
 		lines = append(lines, line)
 	}
 
-	writeFile, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
-	defer writeFile.Close()
 
-	_, err = writeFile.WriteString(strings.Join(lines, "\n"))
-	return err
+	return lines, nil
 }
