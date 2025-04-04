@@ -9,23 +9,15 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
+
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
-	metrics_ecc "github.com/leptonai/gpud/pkg/nvidia-query/metrics/ecc"
-	metrics_memory "github.com/leptonai/gpud/pkg/nvidia-query/metrics/memory"
-	metrics_nvlink "github.com/leptonai/gpud/pkg/nvidia-query/metrics/nvlink"
-	metrics_power "github.com/leptonai/gpud/pkg/nvidia-query/metrics/power"
-	metrics_processes "github.com/leptonai/gpud/pkg/nvidia-query/metrics/processes"
-	metrics_temperature "github.com/leptonai/gpud/pkg/nvidia-query/metrics/temperature"
-	metrics_utilization "github.com/leptonai/gpud/pkg/nvidia-query/metrics/utilization"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 	"github.com/leptonai/gpud/pkg/query"
 	query_config "github.com/leptonai/gpud/pkg/query/config"
-
-	go_nvml "github.com/NVIDIA/go-nvml/pkg/nvml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -85,17 +77,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	if err := nvml.StartDefaultInstance(
 		ctx,
 		nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
-		nvml.WithGPMMetricsID(
-			go_nvml.GPM_METRIC_SM_OCCUPANCY,
-			go_nvml.GPM_METRIC_INTEGER_UTIL,
-			go_nvml.GPM_METRIC_ANY_TENSOR_UTIL,
-			go_nvml.GPM_METRIC_DFMA_TENSOR_UTIL,
-			go_nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
-			go_nvml.GPM_METRIC_IMMA_TENSOR_UTIL,
-			go_nvml.GPM_METRIC_FP64_UTIL,
-			go_nvml.GPM_METRIC_FP32_UTIL,
-			go_nvml.GPM_METRIC_FP16_UTIL,
-		),
 	); err != nil {
 		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
 	}
@@ -371,34 +352,6 @@ func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Tim
 		}
 	}
 
-	if err := setECCMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
-	if err := setMemoryMetrics(ctx, dev, now, o); err != nil {
-		return err
-	}
-
-	if err := setNVLinkMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
-	if err := setPowerMetrics(ctx, dev, now, o); err != nil {
-		return err
-	}
-
-	if err := setTemperatureMetrics(ctx, dev, now, o); err != nil {
-		return err
-	}
-
-	if err := setUtilizationMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
-	if err := setProcessMetrics(ctx, dev, now); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -410,111 +363,6 @@ func setClockMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) e
 		return err
 	}
 	if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setECCMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_ecc.SetAggregateTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Corrected), now); err != nil {
-		return err
-	}
-	if err := metrics_ecc.SetAggregateTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Aggregate.Total.Uncorrected), now); err != nil {
-		return err
-	}
-	if err := metrics_ecc.SetVolatileTotalCorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Corrected), now); err != nil {
-		return err
-	}
-	if err := metrics_ecc.SetVolatileTotalUncorrected(ctx, dev.UUID, float64(dev.ECCErrors.Volatile.Total.Uncorrected), now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setMemoryMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
-	if err := metrics_memory.SetTotalBytes(ctx, dev.UUID, float64(dev.Memory.TotalBytes), now); err != nil {
-		return err
-	}
-	metrics_memory.SetReservedBytes(dev.UUID, float64(dev.Memory.ReservedBytes))
-	if err := metrics_memory.SetUsedBytes(ctx, dev.UUID, float64(dev.Memory.UsedBytes), now); err != nil {
-		return err
-	}
-	metrics_memory.SetFreeBytes(dev.UUID, float64(dev.Memory.FreeBytes))
-	usedPercent, err := dev.Memory.GetUsedPercent()
-	if err != nil {
-		o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	} else {
-		if err := metrics_memory.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setNVLinkMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_nvlink.SetFeatureEnabled(ctx, dev.UUID, dev.NVLink.States.AllFeatureEnabled(), now); err != nil {
-		return err
-	}
-	if err := metrics_nvlink.SetReplayErrors(ctx, dev.UUID, dev.NVLink.States.TotalRelayErrors(), now); err != nil {
-		return err
-	}
-	if err := metrics_nvlink.SetRecoveryErrors(ctx, dev.UUID, dev.NVLink.States.TotalRecoveryErrors(), now); err != nil {
-		return err
-	}
-	if err := metrics_nvlink.SetCRCErrors(ctx, dev.UUID, dev.NVLink.States.TotalCRCErrors(), now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setPowerMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
-	if err := metrics_power.SetUsageMilliWatts(ctx, dev.UUID, float64(dev.Power.UsageMilliWatts), now); err != nil {
-		return err
-	}
-	if err := metrics_power.SetEnforcedLimitMilliWatts(ctx, dev.UUID, float64(dev.Power.EnforcedLimitMilliWatts), now); err != nil {
-		return err
-	}
-	usedPercent, err := dev.Power.GetUsedPercent()
-	if err != nil {
-		o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	} else {
-		if err := metrics_power.SetUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setTemperatureMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
-	if err := metrics_temperature.SetCurrentCelsius(ctx, dev.UUID, float64(dev.Temperature.CurrentCelsiusGPUCore), now); err != nil {
-		return err
-	}
-	if err := metrics_temperature.SetThresholdSlowdownCelsius(ctx, dev.UUID, float64(dev.Temperature.ThresholdCelsiusSlowdown), now); err != nil {
-		return err
-	}
-	usedPercent, err := dev.Temperature.GetUsedPercentSlowdown()
-	if err != nil {
-		o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	} else {
-		if err := metrics_temperature.SetSlowdownUsedPercent(ctx, dev.UUID, usedPercent, now); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setUtilizationMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_utilization.SetGPUUtilPercent(ctx, dev.UUID, dev.Utilization.GPUUsedPercent, now); err != nil {
-		return err
-	}
-	if err := metrics_utilization.SetMemoryUtilPercent(ctx, dev.UUID, dev.Utilization.MemoryUsedPercent, now); err != nil {
-		return err
-	}
-	return nil
-}
-
-func setProcessMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_processes.SetRunningProcessesTotal(ctx, dev.UUID, len(dev.Processes.RunningProcesses), now); err != nil {
 		return err
 	}
 	return nil

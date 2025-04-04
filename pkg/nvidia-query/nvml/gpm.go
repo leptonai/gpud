@@ -2,18 +2,15 @@ package nvml
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
-
-	"github.com/leptonai/gpud/pkg/log"
-	metrics_gpm "github.com/leptonai/gpud/pkg/nvidia-query/metrics/gpm"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/pkg/log"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 // Returns true if GPM is supported by all devices.
@@ -44,16 +41,6 @@ func GPMSupported() (bool, error) {
 	return true, nil
 }
 
-type GPMEvent struct {
-	Time    metav1.Time  `json:"time"`
-	Metrics []GPMMetrics `json:"metrics"`
-	Error   error        `json:"error"`
-}
-
-func (ev *GPMEvent) YAML() ([]byte, error) {
-	return yaml.Marshal(ev)
-}
-
 func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmFunctions.html#group__nvmlGpmFunctions_1gdfd08d875be65f0532201913da9b8890
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
@@ -76,57 +63,6 @@ func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	return gpuQuerySupport.IsSupportedDevice != 0, nil
 }
 
-func (inst *instance) GPMMetricsSupported() bool {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	return inst.gpmMetricsSupported
-}
-
-func (inst *instance) RecvGPMEvents() <-chan *GPMEvent {
-	inst.mu.RLock()
-	defer inst.mu.RUnlock()
-
-	if inst.nvmlLib == nil {
-		return nil
-	}
-
-	return inst.gpmEventCh
-}
-
-func (inst *instance) pollGPMEvents() {
-	log.Logger.Debugw("polling gpm metrics events")
-
-	ticker := time.NewTicker(1)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-inst.rootCtx.Done():
-			return
-		case <-ticker.C:
-			ticker.Reset(inst.gpmPollInterval)
-		}
-
-		mss, err := inst.collectGPMMetrics()
-		if len(mss) == 0 {
-			continue
-		}
-
-		select {
-		case <-inst.rootCtx.Done():
-			return
-		case inst.gpmEventCh <- &GPMEvent{
-			Time:    metav1.NewTime(time.Now().UTC()),
-			Metrics: mss,
-			Error:   err,
-		}:
-		default:
-			log.Logger.Debugw("gpm event channel is full, skipping event")
-		}
-	}
-}
-
 // GPMMetrics contains the GPM metrics for a device.
 type GPMMetrics struct {
 	// Time is the time the metrics were collected.
@@ -142,63 +78,12 @@ type GPMMetrics struct {
 	Metrics map[nvml.GpmMetricId]float64 `json:"metrics"`
 }
 
-// Collects the GPM metrics for all the devices and returns the map from the device UUID to the metrics.
-// Blocks for the duration of the sample interval.
-func (inst *instance) collectGPMMetrics() ([]GPMMetrics, error) {
-	if inst.gpmPollInterval == 0 {
-		return nil, errors.New("gpm sample interval is not set")
-	}
-	if len(inst.gpmMetricsIDs) == 0 {
-		return nil, errors.New("no metric IDs provided")
-	}
-	if len(inst.gpmMetricsIDs) > 98 {
-		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(inst.gpmMetricsIDs))
-	}
-	for uuid, dev := range inst.devices {
-		supported, err := GPMSupportedByDevice(dev.device)
-		if err != nil {
-			return nil, err
-		}
-		if !supported {
-			return nil, fmt.Errorf("device %s is not supported by GPM", uuid)
-		}
-	}
-
-	metrics := make([]GPMMetrics, 0, len(inst.devices))
-	for _, dev := range inst.devices {
-		ms, err := GetGPMMetrics(inst.rootCtx, dev.device, inst.gpmMetricsIDs...)
-		if err != nil {
-			return nil, fmt.Errorf("device %q failed to get gpm metrics: %w", dev.UUID, err)
-		}
-		metrics = append(metrics, GPMMetrics{
-			UUID:           dev.UUID,
-			SampleDuration: metav1.Duration{Duration: 5 * time.Second},
-			Metrics:        ms,
-		})
-	}
-
-	now := time.Now().UTC()
-
-	for i, m := range metrics {
-		metrics[i].Time = metav1.NewTime(now)
-
-		gpuID := m.UUID
-		for gpmMetricsID, v := range m.Metrics {
-			if err := metrics_gpm.SetGPUUtilPercent(inst.rootCtx, gpmMetricsID, gpuID, v, now); err != nil {
-				return nil, fmt.Errorf("failed to set gpm metric %v for gpu %s: %w", gpmMetricsID, gpuID, err)
-			}
-		}
-	}
-
-	return metrics, nil
-}
-
 // Returns the map from the metrics ID to the value for this device.
 // Don't call these in parallel for multiple devices.
 // It "SIGSEGV: segmentation violation" in cgo execution.
 // Returns nil if it's not supported.
 // ref. https://github.com/NVIDIA/go-nvml/blob/main/examples/gpm-metrics/main.go
-func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
+func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.Duration, metricIDs ...nvml.GpmMetricId) (map[nvml.GpmMetricId]float64, error) {
 	if len(metricIDs) == 0 {
 		return nil, fmt.Errorf("no metric IDs provided")
 	}
@@ -240,7 +125,7 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, metricIDs ...nvml.Gpm
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-time.After(5 * time.Second):
+	case <-time.After(sampleDuration):
 		log.Logger.Debugw("waited for sample interval")
 	}
 

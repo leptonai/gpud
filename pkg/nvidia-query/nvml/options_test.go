@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -56,35 +55,6 @@ func TestOpApplyOpts(t *testing.T) {
 		assert.Equal(t, bucket, op.hwSlowdownEventBucket)
 	})
 
-	t.Run("with GPM metrics", func(t *testing.T) {
-		metrics := []nvml.GpmMetricId{
-			nvml.GPM_METRIC_SM_OCCUPANCY,
-			nvml.GPM_METRIC_FP32_UTIL,
-		}
-		op := &Op{}
-		err := op.applyOpts([]OpOption{
-			WithGPMMetricsID(metrics...),
-		})
-		assert.NoError(t, err)
-
-		// Verify all metrics are in the map
-		assert.Len(t, op.gpmMetricsIDs, len(metrics))
-		for _, id := range metrics {
-			_, exists := op.gpmMetricsIDs[id]
-			assert.True(t, exists, "metric %v should exist in map", id)
-		}
-	})
-
-	t.Run("with multiple GPM metrics calls", func(t *testing.T) {
-		op := &Op{}
-		err := op.applyOpts([]OpOption{
-			WithGPMMetricsID(nvml.GPM_METRIC_SM_OCCUPANCY),
-			WithGPMMetricsID(nvml.GPM_METRIC_FP32_UTIL),
-		})
-		assert.NoError(t, err)
-		assert.Len(t, op.gpmMetricsIDs, 2)
-	})
-
 	t.Run("with all options combined", func(t *testing.T) {
 		dbRW, err := sqlite.Open(":memory:")
 		assert.NoError(t, err)
@@ -95,21 +65,18 @@ func TestOpApplyOpts(t *testing.T) {
 		defer dbRO.Close()
 
 		bucket := &mockEventBucket{}
-		metrics := []nvml.GpmMetricId{nvml.GPM_METRIC_SM_OCCUPANCY}
 
 		op := &Op{}
 		err = op.applyOpts([]OpOption{
 			WithDBRW(dbRW),
 			WithDBRO(dbRO),
 			WithHWSlowdownEventBucket(bucket),
-			WithGPMMetricsID(metrics...),
 		})
 		assert.NoError(t, err)
 
 		assert.Equal(t, dbRW, op.dbRW)
 		assert.Equal(t, dbRO, op.dbRO)
 		assert.Equal(t, bucket, op.hwSlowdownEventBucket)
-		assert.Len(t, op.gpmMetricsIDs, len(metrics))
 	})
 }
 
@@ -141,43 +108,6 @@ func TestWithHWSlowdownEventBucket(t *testing.T) {
 	opt := WithHWSlowdownEventBucket(bucket)
 	opt(op)
 	assert.Equal(t, bucket, op.hwSlowdownEventBucket)
-}
-
-func TestWithGPMMetricsID(t *testing.T) {
-	t.Run("single metric", func(t *testing.T) {
-		op := &Op{}
-		metric := nvml.GPM_METRIC_SM_OCCUPANCY
-		opt := WithGPMMetricsID(metric)
-		opt(op)
-		assert.Len(t, op.gpmMetricsIDs, 1)
-		_, exists := op.gpmMetricsIDs[metric]
-		assert.True(t, exists)
-	})
-
-	t.Run("multiple metrics", func(t *testing.T) {
-		op := &Op{}
-		metrics := []nvml.GpmMetricId{
-			nvml.GPM_METRIC_SM_OCCUPANCY,
-			nvml.GPM_METRIC_FP32_UTIL,
-		}
-		opt := WithGPMMetricsID(metrics...)
-		opt(op)
-		assert.Len(t, op.gpmMetricsIDs, len(metrics))
-		for _, id := range metrics {
-			_, exists := op.gpmMetricsIDs[id]
-			assert.True(t, exists)
-		}
-	})
-
-	t.Run("duplicate metrics", func(t *testing.T) {
-		op := &Op{}
-		metric := nvml.GPM_METRIC_SM_OCCUPANCY
-		opt1 := WithGPMMetricsID(metric)
-		opt2 := WithGPMMetricsID(metric)
-		opt1(op)
-		opt2(op)
-		assert.Len(t, op.gpmMetricsIDs, 1)
-	})
 }
 
 func TestOpOptionsErrorHandling(t *testing.T) {
