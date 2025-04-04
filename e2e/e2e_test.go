@@ -266,6 +266,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				found[m.Component] = true
 			}
 			Expect(found["cpu"]).To(BeTrue(), "expected cpu component to be present")
+			Expect(found["memory"]).To(BeTrue(), "expected memory component to be present")
 			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
 			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
 		})
