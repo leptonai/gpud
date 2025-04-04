@@ -3,7 +3,6 @@ package remappedrows
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,10 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	metrics "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows/metrics"
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -31,25 +30,30 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvml.InstanceV2
-	eventBucket  eventstore.Bucket
-	gatherer     prometheus.Gatherer
+	getDevicesFunc                           func() map[string]device.Device
+	getProductNameFunc                       func() string
+	getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities
+	getRemappedRowsFunc                      func(uuid string, dev device.Device) (nvml.RemappedRows, error)
 
-	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+	eventBucket eventstore.Bucket
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvml.InstanceV2, eventBucket eventstore.Bucket) (components.Component, error) {
+func New(ctx context.Context, getDevicesFunc func() map[string]device.Device, getProductNameFunc func() string, getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities, eventBucket eventstore.Bucket) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
-		ctx:                 cctx,
-		cancel:              ccancel,
-		nvmlInstance:        nvmlInstance,
-		eventBucket:         eventBucket,
-		getRemappedRowsFunc: nvml.GetRemappedRows,
-	}, nil
+		ctx:    cctx,
+		cancel: ccancel,
+
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+		getRemappedRowsFunc:                      nvml.GetRemappedRows,
+
+		eventBucket: eventBucket,
+	}
 }
 
 func (c *component) Name() string { return Name }
@@ -83,51 +87,6 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	remappedDueToUncorrectableErrors, err := metrics.ReadRemappedDueToUncorrectableErrors(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read remapped due to uncorrectable errors: %w", err)
-	}
-	remappingPending, err := metrics.ReadRemappingPending(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read remapping pending: %w", err)
-	}
-	remappingFailed, err := metrics.ReadRemappingFailed(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read remapping failed: %w", err)
-	}
-
-	ms := make([]components.Metric, 0, len(remappedDueToUncorrectableErrors)+len(remappingPending)+len(remappingFailed))
-	for _, m := range remappedDueToUncorrectableErrors {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range remappingPending {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range remappingFailed {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
@@ -137,20 +96,13 @@ func (c *component) Close() error {
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return metrics.Register(reg, dbRW, dbRO, tableName)
-}
-
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking remapped rows")
 	d := Data{
-		ProductName:                       c.nvmlInstance.ProductName(),
-		MemoryErrorManagementCapabilities: c.nvmlInstance.GetMemoryErrorManagementCapabilities(),
+		ProductName:                       c.getProductNameFunc(),
+		MemoryErrorManagementCapabilities: c.getMemoryErrorManagementCapabilitiesFunc(),
 		RemappedRows:                      nil,
 
 		ts: time.Now().UTC(),
@@ -161,15 +113,39 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	devices := c.nvmlInstance.Devices()
-	d.RemappedRows = make(map[string]nvml.RemappedRows)
-	for uuid, dev := range devices {
+	if !d.MemoryErrorManagementCapabilities.RowRemapping {
+		d.healthy = true
+		d.reason = fmt.Sprintf("%q does not support row remapping", d.ProductName)
+		return
+	}
+
+	issues := make([]string, 0)
+
+	devs := c.getDevicesFunc()
+	for uuid, dev := range devs {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
-			d.err = fmt.Errorf("failed to get remapped rows for %s: %w", uuid, err)
+			log.Logger.Errorw("error getting remapped rows", "uuid", uuid, "error", err)
+			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting remapped rows for %s", uuid)
 			continue
 		}
-		d.RemappedRows[uuid] = remappedRows
+		d.RemappedRows = append(d.RemappedRows, remappedRows)
+
+		metricUncorrectableErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(remappedRows.RemappedDueToCorrectableErrors))
+
+		if remappedRows.RemappingPending {
+			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1.0))
+		} else {
+			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
+		}
+
+		if remappedRows.RemappingFailed {
+			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1.0))
+		} else {
+			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
+		}
 
 		b, _ := json.Marshal(d)
 		if remappedRows.RemappingPending {
@@ -193,7 +169,10 @@ func (c *component) CheckOnce() {
 			)
 			ccancel()
 			if err != nil {
-				d.err = fmt.Errorf("failed to insert event for remapping pending for %s: %w", uuid, err)
+				log.Logger.Errorw("error inserting event for remapping pending", "uuid", uuid, "error", err)
+				d.err = err
+				d.healthy = false
+				d.reason = fmt.Sprintf("error inserting event for remapping pending for %s", uuid)
 				continue
 			}
 		}
@@ -219,23 +198,28 @@ func (c *component) CheckOnce() {
 			)
 			ccancel()
 			if err != nil {
-				d.err = fmt.Errorf("failed to insert event for remapping failed for %s: %w", uuid, err)
+				log.Logger.Errorw("error inserting event for remapping failed", "uuid", uuid, "error", err)
+				d.err = err
+				d.healthy = false
+				d.reason = fmt.Sprintf("error inserting event for remapping failed for %s", uuid)
 				continue
 			}
 		}
 
-		if err := metrics.SetRemappedDueToUncorrectableErrors(c.ctx, uuid, uint32(remappedRows.RemappedDueToCorrectableErrors), d.ts); err != nil {
-			d.err = fmt.Errorf("failed to set metrics for remapped due to uncorrectable errors for %s: %w", uuid, err)
-			continue
+		if remappedRows.QualifiesForRMA() {
+			issues = append(issues, fmt.Sprintf("%s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", uuid, remappedRows.RemappedDueToUncorrectableErrors))
 		}
-		if err := metrics.SetRemappingPending(c.ctx, uuid, remappedRows.RemappingPending, d.ts); err != nil {
-			d.err = fmt.Errorf("failed to set metrics for remapping pending for %s: %w", uuid, err)
-			continue
+		if remappedRows.RequiresReset() {
+			issues = append(issues, fmt.Sprintf("%s needs reset (detected pending row remapping)", uuid))
 		}
-		if err := metrics.SetRemappingFailed(c.ctx, uuid, remappedRows.RemappingFailed, d.ts); err != nil {
-			d.err = fmt.Errorf("failed to set metrics for remapping failed for %s: %w", uuid, err)
-			continue
-		}
+	}
+
+	if len(issues) > 0 {
+		d.healthy = false
+		d.reason = strings.Join(issues, ", ")
+	} else {
+		d.healthy = true
+		d.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(devs))
 	}
 }
 
@@ -245,62 +229,17 @@ type Data struct {
 	// MemoryErrorManagementCapabilities contains the memory error management capabilities of the GPU.
 	MemoryErrorManagementCapabilities nvml.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	// RemappedRows maps from GPU UUID to the remapped rows data.
-	RemappedRows map[string]nvml.RemappedRows `json:"remapped_rows"`
+	RemappedRows []nvml.RemappedRows `json:"remapped_rows,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time `json:"-"`
 	// error from the last check
 	err error `json:"-"`
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no remapped rows data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get remapped rows data -- %s", d.err)
-	}
-
-	if !d.MemoryErrorManagementCapabilities.RowRemapping {
-		return fmt.Sprintf("%q does not support row remapping", d.ProductName)
-	}
-
-	reasons := []string{}
-	for uuid, remappedRows := range d.RemappedRows {
-		if remappedRows.QualifiesForRMA() {
-			reasons = append(reasons, fmt.Sprintf("%s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", uuid, remappedRows.RemappedDueToUncorrectableErrors))
-		}
-		if remappedRows.RequiresReset() {
-			reasons = append(reasons, fmt.Sprintf("%s needs reset (detected pending row remapping)", uuid))
-		}
-	}
-	if len(reasons) == 0 {
-		return "no issue detected"
-	}
-	return strings.Join(reasons, "; ")
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-
-	if d != nil && healthy && d.MemoryErrorManagementCapabilities.RowRemapping {
-		for _, remappedRows := range d.RemappedRows {
-			if remappedRows.QualifiesForRMA() {
-				healthy = false
-				break
-			}
-			if remappedRows.RequiresReset() {
-				healthy = false
-				break
-			}
-		}
-	}
-
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool `json:"-"`
+	// tracks the reason of the last check
+	reason string `json:"-"`
 }
 
 func (d *Data) getError() string {
@@ -323,11 +262,16 @@ func (d *Data) getStates() ([]components.State, error) {
 	}
 
 	state := components.State{
-		Name:   "row_remapping",
-		Reason: d.getReason(),
+		Name:   Name,
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

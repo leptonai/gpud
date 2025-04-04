@@ -512,11 +512,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_remapped_rows.Name:
-			c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, remappedRowsEventBucket)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_remapped_rows.New(
+				ctx,
+				nvmlInstanceV2.Devices,
+				nvmlInstanceV2.ProductName,
+				nvmlInstanceV2.GetMemoryErrorManagementCapabilities,
+				remappedRowsEventBucket,
+			))
 
 		case nvidia_fabric_manager_id.Name:
 			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
