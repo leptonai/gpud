@@ -514,9 +514,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_remapped_rows.Name:
 			allComponents = append(allComponents, nvidia_remapped_rows.New(
 				ctx,
-				nvmlInstanceV2.Devices,
-				nvmlInstanceV2.ProductName,
-				nvmlInstanceV2.GetMemoryErrorManagementCapabilities,
+				nvmlInstanceV2,
 				remappedRowsEventBucket,
 			))
 
