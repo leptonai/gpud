@@ -124,9 +124,9 @@ type Data struct {
 	FoundBadEnvsForCUDA map[string]string `json:"found_bad_envs_for_cuda"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) getReason() string {

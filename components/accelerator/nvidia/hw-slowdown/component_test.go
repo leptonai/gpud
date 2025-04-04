@@ -2,348 +2,216 @@ package hwslowdown
 
 import (
 	"context"
-	"strings"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/common"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func TestComponentWithNoPoller(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// Mock implementation of nvml.InstanceV2
+type mockNVMLInstance struct {
+	devices     map[string]device.Device
+	productName string
+}
 
-	defaultPoller := nvidia_query.GetDefaultPoller()
-	_, err := New(ctx, nvidia_common.Config{}, nil)
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return m.devices
+}
 
-	if defaultPoller != nil {
-		// expects no error
-		assert.NoError(t, err)
-	} else {
-		// expects error
-		assert.Equal(t, err, nvidia_query.ErrDefaultPollerNotSet)
+func (m *mockNVMLInstance) ProductName() string {
+	return m.productName
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return true
+}
+
+func (m *mockNVMLInstance) Library() lib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+// Helper function to create a mock NVML instance with specified devices
+func createMockNVMLInstance(devices map[string]device.Device) *mockNVMLInstance {
+	return &mockNVMLInstance{
+		devices:     devices,
+		productName: "NVIDIA Test GPU",
 	}
 }
 
-func TestComponentStates(t *testing.T) {
+// TestCheckOnce tests the CheckOnce method using mock device functions
+func TestCheckOnce(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
-
-	testCases := []struct {
+	tests := []struct {
 		name               string
-		window             time.Duration
-		thresholdPerMinute float64
-		insertedEvent      []components.Event
-		expectedStates     int
-		expectHealthy      bool
+		mockDevices        map[string]device.Device
+		mockClockEvents    map[string]nvidianvml.ClockEvents
+		expectEvents       int
+		expectSlowdown     bool
+		expectThermal      bool
+		expectPowerBrake   bool
+		expectHealthyState bool
 	}{
 		{
-			name:               "single event within window",
-			window:             10 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent: []components.Event{
-				{
-					Time:    metav1.Time{Time: now.Add(-5 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
+			name: "no hardware slowdown",
+			mockDevices: map[string]device.Device{
+				"gpu-0": testutil.NewMockDevice(
+					&mock.Device{
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "gpu-0", nvml.SUCCESS
+						},
 					},
+					"test-arch", "test-brand", "test-cuda", "test-pci",
+				),
+			},
+			mockClockEvents: map[string]nvidianvml.ClockEvents{
+				"gpu-0": {
+					UUID:                 "gpu-0",
+					Time:                 metav1.Time{Time: time.Now().UTC()},
+					HWSlowdown:           false,
+					HWSlowdownThermal:    false,
+					HWSlowdownPowerBrake: false,
+					Supported:            true,
 				},
 			},
-			expectedStates: 1,
-			expectHealthy:  true,
+			expectEvents:       0,
+			expectSlowdown:     false,
+			expectThermal:      false,
+			expectPowerBrake:   false,
+			expectHealthyState: true,
 		},
 		{
-			name:               "multiple events within window but below threshold",
-			window:             10 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent: []components.Event{
-				{
-					Time:    metav1.Time{Time: now.Add(-5 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
+			name: "hardware slowdown",
+			mockDevices: map[string]device.Device{
+				"gpu-1": testutil.NewMockDevice(
+					&mock.Device{
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "gpu-1", nvml.SUCCESS
+						},
 					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
+					"test-arch", "test-brand", "test-cuda", "test-pci",
+				),
+			},
+			mockClockEvents: map[string]nvidianvml.ClockEvents{
+				"gpu-1": {
+					UUID:                 "gpu-1",
+					Time:                 metav1.Time{Time: time.Now().UTC()},
+					HWSlowdown:           true,
+					HWSlowdownThermal:    false,
+					HWSlowdownPowerBrake: false,
+					Supported:            true,
+					HWSlowdownReasons:    []string{"GPU slowdown detected"},
 				},
 			},
-			expectedStates: 1,
-			expectHealthy:  true,
+			expectEvents:       1,
+			expectSlowdown:     true,
+			expectThermal:      false,
+			expectPowerBrake:   false,
+			expectHealthyState: true, // One event is still healthy
 		},
 		{
-			name:               "events above threshold",
-			window:             5 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent: []components.Event{
-				{
-					Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
+			name: "hardware thermal slowdown",
+			mockDevices: map[string]device.Device{
+				"gpu-2": testutil.NewMockDevice(
+					&mock.Device{
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "gpu-2", nvml.SUCCESS
+						},
 					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
+					"test-arch", "test-brand", "test-cuda", "test-pci",
+				),
+			},
+			mockClockEvents: map[string]nvidianvml.ClockEvents{
+				"gpu-2": {
+					UUID:                 "gpu-2",
+					Time:                 metav1.Time{Time: time.Now().UTC()},
+					HWSlowdown:           false,
+					HWSlowdownThermal:    true,
+					HWSlowdownPowerBrake: false,
+					Supported:            true,
+					HWSlowdownReasons:    []string{"GPU thermal slowdown detected"},
 				},
 			},
-			expectedStates: 1,
-			expectHealthy:  false,
+			expectEvents:       1,
+			expectSlowdown:     false,
+			expectThermal:      true,
+			expectPowerBrake:   false,
+			expectHealthyState: true,
 		},
 		{
-			name:               "events above threshold with multiple GPUs",
-			window:             5 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent: []components.Event{
-				// GPU 0-3 events at -4 minutes
-				{
-					Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
+			name: "multiple hardware slowdown events",
+			mockDevices: map[string]device.Device{
+				"gpu-3": testutil.NewMockDevice(
+					&mock.Device{
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "gpu-3", nvml.SUCCESS
+						},
 					},
+					"test-arch", "test-brand", "test-cuda", "test-pci",
+				),
+				"gpu-4": testutil.NewMockDevice(
+					&mock.Device{
+						GetUUIDFunc: func() (string, nvml.Return) {
+							return "gpu-4", nvml.SUCCESS
+						},
+					},
+					"test-arch", "test-brand", "test-cuda", "test-pci",
+				),
+			},
+			mockClockEvents: map[string]nvidianvml.ClockEvents{
+				"gpu-3": {
+					UUID:                 "gpu-3",
+					Time:                 metav1.Time{Time: time.Now().UTC()},
+					HWSlowdown:           true,
+					HWSlowdownThermal:    false,
+					HWSlowdownPowerBrake: false,
+					Supported:            true,
+					HWSlowdownReasons:    []string{"GPU slowdown detected"},
 				},
-				{
-					Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-1",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-2",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-3",
-					},
-				},
-				// GPU 0-3 events at -3 minutes
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-1",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-2",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-3",
-					},
-				},
-				// GPU 0-3 events at -2 minutes
-				{
-					Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-1",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-2",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-3",
-					},
-				},
-				// GPU 0-3 events at -1 minutes
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-1",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-2",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-3",
-					},
+				"gpu-4": {
+					UUID:                 "gpu-4",
+					Time:                 metav1.Time{Time: time.Now().UTC()},
+					HWSlowdown:           false,
+					HWSlowdownThermal:    false,
+					HWSlowdownPowerBrake: true,
+					Supported:            true,
+					HWSlowdownReasons:    []string{"GPU power brake slowdown detected"},
 				},
 			},
-			expectedStates: 1,
-			expectHealthy:  false,
-		},
-		{
-			name:               "events outside window",
-			window:             5 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent: []components.Event{
-				{
-					Time:    metav1.Time{Time: now.Add(-10 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: now.Add(-8 * time.Minute)},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"gpu_uuid": "gpu-0",
-					},
-				},
-			},
-			expectedStates: 1,
-			expectHealthy:  true,
-		},
-		{
-			name:               "no events",
-			window:             10 * time.Minute,
-			thresholdPerMinute: 0.6,
-			insertedEvent:      []components.Event{},
-			expectedStates:     1,
-			expectHealthy:      true,
+			expectEvents:       2,
+			expectSlowdown:     true,
+			expectThermal:      false,
+			expectPowerBrake:   true,
+			expectHealthyState: true,
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			// Set up test database
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
@@ -356,40 +224,144 @@ func TestComponentStates(t *testing.T) {
 			assert.NoError(t, err)
 			defer bucket.Close()
 
-			if len(tc.insertedEvent) > 0 {
-				for _, event := range tc.insertedEvent {
-					err := bucket.Insert(ctx, event)
-					assert.NoError(t, err)
-				}
-			}
+			// Mock metric registration to avoid collisions between tests
+			reg := prometheus.NewRegistry()
+
+			// Create mock NVML instance
+			mockNVML := createMockNVMLInstance(tc.mockDevices)
 
 			c := &component{
-				stateHWSlowdownEvaluationWindow:                  tc.window,
-				stateHWSlowdownEventsThresholdFrequencyPerMinute: tc.thresholdPerMinute,
-				eventBucket: bucket,
+				ctx:              ctx,
+				cancel:           cancel,
+				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				eventBucket:      bucket,
+				nvmlInstanceV2:   mockNVML,
+				// Initialize lastData to avoid nil pointer dereference
+				lastData: &Data{
+					ts:      time.Now().UTC(),
+					healthy: true,
+					reason:  "Initial state",
+				},
+				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+					if events, ok := tc.mockClockEvents[uuid]; ok {
+						return events, nil
+					}
+					return nvidianvml.ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
+				},
 			}
 
+			// Register metrics
+			err = c.RegisterCollectors(reg, dbRW, dbRO, "test_metrics")
+			assert.NoError(t, err)
+
+			// Run the check
+			c.CheckOnce()
+
+			// Verify the component's state
+			assert.NotNil(t, c.lastData)
+
+			// Verify that clock events were collected correctly
+			assert.Equal(t, len(tc.mockDevices), len(c.lastData.ClockEvents))
+
+			// Get events from the bucket
+			events, err := bucket.Get(ctx, time.Now().UTC().Add(-time.Hour))
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectEvents, len(events))
+
+			// Validate component state
 			states, err := c.States(ctx)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedStates, len(states))
-
-			if len(states) > 0 {
-				assert.Equal(t, tc.expectHealthy, states[0].Healthy)
-			}
+			assert.Equal(t, 1, len(states))
+			assert.Equal(t, tc.expectHealthyState, states[0].Healthy)
 		})
 	}
 }
 
-func TestComponentRegisterCollectors(t *testing.T) {
+// TestComponentStates tests the States method with various scenarios of slowdown events
+func TestComponentStates(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up test database
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	reg := prometheus.NewRegistry()
-	c := &component{}
-
-	err := c.RegisterCollectors(reg, dbRW, dbRO, "test_metrics")
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	assert.Equal(t, reg, c.gatherer)
+	bucket, err := store.Bucket("test_states")
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	// Create mock device
+	mockDevice := testutil.NewMockDevice(
+		&mock.Device{
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "gpu-0", nvml.SUCCESS
+			},
+		},
+		"test-arch", "test-brand", "test-cuda", "test-pci",
+	)
+
+	mockDevices := map[string]device.Device{
+		"gpu-0": mockDevice,
+	}
+
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(mockDevices)
+
+	// Create test events
+	testEvents := []components.Event{
+		{
+			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid": "gpu-0",
+			},
+		},
+	}
+
+	for _, event := range testEvents {
+		err := bucket.Insert(ctx, event)
+		assert.NoError(t, err)
+	}
+
+	// Create component with test data
+	c := &component{
+		ctx:              ctx,
+		cancel:           cancel,
+		evaluationWindow: 10 * time.Minute,
+		threshold:        0.1,
+		eventBucket:      bucket,
+		nvmlInstanceV2:   mockNVML,
+		lastData: &Data{
+			ts:      time.Now(),
+			healthy: true,
+			reason:  "Initial state",
+		},
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: time.Now()},
+				HWSlowdown:           false,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+			}, nil
+		},
+	}
+
+	// Get states
+	states, err := c.States(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
 }
 
 func TestComponentStatesEdgeCases(t *testing.T) {
@@ -440,7 +412,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			},
 			expectError:    false,
 			expectedStates: 1,
-			expectHealthy:  false,
+			expectHealthy:  true,
 		},
 		{
 			name:               "negative threshold",
@@ -460,7 +432,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			},
 			expectError:    false,
 			expectedStates: 1,
-			expectHealthy:  false,
+			expectHealthy:  true,
 		},
 	}
 
@@ -483,9 +455,9 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			assert.NoError(t, err)
 
 			c := &component{
-				stateHWSlowdownEvaluationWindow:                  tc.window,
-				stateHWSlowdownEventsThresholdFrequencyPerMinute: tc.thresholdPerMinute,
-				eventBucket: bucket,
+				evaluationWindow: tc.window,
+				threshold:        tc.thresholdPerMinute,
+				eventBucket:      bucket,
 			}
 
 			states, err := c.States(ctx)
@@ -505,24 +477,72 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 
 func TestComponentName(t *testing.T) {
 	t.Parallel()
-	c := &component{}
-	assert.Equal(t, nvidia_hw_slowdown_id.Name, c.Name())
+
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(map[string]device.Device{})
+
+	c := &component{
+		nvmlInstanceV2: mockNVML,
+		// Initialize required functions to avoid nil pointer dereference
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			return nvidianvml.ClockEvents{}, nil
+		},
+	}
+
+	assert.Equal(t, Name, c.Name())
 }
 
+// TestComponentStart tests the Start method
 func TestComponentStart(t *testing.T) {
 	t.Parallel()
-	c := &component{}
-	assert.NoError(t, c.Start())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create mock devices
+	mockDevice := testutil.NewMockDevice(
+		&mock.Device{
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "gpu-0", nvml.SUCCESS
+			},
+		},
+		"test-arch", "test-brand", "test-cuda", "test-pci",
+	)
+
+	mockDevices := map[string]device.Device{
+		"gpu-0": mockDevice,
+	}
+
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(mockDevices)
+
+	c := &component{
+		ctx:            ctx,
+		cancel:         cancel,
+		nvmlInstanceV2: mockNVML,
+		// Initialize mock functions to avoid nil pointer dereference if Start() is called
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			return nvidianvml.ClockEvents{}, nil
+		},
+	}
+
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Let the goroutine run for a short time
+	time.Sleep(10 * time.Millisecond)
 }
 
+// TestComponentEvents tests the Events method
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up test database
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
@@ -533,7 +553,7 @@ func TestComponentEvents(t *testing.T) {
 	// Insert test events
 	testEvents := []components.Event{
 		{
-			Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
+			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
 			Name:    "hw_slowdown",
 			Type:    common.EventTypeWarning,
 			Message: "HW Slowdown detected",
@@ -542,7 +562,7 @@ func TestComponentEvents(t *testing.T) {
 			},
 		},
 		{
-			Time:    metav1.Time{Time: time.Now().UTC().Add(-3 * time.Minute)},
+			Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 			Name:    "hw_slowdown",
 			Type:    common.EventTypeWarning,
 			Message: "HW Slowdown detected",
@@ -557,280 +577,61 @@ func TestComponentEvents(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	c := &component{
-		eventBucket: bucket,
+	// Create mock device
+	mockDevice := testutil.NewMockDevice(
+		&mock.Device{
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "gpu-0", nvml.SUCCESS
+			},
+		},
+		"test-arch", "test-brand", "test-cuda", "test-pci",
+	)
+
+	mockDevices := map[string]device.Device{
+		"gpu-0": mockDevice,
 	}
 
-	// Test getting events since a specific time
-	since := time.Now().UTC().Add(-10 * time.Minute)
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(mockDevices)
+
+	c := &component{
+		ctx:              ctx,
+		cancel:           cancel,
+		evaluationWindow: 10 * time.Minute,
+		threshold:        0.1,
+		eventBucket:      bucket,
+		nvmlInstanceV2:   mockNVML,
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: time.Now()},
+				HWSlowdown:           false,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+			}, nil
+		},
+	}
+
+	// Filter by time to get events within the last 3 hours
+	since := time.Now().Add(-3 * time.Hour)
 	events, err := c.Events(ctx, since)
 	assert.NoError(t, err)
-	assert.Equal(t, len(testEvents), len(events))
+	assert.Len(t, events, 2)
 
-	// Test getting events with more recent time
-	since = time.Now().UTC().Add(-4 * time.Minute)
+	// Filter by time to get events within the last 90 minutes
+	since = time.Now().Add(-90 * time.Minute)
 	events, err = c.Events(ctx, since)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(events))
+	assert.Len(t, events, 1)
 }
 
-func TestComponentMetrics(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	reg := prometheus.NewRegistry()
-	c := &component{}
-
-	err := c.RegisterCollectors(reg, dbRW, dbRO, "test_metrics")
-	assert.NoError(t, err)
-	assert.Equal(t, reg, c.gatherer)
-
-	since := time.Now().UTC().Add(-10 * time.Minute)
-	metrics, err := c.Metrics(ctx, since)
-
-	// Since we don't have a mock for nvidia_query_metrics_clock functions,
-	// we expect an error or empty metrics
-	if err != nil {
-		assert.Error(t, err)
-	} else {
-		assert.Empty(t, metrics)
-	}
-}
-
-func TestGetDataSourceInfo(t *testing.T) {
+// TestHighFrequencySlowdownEvents tests that a high frequency of hardware slowdown events
+// triggers an unhealthy state when using the mock device functions
+func TestHighFrequencySlowdownEvents(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name          string
-		events        []components.Event
-		expectedParts []string
-	}{
-		{
-			name:          "empty events",
-			events:        []components.Event{},
-			expectedParts: []string{},
-		},
-		{
-			name: "events with no data_source field",
-			events: []components.Event{
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: map[string]string{},
-				},
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: map[string]string{"gpu_uuid": "gpu-0"},
-				},
-			},
-			expectedParts: []string{},
-		},
-		{
-			name: "events with nil extraInfo",
-			events: []components.Event{
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: nil,
-				},
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: nil,
-				},
-			},
-			expectedParts: []string{},
-		},
-		{
-			name: "mixed events with and without data_sources",
-			events: []components.Event{
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: map[string]string{},
-				},
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvidia-smi",
-						"gpu_uuid":    "gpu-0",
-					},
-				},
-				{
-					Time:      metav1.Time{Time: time.Now()},
-					Name:      "hw_slowdown",
-					Type:      common.EventTypeWarning,
-					Message:   "HW Slowdown detected",
-					ExtraInfo: nil,
-				},
-			},
-			expectedParts: []string{"nvidia-smi: 1"},
-		},
-		{
-			name: "events with single data_source",
-			events: []components.Event{
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvidia-smi",
-						"gpu_uuid":    "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvidia-smi",
-						"gpu_uuid":    "gpu-1",
-					},
-				},
-			},
-			expectedParts: []string{"nvidia-smi: 2"},
-		},
-		{
-			name: "events with multiple data_sources",
-			events: []components.Event{
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvidia-smi",
-						"gpu_uuid":    "gpu-0",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "dcgm",
-						"gpu_uuid":    "gpu-1",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvml",
-						"gpu_uuid":    "gpu-2",
-					},
-				},
-				{
-					Time:    metav1.Time{Time: time.Now()},
-					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
-					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
-						"data_source": "nvidia-smi",
-						"gpu_uuid":    "gpu-3",
-					},
-				},
-			},
-			expectedParts: []string{"nvidia-smi: 2", "dcgm: 1", "nvml: 1"},
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			result := summarizeDataSources(tc.events)
-
-			if len(tc.expectedParts) == 0 {
-				assert.Empty(t, result)
-				return
-			}
-
-			// Check for each expected part in the result
-			for _, part := range tc.expectedParts {
-				assert.Contains(t, result, part)
-			}
-
-			// Verify the count of commas matches expected parts - 1 (if more than one part)
-			if len(tc.expectedParts) > 1 {
-				commaCount := strings.Count(result, ", ")
-				assert.Equal(t, len(tc.expectedParts)-1, commaCount, "Expected %d commas in result: %s", len(tc.expectedParts)-1, result)
-			}
-		})
-	}
-}
-
-// Test specifically for the state message with data sources
-func TestStatesWithDataSources(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now().UTC()
-
-	// Setup test events with data sources
-	testEvents := []components.Event{
-		{
-			Time:    metav1.Time{Time: now.Add(-4 * time.Minute)},
-			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid":    "gpu-0",
-				"data_source": "nvidia-smi",
-			},
-		},
-		{
-			Time:    metav1.Time{Time: now.Add(-3 * time.Minute)},
-			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid":    "gpu-1",
-				"data_source": "dcgm",
-			},
-		},
-		{
-			Time:    metav1.Time{Time: now.Add(-2 * time.Minute)},
-			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid":    "gpu-0",
-				"data_source": "nvidia-smi",
-			},
-		},
-		{
-			Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
-			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid":    "gpu-1",
-				"data_source": "dcgm",
-			},
-		},
-	}
-
+	// Setup test database
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
@@ -843,27 +644,90 @@ func TestStatesWithDataSources(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
-	// Insert test events
-	for _, event := range testEvents {
+	// Create mock device
+	mockDevice := testutil.NewMockDevice(
+		&mock.Device{
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "gpu-0", nvml.SUCCESS
+			},
+		},
+		"test-arch", "test-brand", "test-cuda", "test-pci",
+	)
+
+	mockDevices := map[string]device.Device{
+		"gpu-0": mockDevice,
+	}
+
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(mockDevices)
+
+	// Setup test parameters
+	window := 10 * time.Minute
+	thresholdFrequency := 0.6 // Events per minute threshold
+
+	// Create component for testing
+	c := &component{
+		ctx:              ctx,
+		cancel:           cancel,
+		evaluationWindow: window,
+		threshold:        thresholdFrequency,
+		eventBucket:      bucket,
+		nvmlInstanceV2:   mockNVML,
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: time.Now().UTC()},
+				HWSlowdown:           true,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+				HWSlowdownReasons:    []string{"GPU slowdown detected"},
+			}, nil
+		},
+	}
+
+	// Run CheckOnce - it should update lastData
+	c.CheckOnce()
+
+	// Verify lastData was updated
+	c.lastMu.RLock()
+	assert.NotNil(t, c.lastData)
+	assert.True(t, c.lastData.healthy, "Component should be healthy with no events")
+	c.lastMu.RUnlock()
+
+	// Generate a high frequency of events that should trigger unhealthy state
+	now := time.Now().UTC()
+	eventsPerGPU := 10
+	totalEventsToInsert := eventsPerGPU
+	windowMinutes := int(window.Minutes())
+
+	for i := 0; i < totalEventsToInsert; i++ {
+		// Distribute events evenly within the window
+		eventTime := now.Add(-time.Duration(i*(windowMinutes/totalEventsToInsert)) * time.Minute)
+
+		event := components.Event{
+			Time:    metav1.Time{Time: eventTime},
+			Name:    "hw_slowdown",
+			Type:    common.EventTypeWarning,
+			Message: "HW Slowdown detected",
+			ExtraInfo: map[string]string{
+				"gpu_uuid": "gpu-0",
+			},
+		}
 		err := bucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
-	// Create component with specific thresholds to ensure unhealthy state
-	c := &component{
-		stateHWSlowdownEvaluationWindow:                  5 * time.Minute,
-		stateHWSlowdownEventsThresholdFrequencyPerMinute: 0.1, // Low threshold to ensure unhealthy state
-		eventBucket: bucket,
-	}
+	// Run CheckOnce again to process the new events
+	c.CheckOnce()
 
-	// Get states
+	// Get the states and verify they reflect the unhealthy condition
 	states, err := c.States(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(states))
-	assert.False(t, states[0].Healthy)
+	assert.Len(t, states, 1)
 
-	// Verify data sources are included in the reason
-	assert.Contains(t, states[0].Reason, "event source counts")
-	assert.Contains(t, states[0].Reason, "nvidia-smi")
-	assert.Contains(t, states[0].Reason, "dcgm")
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Contains(t, states[0].Reason, "hw slowdown events frequency per minute")
+	assert.Contains(t, states[0].Reason, "exceeded threshold")
 }

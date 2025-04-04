@@ -123,6 +123,25 @@ func (evs *ClockEvents) YAML() ([]byte, error) {
 	return yaml.Marshal(evs)
 }
 
+// Event creates a components.Event from ClockEvents if there are hardware slowdown reasons.
+// Returns nil if there are no hardware slowdown reasons.
+func (evs *ClockEvents) Event() *components.Event {
+	if len(evs.HWSlowdownReasons) == 0 {
+		return nil
+	}
+
+	return &components.Event{
+		Time:    evs.Time,
+		Name:    "hw_slowdown",
+		Type:    common.EventTypeWarning,
+		Message: strings.Join(evs.HWSlowdownReasons, ", "),
+		ExtraInfo: map[string]string{
+			"data_source": "nvml",
+			"gpu_uuid":    evs.UUID,
+		},
+	}
+}
+
 func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	clockEvents := ClockEvents{
 		Time:      metav1.Time{Time: time.Now().UTC()},
@@ -264,23 +283,4 @@ var clockEventReasonsToInclude = map[uint64]reasonType{
 		description:  "GPU clocks are limited by current setting of Display clocks",
 		isHWSlowdown: false,
 	},
-}
-
-// createEventFromClockEvents creates a components.Event from ClockEvents if there are hardware slowdown reasons.
-// Returns nil if there are no hardware slowdown reasons.
-func createEventFromClockEvents(clockEvents ClockEvents) *components.Event {
-	if len(clockEvents.HWSlowdownReasons) == 0 {
-		return nil
-	}
-
-	return &components.Event{
-		Time:    clockEvents.Time,
-		Name:    "hw_slowdown",
-		Type:    common.EventTypeWarning,
-		Message: strings.Join(clockEvents.HWSlowdownReasons, ", "),
-		ExtraInfo: map[string]string{
-			"data_source": "nvml",
-			"gpu_uuid":    clockEvents.UUID,
-		},
-	}
 }

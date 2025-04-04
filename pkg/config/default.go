@@ -12,7 +12,7 @@ import (
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -165,7 +165,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			if err == nil {
 				if clockEventsSupported {
 					log.Logger.Infow("auto-detected clock events supported")
-					cfg.Components[nvidia_hw_slowdown_id.Name] = nil
+					cfg.Components[nvidia_hw_slowdown.Name] = nil
 				} else {
 					log.Logger.Infow("auto-detected clock events not supported -- skipping", "driverVersion", driverVersion)
 				}

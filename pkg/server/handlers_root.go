@@ -10,10 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/gin-gonic/gin"
+	"github.com/shirou/gopsutil/v4/process"
+
 	"github.com/leptonai/gpud/components"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
@@ -28,10 +32,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/version"
-
-	"github.com/dustin/go-humanize"
-	"github.com/gin-gonic/gin"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 const rootTemplateName = "root.html"
@@ -105,7 +105,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		if c, err := components.GetComponent(nvidia_clock_speed.Name); c != nil && err == nil {
 			nvidiaClockSpeedChart = true
 		}
-		if c, err := components.GetComponent(nvidia_hw_slowdown_id.Name); c != nil && err == nil {
+		if c, err := components.GetComponent(nvidia_hw_slowdown.Name); c != nil && err == nil {
 			nvidiaErrsChart = true
 		}
 		if c, err := components.GetComponent(nvidia_ecc_id.Name); c != nil && err == nil {
@@ -142,7 +142,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		components = append(components, nvidia_clock_speed.Name)
 	}
 	if nvidiaErrsChart {
-		components = append(components, nvidia_hw_slowdown_id.Name)
+		components = append(components, nvidia_hw_slowdown.Name)
 		components = append(components, nvidia_ecc_id.Name)
 	}
 

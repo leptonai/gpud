@@ -14,6 +14,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -25,19 +26,19 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getDevicesFunc    func() map[string]device.Device
+	nvmlInstanceV2    nvml.InstanceV2
 	getClockSpeedFunc func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, getDevicesFunc func() map[string]device.Device) components.Component {
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:               cctx,
 		cancel:            ccancel,
-		getDevicesFunc:    getDevicesFunc,
+		nvmlInstanceV2:    nvmlInstanceV2,
 		getClockSpeedFunc: nvidianvml.GetClockSpeed,
 	}
 }
@@ -94,7 +95,7 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	devs := c.getDevicesFunc()
+	devs := c.nvmlInstanceV2.Devices()
 	for uuid, dev := range devs {
 		clockSpeed, err := c.getClockSpeedFunc(uuid, dev)
 		if err != nil {
@@ -113,9 +114,9 @@ type Data struct {
 	ClockSpeeds []nvidianvml.ClockSpeed `json:"clock_speeds,omitempty"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) getReason() string {

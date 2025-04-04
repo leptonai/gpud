@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	components_metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const SubSystem = "accelerator_nvidia_clock"

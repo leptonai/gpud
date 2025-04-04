@@ -196,9 +196,9 @@ type Data struct {
 	ConnectionInfos []fuse.ConnectionInfo `json:"connection_infos"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) getReason() string {
