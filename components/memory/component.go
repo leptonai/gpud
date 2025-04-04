@@ -167,6 +167,9 @@ type Data struct {
 
 	// Represents the current BPF JIT buffer size in bytes.
 	// ref. "cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'"
+	// Useful to debug "failed to create shim task: OCI" due to insufficient BPF JIT buffer.
+	// ref. https://github.com/awslabs/amazon-eks-ami/issues/1179
+	// ref. https://github.com/deckhouse/deckhouse/issues/7402
 	BPFJITBufferBytes uint64 `json:"bpf_jit_buffer_bytes"`
 
 	// timestamp of the last check
