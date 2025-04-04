@@ -30,10 +30,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getDevicesFunc                           func() map[string]device.Device
-	getProductNameFunc                       func() string
-	getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities
-	getRemappedRowsFunc                      func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+	nvmlInstanceV2      nvml.InstanceV2
+	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
 
 	eventBucket eventstore.Bucket
 
@@ -41,16 +39,14 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, getDevicesFunc func() map[string]device.Device, getProductNameFunc func() string, getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities, eventBucket eventstore.Bucket) components.Component {
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventBucket eventstore.Bucket) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
-		getDevicesFunc:                           getDevicesFunc,
-		getProductNameFunc:                       getProductNameFunc,
-		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
-		getRemappedRowsFunc:                      nvml.GetRemappedRows,
+		nvmlInstanceV2:      nvmlInstanceV2,
+		getRemappedRowsFunc: nvml.GetRemappedRows,
 
 		eventBucket: eventBucket,
 	}
@@ -101,8 +97,8 @@ func (c *component) Close() error {
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking remapped rows")
 	d := Data{
-		ProductName:                       c.getProductNameFunc(),
-		MemoryErrorManagementCapabilities: c.getMemoryErrorManagementCapabilitiesFunc(),
+		ProductName:                       c.nvmlInstanceV2.ProductName(),
+		MemoryErrorManagementCapabilities: c.nvmlInstanceV2.GetMemoryErrorManagementCapabilities(),
 		RemappedRows:                      nil,
 
 		ts: time.Now().UTC(),
@@ -121,7 +117,7 @@ func (c *component) CheckOnce() {
 
 	issues := make([]string, 0)
 
-	devs := c.getDevicesFunc()
+	devs := c.nvmlInstanceV2.Devices()
 	for uuid, dev := range devs {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {

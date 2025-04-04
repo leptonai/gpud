@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
+	gonvml "github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -74,6 +77,56 @@ func (m *mockEventBucket) Close() {
 	// No-op implementation
 }
 
+// Mock implementation of lib.Library
+type mockLibrary struct{}
+
+func (m *mockLibrary) NVML() gonvml.Interface {
+	return nil
+}
+
+func (m *mockLibrary) Device() device.Interface {
+	return nil
+}
+
+func (m *mockLibrary) Info() nvinfo.Interface {
+	return nil
+}
+
+func (m *mockLibrary) Shutdown() gonvml.Return {
+	return gonvml.SUCCESS
+}
+
+// Mock implementation of nvml.InstanceV2
+type mockNVMLInstance struct {
+	getDevicesFunc                           func() map[string]device.Device
+	getProductNameFunc                       func() string
+	getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return m.getDevicesFunc()
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return m.getProductNameFunc()
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {
+	return m.getMemoryErrorManagementCapabilitiesFunc()
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return true
+}
+
+func (m *mockNVMLInstance) Library() lib.Library {
+	return &mockLibrary{}
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
 // Test the New constructor
 func TestNew(t *testing.T) {
 	ctx := context.Background()
@@ -90,9 +143,17 @@ func TestNew(t *testing.T) {
 			RowRemapping: true,
 		}
 	}
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
 	eventBucket := &mockEventBucket{}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	comp := New(ctx, nvmlInstance, eventBucket)
 	require.NotNil(t, comp)
 	assert.Equal(t, Name, comp.Name())
 }
@@ -132,7 +193,14 @@ func TestEvents(t *testing.T) {
 		}
 	}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
+	comp := New(ctx, nvmlInstance, eventBucket)
 
 	// Get events
 	events, err := comp.Events(ctx, since)
@@ -157,9 +225,17 @@ func TestRegisterCollectors(t *testing.T) {
 			RowRemapping: true,
 		}
 	}
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
 	eventBucket := &mockEventBucket{}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	comp := New(ctx, nvmlInstance, eventBucket)
 
 	// Use type assertion to access the RegisterCollectors method
 	promReg, ok := comp.(components.PromRegisterer)
@@ -211,7 +287,14 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 		}
 	}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
+	comp := New(ctx, nvmlInstance, eventBucket)
 
 	// Get the underlying component to modify getRemappedRowsFunc
 	c := comp.(*component)
@@ -325,7 +408,14 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 		}
 	}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
+	comp := New(ctx, nvmlInstance, eventBucket)
 
 	// Override getRemappedRowsFunc to return an error
 	c := comp.(*component)
@@ -418,7 +508,14 @@ func TestEventsWithDB(t *testing.T) {
 		}
 	}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
+	comp := New(ctx, nvmlInstance, eventBucket)
 
 	// Get events
 	queryCtx, queryCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -551,9 +648,17 @@ func TestComponentStates(t *testing.T) {
 					RowRemapping: tt.rowRemappingSupported,
 				}
 			}
+
+			// Create mock NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc:                           getDevicesFunc,
+				getProductNameFunc:                       getProductNameFunc,
+				getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+			}
+
 			eventBucket := &mockEventBucket{}
 
-			comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+			comp := New(ctx, nvmlInstance, eventBucket)
 			c := comp.(*component)
 
 			// Set the data directly
@@ -629,9 +734,17 @@ func TestComponentStatesWithError(t *testing.T) {
 			RowRemapping: true,
 		}
 	}
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
 	eventBucket := &mockEventBucket{}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	comp := New(ctx, nvmlInstance, eventBucket)
 	c := comp.(*component)
 
 	// Set error in the data
@@ -676,9 +789,17 @@ func TestComponentStatesWithNilData(t *testing.T) {
 			RowRemapping: true,
 		}
 	}
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
 	eventBucket := &mockEventBucket{}
 
-	comp := New(ctx, getDevicesFunc, getProductNameFunc, getMemoryErrorManagementCapabilitiesFunc, eventBucket)
+	comp := New(ctx, nvmlInstance, eventBucket)
 	// No need to access the underlying component in this test
 	// since we're just checking the default behavior when lastData is nil
 
