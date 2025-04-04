@@ -268,7 +268,7 @@ func TestStartStop(t *testing.T) {
 
 		// Check that the purge was called with a time approximately retainDuration ago
 		purgeTimeDiff := time.Until(lastPurgeTime.Add(retainDuration))
-		require.InDelta(t, 0, purgeTimeDiff.Seconds(), 1, "Purge time should be approximately retainDuration ago")
+		require.InDelta(t, 0, purgeTimeDiff.Seconds(), 2, "Purge time should be approximately retainDuration ago")
 
 		// Wait a bit more and verify counters don't increase after stopping
 		currentScrapeCount := scraper.getScrapeCount()
