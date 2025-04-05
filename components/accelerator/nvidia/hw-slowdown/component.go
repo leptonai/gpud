@@ -244,7 +244,7 @@ type Data struct {
 	// tracks the reason of the last check
 	reason string
 	// tracks the suggested actions of the last check
-	suggestedActions *common.SuggestedActions `json:"-"`
+	suggestedActions *common.SuggestedActions
 }
 
 func (d *Data) getError() string {
