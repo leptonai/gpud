@@ -155,7 +155,7 @@ type Data struct {
 	// error from the last check
 	err error
 	// set to true if the error is the connection error to the docker daemon
-	connErr bool `json:"-"`
+	connErr bool
 }
 
 func (d *Data) getReason() string {
