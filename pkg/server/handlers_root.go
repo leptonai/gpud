@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"embed"
-	"fmt"
 	"html/template"
 	stdos "os"
 	"runtime"
@@ -18,7 +17,6 @@ import (
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
-	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
@@ -75,21 +73,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		log.Logger.Fatalw("failed to check if nvidia is installed", "error", err)
 	}
 
-	var nvidiaInfoOutputProvider components.OutputProvider
 	if nvidiaInstalled {
-		nvidiaInfoComponent, err := components.GetComponent(nvidia_info.Name)
-		if err != nil {
-			panic(fmt.Sprintf("component %q required but not set", nvidia_info.Name))
-		}
-
-		if uo, ok := nvidiaInfoComponent.(interface{ Unwrap() interface{} }); ok {
-			if op, ok := uo.Unwrap().(components.OutputProvider); ok {
-				nvidiaInfoOutputProvider = op
-			} else {
-				panic(fmt.Sprintf("component %q does not implement components.OutputProvider", nvidia_info.Name))
-			}
-		}
-
 		if c, err := components.GetComponent(nvidia_utilization.Name); c != nil && err == nil {
 			nvidiaGPUUtilChart = true
 		}
@@ -150,19 +134,6 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		accelerator := "N/A"
 		acceleratorDriver := "N/A"
 		gpuAttached := "N/A"
-		if nvidiaInfoOutputProvider != nil {
-			nvidiaInfoOutput, err := nvidiaInfoOutputProvider.Output()
-			if err != nil {
-				panic(err)
-			}
-			nvidiaInfo, ok := nvidiaInfoOutput.(*nvidia_info.Output)
-			if !ok {
-				panic(fmt.Sprintf("expected *nvidia_info.Output, got %T", nvidiaInfoOutput))
-			}
-			accelerator = fmt.Sprintf("%s (%s, %s)", nvidiaInfo.Product.Name, nvidiaInfo.Product.Brand, nvidiaInfo.Product.Architecture)
-			acceleratorDriver = nvidiaInfo.Driver.Version
-			gpuAttached = fmt.Sprintf("%d", nvidiaInfo.GPU.Attached)
-		}
 
 		alloc, rss, err := getMemory(pid)
 		if err != nil {
