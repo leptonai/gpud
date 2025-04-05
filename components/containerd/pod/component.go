@@ -150,9 +150,9 @@ type Data struct {
 	Pods []PodSandbox `json:"pods,omitempty"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) getReason() string {

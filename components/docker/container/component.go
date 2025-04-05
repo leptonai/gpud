@@ -151,11 +151,11 @@ type Data struct {
 	Containers []DockerContainer `json:"containers,omitempty"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 	// set to true if the error is the connection error to the docker daemon
-	connErr bool `json:"-"`
+	connErr bool
 }
 
 func (d *Data) getReason() string {

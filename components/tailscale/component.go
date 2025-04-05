@@ -123,9 +123,9 @@ type Data struct {
 	TailscaledServiceActive bool `json:"tailscaled_service_active"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) getReason() string {

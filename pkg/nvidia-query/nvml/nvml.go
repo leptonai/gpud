@@ -355,7 +355,7 @@ func (inst *instance) Get() (*Output, error) {
 
 					latestInfo.ClockEvents = &clockEvents
 
-					ev := createEventFromClockEvents(clockEvents)
+					ev := clockEvents.Event()
 					if ev != nil {
 						log.Logger.Infow("inserting clock events to db", "gpu_uuid", devInfo.UUID)
 

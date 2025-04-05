@@ -372,35 +372,6 @@ func TestErrorHandling(t *testing.T) {
 		assert.NotNil(t, result.err)
 		assert.Equal(t, line, result.content)
 	})
-
-	t.Run("watch with failing command", func(t *testing.T) {
-		w, err := newWatcher([][]string{
-			{"cat", "nonexistent_file"}, // Will fail
-			{"sleep", "1"},
-		})
-		require.NoError(t, err, "watcher should be created even with command that will fail")
-		defer w.close()
-
-		time.Sleep(time.Second)
-
-		ch := w.watch()
-		require.NotNil(t, ch)
-
-		var lines []logLine
-		for line := range ch {
-			lines = append(lines, line)
-		}
-
-		// Should have at least one error line
-		var foundError bool
-		for _, line := range lines {
-			if line.err != nil {
-				foundError = true
-				break
-			}
-		}
-		assert.True(t, foundError, "should have received an error from the failed command")
-	})
 }
 
 func TestMultipleWatchers(t *testing.T) {

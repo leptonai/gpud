@@ -173,14 +173,14 @@ type Data struct {
 	BPFJITBufferBytes uint64 `json:"bpf_jit_buffer_bytes"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool `json:"-"`
+	healthy bool
 	// tracks the reason of the last check
-	reason string `json:"-"`
+	reason string
 }
 
 func (d *Data) getError() string {

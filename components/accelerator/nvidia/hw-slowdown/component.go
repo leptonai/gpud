@@ -3,26 +3,26 @@ package hwslowdown
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"fmt"
-	"strings"
+	"sync"
 	"time"
 
-	"github.com/dustin/go-humanize"
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	"github.com/leptonai/gpud/pkg/common"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	nvidia_query_metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
-	"github.com/leptonai/gpud/pkg/query"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 const (
+	Name = "accelerator-nvidia-hw-slowdown"
+
 	// DefaultStateHWSlowdownEvaluationWindow is the window to evaluate the HW slowdown state.
 	DefaultStateHWSlowdownEvaluationWindow = 10 * time.Minute
 
@@ -32,201 +32,258 @@ const (
 	DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute = 0.6
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config, eventBucket eventstore.Bucket) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
-	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_hw_slowdown_id.Name)
-
-	return &component{
-		stateHWSlowdownEvaluationWindow:                  DefaultStateHWSlowdownEvaluationWindow,
-		stateHWSlowdownEventsThresholdFrequencyPerMinute: DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
-
-		eventBucket: eventBucket,
-	}, nil
-}
-
 var _ components.Component = &component{}
 
 type component struct {
-	stateHWSlowdownEvaluationWindow                  time.Duration
-	stateHWSlowdownEventsThresholdFrequencyPerMinute float64
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	rootCtx  context.Context
-	cancel   context.CancelFunc
-	poller   query.Poller
-	gatherer prometheus.Gatherer
+	evaluationWindow time.Duration
+	threshold        float64
+
+	nvmlInstanceV2     nvml.InstanceV2
+	getClockEventsFunc func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
 
 	eventBucket eventstore.Bucket
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func (c *component) Name() string { return nvidia_hw_slowdown_id.Name }
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventBucket eventstore.Bucket) components.Component {
+	cctx, ccancel := context.WithCancel(ctx)
+	return &component{
+		ctx:    cctx,
+		cancel: ccancel,
 
-func (c *component) Start() error { return nil }
+		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 
-const (
-	StateKeyHWSlowdown = "hw_slowdown"
-)
+		nvmlInstanceV2:     nvmlInstanceV2,
+		getClockEventsFunc: nvidianvml.GetClockEvents,
+
+		eventBucket: eventBucket,
+	}
+}
+
+func (c *component) Name() string { return Name }
+
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	if c.stateHWSlowdownEvaluationWindow == 0 {
-		log.Logger.Debugw("no time window to evaluate /states", "component", c.Name())
-		return []components.State{
-			{
-				Name:    StateKeyHWSlowdown,
-				Healthy: true,
-			},
-		}, nil
-	}
-
-	since := time.Now().UTC().Add(-c.stateHWSlowdownEvaluationWindow)
-
-	events, err := c.eventBucket.Get(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(events) == 0 {
-		log.Logger.Debugw("no event found for /states", "component", c.Name(), "since", humanize.Time(since))
-		return []components.State{
-			{
-				Name:    StateKeyHWSlowdown,
-				Healthy: true,
-			},
-		}, nil
-	}
-
-	eventsByMinute := make(map[int]struct{})
-	for _, event := range events {
-		minute := int(event.Time.Unix() / 60) // unix seconds to minutes
-		eventsByMinute[minute] = struct{}{}
-	}
-
-	totalEvents := len(eventsByMinute)
-	minutes := c.stateHWSlowdownEvaluationWindow.Minutes()
-	freqPerMin := float64(totalEvents) / minutes
-
-	if freqPerMin < c.stateHWSlowdownEventsThresholdFrequencyPerMinute {
-		log.Logger.Debugw("hw slowdown events count is less than threshold", "component", c.Name(), "since", humanize.Time(since), "count", len(eventsByMinute), "threshold", c.stateHWSlowdownEventsThresholdFrequencyPerMinute)
-		return []components.State{
-			{
-				Name:    StateKeyHWSlowdown,
-				Healthy: true,
-				Reason:  fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, len(eventsByMinute), c.stateHWSlowdownEventsThresholdFrequencyPerMinute, c.stateHWSlowdownEvaluationWindow),
-			},
-		}, nil
-	}
-
-	// Extract data source information
-	dataSrcSum := summarizeDataSources(events)
-	return []components.State{
-		{
-			Name:    StateKeyHWSlowdown,
-			Healthy: false,
-			Reason: fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s (event source counts %s)",
-				freqPerMin, len(eventsByMinute), c.stateHWSlowdownEventsThresholdFrequencyPerMinute, c.stateHWSlowdownEvaluationWindow, dataSrcSum),
-			SuggestedActions: &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{
-					common.RepairActionTypeHardwareInspection,
-				},
-				Descriptions: []string{
-					"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
-				},
-			},
-		},
-	}, nil
-}
-
-// summarizeDataSources summarizes data source information
-func summarizeDataSources(events []components.Event) string {
-	dataSources := make(map[string]int)
-	for _, event := range events {
-		if event.ExtraInfo == nil {
-			continue
-		}
-
-		src := event.ExtraInfo["data_source"]
-		if src != "" {
-			dataSources[src]++
-		}
-	}
-
-	dsDescs := make([]string, 0, len(dataSources))
-	for ds, count := range dataSources {
-		dsDescs = append(dsDescs, fmt.Sprintf("%s: %d", ds, count))
-	}
-	return strings.Join(dsDescs, ", ")
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return c.eventBucket.Get(ctx, since)
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	hwSlowdown, err := nvidia_query_metrics_clock.ReadHWSlowdown(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-	hwSlowdownThermal, err := nvidia_query_metrics_clock.ReadHWSlowdownThermal(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-	hwSlowdownPowerBrake, err := nvidia_query_metrics_clock.ReadHWSlowdownPowerBrake(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-
-	ms := make([]components.Metric, 0, len(hwSlowdown)+len(hwSlowdownThermal)+len(hwSlowdownPowerBrake))
-	for _, m := range hwSlowdown {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range hwSlowdownThermal {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-	for _, m := range hwSlowdownPowerBrake {
-		ms = append(ms, components.Metric{
-			Metric: m,
-			ExtraInfo: map[string]string{
-				"gpu_id": m.MetricSecondaryName,
-			},
-		})
-	}
-
-	return ms, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
-	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_hw_slowdown_id.Name)
+	c.cancel()
 
 	return nil
 }
 
-var _ components.PromRegisterer = (*component)(nil)
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking clock events")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
 
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	c.gatherer = reg
-	return nvidia_query_metrics_clock.Register(reg, dbRW, dbRO, tableName)
+	devs := c.nvmlInstanceV2.Devices()
+	for uuid, dev := range devs {
+		clockEvents, err := c.getClockEventsFunc(uuid, dev)
+		if err != nil {
+			d.err = err
+			d.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
+			return
+		}
+
+		if clockEvents.HWSlowdown {
+			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+		} else {
+			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+		}
+
+		if clockEvents.HWSlowdownThermal {
+			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+		} else {
+			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+		}
+
+		if clockEvents.HWSlowdownPowerBrake {
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+		} else {
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+		}
+
+		d.ClockEvents = append(d.ClockEvents, clockEvents)
+
+		ev := clockEvents.Event()
+		if ev == nil {
+			// no clock event found, skip
+			continue
+		}
+
+		log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
+
+		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+		found, err := c.eventBucket.Find(cctx, *ev)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
+			d.err = err
+			d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
+			return
+		}
+		if found != nil {
+			log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
+			continue
+		}
+
+		if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
+			log.Logger.Errorw("failed to insert event", "error", err)
+			d.err = err
+			d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
+			return
+		}
+		log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
+	}
+
+	if c.evaluationWindow == 0 {
+		// no time window to evaluate /state
+		d.healthy = true
+		d.reason = "no time window to evaluate states"
+		return
+	}
+
+	since := time.Now().UTC().Add(-c.evaluationWindow)
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	latestEvents, err := c.eventBucket.Get(cctx, since)
+	ccancel()
+	if err != nil {
+		log.Logger.Errorw("failed to get clock events from db", "error", err)
+		d.err = err
+		d.reason = fmt.Sprintf("error getting clock events from db: %s", err)
+		return
+	}
+
+	if len(latestEvents) == 0 {
+		d.healthy = true
+		d.reason = "no clock events found"
+		return
+	}
+
+	eventsByMinute := make(map[int]struct{})
+	for _, event := range latestEvents {
+		minute := int(event.Time.Unix() / 60) // unix seconds to minutes
+		eventsByMinute[minute] = struct{}{}
+	}
+	totalEvents := len(eventsByMinute)
+	minutes := c.evaluationWindow.Minutes()
+	freqPerMin := float64(totalEvents) / minutes
+
+	if freqPerMin < c.threshold {
+		// hw slowdown events happened but within its threshold
+		d.healthy = true
+		d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+		return
+	}
+
+	// hw slowdown events happened and beyond its threshold
+	d.healthy = false
+	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+	d.suggestedActions = &common.SuggestedActions{
+		RepairActions: []common.RepairActionType{
+			common.RepairActionTypeHardwareInspection,
+		},
+		Descriptions: []string{
+			"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
+		},
+	}
+}
+
+type Data struct {
+	ClockEvents []nvidianvml.ClockEvents `json:"clock_events,omitempty"`
+
+	// timestamp of the last check
+	ts time.Time
+	// error from the last check
+	err error
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
+	// tracks the suggested actions of the last check
+	suggestedActions *common.SuggestedActions
+}
+
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
+	state := components.State{
+		Name:   Name,
+		Reason: d.reason,
+		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+
+		SuggestedActions: d.suggestedActions,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
 }

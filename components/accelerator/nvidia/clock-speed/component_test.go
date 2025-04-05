@@ -14,8 +14,45 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
+
+// Mock implementation of nvml.InstanceV2
+type mockNVMLInstance struct {
+	devices map[string]device.Device
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return m.devices
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return "NVIDIA Test GPU"
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return true
+}
+
+func (m *mockNVMLInstance) Library() lib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+// Helper function to create a mock NVML instance
+func createMockNVMLInstance() *mockNVMLInstance {
+	return &mockNVMLInstance{
+		devices: make(map[string]device.Device),
+	}
+}
 
 // TestData_GetReason tests the getReason method of Data
 func TestData_GetReason(t *testing.T) {
@@ -158,13 +195,13 @@ func TestComponent_Name(t *testing.T) {
 // TestNew tests the New function
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	getDevicesFunc := func() map[string]device.Device { return nil }
+	nvmlInstance := createMockNVMLInstance()
 
-	comp := New(ctx, getDevicesFunc)
+	comp := New(ctx, nvmlInstance)
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
-	assert.Nil(t, c.getDevicesFunc())
+	assert.NotNil(t, c.nvmlInstanceV2)
 	assert.NotNil(t, c.getClockSpeedFunc)
 	assert.NotNil(t, c.ctx)
 	assert.NotNil(t, c.cancel)
@@ -175,10 +212,12 @@ func TestComponent_Start(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	nvmlInstance := createMockNVMLInstance()
+
 	c := &component{
 		ctx:            ctx,
 		cancel:         cancel,
-		getDevicesFunc: func() map[string]device.Device { return nil },
+		nvmlInstanceV2: nvmlInstance,
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, nil
 		},
@@ -234,14 +273,17 @@ func TestComponent_CheckOnce(t *testing.T) {
 	mockNvmlDevice := &mock.Device{}
 	mockDevice := testutil.NewMockDevice(mockNvmlDevice, "test-arch", "test-brand", "1.0", "0000:00:00.0")
 
+	// Create mock NVML instance with devices
+	nvmlInstance := &mockNVMLInstance{
+		devices: map[string]device.Device{
+			"test-uuid": mockDevice,
+		},
+	}
+
 	// Test successful case
 	c := &component{
-		ctx: ctx,
-		getDevicesFunc: func() map[string]device.Device {
-			return map[string]device.Device{
-				"test-uuid": mockDevice,
-			}
-		},
+		ctx:            ctx,
+		nvmlInstanceV2: nvmlInstance,
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{
 				UUID:        uuid,
@@ -264,12 +306,8 @@ func TestComponent_CheckOnce(t *testing.T) {
 	// Test error case
 	testErr := errors.New("test error")
 	c = &component{
-		ctx: ctx,
-		getDevicesFunc: func() map[string]device.Device {
-			return map[string]device.Device{
-				"test-uuid": mockDevice,
-			}
-		},
+		ctx:            ctx,
+		nvmlInstanceV2: nvmlInstance,
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, testErr
 		},

@@ -175,9 +175,9 @@ type Data struct {
 	Devices []pci.Device `json:"devices,omitempty"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 func (d *Data) listACSEnabledDeviceUUIDs() []string {

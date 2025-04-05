@@ -174,9 +174,9 @@ type Data struct {
 	Usage Usage `json:"usage"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 type Info struct {

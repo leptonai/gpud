@@ -604,9 +604,9 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := createEventFromClockEvents(tt.clockEvents)
+			got := tt.clockEvents.Event()
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("createEventFromClockEvents() = %v, want %v", got, tt.want)
+				t.Errorf("Event() = %v, want %v", got, tt.want)
 			}
 		})
 	}

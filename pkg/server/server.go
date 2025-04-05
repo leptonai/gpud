@@ -40,7 +40,6 @@ import (
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -185,7 +184,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if err != nil {
 			return nil, err
 		}
-		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -350,26 +349,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			// db object to read sxid events (read-only, writes are done in poller)
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, rebootEventStore, eventStore))
 
-		case nvidia_hw_slowdown_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_hw_slowdown.New(ctx, cfg, hwSlowdownEventBucket)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case nvidia_hw_slowdown.Name:
+			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, nvmlInstanceV2, hwSlowdownEventBucket))
 
 		case nvidia_clock_speed.Name:
-			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, nvmlInstanceV2.Devices))
+			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, nvmlInstanceV2))
 
 		case nvidia_ecc_id.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}

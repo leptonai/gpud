@@ -154,9 +154,9 @@ type Data struct {
 	ProcessCountZombieProcesses int                               `json:"process_count_zombie_processes"`
 
 	// timestamp of the last check
-	ts time.Time `json:"-"`
+	ts time.Time
 	// error from the last check
-	err error `json:"-"`
+	err error
 }
 
 type MachineMetadata struct {

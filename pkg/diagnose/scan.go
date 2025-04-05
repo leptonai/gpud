@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_hw_slowdown_id "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown/id"
+	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -125,7 +125,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}
 
-		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown_id.Name)
+		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown.Name)
 		if err != nil {
 			log.Logger.Fatalw("failed to create events bucket", "error", err)
 		}
