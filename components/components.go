@@ -55,11 +55,6 @@ type Component interface {
 	Close() error
 }
 
-// Defines an optional component interface that returns the underlying output data.
-type OutputProvider interface {
-	Output() (any, error)
-}
-
 // Defines an optional component interface that supports Prometheus metrics.
 type PromRegisterer interface {
 	RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error
