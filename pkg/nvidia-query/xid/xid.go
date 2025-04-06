@@ -4922,11 +4922,24 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Name:            "GPU Initialization Failure",
 		Description:     "",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: &common.SuggestedActions{
+			References: []string{
+				// e.g., "Error status 0x... while polling for FSP boot complete"
+				`"GPU_INIT_ERROR in driver", https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c#L84`,
+			},
+
+			Descriptions: []string{
+				"Xid 143, marked as critical in GPUd, indicates GPU initialization failure. GPU hardware should be inspected and repaired.",
+			},
+
+			RepairActions: []common.RepairActionType{
+				common.RepairActionTypeHardwareInspection,
+			},
+		},
+		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: common.EventTypeWarning,
+		EventType: common.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
