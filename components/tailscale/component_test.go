@@ -25,7 +25,7 @@ func mockComponent(
 		checkDependencyInstalled: func() bool {
 			return isInstalled
 		},
-		checkServiceActive: func(ctx context.Context) (bool, error) {
+		checkServiceActiveFunc: func() (bool, error) {
 			return isActive, activeError
 		},
 	}
@@ -46,7 +46,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
 	assert.NotNil(t, tc.checkDependencyInstalled, "checkDependencyInstalled function should be set")
-	assert.NotNil(t, tc.checkServiceActive, "checkServiceActive function should be set")
+	assert.NotNil(t, tc.checkServiceActiveFunc, "checkServiceActive function should be set")
 }
 
 func TestName(t *testing.T) {

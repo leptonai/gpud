@@ -5,13 +5,11 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -21,23 +19,36 @@ func TestComponentEvents(t *testing.T) {
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
+
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
 	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	comp, err := newComponent(
-		ctx,
-		func() bool { return true },
-		[][]string{
-			{"tail", "testdata/fabricmanager.log"},
-			{"sleep 1"},
-		},
-		store,
-	)
+	w, err := newWatcher([][]string{
+		{"tail", "testdata/fabricmanager.log"},
+		{"sleep 1"},
+	})
 	require.NoError(t, err)
+	llp := newLogLineProcessor(ctx, w, Match, bucket)
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
+
+		eventBucket:      bucket,
+		logLineProcessor: llp,
+	}
 	defer comp.Close()
+
+	comp.CheckOnce()
 
 	time.Sleep(5 * time.Second)
 
@@ -60,13 +71,13 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.Message, events[0].Message)
 	assert.Equal(t, expectedEvent.ExtraInfo["log_line"], events[0].ExtraInfo["log_line"])
 
-	comp.checkFMExists = func() bool { return false }
+	comp.checkFMExistsFunc = func() bool { return false }
 	states, err := comp.States(ctx)
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, components.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
-	assert.Equal(t, "fabric manager not found", states[0].Reason)
+	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
 // mockWatcher implements the watcher interface for testing
@@ -101,9 +112,11 @@ func TestEventsWithNoProcessor(t *testing.T) {
 
 	// Create a component with no logLineProcessor
 	comp := &component{
-		checkFMExists: func() bool { return false },
-		rootCtx:       context.Background(),
-		cancel:        func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		checkFMExistsFunc: func() bool { return false },
+		checkFMActiveFunc: func() bool { return false },
 	}
 
 	// Call Events
@@ -131,7 +144,7 @@ func TestEventsWithProcessor(t *testing.T) {
 	// Create events store
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket(fabric_manager_id.Name)
+	bucket, err := store.Bucket(Name)
 	require.NoError(t, err)
 
 	// Create a processor
@@ -139,9 +152,12 @@ func TestEventsWithProcessor(t *testing.T) {
 
 	// Create component with processor
 	comp := &component{
-		checkFMExists:    func() bool { return true },
-		rootCtx:          ctx,
-		cancel:           cancel,
+		ctx:    ctx,
+		cancel: cancel,
+
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
+
 		eventBucket:      bucket,
 		logLineProcessor: llp,
 	}
@@ -175,10 +191,14 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 
 	// Create a component where fabric manager doesn't exist
 	comp := &component{
-		checkFMExists: func() bool { return false },
-		rootCtx:       context.Background(),
-		cancel:        func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		checkFMExistsFunc: func() bool { return false },
+		checkFMActiveFunc: func() bool { return false },
 	}
+
+	comp.CheckOnce()
 
 	// Call States
 	states, err := comp.States(context.Background())
@@ -187,8 +207,151 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
-	assert.Equal(t, fabric_manager_id.Name, states[0].Name)
+	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, components.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
-	assert.Equal(t, "fabric manager not found", states[0].Reason)
+	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
+}
+
+func TestComponentName(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{}
+	assert.Equal(t, Name, comp.Name())
+}
+
+func TestComponentStart(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	comp := &component{
+		ctx:               ctx,
+		cancel:            cancel,
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
+	}
+	defer comp.Close()
+
+	err := comp.Start()
+	assert.NoError(t, err)
+
+	// Allow time for the goroutine to do first check
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify lastData was updated
+	comp.lastMu.RLock()
+	assert.NotNil(t, comp.lastData)
+	comp.lastMu.RUnlock()
+}
+
+func TestComponentClose(t *testing.T) {
+	t.Parallel()
+
+	// Setup mock components
+	ctx, cancel := context.WithCancel(context.Background())
+	mockW := newMockWatcher()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+
+	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, bucket)
+
+	comp := &component{
+		ctx:              ctx,
+		cancel:           cancel,
+		logLineProcessor: llp,
+		eventBucket:      bucket,
+	}
+
+	// Test Close
+	err = comp.Close()
+	assert.NoError(t, err)
+}
+
+func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return false },
+	}
+
+	comp.CheckOnce()
+
+	states, err := comp.States(context.Background())
+
+	assert.NoError(t, err)
+	require.NotNil(t, states)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
+}
+
+func TestDataGetError(t *testing.T) {
+	t.Parallel()
+
+	// Test nil Data
+	var d *Data
+	assert.Equal(t, "", d.getError())
+
+	// Test nil error
+	d = &Data{}
+	assert.Equal(t, "", d.getError())
+
+	// Test with error
+	testErr := assert.AnError
+	d = &Data{err: testErr}
+	assert.Equal(t, testErr.Error(), d.getError())
+}
+
+func TestDataGetStates(t *testing.T) {
+	t.Parallel()
+
+	// Test nil Data
+	var d *Data
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
+
+	// Test unhealthy state
+	d = &Data{
+		healthy: false,
+		reason:  "test unhealthy reason",
+		err:     assert.AnError,
+	}
+	states, err = d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, "test unhealthy reason", states[0].Reason)
+	assert.Equal(t, assert.AnError.Error(), states[0].Error)
+}
+
+func TestMetrics(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+	}
+
+	metrics, err := comp.Metrics(context.Background(), time.Now())
+	assert.NoError(t, err)
+	assert.Nil(t, metrics)
 }

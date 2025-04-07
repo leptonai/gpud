@@ -22,8 +22,7 @@ type component struct {
 	cancel context.CancelFunc
 
 	checkDependencyInstalled func() bool
-
-	checkServiceActive func(context.Context) (bool, error)
+	checkServiceActiveFunc   func() (bool, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -35,8 +34,8 @@ func New(ctx context.Context) components.Component {
 		ctx:                      cctx,
 		cancel:                   cancel,
 		checkDependencyInstalled: checkTailscaledInstalled,
-		checkServiceActive: func(ctx context.Context) (bool, error) {
-			return systemd.CheckServiceActive(ctx, "tailscaled")
+		checkServiceActiveFunc: func() (bool, error) {
+			return systemd.IsActive("tailscaled")
 		},
 	}
 	return c
@@ -100,11 +99,9 @@ func (c *component) CheckOnce() {
 	}
 
 	// below are the checks in case "tailscaled" is installed, thus requires activeness checks
-	if c.checkServiceActive != nil {
+	if c.checkServiceActiveFunc != nil {
 		var err error
-		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-		d.TailscaledServiceActive, err = c.checkServiceActive(cctx)
-		ccancel()
+		d.TailscaledServiceActive, err = c.checkServiceActiveFunc()
 		if !d.TailscaledServiceActive || err != nil {
 			d.err = fmt.Errorf("tailscaled is installed but tailscaled service is not active or failed to check (error %v)", err)
 			return

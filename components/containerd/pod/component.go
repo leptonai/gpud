@@ -42,7 +42,7 @@ func New(ctx context.Context) components.Component {
 		cancel:                   cancel,
 		checkDependencyInstalled: checkContainerdInstalled,
 		checkServiceActive: func(ctx context.Context) (bool, error) {
-			return systemd.CheckServiceActive(ctx, "containerd")
+			return systemd.IsActive("containerd")
 		},
 		endpoint: defaultContainerRuntimeEndpoint,
 	}
