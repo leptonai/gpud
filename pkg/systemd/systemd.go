@@ -108,6 +108,7 @@ func parseVersion(version string) (string, []string) {
 }
 
 // IsActive returns true if the systemd service is active.
+// TODO: deprecate this
 func IsActive(service string) (bool, error) {
 	p, err := exec.LookPath("systemctl")
 	if err != nil {

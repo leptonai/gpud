@@ -33,7 +33,6 @@ import (
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
-	nvidia_fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
@@ -334,7 +333,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_fabric_manager_id.Name:
+		case nvidia_fabric_manager.Name:
 			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
