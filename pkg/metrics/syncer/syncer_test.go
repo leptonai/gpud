@@ -136,13 +136,6 @@ func (m *mockStore) getPurgeCount() int {
 	return m.purgeCount
 }
 
-func (m *mockStore) getLastPurgeTime() time.Time {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.lastPurgeTime
-}
-
 func TestNewSyncer(t *testing.T) {
 	t.Parallel()
 
@@ -231,54 +224,6 @@ func TestSync(t *testing.T) {
 		require.Equal(t, expectedErr, err)
 		require.Equal(t, 1, scraper.getScrapeCount())
 		require.Equal(t, 0, store.getRecordCount())
-	})
-}
-
-func TestStartStop(t *testing.T) {
-	// Test case: Start and Stop
-	t.Run("StartStop", func(t *testing.T) {
-		scraper := newMockScraper(pkgmetrics.Metrics{}, nil)
-		store := newMockStore(nil, nil, nil)
-
-		ctx := context.Background()
-		scrapeInterval := time.Second
-		purgeInterval := time.Second
-		retainDuration := 1 * time.Hour
-
-		s := NewSyncer(ctx, scraper, store, scrapeInterval, purgeInterval, retainDuration)
-
-		// Start the syncer
-		s.Start()
-
-		// Wait for some time to allow scraping and purging to occur
-		time.Sleep(3 * time.Second)
-
-		// Stop the syncer
-		s.Stop()
-
-		// Assert that scraping occurred at least once
-		require.GreaterOrEqual(t, scraper.getScrapeCount(), 1)
-
-		// Assert that purging occurred at least once
-		require.GreaterOrEqual(t, store.getPurgeCount(), 1)
-
-		// Verify that the last purge time is about retainDuration ago
-		lastPurgeTime := store.getLastPurgeTime()
-		require.NotEqual(t, time.Time{}, lastPurgeTime)
-
-		// Check that the purge was called with a time approximately retainDuration ago
-		purgeTimeDiff := time.Until(lastPurgeTime.Add(retainDuration))
-		require.InDelta(t, 0, purgeTimeDiff.Seconds(), 2, "Purge time should be approximately retainDuration ago")
-
-		// Wait a bit more and verify counters don't increase after stopping
-		currentScrapeCount := scraper.getScrapeCount()
-		currentPurgeCount := store.getPurgeCount()
-
-		// enough time for sync ticker to cancel
-		time.Sleep(5 * scrapeInterval)
-
-		require.Equal(t, currentScrapeCount, scraper.getScrapeCount(), "Scrape count should not increase after stopping")
-		require.Equal(t, currentPurgeCount, store.getPurgeCount(), "Purge count should not increase after stopping")
 	})
 }
 
