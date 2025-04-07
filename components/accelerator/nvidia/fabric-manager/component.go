@@ -13,7 +13,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
-	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"
@@ -135,17 +134,6 @@ func (c *component) CheckOnce() {
 
 	active := c.checkFMActiveFunc()
 	if !active {
-		// get the latest fabric manager output for debugging purposes
-		cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-		fmStatusOutput, err := pkgsystemd.GetLatestJournalctlOutput(cctx, "nvidia-fabricmanager")
-		ccancel()
-
-		if err != nil {
-			log.Logger.Errorw("failed to get latest fabric manager output", "error", err)
-		} else {
-			log.Logger.Warnw("fabric manager is not active", "output", fmStatusOutput)
-		}
-
 		d.FabricManagerActive = false
 		d.healthy = false
 		d.reason = "nv-fabricmanager found but fabric manager service is not active"
@@ -229,11 +217,4 @@ func (d *Data) getStates() ([]components.State, error) {
 		"encoding": "json",
 	}
 	return []components.State{state}, nil
-}
-
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
 }
