@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"time"
@@ -435,6 +436,8 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to read metrics: " + err.Error()})
 		return
 	}
+
+	fmt.Println("[DEBUG] metricsData", metricsData)
 
 	metrics := pkgmetrics.ConvertToLeptonMetrics(metricsData)
 	switch c.GetHeader(RequestHeaderContentType) {
