@@ -484,6 +484,66 @@ type DeviceInfo struct {
 	device device.Device `json:"-"`
 }
 
+// architectureNames maps architecture codes to human-readable names
+// as declared in nvml/nvml.h
+var architectureNames = map[uint]string{
+	2:          "Kepler",
+	3:          "Maxwell",
+	4:          "Pascal",
+	5:          "Volta",
+	6:          "Turing",
+	7:          "Ampere",
+	8:          "Ada",
+	9:          "Hopper",
+	0xffffffff: "Unknown",
+}
+
+func GetArchitecture(dev device.Device) (string, error) {
+	arch, ret := dev.GetArchitecture()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get device architecture: %v", nvml.ErrorString(ret))
+	}
+
+	if name, ok := architectureNames[uint(arch)]; ok {
+		return name, nil
+	}
+	return fmt.Sprintf("UnknownArchitecture(%d)", arch), nil
+}
+
+// brandNames maps brand codes to human-readable names
+// as declared in nvml/nvml.h
+var brandNames = map[nvml.BrandType]string{
+	nvml.BRAND_UNKNOWN:             "Unknown",
+	nvml.BRAND_QUADRO:              "Quadro",
+	nvml.BRAND_TESLA:               "Tesla",
+	nvml.BRAND_NVS:                 "NVS",
+	nvml.BRAND_GRID:                "GRID",
+	nvml.BRAND_GEFORCE:             "GeForce",
+	nvml.BRAND_TITAN:               "TITAN",
+	nvml.BRAND_NVIDIA_VAPPS:        "NVIDIA vApps",
+	nvml.BRAND_NVIDIA_VPC:          "NVIDIA Virtual PC",
+	nvml.BRAND_NVIDIA_VCS:          "NVIDIA Virtual Compute Server",
+	nvml.BRAND_NVIDIA_VWS:          "NVIDIA Virtual Workstation",
+	nvml.BRAND_NVIDIA_CLOUD_GAMING: "NVIDIA Cloud Gaming",
+	nvml.BRAND_QUADRO_RTX:          "Quadro RTX",
+	nvml.BRAND_NVIDIA_RTX:          "NVIDIA RTX",
+	nvml.BRAND_NVIDIA:              "NVIDIA",
+	nvml.BRAND_GEFORCE_RTX:         "GeForce RTX",
+	nvml.BRAND_TITAN_RTX:           "TITAN RTX",
+}
+
+func GetBrand(dev device.Device) (string, error) {
+	brand, ret := dev.GetBrand()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get device brand: %v", nvml.ErrorString(ret))
+	}
+
+	if name, ok := brandNames[brand]; ok {
+		return name, nil
+	}
+	return fmt.Sprintf("UnknownBrand(%d)", brand), nil
+}
+
 func GetDriverVersion() (string, error) {
 	nvmlLib := nvml_lib.NewDefault()
 	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
@@ -680,4 +740,12 @@ func DefaultInstanceReady() <-chan any {
 	defer defaultInstanceMu.RUnlock()
 
 	return defaultInstanceReadyc
+}
+
+func GetProductName(dev device.Device) (string, error) {
+	name, ret := dev.GetName()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
+	}
+	return name, nil
 }

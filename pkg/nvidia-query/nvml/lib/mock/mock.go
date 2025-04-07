@@ -49,6 +49,12 @@ var AllSuccessInterface = &nvmlmock.Interface{
 			GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 				return 1, nvml.SUCCESS
 			},
+			GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
+				return 7, nvml.SUCCESS // NVML_DEVICE_ARCH_AMPERE (7)
+			},
+			GetBrandFunc: func() (nvml.BrandType, nvml.Return) {
+				return nvml.BRAND_GEFORCE_RTX, nvml.SUCCESS // GeForce RTX
+			},
 			RegisterEventsFunc: func(v uint64, eventSet nvml.EventSet) nvml.Return {
 				return nvml.SUCCESS
 			},
