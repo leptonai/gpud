@@ -152,46 +152,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			} else {
 				output.PrintInfo(nvidia_query.WithDebug(op.debug))
 
-				if op.pollGPMEvents {
-					fmt.Printf("\n%s checking nvidia GPM events\n", inProgress)
-
-					gpmSupported, err := nvidia_query_nvml.GPMSupported()
-					if err == nil {
-						if gpmSupported {
-							log.Logger.Infow("auto-detected gpm supported")
-						} else {
-							log.Logger.Infow("auto-detected gpm not supported -- skipping", "error", err)
-						}
-					} else {
-						log.Logger.Warnw("failed to check gpm supported or not", "error", err)
-					}
-
-					if gpmSupported {
-						select {
-						case <-ctx.Done():
-							log.Logger.Warnw("context done")
-
-						case <-time.After(time.Minute + 10*time.Second):
-							fmt.Printf("%s no gpm events found after 70 seconds\n", checkMark)
-
-						case event := <-nvidia_query_nvml.DefaultInstance().RecvGPMEvents():
-							if event != nil && event.Error != nil {
-								fmt.Printf("%s received the gpm event with an error %v\n", checkMark, event.Error)
-							} else {
-								if nvidia_query_nvml.DefaultInstance().GPMMetricsSupported() {
-									fmt.Printf("%s successfully received the gpm event with no error\n", checkMark)
-								} else {
-									fmt.Printf("%s gpm metrics not supported\n", checkMark)
-								}
-							}
-
-							yb, _ := event.YAML()
-							fmt.Println(string(yb))
-							println()
-						}
-					}
-				}
-
 				if op.checkInfiniband {
 					fmt.Printf("\n%s checking nvidia infiniband ports/rates\n", inProgress)
 					threshold, err := infiniband.SupportsInfinibandPortRate(output.GPUProductName())

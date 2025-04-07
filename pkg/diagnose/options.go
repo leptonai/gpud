@@ -7,8 +7,6 @@ type Op struct {
 	debug         bool
 	createArchive bool
 
-	pollGPMEvents bool
-
 	netcheck  bool
 	diskcheck bool
 
@@ -56,12 +54,6 @@ func WithDebug(b bool) OpOption {
 func WithCreateArchive(b bool) OpOption {
 	return func(op *Op) {
 		op.createArchive = b
-	}
-}
-
-func WithPollGPMEvents(b bool) OpOption {
-	return func(op *Op) {
-		op.pollGPMEvents = b
 	}
 }
 

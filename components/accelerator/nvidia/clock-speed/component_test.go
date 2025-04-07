@@ -12,103 +12,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// Mock implementation of nvml.InstanceV2
-type mockNVMLInstance struct {
+// mockInstanceV2 implements the nvidianvml.InstanceV2 interface for testing
+type mockInstanceV2 struct {
 	devices map[string]device.Device
 }
 
-func (m *mockNVMLInstance) Devices() map[string]device.Device {
-	return m.devices
-}
-
-func (m *mockNVMLInstance) ProductName() string {
-	return "NVIDIA Test GPU"
-}
-
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{}
-}
-
-func (m *mockNVMLInstance) NVMLExists() bool {
+func (m *mockInstanceV2) NVMLExists() bool {
 	return true
 }
 
-func (m *mockNVMLInstance) Library() lib.Library {
+func (m *mockInstanceV2) Library() nvml_lib.Library {
 	return nil
 }
 
-func (m *mockNVMLInstance) Shutdown() error {
+func (m *mockInstanceV2) Devices() map[string]device.Device {
+	return m.devices
+}
+
+func (m *mockInstanceV2) ProductName() string {
+	return "test-product"
+}
+
+func (m *mockInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockInstanceV2) Shutdown() error {
 	return nil
-}
-
-// Helper function to create a mock NVML instance
-func createMockNVMLInstance() *mockNVMLInstance {
-	return &mockNVMLInstance{
-		devices: make(map[string]device.Device),
-	}
-}
-
-// TestData_GetReason tests the getReason method of Data
-func TestData_GetReason(t *testing.T) {
-	// Test nil data
-	var nilData *Data
-	reason := nilData.getReason()
-	assert.Equal(t, "no clock speed data", reason)
-
-	// Test data with error
-	testError := errors.New("test error")
-	errData := &Data{
-		err: testError,
-	}
-
-	reason = errData.getReason()
-	assert.Contains(t, reason, "failed to get clock speed data")
-
-	// Test successful data
-	successData := &Data{
-		ClockSpeeds: []nvidianvml.ClockSpeed{
-			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
-		},
-	}
-
-	reason = successData.getReason()
-	assert.Contains(t, reason, "found 1 GPU(s)")
-}
-
-// TestData_GetHealth tests the getHealth method of Data
-func TestData_GetHealth(t *testing.T) {
-	// Test nil data
-	var nilData *Data
-	health, healthy := nilData.getHealth()
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
-
-	// Test data with error
-	testError := errors.New("test error")
-	errData := &Data{
-		err: testError,
-	}
-
-	health, healthy = errData.getHealth()
-	assert.Equal(t, components.StateUnhealthy, health)
-	assert.False(t, healthy)
-
-	// Test successful data
-	successData := &Data{
-		ClockSpeeds: []nvidianvml.ClockSpeed{
-			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
-		},
-	}
-
-	health, healthy = successData.getHealth()
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
 }
 
 // TestData_GetError tests the getError method of Data
@@ -195,13 +130,18 @@ func TestComponent_Name(t *testing.T) {
 // TestNew tests the New function
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	nvmlInstance := createMockNVMLInstance()
+	mockDevices := map[string]device.Device{
+		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
+	}
+	mockInstance := &mockInstanceV2{
+		devices: mockDevices,
+	}
 
-	comp := New(ctx, nvmlInstance)
+	comp := New(ctx, mockInstance)
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
-	assert.NotNil(t, c.nvmlInstanceV2)
+	assert.Equal(t, mockInstance, c.nvmlInstance)
 	assert.NotNil(t, c.getClockSpeedFunc)
 	assert.NotNil(t, c.ctx)
 	assert.NotNil(t, c.cancel)
@@ -212,12 +152,17 @@ func TestComponent_Start(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	nvmlInstance := createMockNVMLInstance()
+	mockDevices := map[string]device.Device{
+		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
+	}
+	mockInstance := &mockInstanceV2{
+		devices: mockDevices,
+	}
 
 	c := &component{
-		ctx:            ctx,
-		cancel:         cancel,
-		nvmlInstanceV2: nvmlInstance,
+		ctx:          ctx,
+		cancel:       cancel,
+		nvmlInstance: mockInstance,
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, nil
 		},
@@ -273,17 +218,16 @@ func TestComponent_CheckOnce(t *testing.T) {
 	mockNvmlDevice := &mock.Device{}
 	mockDevice := testutil.NewMockDevice(mockNvmlDevice, "test-arch", "test-brand", "1.0", "0000:00:00.0")
 
-	// Create mock NVML instance with devices
-	nvmlInstance := &mockNVMLInstance{
-		devices: map[string]device.Device{
-			"test-uuid": mockDevice,
-		},
+	mockDevices := map[string]device.Device{
+		"test-uuid": mockDevice,
 	}
 
 	// Test successful case
 	c := &component{
-		ctx:            ctx,
-		nvmlInstanceV2: nvmlInstance,
+		ctx: ctx,
+		nvmlInstance: &mockInstanceV2{
+			devices: mockDevices,
+		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{
 				UUID:        uuid,
@@ -306,8 +250,10 @@ func TestComponent_CheckOnce(t *testing.T) {
 	// Test error case
 	testErr := errors.New("test error")
 	c = &component{
-		ctx:            ctx,
-		nvmlInstanceV2: nvmlInstance,
+		ctx: ctx,
+		nvmlInstance: &mockInstanceV2{
+			devices: mockDevices,
+		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, testErr
 		},
