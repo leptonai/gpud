@@ -721,7 +721,7 @@ func TestDataMarshallingInStates(t *testing.T) {
 	// Get states
 	states, err := testData.getStates()
 
-	// Verify no errors in marshalling
+	// Verify no errors in marshaling
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.NotNil(t, states[0].ExtraInfo)
