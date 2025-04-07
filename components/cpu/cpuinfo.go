@@ -32,12 +32,14 @@ var (
 func setPrevTimeStat(t cpu.TimesStat) {
 	prevMu.Lock()
 	defer prevMu.Unlock()
+
 	prev = &t
 }
 
 func getPrevTimeStat() *cpu.TimesStat {
 	prevMu.RLock()
 	defer prevMu.RUnlock()
+
 	return prev
 }
 

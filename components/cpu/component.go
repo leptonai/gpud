@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/load"
 
 	"github.com/leptonai/gpud/components"
@@ -20,15 +21,20 @@ import (
 )
 
 // Name is the ID of the CPU component.
-const (
-	Name = "cpu"
-)
+const Name = "cpu"
 
 var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	getTimeStatFunc    func(ctx context.Context) (cpu.TimesStat, error)
+	getUsedPctFunc     func(ctx context.Context) (float64, error)
+	getLoadAvgStatFunc func(ctx context.Context) (*load.AvgStat, error)
+
+	setPrevTimeStatFunc func(cpu.TimesStat)
+	getPrevTimeStatFunc func() *cpu.TimesStat
 
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
@@ -46,11 +52,6 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		return nil, err
 	}
 
-	info := getInfo()
-	cores := Cores{
-		Logical: pkghost.CPULogicalCores(),
-	}
-
 	cctx, ccancel := context.WithCancel(ctx)
 	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
@@ -59,12 +60,23 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 	}
 
 	return &component{
-		ctx:         ctx,
-		cancel:      ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		getTimeStatFunc:    getTimeStatForAllCPUs,
+		getUsedPctFunc:     getUsedPercentForAllCPUs,
+		getLoadAvgStatFunc: load.AvgWithContext,
+
+		setPrevTimeStatFunc: setPrevTimeStat,
+		getPrevTimeStatFunc: getPrevTimeStat,
+
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: eventBucket,
-		info:        info,
-		cores:       cores,
+
+		info: getInfo(),
+		cores: Cores{
+			Logical: pkghost.CPULogicalCores(),
+		},
 	}, nil
 }
 
@@ -108,9 +120,11 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+
 	c.cancel()
 	c.kmsgSyncer.Close()
 	c.eventBucket.Close()
+
 	return nil
 }
 
@@ -131,15 +145,17 @@ func (c *component) CheckOnce() {
 
 	curStat, usedPct, err := calculateCPUUsage(
 		c.ctx,
-		getPrevTimeStat(),
-		getTimeStatForAllCPUs,
-		getUsedPercentForAllCPUs,
+		c.getPrevTimeStatFunc(),
+		c.getTimeStatFunc,
+		c.getUsedPctFunc,
 	)
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
 		return
 	}
-	setPrevTimeStat(curStat)
+	c.setPrevTimeStatFunc(curStat)
 
 	d.Usage = Usage{}
 	d.Usage.usedPercent = usedPct
@@ -147,10 +163,12 @@ func (c *component) CheckOnce() {
 	usedPercent.With(prometheus.Labels{}).Set(usedPct)
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	loadAvg, err := load.AvgWithContext(cctx)
+	loadAvg, err := c.getLoadAvgStatFunc(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error calculating load average -- %s", err)
 		return
 	}
 	d.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
@@ -160,6 +178,10 @@ func (c *component) CheckOnce() {
 	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
 	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
 	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
+		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
 }
 
 var (
@@ -177,6 +199,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 type Info struct {
@@ -208,27 +235,6 @@ type Usage struct {
 	LoadAvg15Min string `json:"load_avg_15min"`
 }
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no cpu data found"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get CPU data -- %s", d.err)
-	}
-
-	return fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
-		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
-}
-
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -237,12 +243,28 @@ func (d *Data) getError() string {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{
