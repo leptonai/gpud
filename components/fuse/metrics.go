@@ -35,6 +35,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricConnsCongestedPct)
-	prometheus.MustRegister(metricConnsMaxBackgroundPct)
+	prometheus.MustRegister(
+		metricConnsCongestedPct,
+		metricConnsMaxBackgroundPct,
+	)
 }

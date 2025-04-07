@@ -35,6 +35,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricGraphicsMHz)
-	prometheus.MustRegister(metricMemoryMHz)
+	prometheus.MustRegister(
+		metricGraphicsMHz,
+		metricMemoryMHz,
+	)
 }

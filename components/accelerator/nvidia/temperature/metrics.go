@@ -45,7 +45,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricCurrentCelsius)
-	prometheus.MustRegister(metricThresholdSlowdownCelsius)
-	prometheus.MustRegister(metricSlowdownUsedPercent)
+	prometheus.MustRegister(
+		metricCurrentCelsius,
+		metricThresholdSlowdownCelsius,
+		metricSlowdownUsedPercent,
+	)
 }

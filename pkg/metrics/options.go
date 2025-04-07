@@ -31,10 +31,9 @@ func WithComponents(components ...string) OpOption {
 			op.SelectedComponents = make(map[string]struct{})
 		}
 		for _, component := range components {
-			if len(component) == 0 {
-				continue
+			if component != "" {
+				op.SelectedComponents[component] = struct{}{}
 			}
-			op.SelectedComponents[component] = struct{}{}
 		}
 	}
 }

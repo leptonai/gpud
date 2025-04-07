@@ -13,12 +13,6 @@ import (
 	"github.com/leptonai/gpud/pkg/errdefs"
 )
 
-// WatchableComponent wraps the component with a watchable interface.
-// Useful to intercept the component states method calls to track metrics.
-type WatchableComponent interface {
-	Component
-}
-
 // Component represents an individual component of the system.
 //
 // Each component check is independent of each other.

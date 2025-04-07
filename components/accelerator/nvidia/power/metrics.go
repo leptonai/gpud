@@ -45,7 +45,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricCurrentUsageMilliWatts)
-	prometheus.MustRegister(metricEnforcedLimitMilliWatts)
-	prometheus.MustRegister(metricUsedPercent)
+	prometheus.MustRegister(
+		metricCurrentUsageMilliWatts,
+		metricEnforcedLimitMilliWatts,
+		metricUsedPercent,
+	)
 }

@@ -55,8 +55,10 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricFeatureEnabled)
-	prometheus.MustRegister(metricReplayErrors)
-	prometheus.MustRegister(metricRecoveryErrors)
-	prometheus.MustRegister(metricCRCErrors)
+	prometheus.MustRegister(
+		metricFeatureEnabled,
+		metricReplayErrors,
+		metricRecoveryErrors,
+		metricCRCErrors,
+	)
 }

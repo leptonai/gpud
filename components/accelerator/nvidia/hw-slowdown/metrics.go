@@ -45,7 +45,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricHWSlowdown)
-	prometheus.MustRegister(metricHWSlowdownThermal)
-	prometheus.MustRegister(metricHWSlowdownPowerBrake)
+	prometheus.MustRegister(
+		metricHWSlowdown,
+		metricHWSlowdownThermal,
+		metricHWSlowdownPowerBrake,
+	)
 }

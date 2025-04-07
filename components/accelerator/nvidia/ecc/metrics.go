@@ -56,8 +56,10 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricAggregateTotalCorrected)
-	prometheus.MustRegister(metricAggregateTotalUncorrected)
-	prometheus.MustRegister(metricVolatileTotalCorrected)
-	prometheus.MustRegister(metricVolatileTotalUncorrected)
+	prometheus.MustRegister(
+		metricAggregateTotalCorrected,
+		metricAggregateTotalUncorrected,
+		metricVolatileTotalCorrected,
+		metricVolatileTotalUncorrected,
+	)
 }

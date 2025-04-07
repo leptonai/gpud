@@ -45,7 +45,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricUncorrectableErrors)
-	prometheus.MustRegister(metricRemappingPending)
-	prometheus.MustRegister(metricRemappingFailed)
+	prometheus.MustRegister(
+		metricUncorrectableErrors,
+		metricRemappingPending,
+		metricRemappingFailed,
+	)
 }

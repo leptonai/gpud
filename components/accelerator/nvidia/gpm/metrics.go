@@ -163,13 +163,15 @@ func recordGPMMetricByID(metricID nvml.GpmMetricId, gpuID string, pct float64) {
 }
 
 func init() {
-	prometheus.MustRegister(metricGPUSMOccupancyPercent)
-	prometheus.MustRegister(metricGPUIntUtilPercent)
-	prometheus.MustRegister(metricGPUAnyTensorUtilPercent)
-	prometheus.MustRegister(metricGPUDFMATensorUtilPercent)
-	prometheus.MustRegister(metricGPUHMMATensorUtilPercent)
-	prometheus.MustRegister(metricGPUIMMATensorUtilPercent)
-	prometheus.MustRegister(metricGPUFp64UtilPercent)
-	prometheus.MustRegister(metricGPUFp32UtilPercent)
-	prometheus.MustRegister(metricGPUFp16UtilPercent)
+	prometheus.MustRegister(
+		metricGPUSMOccupancyPercent,
+		metricGPUIntUtilPercent,
+		metricGPUAnyTensorUtilPercent,
+		metricGPUDFMATensorUtilPercent,
+		metricGPUHMMATensorUtilPercent,
+		metricGPUIMMATensorUtilPercent,
+		metricGPUFp64UtilPercent,
+		metricGPUFp32UtilPercent,
+		metricGPUFp16UtilPercent,
+	)
 }

@@ -65,9 +65,11 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricTotalBytes)
-	prometheus.MustRegister(metricFreeBytes)
-	prometheus.MustRegister(metricUsedBytes)
-	prometheus.MustRegister(metricUsedBytesPercent)
-	prometheus.MustRegister(metricUsedInodesPercent)
+	prometheus.MustRegister(
+		metricTotalBytes,
+		metricFreeBytes,
+		metricUsedBytes,
+		metricUsedBytesPercent,
+		metricUsedInodesPercent,
+	)
 }

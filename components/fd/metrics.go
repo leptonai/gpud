@@ -103,13 +103,15 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricAllocatedFileHandles)
-	prometheus.MustRegister(metricRunningPIDs)
-	prometheus.MustRegister(metricLimit)
-	prometheus.MustRegister(metricAllocatedFileHandlesPercent)
-	prometheus.MustRegister(metricUsedPercent)
-	prometheus.MustRegister(metricThresholdRunningPIDs)
-	prometheus.MustRegister(metricThresholdRunningPIDsPercent)
-	prometheus.MustRegister(metricThresholdAllocatedFileHandles)
-	prometheus.MustRegister(metricThresholdAllocatedFileHandlesPercent)
+	prometheus.MustRegister(
+		metricAllocatedFileHandles,
+		metricRunningPIDs,
+		metricLimit,
+		metricAllocatedFileHandlesPercent,
+		metricUsedPercent,
+		metricThresholdRunningPIDs,
+		metricThresholdRunningPIDsPercent,
+		metricThresholdAllocatedFileHandles,
+		metricThresholdAllocatedFileHandlesPercent,
+	)
 }

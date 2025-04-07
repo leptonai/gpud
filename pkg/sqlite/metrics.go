@@ -60,12 +60,14 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(insertUpdateTotal)
-	prometheus.MustRegister(insertUpdateSecondsTotal)
-	prometheus.MustRegister(deleteTotal)
-	prometheus.MustRegister(deleteSecondsTotal)
-	prometheus.MustRegister(selectTotal)
-	prometheus.MustRegister(selectSecondsTotal)
+	prometheus.MustRegister(
+		insertUpdateTotal,
+		insertUpdateSecondsTotal,
+		deleteTotal,
+		deleteSecondsTotal,
+		selectTotal,
+		selectSecondsTotal,
+	)
 }
 
 func RecordInsertUpdate(tookSeconds float64) {

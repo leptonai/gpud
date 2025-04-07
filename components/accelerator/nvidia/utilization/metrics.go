@@ -35,6 +35,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricGPUUtilPercent)
-	prometheus.MustRegister(metricMemoryUtilPercent)
+	prometheus.MustRegister(
+		metricGPUUtilPercent,
+		metricMemoryUtilPercent,
+	)
 }

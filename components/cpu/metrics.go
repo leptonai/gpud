@@ -36,6 +36,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricLoadAverage)
-	prometheus.MustRegister(metricUsedPercent)
+	prometheus.MustRegister(
+		metricLoadAverage,
+		metricUsedPercent,
+	)
 }
