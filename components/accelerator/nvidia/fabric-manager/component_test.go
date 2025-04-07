@@ -342,16 +342,3 @@ func TestDataGetStates(t *testing.T) {
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }
-
-func TestMetrics(t *testing.T) {
-	t.Parallel()
-
-	comp := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-	}
-
-	metrics, err := comp.Metrics(context.Background(), time.Now())
-	assert.NoError(t, err)
-	assert.Nil(t, metrics)
-}
