@@ -84,15 +84,10 @@ type Event struct {
 	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
-type Metric struct {
-	components_metrics_state.Metric
-	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
-}
-
 type Info struct {
-	States  []State  `json:"states"`
-	Events  []Event  `json:"events"`
-	Metrics []Metric `json:"metrics"`
+	States  []State                           `json:"states"`
+	Events  []Event                           `json:"events"`
+	Metrics []components_metrics_state.Metric `json:"metrics"`
 }
 
 var (

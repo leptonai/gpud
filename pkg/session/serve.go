@@ -13,7 +13,6 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	lep_components "github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -395,17 +394,16 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 			"component", componentName,
 			"error", err,
 		)
-	} else {
-		for _, data := range metricsData {
-			currMetrics.Metrics = append(currMetrics.Metrics, lep_components.Metric{
-				Metric: components_metrics_state.Metric{
-					UnixSeconds:         data.UnixMilliseconds,
-					MetricName:          data.Name,
-					MetricSecondaryName: data.Label,
-					Value:               data.Value,
-				},
-			})
-		}
+		return currMetrics
+	}
+
+	for _, data := range metricsData {
+		currMetrics.Metrics = append(currMetrics.Metrics, components_metrics_state.Metric{
+			UnixSeconds:         data.UnixMilliseconds,
+			MetricName:          data.Name,
+			MetricSecondaryName: data.Label,
+			Value:               data.Value,
+		})
 	}
 	return currMetrics
 }

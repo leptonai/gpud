@@ -315,18 +315,17 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			"error", err,
 		)
 	}
-	componentsToMetrics := make(map[string][]lep_components.Metric)
+
+	componentsToMetrics := make(map[string][]components_metrics_state.Metric)
 	for _, data := range metricsData {
 		if _, ok := componentsToMetrics[data.Component]; !ok {
-			componentsToMetrics[data.Component] = make([]lep_components.Metric, 0)
+			componentsToMetrics[data.Component] = make([]components_metrics_state.Metric, 0)
 		}
-		d := lep_components.Metric{
-			Metric: components_metrics_state.Metric{
-				UnixSeconds:         data.UnixMilliseconds,
-				MetricName:          data.Name,
-				MetricSecondaryName: data.Label,
-				Value:               data.Value,
-			},
+		d := components_metrics_state.Metric{
+			UnixSeconds:         data.UnixMilliseconds,
+			MetricName:          data.Name,
+			MetricSecondaryName: data.Label,
+			Value:               data.Value,
 		}
 		componentsToMetrics[data.Component] = append(componentsToMetrics[data.Component], d)
 	}
