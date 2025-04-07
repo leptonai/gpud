@@ -136,13 +136,6 @@ func (m *mockStore) getPurgeCount() int {
 	return m.purgeCount
 }
 
-func (m *mockStore) getLastPurgeTime() time.Time {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.lastPurgeTime
-}
-
 func TestNewSyncer(t *testing.T) {
 	t.Parallel()
 
