@@ -534,7 +534,7 @@ func GetArchitecture(dev device.Device) (string, error) {
 	if name, ok := architectureNames[uint(arch)]; ok {
 		return name, nil
 	}
-	return fmt.Sprintf("Architecture(%d)", arch), nil
+	return fmt.Sprintf("UnknownArchitecture(%d)", arch), nil
 }
 
 // brandNames maps brand codes to human-readable names
@@ -568,7 +568,7 @@ func GetBrand(dev device.Device) (string, error) {
 	if name, ok := brandNames[brand]; ok {
 		return name, nil
 	}
-	return fmt.Sprintf("Brand(%d)", brand), nil
+	return fmt.Sprintf("UnknownBrand(%d)", brand), nil
 }
 
 func GetDriverVersion() (string, error) {
