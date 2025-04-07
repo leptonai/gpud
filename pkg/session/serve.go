@@ -107,7 +107,7 @@ func (s *Session) serve() {
 						log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
 					}
 				} else {
-					log.Logger.Debugw("component does not implement HealthSettable", "component", componentName)
+					log.Logger.Warnw("component does not implement HealthSettable, dropping sethealthy request", "component", componentName)
 				}
 			}
 
