@@ -163,7 +163,7 @@ func recordGPMMetricByID(metricID nvml.GpmMetricId, gpuID string, pct float64) {
 }
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricGPUSMOccupancyPercent,
 		metricGPUIntUtilPercent,
 		metricGPUAnyTensorUtilPercent,

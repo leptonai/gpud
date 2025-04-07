@@ -3,6 +3,8 @@ package gpudmetrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 var (
@@ -18,7 +20,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(componentsRegistered)
+	pkgmetrics.MustRegister(componentsRegistered)
 }
 
 func SetRegistered(componentName string) {

@@ -4,10 +4,12 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 var (
-	insertUpdateTotal = prometheus.NewCounter(
+	metricInsertUpdateTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "insert_update",
@@ -15,7 +17,7 @@ var (
 			Help:      "total number of inserts and updates",
 		},
 	)
-	insertUpdateSecondsTotal = prometheus.NewCounter(
+	metricInsertUpdateSecondsTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "insert_update",
@@ -24,7 +26,7 @@ var (
 		},
 	)
 
-	deleteTotal = prometheus.NewCounter(
+	metricDeleteTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "delete",
@@ -32,7 +34,7 @@ var (
 			Help:      "total number of deletes",
 		},
 	)
-	deleteSecondsTotal = prometheus.NewCounter(
+	metricDeleteSecondsTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "delete",
@@ -41,7 +43,7 @@ var (
 		},
 	)
 
-	selectTotal = prometheus.NewCounter(
+	metricSelectTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "select",
@@ -49,7 +51,7 @@ var (
 			Help:      "total number of selects",
 		},
 	)
-	selectSecondsTotal = prometheus.NewCounter(
+	metricSelectSecondsTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "sqlite",
 			Subsystem: "select",
@@ -60,29 +62,29 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
-		insertUpdateTotal,
-		insertUpdateSecondsTotal,
-		deleteTotal,
-		deleteSecondsTotal,
-		selectTotal,
-		selectSecondsTotal,
+	pkgmetrics.MustRegister(
+		metricInsertUpdateTotal,
+		metricInsertUpdateSecondsTotal,
+		metricDeleteTotal,
+		metricDeleteSecondsTotal,
+		metricSelectTotal,
+		metricSelectSecondsTotal,
 	)
 }
 
 func RecordInsertUpdate(tookSeconds float64) {
-	insertUpdateTotal.Inc()
-	insertUpdateSecondsTotal.Add(tookSeconds)
+	metricInsertUpdateTotal.Inc()
+	metricInsertUpdateSecondsTotal.Add(tookSeconds)
 }
 
 func RecordDelete(tookSeconds float64) {
-	deleteTotal.Inc()
-	deleteSecondsTotal.Add(tookSeconds)
+	metricDeleteTotal.Inc()
+	metricDeleteSecondsTotal.Add(tookSeconds)
 }
 
 func RecordSelect(tookSeconds float64) {
-	selectTotal.Inc()
-	selectSecondsTotal.Add(tookSeconds)
+	metricSelectTotal.Inc()
+	metricSelectSecondsTotal.Add(tookSeconds)
 }
 
 type Metrics struct {

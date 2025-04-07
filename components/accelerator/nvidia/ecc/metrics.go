@@ -56,7 +56,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricAggregateTotalCorrected,
 		metricAggregateTotalUncorrected,
 		metricVolatileTotalCorrected,

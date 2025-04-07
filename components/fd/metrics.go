@@ -103,7 +103,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricAllocatedFileHandles,
 		metricRunningPIDs,
 		metricLimit,
