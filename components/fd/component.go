@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -19,9 +18,9 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-const (
-	Name = "file-descriptor"
+const Name = "file-descriptor"
 
+const (
 	// DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
 	DefaultThresholdAllocatedFileHandles = 10000000
 
@@ -35,8 +34,16 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	getFileHandlesFunc            func() (uint64, uint64, error)
+	countRunningPIDsFunc          func() (uint64, error)
+	getUsageFunc                  func() (uint64, error)
+	getLimitFunc                  func() (uint64, error)
+	checkFileHandlesSupportedFunc func() bool
+	checkFDLimitSupportedFunc     func() bool
+
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
 
@@ -67,8 +74,16 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 	}
 
 	return &component{
-		ctx:         ctx,
-		cancel:      ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		getFileHandlesFunc:            file.GetFileHandles,
+		countRunningPIDsFunc:          process.CountRunningPids,
+		getUsageFunc:                  file.GetUsage,
+		getLimitFunc:                  file.GetLimit,
+		checkFileHandlesSupportedFunc: file.CheckFileHandlesSupported,
+		checkFDLimitSupportedFunc:     file.CheckFDLimitSupported,
+
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: eventBucket,
 
@@ -110,9 +125,16 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
+
 	c.cancel()
-	c.kmsgSyncer.Close()
-	c.eventBucket.Close()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
+
 	return nil
 }
 
@@ -129,17 +151,23 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	allocatedFileHandles, _, err := file.GetFileHandles()
+	allocatedFileHandles, _, err := c.getFileHandlesFunc()
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.health = components.StateUnhealthy
+		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
 		return
 	}
 	d.AllocatedFileHandles = allocatedFileHandles
 	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(allocatedFileHandles))
 
-	runningPIDs, err := process.CountRunningPids()
+	runningPIDs, err := c.countRunningPIDsFunc()
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.health = components.StateUnhealthy
+		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
 		return
 	}
 	d.RunningPIDs = runningPIDs
@@ -148,16 +176,22 @@ func (c *component) CheckOnce() {
 	// may fail for mac
 	// e.g.,
 	// stat /proc: no such file or directory
-	usage, uerr := file.GetUsage()
+	usage, uerr := c.getUsageFunc()
 	if uerr != nil {
 		d.err = uerr
+		d.healthy = false
+		d.health = components.StateUnhealthy
+		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
 		return
 	}
 	d.Usage = usage
 
-	limit, err := file.GetLimit()
+	limit, err := c.getLimitFunc()
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.health = components.StateUnhealthy
+		d.reason = fmt.Sprintf("error getting limit -- %s", err)
 		return
 	}
 	d.Limit = limit
@@ -175,19 +209,10 @@ func (c *component) CheckOnce() {
 	d.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 
-	fileHandlesSupported := file.CheckFileHandlesSupported()
+	fileHandlesSupported := c.checkFileHandlesSupportedFunc()
 	d.FileHandlesSupported = fileHandlesSupported
 
-	var thresholdAllocatedFileHandlesPct float64
-	if c.thresholdAllocatedFileHandles > 0 {
-		thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(c.thresholdAllocatedFileHandles, limit))
-	}
-	d.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
-	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
-	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
-	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
-
-	fdLimitSupported := file.CheckFDLimitSupported()
+	fdLimitSupported := c.checkFDLimitSupportedFunc()
 	d.FDLimitSupported = fdLimitSupported
 
 	var thresholdRunningPIDsPct float64
@@ -198,6 +223,29 @@ func (c *component) CheckOnce() {
 	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
 	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
+
+	var thresholdAllocatedFileHandlesPct float64
+	if c.thresholdAllocatedFileHandles > 0 {
+		thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(c.thresholdAllocatedFileHandles, limit))
+	}
+	d.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
+	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
+	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
+	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
+
+	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
+		d.healthy = false
+		d.health = components.StateDegraded
+		d.reason = ErrFileHandlesAllocationExceedsWarning
+	} else {
+		d.healthy = true
+		d.health = components.StateHealthy
+		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
+			d.Usage,
+			d.ThresholdAllocatedFileHandles,
+			d.ThresholdAllocatedFileHandlesPercent,
+		)
+	}
 }
 
 type Data struct {
@@ -230,47 +278,12 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no file descriptors data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get file descriptors data -- %s", d.err)
-	}
-	reason := fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
-		d.Usage,
-		d.ThresholdAllocatedFileHandles,
-		d.ThresholdAllocatedFileHandlesPercent,
-	)
-
-	if thresholdAllocatedPercent, err := d.getThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
-		reason += "; " + ErrFileHandlesAllocationExceedsWarning
-	}
-	return reason
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	if thresholdAllocatedPercent, err := d.getThresholdAllocatedFileHandlesPercent(); err == nil && thresholdAllocatedPercent > WarningFileHandlesAllocationPercent {
-		healthy = false
-		health = components.StateDegraded
-	}
-
-	return health, healthy
-}
-
-func (d *Data) getThresholdAllocatedFileHandlesPercent() (float64, error) {
-	if d == nil {
-		return 0, nil
-	}
-	return strconv.ParseFloat(d.ThresholdAllocatedFileHandlesPercent, 64)
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	health  string
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -293,11 +306,13 @@ func (d *Data) getStates() ([]components.State, error) {
 	}
 
 	state := components.State{
-		Name:   "file_descriptors",
-		Reason: d.getReason(),
+		Name:   Name,
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  d.health,
 	}
-	state.Health, state.Healthy = d.getHealth()
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

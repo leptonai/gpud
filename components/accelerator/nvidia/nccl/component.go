@@ -65,7 +65,13 @@ func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
-	c.kmsgSyncer.Close()
-	c.eventBucket.Close()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
+
 	return nil
 }
