@@ -30,6 +30,3 @@ jobs:
       - name: run e2e tests
         run: |
           KMSG_FILE_PATH=/dev/null ./scripts/tests-e2e.sh
-      - name: run e2e tests (experimental)
-        run: |
-          ENABLE_EXPERIMENTAL_FEATURES=true KMSG_FILE_PATH=/dev/null ./scripts/tests-e2e.sh

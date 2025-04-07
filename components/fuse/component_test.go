@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -70,31 +69,6 @@ func TestEvents(t *testing.T) {
 	events, err := comp.Events(context.Background(), time.Now().Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.Empty(t, events)
-}
-
-func TestRegisterCollectors(t *testing.T) {
-	// Create a test event store
-	store, cleanup := openTestEventStore(t)
-	defer cleanup()
-
-	// Create the component
-	comp, err := New(context.Background(), 0, 0, store)
-	require.NoError(t, err)
-
-	// Check that the component implements PromRegisterer
-	promRegisterer, ok := comp.(components.PromRegisterer)
-	assert.True(t, ok, "component should implement PromRegisterer")
-
-	// Create a new registry
-	registry := prometheus.NewRegistry()
-
-	// Register the collectors
-	err = promRegisterer.RegisterCollectors(registry, nil, nil, "")
-	assert.NoError(t, err)
-
-	// Check that the metrics are registered
-	_, err = registry.Gather()
-	assert.NoError(t, err)
 }
 
 func TestDataFunctions(t *testing.T) {

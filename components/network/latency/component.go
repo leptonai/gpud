@@ -116,7 +116,7 @@ func (c *component) CheckOnce() {
 
 	for _, lat := range d.EgressLatencies {
 		region := fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider)
-		edgeInMilliseconds.With(prometheus.Labels{
+		metricEdgeInMilliseconds.With(prometheus.Labels{
 			pkgmetrics.MetricLabelKey: region,
 		}).Set(float64(lat.LatencyMilliseconds))
 	}

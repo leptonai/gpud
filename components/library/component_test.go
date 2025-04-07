@@ -128,13 +128,6 @@ func TestEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
-func TestMetrics(t *testing.T) {
-	c := New(Config{})
-	metrics, err := c.Metrics(context.Background(), time.Time{})
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 func TestClose(t *testing.T) {
 	c := New(Config{})
 	assert.NoError(t, c.Close())

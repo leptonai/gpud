@@ -747,18 +747,6 @@ func TestEvents(t *testing.T) {
 	assert.Contains(t, err.Error(), "context canceled")
 }
 
-// Add test for Metrics method
-func TestMetrics(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	c := &component{}
-
-	metrics, err := c.Metrics(ctx, time.Now())
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 // Add test for Close method
 func TestClose(t *testing.T) {
 	t.Parallel()

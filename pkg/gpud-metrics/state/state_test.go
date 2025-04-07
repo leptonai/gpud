@@ -11,6 +11,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -46,7 +47,7 @@ func TestState(t *testing.T) {
 	}
 
 	now := time.Now()
-	metrics := []Metric{
+	metrics := []components.Metric{
 		{UnixSeconds: now.Unix(), MetricName: "test_metric", Value: 10.0},
 		{UnixSeconds: now.Add(-1 * time.Minute).Unix(), MetricName: "test_metric", Value: 20.0},
 		{UnixSeconds: now.Add(-2 * time.Minute).Unix(), MetricName: "test_metric", Value: 30.0},
@@ -126,7 +127,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 		timestamp := metav1.NewTime(now.Add(time.Duration(-i) * time.Minute))
 		value := rand.Float64() * 100
 
-		metric := Metric{
+		metric := components.Metric{
 			UnixSeconds:         timestamp.Unix(),
 			MetricName:          metricName,
 			MetricSecondaryName: "",
@@ -216,7 +217,7 @@ func TestStateMoreDataPoints(t *testing.T) {
 	}
 
 	secondaryID := "test_secondary_id"
-	secondaryMetrics := []Metric{
+	secondaryMetrics := []components.Metric{
 		{UnixSeconds: now.Add(-5 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 10.0},
 		{UnixSeconds: now.Add(-4 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 20.0},
 		{UnixSeconds: now.Add(-3 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 30.0},
@@ -270,7 +271,7 @@ func TestAvgSincePanicWithEmptySecondaryName(t *testing.T) {
 
 	// Insert a metric with an empty secondary name
 	now := time.Now()
-	metric := Metric{
+	metric := components.Metric{
 		UnixSeconds:         now.Unix(),
 		MetricName:          "test_panic_metric",
 		MetricSecondaryName: "", // Empty secondary name

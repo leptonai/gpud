@@ -92,7 +92,7 @@ func TestSQLiteStore_Record(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the update worked by reading it back
-	results, err := store.Read(ctx, time.Unix(0, 0))
+	results, err := store.Read(ctx, pkgmetrics.WithSince(time.Unix(0, 0)))
 	require.NoError(t, err)
 	found := false
 	for _, m := range results {
@@ -169,19 +169,41 @@ func TestSQLiteStore_Read(t *testing.T) {
 	}
 
 	// Test reading all metrics
-	rs, err := store.Read(ctx, time.Time{})
+	rs, err := store.Read(ctx)
 	require.NoError(t, err)
 	assert.Len(t, rs, 6)
 
 	// Test reading metrics since a specific time
-	rs, err = store.Read(ctx, now.Add(-30*time.Minute))
+	rs, err = store.Read(ctx, pkgmetrics.WithSince(now.Add(-30*time.Minute)))
 	require.NoError(t, err)
 	assert.Len(t, rs, 3)
 
 	// Test reading metrics since a specific time that should include some older entries
-	rs, err = store.Read(ctx, now.Add(-90*time.Minute))
+	rs, err = store.Read(ctx, pkgmetrics.WithSince(now.Add(-90*time.Minute)))
 	require.NoError(t, err)
 	assert.Len(t, rs, 5)
+
+	// Test reading metrics filtered by component
+	rs, err = store.Read(ctx, pkgmetrics.WithComponents("component1"))
+	require.NoError(t, err)
+	assert.Len(t, rs, 5)
+	for _, m := range rs {
+		assert.Equal(t, "component1", m.Component)
+	}
+
+	// Test reading metrics with multiple filters (component and since)
+	rs, err = store.Read(ctx, pkgmetrics.WithComponents("component1"), pkgmetrics.WithSince(now.Add(-30*time.Minute)))
+	require.NoError(t, err)
+	assert.Len(t, rs, 2)
+	for _, m := range rs {
+		assert.Equal(t, "component1", m.Component)
+		assert.GreaterOrEqual(t, m.UnixMilliseconds, now.Add(-30*time.Minute).UnixMilli())
+	}
+
+	// Test reading metrics for non-existent component
+	rs, err = store.Read(ctx, pkgmetrics.WithComponents("nonexistent"))
+	require.NoError(t, err)
+	assert.Empty(t, rs)
 
 	// Verify sorting order is by timestamp (ascending)
 	if len(rs) >= 3 {
@@ -202,7 +224,7 @@ func TestSQLiteStore_ReadEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	// Reading from an empty store should return empty results, not an error
-	rs, err := store.Read(ctx, time.Time{})
+	rs, err := store.Read(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, rs)
 }
@@ -260,7 +282,7 @@ func TestSQLiteStore_Purge(t *testing.T) {
 	}
 
 	// Verify all records exist
-	rs, err := store.Read(ctx, time.Time{})
+	rs, err := store.Read(ctx)
 	require.NoError(t, err)
 	assert.Len(t, rs, 4)
 
@@ -270,7 +292,7 @@ func TestSQLiteStore_Purge(t *testing.T) {
 	assert.Equal(t, 1, affected)
 
 	// Verify purged records are gone
-	rs, err = store.Read(ctx, time.Time{})
+	rs, err = store.Read(ctx)
 	require.NoError(t, err)
 	assert.Len(t, rs, 3)
 
@@ -280,7 +302,7 @@ func TestSQLiteStore_Purge(t *testing.T) {
 	assert.Equal(t, 2, affected)
 
 	// Verify only the most recent records remain
-	rs, err = store.Read(ctx, time.Time{})
+	rs, err = store.Read(ctx)
 	require.NoError(t, err)
 	assert.Len(t, rs, 1)
 	assert.Equal(t, timestamp4, rs[0].UnixMilliseconds)
@@ -330,7 +352,7 @@ func TestSQLiteInsertAndReadLast(t *testing.T) {
 	}
 
 	// Read metrics and verify they're in order
-	results, err := read(ctx, dbRO, tableName, time.Time{})
+	results, err := read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 
@@ -456,17 +478,17 @@ func TestSQLiteRead(t *testing.T) {
 	}
 
 	// Test reading all metrics
-	results, err := read(ctx, dbRO, tableName, time.Time{})
+	results, err := read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	assert.Len(t, results, 3)
 
 	// Test reading with timestamp filter
-	results, err = read(ctx, dbRO, tableName, now.Add(-30*time.Minute))
+	results, err = read(ctx, dbRO, tableName, pkgmetrics.WithSince(now.Add(-30*time.Minute)))
 	require.NoError(t, err)
 	assert.Len(t, results, 2)
 
 	// Test empty table name
-	results, err = read(ctx, dbRO, "", time.Time{})
+	results, err = read(ctx, dbRO, "")
 	assert.Equal(t, ErrEmptyTableName, err)
 	assert.Nil(t, results)
 }
@@ -544,7 +566,7 @@ func TestSQLiteReadNonExistentTable(t *testing.T) {
 	defer cleanup()
 
 	// Try reading from a table that doesn't exist
-	results, err := read(ctx, dbRO, "nonexistent_table", time.Time{})
+	results, err := read(ctx, dbRO, "nonexistent_table")
 	require.Error(t, err)
 	assert.Nil(t, results)
 }
@@ -589,7 +611,7 @@ func TestSQLiteReadNullLabel(t *testing.T) {
 	}
 
 	// Read the metrics back
-	results, err := read(ctx, dbRO, tableName, time.Time{})
+	results, err := read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 
@@ -693,7 +715,7 @@ func TestSQLiteBatchInsert(t *testing.T) {
 	require.NoError(t, err, "batch insert failed")
 
 	// Read all metrics back and verify
-	results, err := read(ctx, dbRO, tableName, time.Time{})
+	results, err := read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	require.Len(t, results, len(batchMetrics), "should have same number of metrics as inserted")
 
@@ -736,7 +758,7 @@ func TestSQLiteBatchInsert(t *testing.T) {
 	assert.Equal(t, ErrEmptyComponentName, err, "should fail on empty component name")
 
 	// Ensure first batch is still intact by reading again
-	results, err = read(ctx, dbRO, tableName, time.Time{})
+	results, err = read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	require.Len(t, results, len(batchMetrics), "should still have original metrics")
 
@@ -762,7 +784,7 @@ func TestSQLiteBatchInsert(t *testing.T) {
 	require.NoError(t, err, "update batch insert failed")
 
 	// Verify updates were applied
-	results, err = read(ctx, dbRO, tableName, time.Time{})
+	results, err = read(ctx, dbRO, tableName)
 	require.NoError(t, err)
 	require.Len(t, results, len(batchMetrics), "should have same number of metrics as before")
 

@@ -341,14 +341,6 @@ func TestComponentEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
-func TestComponentMetrics(t *testing.T) {
-	ctx := context.Background()
-	c := New(ctx, true)
-	metrics, err := c.Metrics(ctx, time.Now().Add(-1*time.Hour))
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 func TestComponentClose(t *testing.T) {
 	ctx := context.Background()
 	c := New(ctx, true)

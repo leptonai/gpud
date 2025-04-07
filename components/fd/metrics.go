@@ -1,14 +1,8 @@
 package fd
 
 import (
-	"context"
-	"database/sql"
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -108,46 +102,16 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	return Register(reg)
-}
-
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
-func Register(reg *prometheus.Registry) error {
-	if err := reg.Register(metricAllocatedFileHandles); err != nil {
-		return err
-	}
-	if err := reg.Register(metricRunningPIDs); err != nil {
-		return err
-	}
-	if err := reg.Register(metricLimit); err != nil {
-		return err
-	}
-	if err := reg.Register(metricAllocatedFileHandlesPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricUsedPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricThresholdRunningPIDs); err != nil {
-		return err
-	}
-	if err := reg.Register(metricThresholdRunningPIDsPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricThresholdAllocatedFileHandles); err != nil {
-		return err
-	}
-	if err := reg.Register(metricThresholdAllocatedFileHandlesPercent); err != nil {
-		return err
-	}
-	return nil
+func init() {
+	prometheus.MustRegister(
+		metricAllocatedFileHandles,
+		metricRunningPIDs,
+		metricLimit,
+		metricAllocatedFileHandlesPercent,
+		metricUsedPercent,
+		metricThresholdRunningPIDs,
+		metricThresholdRunningPIDsPercent,
+		metricThresholdAllocatedFileHandles,
+		metricThresholdAllocatedFileHandlesPercent,
+	)
 }

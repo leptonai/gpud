@@ -24,8 +24,8 @@ type LeptonComponentStates struct {
 }
 
 type LeptonComponentMetrics struct {
-	Component string              `json:"component"`
-	Metrics   []components.Metric `json:"metrics"`
+	Component string             `json:"component"`
+	Metrics   components.Metrics `json:"metrics"`
 }
 
 type LeptonComponentInfo struct {

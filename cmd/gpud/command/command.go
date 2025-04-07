@@ -52,8 +52,6 @@ var (
 	ibstatCommand string
 
 	checkInfiniBand bool
-
-	experimentalGlobalMetricsStore bool
 )
 
 const (
@@ -246,12 +244,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "docker-ignore-connection-errors",
 					Usage:       "ignore connection errors to docker daemon, useful when docker daemon is not running (default: false)",
 					Destination: &dockerIgnoreConnectionErrors,
-				},
-				// experimental
-				&cli.BoolFlag{
-					Name:        "experimental-global-metrics-store",
-					Usage:       "enable experimental global metrics store (default: false)",
-					Destination: &experimentalGlobalMetricsStore,
 				},
 
 				// only for testing

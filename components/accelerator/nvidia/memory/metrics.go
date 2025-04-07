@@ -1,12 +1,6 @@
 package memory
 
 import (
-	"context"
-	"database/sql"
-	"time"
-
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,31 +64,12 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(metricTotalBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricReservedBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricUsedBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricFreeBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricUsedPercent); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
+func init() {
+	prometheus.MustRegister(
+		metricTotalBytes,
+		metricReservedBytes,
+		metricUsedBytes,
+		metricFreeBytes,
+		metricUsedPercent,
+	)
 }

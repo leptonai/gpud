@@ -59,29 +59,15 @@ var (
 	)
 )
 
-func Register(reg *prometheus.Registry) error {
-	if err := reg.Register(insertUpdateTotal); err != nil {
-		return err
-	}
-	if err := reg.Register(insertUpdateSecondsTotal); err != nil {
-		return err
-	}
-
-	if err := reg.Register(deleteTotal); err != nil {
-		return err
-	}
-	if err := reg.Register(deleteSecondsTotal); err != nil {
-		return err
-	}
-
-	if err := reg.Register(selectTotal); err != nil {
-		return err
-	}
-	if err := reg.Register(selectSecondsTotal); err != nil {
-		return err
-	}
-
-	return nil
+func init() {
+	prometheus.MustRegister(
+		insertUpdateTotal,
+		insertUpdateSecondsTotal,
+		deleteTotal,
+		deleteSecondsTotal,
+		selectTotal,
+		selectSecondsTotal,
+	)
 }
 
 func RecordInsertUpdate(tookSeconds float64) {

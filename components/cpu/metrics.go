@@ -1,11 +1,8 @@
 package cpu
 
 import (
-	"database/sql"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -17,7 +14,7 @@ var (
 	}
 
 	// ref. https://www.digitalocean.com/community/tutorials/load-average-in-linux
-	loadAverage = prometheus.NewGaugeVec(
+	metricLoadAverage = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -27,7 +24,7 @@ var (
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
 	).MustCurryWith(componentLabel)
 
-	usedPercent = prometheus.NewGaugeVec(
+	metricUsedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -38,18 +35,9 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = &component{}
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	return Register(reg, dbRW, dbRO, tableName)
-}
-
-func Register(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(loadAverage); err != nil {
-		return err
-	}
-	if err := reg.Register(usedPercent); err != nil {
-		return err
-	}
-	return nil
+func init() {
+	prometheus.MustRegister(
+		metricLoadAverage,
+		metricUsedPercent,
+	)
 }

@@ -75,7 +75,12 @@ func (m *mockStore) Record(ctx context.Context, ms ...pkgmetrics.Metric) error {
 	return nil
 }
 
-func (m *mockStore) Read(ctx context.Context, since time.Time) (pkgmetrics.Metrics, error) {
+func (m *mockStore) Read(ctx context.Context, opts ...pkgmetrics.OpOption) (pkgmetrics.Metrics, error) {
+	op := &pkgmetrics.Op{}
+	if err := op.ApplyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -85,7 +90,7 @@ func (m *mockStore) Read(ctx context.Context, since time.Time) (pkgmetrics.Metri
 
 	result := make(pkgmetrics.Metrics, 0)
 	for _, metric := range m.records {
-		if metric.UnixMilliseconds >= since.UnixMilli() {
+		if metric.UnixMilliseconds >= op.Since.UnixMilli() {
 			result = append(result, metric)
 		}
 	}

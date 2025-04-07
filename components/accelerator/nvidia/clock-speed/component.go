@@ -106,8 +106,8 @@ func (c *component) CheckOnce() {
 		}
 		d.ClockSpeeds = append(d.ClockSpeeds, clockSpeed)
 
-		graphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.GraphicsMHz))
-		memoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.MemoryMHz))
+		metricGraphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.GraphicsMHz))
+		metricMemoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.MemoryMHz))
 	}
 
 	d.healthy = true

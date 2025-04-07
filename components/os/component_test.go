@@ -310,15 +310,6 @@ func TestComponent(t *testing.T) {
 		assert.Equal(t, "Test reboot event", events[0].Message)
 	})
 
-	t.Run("component metrics", func(t *testing.T) {
-		comp := New(ctx, mockRebootStore)
-		defer comp.Close()
-
-		metrics, err := comp.Metrics(ctx, time.Now().Add(-1*time.Hour))
-		assert.NoError(t, err)
-		assert.Nil(t, metrics) // OS component doesn't implement metrics yet
-	})
-
 	t.Run("component start and check once", func(t *testing.T) {
 		comp := New(ctx, mockRebootStore)
 		defer comp.Close()

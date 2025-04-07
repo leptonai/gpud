@@ -130,14 +130,6 @@ func TestEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
-func TestMetrics(t *testing.T) {
-	ctx := context.Background()
-	c := New(ctx)
-	metrics, err := c.Metrics(ctx, time.Now())
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 func TestClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Just in case Close doesn't cancel the context

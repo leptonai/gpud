@@ -11,7 +11,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/log"
-	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 )
@@ -54,13 +53,6 @@ func Get(ctx context.Context) (o *Output, err error) {
 	if err != nil {
 		log.Logger.Warnw("nvml get failed", "error", err)
 		o.NVMLErrors = append(o.NVMLErrors, err.Error())
-	} else {
-		now := time.Now().UTC()
-		for _, dev := range o.NVML.DeviceInfos {
-			if err := setMetricsForDevice(ctx, dev, now, o); err != nil {
-				return o, fmt.Errorf("failed to set metrics for device %s: %w", dev.UUID, err)
-			}
-		}
 	}
 
 	productName := o.GPUProductName()
@@ -267,30 +259,4 @@ func (o *Output) PrintInfo(opts ...OpOption) {
 			fmt.Println(string(yb))
 		}
 	}
-}
-
-// setMetricsForDevice sets all metrics for a single device
-func setMetricsForDevice(ctx context.Context, dev *nvml.DeviceInfo, now time.Time, o *Output) error {
-	log.Logger.Debugw("setting metrics for device", "uuid", dev.UUID, "bus", dev.BusID, "device", dev.DeviceID, "minorNumber", dev.MinorNumberID)
-
-	if dev.ClockEvents != nil {
-		if err := setClockMetrics(ctx, dev, now); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func setClockMetrics(ctx context.Context, dev *nvml.DeviceInfo, now time.Time) error {
-	if err := metrics_clock.SetHWSlowdown(ctx, dev.UUID, dev.ClockEvents.HWSlowdown, now); err != nil {
-		return err
-	}
-	if err := metrics_clock.SetHWSlowdownThermal(ctx, dev.UUID, dev.ClockEvents.HWSlowdownThermal, now); err != nil {
-		return err
-	}
-	if err := metrics_clock.SetHWSlowdownPowerBrake(ctx, dev.UUID, dev.ClockEvents.HWSlowdownPowerBrake, now); err != nil {
-		return err
-	}
-	return nil
 }

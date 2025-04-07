@@ -37,9 +37,9 @@ func TestConvertToLeptonMetrics_EmptyComponent(t *testing.T) {
 	require.Len(t, result, 1, "should have only one component metrics")
 	assert.Equal(t, "component1", result[0].Component)
 	require.Len(t, result[0].Metrics, 1, "should have one metric")
-	assert.Equal(t, "metric2", result[0].Metrics[0].Metric.MetricName)
-	assert.Equal(t, int64(2000), result[0].Metrics[0].Metric.UnixSeconds)
-	assert.Equal(t, 20.5, result[0].Metrics[0].Metric.Value)
+	assert.Equal(t, "metric2", result[0].Metrics[0].MetricName)
+	assert.Equal(t, int64(2000), result[0].Metrics[0].UnixSeconds)
+	assert.Equal(t, 20.5, result[0].Metrics[0].Value)
 }
 
 func TestConvertToLeptonMetrics_SingleComponent(t *testing.T) {
@@ -67,16 +67,16 @@ func TestConvertToLeptonMetrics_SingleComponent(t *testing.T) {
 	require.Len(t, result[0].Metrics, 2, "should have two metrics")
 
 	// Check first metric
-	assert.Equal(t, "metric1", result[0].Metrics[0].Metric.MetricName)
-	assert.Equal(t, "", result[0].Metrics[0].Metric.MetricSecondaryName)
-	assert.Equal(t, now, result[0].Metrics[0].Metric.UnixSeconds)
-	assert.Equal(t, 10.5, result[0].Metrics[0].Metric.Value)
+	assert.Equal(t, "metric1", result[0].Metrics[0].MetricName)
+	assert.Equal(t, "", result[0].Metrics[0].MetricSecondaryName)
+	assert.Equal(t, now, result[0].Metrics[0].UnixSeconds)
+	assert.Equal(t, 10.5, result[0].Metrics[0].Value)
 
 	// Check second metric
-	assert.Equal(t, "metric2", result[0].Metrics[1].Metric.MetricName)
-	assert.Equal(t, "gpu0", result[0].Metrics[1].Metric.MetricSecondaryName)
-	assert.Equal(t, now+1000, result[0].Metrics[1].Metric.UnixSeconds)
-	assert.Equal(t, 20.5, result[0].Metrics[1].Metric.Value)
+	assert.Equal(t, "metric2", result[0].Metrics[1].MetricName)
+	assert.Equal(t, "gpu0", result[0].Metrics[1].MetricSecondaryName)
+	assert.Equal(t, now+1000, result[0].Metrics[1].UnixSeconds)
+	assert.Equal(t, 20.5, result[0].Metrics[1].Value)
 }
 
 func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
@@ -123,22 +123,22 @@ func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
 	require.Len(t, comp1.Metrics, 2, "component1 should have two metrics")
 
 	// Check metrics are sorted by timestamp
-	assert.Equal(t, now, comp1.Metrics[0].Metric.UnixSeconds)
-	assert.Equal(t, "metric1", comp1.Metrics[0].Metric.MetricName)
-	assert.Equal(t, 10.5, comp1.Metrics[0].Metric.Value)
+	assert.Equal(t, now, comp1.Metrics[0].UnixSeconds)
+	assert.Equal(t, "metric1", comp1.Metrics[0].MetricName)
+	assert.Equal(t, 10.5, comp1.Metrics[0].Value)
 
-	assert.Equal(t, now+2000, comp1.Metrics[1].Metric.UnixSeconds)
-	assert.Equal(t, "metric3", comp1.Metrics[1].Metric.MetricName)
-	assert.Equal(t, "gpu1", comp1.Metrics[1].Metric.MetricSecondaryName)
-	assert.Equal(t, 30.5, comp1.Metrics[1].Metric.Value)
+	assert.Equal(t, now+2000, comp1.Metrics[1].UnixSeconds)
+	assert.Equal(t, "metric3", comp1.Metrics[1].MetricName)
+	assert.Equal(t, "gpu1", comp1.Metrics[1].MetricSecondaryName)
+	assert.Equal(t, 30.5, comp1.Metrics[1].Value)
 
 	// Check component2
 	assert.Equal(t, "component2", comp2.Component)
 	require.Len(t, comp2.Metrics, 1, "component2 should have one metric")
-	assert.Equal(t, "metric2", comp2.Metrics[0].Metric.MetricName)
-	assert.Equal(t, "gpu0", comp2.Metrics[0].Metric.MetricSecondaryName)
-	assert.Equal(t, now+1000, comp2.Metrics[0].Metric.UnixSeconds)
-	assert.Equal(t, 20.5, comp2.Metrics[0].Metric.Value)
+	assert.Equal(t, "metric2", comp2.Metrics[0].MetricName)
+	assert.Equal(t, "gpu0", comp2.Metrics[0].MetricSecondaryName)
+	assert.Equal(t, now+1000, comp2.Metrics[0].UnixSeconds)
+	assert.Equal(t, 20.5, comp2.Metrics[0].Value)
 }
 
 func TestConvertToLeptonMetrics_SortingByTimestamp(t *testing.T) {
@@ -172,7 +172,7 @@ func TestConvertToLeptonMetrics_SortingByTimestamp(t *testing.T) {
 	require.Len(t, result[0].Metrics, 3, "should have three metrics")
 
 	// Verify metrics are sorted by timestamp
-	assert.Equal(t, now, result[0].Metrics[0].Metric.UnixSeconds, "first metric should have earliest timestamp")
-	assert.Equal(t, now+1000, result[0].Metrics[1].Metric.UnixSeconds, "second metric should have middle timestamp")
-	assert.Equal(t, now+2000, result[0].Metrics[2].Metric.UnixSeconds, "third metric should have latest timestamp")
+	assert.Equal(t, now, result[0].Metrics[0].UnixSeconds, "first metric should have earliest timestamp")
+	assert.Equal(t, now+1000, result[0].Metrics[1].UnixSeconds, "second metric should have middle timestamp")
+	assert.Equal(t, now+2000, result[0].Metrics[2].UnixSeconds, "third metric should have latest timestamp")
 }

@@ -111,13 +111,6 @@ func (c *component) Events(ctx context.Context, since time.Time) ([]components.E
 	return c.eventBucket.Get(ctx, since)
 }
 
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
@@ -190,7 +183,7 @@ func (c *component) CheckOnce() {
 	d.Usage = Usage{}
 	d.Usage.usedPercent = usedPct
 	d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
-	usedPercent.With(prometheus.Labels{}).Set(usedPct)
+	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	loadAvg, err := c.getLoadAvgStatFunc(cctx)
@@ -205,9 +198,9 @@ func (c *component) CheckOnce() {
 	d.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
 	d.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
-	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
-	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
-	loadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
 	d.healthy = true
 	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",

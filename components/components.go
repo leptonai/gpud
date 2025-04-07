@@ -3,24 +3,15 @@ package components
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 )
-
-// WatchableComponent wraps the component with a watchable interface.
-// Useful to intercept the component states method calls to track metrics.
-type WatchableComponent interface {
-	Component
-}
 
 // Component represents an individual component of the system.
 //
@@ -47,17 +38,16 @@ type Component interface {
 	// Returns all the events from "since".
 	Events(ctx context.Context, since time.Time) ([]Event, error)
 
-	// Returns all the metrics from the component.
-	Metrics(ctx context.Context, since time.Time) ([]Metric, error)
-
 	// Called upon server close.
 	// Implements copmonent-specific poller cleanup logic.
 	Close() error
 }
 
-// Defines an optional component interface that supports Prometheus metrics.
-type PromRegisterer interface {
-	RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error
+// HealthSettable is an optional interface that can be implemented by components
+// to allow setting the health state.
+type HealthSettable interface {
+	// SetHealthy sets the health state to healthy.
+	SetHealthy() error
 }
 
 type State struct {
@@ -88,14 +78,18 @@ type Event struct {
 }
 
 type Metric struct {
-	components_metrics_state.Metric
-	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
+	UnixSeconds         int64   `json:"unix_seconds"`
+	MetricName          string  `json:"metric_name"`
+	MetricSecondaryName string  `json:"metric_secondary_name,omitempty"`
+	Value               float64 `json:"value"`
 }
 
+type Metrics []Metric
+
 type Info struct {
-	States  []State  `json:"states"`
-	Events  []Event  `json:"events"`
-	Metrics []Metric `json:"metrics"`
+	States  []State `json:"states"`
+	Events  []Event `json:"events"`
+	Metrics Metrics `json:"metrics"`
 }
 
 var (

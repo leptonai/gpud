@@ -852,27 +852,6 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 	assert.NotNil(t, lastData)
 }
 
-func TestMetrics(t *testing.T) {
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	comp, err := New(ctx, store)
-	require.NoError(t, err)
-	defer comp.Close()
-
-	// Get metrics - currently the implementation returns nil, nil
-	since := time.Now().Add(-1 * time.Hour)
-	metrics, err := comp.Metrics(ctx, since)
-	require.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 func TestStartAndClose(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()

@@ -119,12 +119,6 @@ func (c *SXIDComponent) Events(ctx context.Context, since time.Time) ([]componen
 	return ret, nil
 }
 
-func (c *SXIDComponent) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
 func (c *SXIDComponent) Close() error {
 	log.Logger.Debugw("closing SXIDComponent")
 	c.cancel()
@@ -204,6 +198,8 @@ func (c *SXIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Dura
 		}
 	}
 }
+
+var _ components.HealthSettable = &SXIDComponent{}
 
 func (c *SXIDComponent) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")

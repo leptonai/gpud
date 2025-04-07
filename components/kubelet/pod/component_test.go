@@ -303,13 +303,6 @@ func Test_componentEvents(t *testing.T) {
 	assert.Nil(t, events)
 }
 
-func Test_componentMetrics(t *testing.T) {
-	c := &component{}
-	metrics, err := c.Metrics(context.Background(), time.Now())
-	assert.NoError(t, err)
-	assert.Nil(t, metrics)
-}
-
 func Test_componentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &component{ctx: ctx, cancel: cancel}
