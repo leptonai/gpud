@@ -188,7 +188,7 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 }
 
 var (
-	currentSize = prometheus.NewGauge(
+	metricCurrentSize = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "gpud",
 			Subsystem: "state_sqlite",
@@ -198,11 +198,8 @@ var (
 	)
 )
 
-func Register(reg *prometheus.Registry) error {
-	if err := reg.Register(currentSize); err != nil {
-		return err
-	}
-	return nil
+func init() {
+	prometheus.MustRegister(metricCurrentSize)
 }
 
 func RecordMetrics(ctx context.Context, db *sql.DB) error {
@@ -210,7 +207,7 @@ func RecordMetrics(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	currentSize.Set(float64(dbSize))
+	metricCurrentSize.Set(float64(dbSize))
 
 	return nil
 }

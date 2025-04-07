@@ -1,11 +1,8 @@
 package memory
 
 import (
-	"database/sql"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -67,24 +64,10 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(metricTotalBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricAvailableBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricUsedBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(metricUsedPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricFreeBytes); err != nil {
-		return err
-	}
-
-	return nil
+func init() {
+	prometheus.MustRegister(metricTotalBytes)
+	prometheus.MustRegister(metricAvailableBytes)
+	prometheus.MustRegister(metricUsedBytes)
+	prometheus.MustRegister(metricUsedPercent)
+	prometheus.MustRegister(metricFreeBytes)
 }

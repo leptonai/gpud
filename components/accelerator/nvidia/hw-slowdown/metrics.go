@@ -1,11 +1,8 @@
 package hwslowdown
 
 import (
-	"database/sql"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -47,17 +44,8 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(metricHWSlowdown); err != nil {
-		return err
-	}
-	if err := reg.Register(metricHWSlowdownThermal); err != nil {
-		return err
-	}
-	if err := reg.Register(metricHWSlowdownPowerBrake); err != nil {
-		return err
-	}
-	return nil
+func init() {
+	prometheus.MustRegister(metricHWSlowdown)
+	prometheus.MustRegister(metricHWSlowdownThermal)
+	prometheus.MustRegister(metricHWSlowdownPowerBrake)
 }

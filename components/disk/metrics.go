@@ -1,11 +1,8 @@
 package disk
 
 import (
-	"database/sql"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -16,7 +13,7 @@ var (
 		pkgmetrics.MetricComponentLabelKey: "disk",
 	}
 
-	totalBytes = prometheus.NewGaugeVec(
+	metricTotalBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -26,7 +23,7 @@ var (
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
-	freeBytes = prometheus.NewGaugeVec(
+	metricFreeBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -36,7 +33,7 @@ var (
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
-	usedBytes = prometheus.NewGaugeVec(
+	metricUsedBytes = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -46,7 +43,7 @@ var (
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
-	usedBytesPercent = prometheus.NewGaugeVec(
+	metricUsedBytesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -56,7 +53,7 @@ var (
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
-	usedInodesPercent = prometheus.NewGaugeVec(
+	metricUsedInodesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -67,23 +64,10 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = &component{}
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(totalBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(freeBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(usedBytes); err != nil {
-		return err
-	}
-	if err := reg.Register(usedBytesPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(usedInodesPercent); err != nil {
-		return err
-	}
-	return nil
+func init() {
+	prometheus.MustRegister(metricTotalBytes)
+	prometheus.MustRegister(metricFreeBytes)
+	prometheus.MustRegister(metricUsedBytes)
+	prometheus.MustRegister(metricUsedBytesPercent)
+	prometheus.MustRegister(metricUsedInodesPercent)
 }

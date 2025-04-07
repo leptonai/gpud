@@ -1,11 +1,8 @@
 package latency
 
 import (
-	"database/sql"
-
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -16,7 +13,7 @@ var (
 		pkgmetrics.MetricComponentLabelKey: "network-latency",
 	}
 
-	edgeInMilliseconds = prometheus.NewGaugeVec(
+	metricEdgeInMilliseconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
@@ -27,12 +24,6 @@ var (
 	).MustCurryWith(componentLabel)
 )
 
-var _ components.PromRegisterer = &component{}
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(edgeInMilliseconds); err != nil {
-		return err
-	}
-
-	return nil
+func init() {
+	prometheus.MustRegister(metricEdgeInMilliseconds)
 }

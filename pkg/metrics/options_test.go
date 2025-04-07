@@ -41,7 +41,7 @@ func TestWithComponents(t *testing.T) {
 		{
 			name:       "all empty components",
 			components: []string{"", ""},
-			want:       nil,
+			want:       map[string]struct{}{},
 		},
 	}
 

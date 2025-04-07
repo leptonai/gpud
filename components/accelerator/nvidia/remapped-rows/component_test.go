@@ -11,7 +11,6 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	gonvml "github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -219,46 +218,6 @@ func TestEvents(t *testing.T) {
 	events, err := comp.Events(ctx, since)
 	require.NoError(t, err)
 	assert.Len(t, events, 2)
-}
-
-// Test the RegisterCollectors method
-func TestRegisterCollectors(t *testing.T) {
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	getDevicesFunc := func() map[string]device.Device {
-		return make(map[string]device.Device)
-	}
-	getProductNameFunc := func() string {
-		return "NVIDIA Test GPU"
-	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
-			RowRemapping: true,
-		}
-	}
-
-	// Create mock NVML instance
-	nvmlInstance := &mockNVMLInstance{
-		getDevicesFunc:                           getDevicesFunc,
-		getProductNameFunc:                       getProductNameFunc,
-		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
-	}
-
-	eventBucket := &mockEventBucket{}
-	eventStore := &mockEventStore{bucket: eventBucket}
-
-	comp, err := New(ctx, nvmlInstance, eventStore)
-	require.NoError(t, err)
-
-	// Use type assertion to access the RegisterCollectors method
-	promReg, ok := comp.(components.PromRegisterer)
-	require.True(t, ok, "Component should implement PromRegisterer interface")
-
-	reg := prometheus.NewRegistry()
-	err = promReg.RegisterCollectors(reg, dbRW, dbRO, "test_metrics")
-	require.NoError(t, err)
 }
 
 // Test that CheckOnce properly generates and persists events

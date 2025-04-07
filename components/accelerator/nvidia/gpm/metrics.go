@@ -2,12 +2,9 @@
 package gpm
 
 import (
-	"database/sql"
-
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -165,36 +162,14 @@ func recordGPMMetricByID(metricID nvml.GpmMetricId, gpuID string, pct float64) {
 	}
 }
 
-var _ components.PromRegisterer = (*component)(nil)
-
-func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error {
-	if err := reg.Register(metricGPUSMOccupancyPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUIntUtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUAnyTensorUtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUDFMATensorUtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUHMMATensorUtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUIMMATensorUtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUFp64UtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUFp32UtilPercent); err != nil {
-		return err
-	}
-	if err := reg.Register(metricGPUFp16UtilPercent); err != nil {
-		return err
-	}
-
-	return nil
+func init() {
+	prometheus.MustRegister(metricGPUSMOccupancyPercent)
+	prometheus.MustRegister(metricGPUIntUtilPercent)
+	prometheus.MustRegister(metricGPUAnyTensorUtilPercent)
+	prometheus.MustRegister(metricGPUDFMATensorUtilPercent)
+	prometheus.MustRegister(metricGPUHMMATensorUtilPercent)
+	prometheus.MustRegister(metricGPUIMMATensorUtilPercent)
+	prometheus.MustRegister(metricGPUFp64UtilPercent)
+	prometheus.MustRegister(metricGPUFp32UtilPercent)
+	prometheus.MustRegister(metricGPUFp16UtilPercent)
 }

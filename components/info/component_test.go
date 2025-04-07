@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,14 +15,14 @@ import (
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	component := New(map[string]string{"a": "b"}, nil, prometheus.DefaultGatherer)
+	component := New(map[string]string{"a": "b"}, nil)
 	assert.Equal(t, Name, component.Name())
 }
 
 func TestComponentStartAndClose(t *testing.T) {
 	t.Parallel()
 
-	c := New(map[string]string{"a": "b"}, nil, prometheus.DefaultGatherer).(*component)
+	c := New(map[string]string{"a": "b"}, nil).(*component)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 
 	err := c.Start()
@@ -48,7 +47,7 @@ func TestComponentStates(t *testing.T) {
 	_, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	c := New(map[string]string{"test": "value"}, dbRO, prometheus.DefaultGatherer).(*component)
+	c := New(map[string]string{"test": "value"}, dbRO).(*component)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	defer c.Close()
 
@@ -65,7 +64,7 @@ func TestComponentStates(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
-	component := New(map[string]string{}, nil, prometheus.DefaultGatherer)
+	component := New(map[string]string{}, nil)
 	ctx := context.Background()
 
 	events, err := component.Events(ctx, time.Now().Add(-1*time.Hour))
@@ -80,7 +79,7 @@ func TestComponentWithDB(t *testing.T) {
 	_, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	c := New(map[string]string{}, dbRO, prometheus.DefaultGatherer).(*component)
+	c := New(map[string]string{}, dbRO).(*component)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	defer c.Close()
 

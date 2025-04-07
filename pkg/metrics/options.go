@@ -27,7 +27,7 @@ func WithSince(t time.Time) OpOption {
 // If no components are provided, all components will be scraped.
 func WithComponents(components ...string) OpOption {
 	return func(op *Op) {
-		if op.SelectedComponents == nil {
+		if len(components) > 0 && op.SelectedComponents == nil {
 			op.SelectedComponents = make(map[string]struct{})
 		}
 		for _, component := range components {

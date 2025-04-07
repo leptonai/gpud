@@ -5,9 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,27 +126,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.True(t, states[0].Healthy)
 	assert.Contains(t, states[0].ExtraInfo, "data")
 	assert.Contains(t, states[0].ExtraInfo, "encoding")
-}
-
-func TestRegisterCollectors(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	comp := New(ctx, []string{}, []string{})
-
-	// Check that the component implements PromRegisterer
-	promRegisterer, ok := comp.(components.PromRegisterer)
-	assert.True(t, ok, "component should implement PromRegisterer")
-
-	// Create a new registry
-	registry := prometheus.NewRegistry()
-
-	// Register the collectors
-	err := promRegisterer.RegisterCollectors(registry, nil, nil, "")
-	assert.NoError(t, err)
-
-	// Check that the metrics are registered
-	_, err = registry.Gather()
-	assert.NoError(t, err)
 }
 
 func TestDataGetError(t *testing.T) {

@@ -18,7 +18,6 @@ import (
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -398,7 +397,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	}
 
 	for _, data := range metricsData {
-		currMetrics.Metrics = append(currMetrics.Metrics, components_metrics_state.Metric{
+		currMetrics.Metrics = append(currMetrics.Metrics, components.Metric{
 			UnixSeconds:         data.UnixMilliseconds,
 			MetricName:          data.Name,
 			MetricSecondaryName: data.Label,

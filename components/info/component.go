@@ -41,14 +41,14 @@ type component struct {
 	lastData *Data
 }
 
-func New(annotations map[string]string, dbRO *sql.DB, gatherer prometheus.Gatherer) components.Component {
+func New(annotations map[string]string, dbRO *sql.DB) components.Component {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &component{
 		ctx:         ctx,
 		cancel:      cancel,
 		annotations: annotations,
 		dbRO:        dbRO,
-		gatherer:    gatherer,
+		gatherer:    prometheus.DefaultGatherer,
 	}
 }
 

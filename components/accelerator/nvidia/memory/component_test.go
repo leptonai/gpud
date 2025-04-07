@@ -10,7 +10,6 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -396,24 +395,6 @@ func TestClose(t *testing.T) {
 	default:
 		t.Fatal("component context was not canceled on Close")
 	}
-}
-
-func TestRegisterCollectors(t *testing.T) {
-	ctx := context.Background()
-	component := MockMemoryComponent(ctx, nil, nil)
-
-	// Type assertion to access promRegisterer method
-	promRegisterer, ok := component.(components.PromRegisterer)
-	require.True(t, ok, "Component should implement PromRegisterer interface")
-
-	registry := prometheus.NewRegistry()
-	err := promRegisterer.RegisterCollectors(registry, nil, nil, "test_table")
-	assert.NoError(t, err, "RegisterCollectors should not return an error")
-
-	// Verify metrics were registered by gathering them
-	metricFamilies, err := registry.Gather()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, metricFamilies, "Registry should contain registered metrics")
 }
 
 func TestData_GetError(t *testing.T) {

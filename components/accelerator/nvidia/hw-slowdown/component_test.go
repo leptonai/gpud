@@ -9,7 +9,6 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -224,9 +223,6 @@ func TestCheckOnce(t *testing.T) {
 			assert.NoError(t, err)
 			defer bucket.Close()
 
-			// Mock metric registration to avoid collisions between tests
-			reg := prometheus.NewRegistry()
-
 			// Create mock NVML instance
 			mockNVML := createMockNVMLInstance(tc.mockDevices)
 
@@ -250,10 +246,6 @@ func TestCheckOnce(t *testing.T) {
 					return nvidianvml.ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
 				},
 			}
-
-			// Register metrics
-			err = c.RegisterCollectors(reg, dbRW, dbRO, "test_metrics")
-			assert.NoError(t, err)
 
 			// Run the check
 			c.CheckOnce()

@@ -4,20 +4,20 @@ import (
 	"sort"
 
 	v1 "github.com/leptonai/gpud/api/v1"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	"github.com/leptonai/gpud/components"
 )
 
 func ConvertToLeptonMetrics(ms Metrics) v1.LeptonMetrics {
-	aggregated := make(map[string][]components_metrics_state.Metric)
+	aggregated := make(map[string][]components.Metric)
 	for _, m := range ms {
 		if m.Component == "" {
 			continue
 		}
 		if _, ok := aggregated[m.Component]; !ok {
-			aggregated[m.Component] = make([]components_metrics_state.Metric, 0)
+			aggregated[m.Component] = make([]components.Metric, 0)
 		}
 
-		aggregated[m.Component] = append(aggregated[m.Component], components_metrics_state.Metric{
+		aggregated[m.Component] = append(aggregated[m.Component], components.Metric{
 			UnixSeconds:         m.UnixMilliseconds,
 			MetricName:          m.Name,
 			MetricSecondaryName: m.Label,

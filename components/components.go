@@ -3,17 +3,14 @@ package components
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 )
 
 // WatchableComponent wraps the component with a watchable interface.
@@ -52,11 +49,6 @@ type Component interface {
 	Close() error
 }
 
-// Defines an optional component interface that supports Prometheus metrics.
-type PromRegisterer interface {
-	RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, dbRO *sql.DB, tableName string) error
-}
-
 type State struct {
 	Name      string            `json:"name,omitempty"`
 	Healthy   bool              `json:"healthy,omitempty"`
@@ -84,10 +76,19 @@ type Event struct {
 	SuggestedActions *common.SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
+type Metric struct {
+	UnixSeconds         int64   `json:"unix_seconds"`
+	MetricName          string  `json:"metric_name"`
+	MetricSecondaryName string  `json:"metric_secondary_name,omitempty"`
+	Value               float64 `json:"value"`
+}
+
+type Metrics []Metric
+
 type Info struct {
-	States  []State                           `json:"states"`
-	Events  []Event                           `json:"events"`
-	Metrics []components_metrics_state.Metric `json:"metrics"`
+	States  []State `json:"states"`
+	Events  []Event `json:"events"`
+	Metrics Metrics `json:"metrics"`
 }
 
 var (

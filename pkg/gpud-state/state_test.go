@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/sqlite"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,11 +135,6 @@ func TestComponentsOperations(t *testing.T) {
 func TestRecordMetrics(t *testing.T) {
 	t.Parallel()
 
-	reg := prometheus.NewRegistry()
-	if err := Register(reg); err != nil {
-		t.Fatal("failed to register metrics:", err)
-	}
-
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
@@ -161,9 +155,4 @@ func TestRecordMetrics(t *testing.T) {
 	// Record metrics
 	err = RecordMetrics(ctx, dbRO)
 	require.NoError(t, err)
-
-	// Verify metrics were recorded
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-	assert.NotEmpty(t, metrics)
 }

@@ -124,12 +124,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
 
-	promReg := prometheus.NewRegistry()
-	if err := sqlite.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register sqlite metrics: %w", err)
-	}
-
-	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(promReg)
+	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(prometheus.DefaultGatherer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scraper: %w", err)
 	}
@@ -271,7 +266,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 
 		case info.Name:
-			allComponents = append(allComponents, info.New(config.Annotations, dbRO, promReg))
+			allComponents = append(allComponents, info.New(config.Annotations, dbRO))
 
 		case memory.Name:
 			c, err := memory.New(ctx, eventStore)
@@ -391,12 +386,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	if err := metrics.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register metrics: %w", err)
-	}
-	if err := gpud_state.Register(promReg); err != nil {
-		return nil, fmt.Errorf("failed to register state metrics: %w", err)
-	}
 	go func() {
 		ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
 		defer ticker.Stop()
@@ -408,28 +397,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ticker.Reset(20 * time.Minute)
 			}
 
-			total, err := metrics.ReadRegisteredTotal(promReg)
+			total, err := metrics.ReadRegisteredTotal(prometheus.DefaultGatherer)
 			if err != nil {
 				log.Logger.Errorw("failed to get registered total", "error", err)
 				continue
 			}
 
-			healthy, err := metrics.ReadHealthyTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get registered healthy", "error", err)
-				continue
-			}
-
-			unhealthy, err := metrics.ReadUnhealthyTotal(promReg)
-			if err != nil {
-				log.Logger.Errorw("failed to get registered unhealthy", "error", err)
-				continue
-			}
-
 			log.Logger.Debugw("components status",
 				"inflight_components", total,
-				"evaluated_healthy_states", healthy,
-				"evaluated_unhealthy_states", unhealthy,
 			)
 		}
 	}()
@@ -489,19 +464,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
 			continue
 		}
-
-		if orig, ok := c.(interface{ Unwrap() interface{} }); ok {
-			if prov, ok := orig.Unwrap().(components.PromRegisterer); ok {
-				log.Logger.Debugw("registering prometheus collectors", "component", c.Name())
-				if err := prov.RegisterCollectors(promReg, dbRW, dbRO, components_metrics_state.DefaultTableName); err != nil {
-					return nil, fmt.Errorf("failed to register metrics for component %s: %w", c.Name(), err)
-				}
-			} else {
-				log.Logger.Debugw("component does not implement components.PromRegisterer", "component", c.Name())
-			}
-		} else {
-			log.Logger.Debugw("component does not implement interface{ Unwrap() interface{} }", "component", c.Name())
-		}
 	}
 
 	for _, c := range allComponents {
@@ -549,7 +511,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		Path: "/metrics",
 		Desc: "Prometheus metrics",
 	})
-	promHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
+	promHandler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
 	})
