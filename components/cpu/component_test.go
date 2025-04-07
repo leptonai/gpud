@@ -426,3 +426,310 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating load average")
 }
+
+func TestComponentClose(t *testing.T) {
+	// Setup mocks
+	mockEventBucket := new(MockEventBucket)
+
+	mockEventBucket.On("Close").Return()
+
+	// Create component with mocks
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+
+		eventBucket: mockEventBucket,
+
+		info:  Info{},
+		cores: Cores{Logical: 4},
+	}
+
+	// Test Close method
+	err := c.Close()
+	assert.NoError(t, err)
+
+	// Verify mocks were called
+	mockEventBucket.AssertCalled(t, "Close")
+
+	// Verify context was canceled
+	select {
+	case <-ctx.Done():
+		// Good, context was canceled
+	default:
+		t.Error("Context was not canceled during Close()")
+	}
+}
+
+func TestComponentMetrics(t *testing.T) {
+	// Setup
+	c := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+	}
+
+	// Test metrics method
+	metrics, err := c.Metrics(context.Background(), time.Now().Add(-time.Hour))
+
+	// Verify
+	assert.NoError(t, err)
+	assert.Nil(t, metrics) // Current implementation returns nil
+}
+
+func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
+	// Setup mocks
+	mockEventBucket := new(MockEventBucket)
+
+	testError := errors.New("CPU percent calculation error")
+
+	// Mock functions
+	mockGetTimeStatFunc := func(ctx context.Context) (cpu.TimesStat, error) {
+		return cpu.TimesStat{}, nil
+	}
+
+	mockGetUsedPctFunc := func(ctx context.Context) (float64, error) {
+		return 0, testError
+	}
+
+	// Setup component with mocks
+	c := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		getTimeStatFunc:     mockGetTimeStatFunc,
+		getUsedPctFunc:      mockGetUsedPctFunc,
+		getPrevTimeStatFunc: func() *cpu.TimesStat { return nil },
+
+		eventBucket: mockEventBucket,
+
+		info: Info{
+			Arch:      "x86_64",
+			CPU:       "0",
+			Family:    "6",
+			Model:     "60",
+			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
+		},
+		cores: Cores{
+			Logical: 8,
+		},
+	}
+
+	// Test
+	c.CheckOnce()
+
+	// Verify
+	assert.NotNil(t, c.lastData)
+	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, testError, c.lastData.err)
+	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
+}
+
+func TestComponentStart(t *testing.T) {
+	// Create component
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+
+		getTimeStatFunc: func(ctx context.Context) (cpu.TimesStat, error) {
+			return cpu.TimesStat{}, nil
+		},
+		getUsedPctFunc: func(ctx context.Context) (float64, error) {
+			return 0, nil
+		},
+		getLoadAvgStatFunc: func(ctx context.Context) (*load.AvgStat, error) {
+			return &load.AvgStat{}, nil
+		},
+
+		setPrevTimeStatFunc: func(cpu.TimesStat) {},
+		getPrevTimeStatFunc: func() *cpu.TimesStat { return nil },
+
+		info:  Info{},
+		cores: Cores{Logical: 4},
+	}
+
+	// Test Start method
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Sleep briefly to allow goroutine to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Clean up
+	cancel()
+}
+
+func TestComponentGetError(t *testing.T) {
+	// Test nil data
+	var d *Data
+	err := d.getError()
+	assert.Equal(t, "", err)
+
+	// Test with nil error
+	d = &Data{}
+	err = d.getError()
+	assert.Equal(t, "", err)
+
+	// Test with error
+	testError := errors.New("test error")
+	d = &Data{err: testError}
+	err = d.getError()
+	assert.Equal(t, testError.Error(), err)
+}
+
+func TestComponentDataExtraInfo(t *testing.T) {
+	// Create test data
+	testData := &Data{
+		Info: Info{
+			Arch:      "x86_64",
+			CPU:       "0",
+			Family:    "6",
+			Model:     "60",
+			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
+		},
+		Cores: Cores{
+			Logical: 8,
+		},
+		Usage: Usage{
+			UsedPercent:  "25.50",
+			LoadAvg1Min:  "1.50",
+			LoadAvg5Min:  "1.25",
+			LoadAvg15Min: "1.10",
+			usedPercent:  25.5,
+		},
+		ts:      time.Now(),
+		healthy: true,
+		reason:  "test reason",
+	}
+
+	// Get states
+	states, err := testData.getStates()
+
+	// Verify
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.NotNil(t, states[0].ExtraInfo)
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.Contains(t, states[0].ExtraInfo, "encoding")
+	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+
+	// Verify JSON contains expected data
+	jsonData := states[0].ExtraInfo["data"]
+	assert.Contains(t, jsonData, testData.Info.Arch)
+	assert.Contains(t, jsonData, testData.Info.CPU)
+	assert.Contains(t, jsonData, testData.Usage.UsedPercent)
+	assert.Contains(t, jsonData, testData.Usage.LoadAvg1Min)
+}
+
+func TestComponentEventsError(t *testing.T) {
+	// Setup mock
+	mockEventBucket := new(MockEventBucket)
+	testError := errors.New("events retrieval error")
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return([]components.Event{}, testError)
+
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: mockEventBucket,
+	}
+
+	// Test with error
+	events, err := c.Events(context.Background(), time.Now().Add(-time.Hour))
+
+	// Verify
+	assert.Error(t, err)
+	assert.Equal(t, testError, err)
+	assert.Empty(t, events)
+}
+
+func TestCalculateCPUUsageEdgeCases(t *testing.T) {
+	// Test edge case 1: Zero idle time
+	t.Run("zero idle time", func(t *testing.T) {
+		prevStat := &cpu.TimesStat{
+			User:   100,
+			System: 50,
+			Idle:   0, // Zero idle time
+		}
+		curStat := cpu.TimesStat{
+			User:   150,
+			System: 75,
+			Idle:   0, // Still zero idle time
+		}
+
+		result := calculateCPUUsage(prevStat, curStat, 0)
+		assert.GreaterOrEqual(t, result, 0.0)
+		assert.LessOrEqual(t, result, 100.0)
+	})
+
+	// Test edge case 2: Identical stats (no change)
+	t.Run("identical stats", func(t *testing.T) {
+		stat := cpu.TimesStat{
+			User:   100,
+			System: 50,
+			Idle:   200,
+		}
+
+		result := calculateCPUUsage(&stat, stat, 0)
+		assert.Equal(t, 0.0, result)
+	})
+
+	// Test edge case 3: Very high CPU usage
+	t.Run("very high CPU usage", func(t *testing.T) {
+		prevStat := &cpu.TimesStat{
+			User:   100,
+			System: 50,
+			Idle:   10000,
+		}
+		curStat := cpu.TimesStat{
+			User:   9000,  // Huge increase in user time
+			System: 1000,  // Huge increase in system time
+			Idle:   10001, // Almost no increase in idle time
+		}
+
+		result := calculateCPUUsage(prevStat, curStat, 0)
+		assert.GreaterOrEqual(t, result, 0.0)
+		assert.LessOrEqual(t, result, 100.0)
+		assert.InDelta(t, 100.0, result, 1.0)
+	})
+}
+
+func TestDataMarshallingInStates(t *testing.T) {
+	// Test data with unusual values
+	testData := &Data{
+		Info: Info{
+			Arch:      "x86_64",
+			CPU:       "unusual-cpu-name+!@#$",
+			Family:    "unusual-family+!@#$",
+			Model:     "unusual-model+!@#$",
+			ModelName: "unusual-model-name+!@#$",
+		},
+		Cores: Cores{
+			Logical: 999999, // Very high core count
+		},
+		Usage: Usage{
+			UsedPercent:  "999999.99", // Very high CPU usage
+			LoadAvg1Min:  "999999.99", // Very high load average
+			LoadAvg5Min:  "999999.99",
+			LoadAvg15Min: "999999.99",
+			usedPercent:  999999.99,
+		},
+		ts:      time.Now(),
+		healthy: true,
+		reason:  "test reason with special characters: +!@#$%^&*()_",
+	}
+
+	// Get states
+	states, err := testData.getStates()
+
+	// Verify no errors in marshalling
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.NotNil(t, states[0].ExtraInfo)
+
+	// JSON data should contain all the unusual values
+	jsonData := states[0].ExtraInfo["data"]
+	assert.Contains(t, jsonData, "unusual-cpu-name")
+	assert.Contains(t, jsonData, "unusual-family")
+	assert.Contains(t, jsonData, "999999.99")
+	assert.Contains(t, jsonData, "999999") // Core count
+}

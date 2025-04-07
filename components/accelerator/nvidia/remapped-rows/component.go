@@ -92,7 +92,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
-	c.eventBucket.Close()
+
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }

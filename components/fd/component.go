@@ -127,8 +127,13 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
-	c.kmsgSyncer.Close()
-	c.eventBucket.Close()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
