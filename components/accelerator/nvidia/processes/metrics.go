@@ -25,5 +25,5 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricRunningProcesses)
+	pkgmetrics.MustRegister(metricRunningProcesses)
 }

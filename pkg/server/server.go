@@ -24,7 +24,6 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -124,7 +123,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
 
-	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(prometheus.DefaultGatherer)
+	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(pkgmetrics.DefaultGatherer())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scraper: %w", err)
 	}
@@ -397,7 +396,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ticker.Reset(20 * time.Minute)
 			}
 
-			total, err := metrics.ReadRegisteredTotal(prometheus.DefaultGatherer)
+			total, err := metrics.ReadRegisteredTotal(pkgmetrics.DefaultGatherer())
 			if err != nil {
 				log.Logger.Errorw("failed to get registered total", "error", err)
 				continue
@@ -511,7 +510,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		Path: "/metrics",
 		Desc: "Prometheus metrics",
 	})
-	promHandler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
+	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
 	})

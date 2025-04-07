@@ -25,5 +25,5 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricEdgeInMilliseconds)
+	pkgmetrics.MustRegister(metricEdgeInMilliseconds)
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/memory"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/uptime"
 	"github.com/leptonai/gpud/version"
@@ -48,7 +49,7 @@ func New(annotations map[string]string, dbRO *sql.DB) components.Component {
 		cancel:      cancel,
 		annotations: annotations,
 		dbRO:        dbRO,
-		gatherer:    prometheus.DefaultGatherer,
+		gatherer:    pkgmetrics.DefaultGatherer(),
 	}
 }
 

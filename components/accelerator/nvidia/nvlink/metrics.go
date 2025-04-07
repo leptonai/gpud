@@ -55,7 +55,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricFeatureEnabled,
 		metricReplayErrors,
 		metricRecoveryErrors,

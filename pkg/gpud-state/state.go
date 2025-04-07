@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/sqlite"
-
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 const (
@@ -199,7 +200,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(metricCurrentSize)
+	pkgmetrics.MustRegister(metricCurrentSize)
 }
 
 func RecordMetrics(ctx context.Context, db *sql.DB) error {

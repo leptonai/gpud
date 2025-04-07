@@ -65,7 +65,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricTotalBytes,
 		metricReservedBytes,
 		metricUsedBytes,

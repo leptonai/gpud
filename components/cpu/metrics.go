@@ -36,7 +36,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(
+	pkgmetrics.MustRegister(
 		metricLoadAverage,
 		metricUsedPercent,
 	)

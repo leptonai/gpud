@@ -12,12 +12,12 @@ import (
 func TestMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	require.NoError(t, reg.Register(insertUpdateTotal))
-	require.NoError(t, reg.Register(insertUpdateSecondsTotal))
-	require.NoError(t, reg.Register(deleteTotal))
-	require.NoError(t, reg.Register(deleteSecondsTotal))
-	require.NoError(t, reg.Register(selectTotal))
-	require.NoError(t, reg.Register(selectSecondsTotal))
+	require.NoError(t, reg.Register(metricInsertUpdateTotal))
+	require.NoError(t, reg.Register(metricInsertUpdateSecondsTotal))
+	require.NoError(t, reg.Register(metricDeleteTotal))
+	require.NoError(t, reg.Register(metricDeleteSecondsTotal))
+	require.NoError(t, reg.Register(metricSelectTotal))
+	require.NoError(t, reg.Register(metricSelectSecondsTotal))
 
 	mtr, err := ReadMetrics(reg)
 	require.NoError(t, err)
