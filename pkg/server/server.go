@@ -15,7 +15,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/pprof"
-	goOS "os"
+	stdos "os"
 	"path"
 	"runtime"
 	"strings"
@@ -93,7 +93,7 @@ type Server struct {
 
 	uid                string
 	fifoPath           string
-	fifo               *goOS.File
+	fifo               *stdos.File
 	session            *session.Session
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -669,7 +669,7 @@ func (s *Server) Stop() {
 		}
 	}
 	if s.fifoPath != "" {
-		if err := goOS.Remove(s.fifoPath); err != nil {
+		if err := stdos.Remove(s.fifoPath); err != nil {
 			log.Logger.Errorf("failed to remove fifo: %s", err)
 		}
 	}
@@ -739,12 +739,12 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		}
 	}
 
-	if _, err := goOS.Stat(pipePath); err == nil {
-		if err = goOS.Remove(pipePath); err != nil {
+	if _, err := stdos.Stat(pipePath); err == nil {
+		if err = stdos.Remove(pipePath); err != nil {
 			log.Logger.Errorf("error creating pipe: %v", err)
 			return
 		}
-	} else if !goOS.IsNotExist(err) {
+	} else if !stdos.IsNotExist(err) {
 		log.Logger.Errorf("error stat pipe: %v", err)
 		return
 	}
@@ -754,7 +754,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		return
 	}
 	for {
-		pipe, err := goOS.OpenFile(pipePath, goOS.O_RDONLY, goOS.ModeNamedPipe)
+		pipe, err := stdos.OpenFile(pipePath, stdos.O_RDONLY, stdos.ModeNamedPipe)
 		if err != nil {
 			log.Logger.Errorf("error opening named pipe: %v", err)
 			return
@@ -789,10 +789,10 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 }
 
 func WriteToken(token string, fifoFile string) error {
-	var f *goOS.File
+	var f *stdos.File
 	var err error
 	for i := 0; i < 30; i++ {
-		if _, err = goOS.Stat(fifoFile); goOS.IsNotExist(err) {
+		if _, err = stdos.Stat(fifoFile); stdos.IsNotExist(err) {
 			time.Sleep(1 * time.Second)
 			continue
 		} else if err != nil {
@@ -803,7 +803,7 @@ func WriteToken(token string, fifoFile string) error {
 		return fmt.Errorf("server not ready")
 	}
 
-	if f, err = goOS.OpenFile(fifoFile, goOS.O_WRONLY, 0600); err != nil {
+	if f, err = stdos.OpenFile(fifoFile, stdos.O_WRONLY, 0600); err != nil {
 		return fmt.Errorf("failed to open fifo file: %w", err)
 	}
 	defer func() {
