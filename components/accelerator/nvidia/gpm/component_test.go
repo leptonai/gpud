@@ -1,9 +1,8 @@
-package nvlink
+package gpm
 
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,10 +11,11 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -43,7 +43,7 @@ func (m *MockNvmlInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) Library() nvmllib.Library {
+func (m *MockNvmlInstance) Library() lib.Library {
 	return nil
 }
 
@@ -51,11 +51,12 @@ func (m *MockNvmlInstance) Shutdown() error {
 	return nil
 }
 
-// MockNVLinkComponent creates a component with mocked functions for testing
-func MockNVLinkComponent(
+// MockGPMComponent creates a component with mocked functions for testing
+func MockGPMComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
-	getNVLinkFunc func(uuid string, dev device.Device) (nvidianvml.NVLink, error),
+	getGPMSupportedFunc func(dev device.Device) (bool, error),
+	getGPMMetricsFunc func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -64,10 +65,11 @@ func MockNVLinkComponent(
 	}
 
 	return &component{
-		ctx:           cctx,
-		cancel:        cancel,
-		nvmlInstance:  mockInstance,
-		getNVLinkFunc: getNVLinkFunc,
+		ctx:                 cctx,
+		cancel:              cancel,
+		nvmlInstance:        mockInstance,
+		getGPMSupportedFunc: getGPMSupportedFunc,
+		getGPMMetricsFunc:   getGPMMetricsFunc,
 	}
 }
 
@@ -88,16 +90,17 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
 	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
-	assert.NotNil(t, tc.getNVLinkFunc, "getNVLinkFunc should be set")
+	assert.NotNil(t, tc.getGPMSupportedFunc, "getGPMSupportedFunc should be set")
+	assert.NotNil(t, tc.getGPMMetricsFunc, "getGPMMetricsFunc should be set")
 }
 
 func TestName(t *testing.T) {
 	ctx := context.Background()
-	c := MockNVLinkComponent(ctx, nil, nil)
+	c := MockGPMComponent(ctx, nil, nil, nil)
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
-func TestCheckOnce_Success(t *testing.T) {
+func TestCheckOnce_GPMNotSupported(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -116,39 +119,80 @@ func TestCheckOnce_Success(t *testing.T) {
 		return devs
 	}
 
-	nvLinkState := nvidianvml.NVLinkState{
-		Link:           0,
-		FeatureEnabled: true,
-		ReplayErrors:   5,
-		RecoveryErrors: 2,
-		CRCErrors:      1,
+	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		return false, nil
 	}
 
-	nvLink := nvidianvml.NVLink{
-		UUID:   uuid,
-		States: []nvidianvml.NVLinkState{nvLinkState, nvLinkState},
+	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		return nil, nil
 	}
 
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
-		return nvLink, nil
-	}
-
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.CheckOnce()
 
-	// Verify the data was collected
+	// Verify data
+	component.lastMu.RLock()
+	lastData := component.lastData
+	component.lastMu.RUnlock()
+
+	require.NotNil(t, lastData, "lastData should not be nil")
+	assert.False(t, lastData.GPMSupported, "GPM should not be supported")
+	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, "GPM not supported", lastData.reason)
+}
+
+func TestCheckOnce_GPMSupported(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		return true, nil
+	}
+
+	expectedMetrics := map[nvml.GpmMetricId]float64{
+		nvml.GPM_METRIC_SM_OCCUPANCY:     75.5,
+		nvml.GPM_METRIC_INTEGER_UTIL:     30.2,
+		nvml.GPM_METRIC_ANY_TENSOR_UTIL:  80.1,
+		nvml.GPM_METRIC_DFMA_TENSOR_UTIL: 40.3,
+	}
+
+	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		return expectedMetrics, nil
+	}
+
+	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component.CheckOnce()
+
+	// Verify data
 	component.lastMu.RLock()
 	lastData := component.lastData
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", lastData.reason)
-	assert.Len(t, lastData.NVLinks, 1)
-	assert.Equal(t, nvLink, lastData.NVLinks[0])
+	assert.Len(t, lastData.GPMMetrics, 1)
+	assert.Equal(t, uuid, lastData.GPMMetrics[0].UUID)
+	assert.Equal(t, expectedMetrics, lastData.GPMMetrics[0].Metrics)
+	assert.Equal(t, metav1.Duration{Duration: sampleDuration}, lastData.GPMMetrics[0].SampleDuration)
+	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", lastData.reason)
 }
 
-func TestCheckOnce_NVLinkError(t *testing.T) {
+func TestCheckOnce_GPMSupportError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -167,12 +211,16 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 		return devs
 	}
 
-	errExpected := errors.New("NVLink error")
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
-		return nvidianvml.NVLink{}, errExpected
+	errExpected := errors.New("GPM support check failed")
+	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		return false, errExpected
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		return nil, nil
+	}
+
+	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.CheckOnce()
 
 	// Verify error handling
@@ -183,7 +231,49 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.False(t, lastData.healthy, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", lastData.reason)
+	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastData.reason)
+}
+
+func TestCheckOnce_GPMMetricsError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		return true, nil
+	}
+
+	errExpected := errors.New("GPM metrics collection failed")
+	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		return nil, errExpected
+	}
+
+	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component.CheckOnce()
+
+	// Verify error handling
+	component.lastMu.RLock()
+	lastData := component.lastData
+	component.lastMu.RUnlock()
+
+	require.NotNil(t, lastData, "lastData should not be nil")
+	assert.False(t, lastData.healthy, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastData.err)
+	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastData.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -193,7 +283,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, nil).(*component)
+	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
 	component.CheckOnce()
 
 	// Verify handling of no devices
@@ -203,33 +293,30 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastData.reason)
-	assert.Empty(t, lastData.NVLinks)
+	assert.Equal(t, "all 0 GPU(s) were checked, no GPM issue found", lastData.reason)
+	assert.Empty(t, lastData.GPMMetrics)
 }
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Set test data
-	nvLinkState := nvidianvml.NVLinkState{
-		Link:           0,
-		FeatureEnabled: true,
-		ReplayErrors:   0,
-		RecoveryErrors: 0,
-		CRCErrors:      0,
-	}
-
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		NVLinks: []nvidianvml.NVLink{
+		GPMSupported: true,
+		GPMMetrics: []nvidianvml.GPMMetrics{
 			{
-				UUID:   "gpu-uuid-123",
-				States: []nvidianvml.NVLinkState{nvLinkState, nvLinkState},
+				UUID: "gpu-uuid-123",
+				Metrics: map[nvml.GpmMetricId]float64{
+					nvml.GPM_METRIC_SM_OCCUPANCY: 80.0,
+				},
+				SampleDuration: metav1.Duration{Duration: sampleDuration},
+				Time:           metav1.Time{Time: time.Now().UTC()},
 			},
 		},
 		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no nvlink issue found",
+		reason:  "all 1 GPU(s) were checked, no GPM issue found",
 	}
 	component.lastMu.Unlock()
 
@@ -242,20 +329,20 @@ func TestStates_WithData(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, components.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", state.Reason)
+	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", state.Reason)
 	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test NVLink error"),
+		err:     errors.New("test GPM error"),
 		healthy: false,
-		reason:  "error getting nvlink for device gpu-uuid-123",
+		reason:  "error getting GPM metrics for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
@@ -268,13 +355,13 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, components.StateUnhealthy, state.Health)
 	assert.False(t, state.Healthy)
-	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", state.Reason)
-	assert.Equal(t, "test NVLink error", state.Error)
+	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "test GPM error", state.Error)
 }
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Don't set any data
 
@@ -292,7 +379,7 @@ func TestStates_NoData(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil)
+	component := MockGPMComponent(ctx, nil, nil, nil)
 
 	events, err := component.Events(ctx, time.Now())
 	assert.NoError(t, err)
@@ -303,29 +390,37 @@ func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create mock functions that count calls
-	callCount := &atomic.Int32{}
+	// Use a channel to detect when CheckOnce is called
+	checkCalled := make(chan bool, 1)
+
 	getDevicesFunc := func() map[string]device.Device {
-		callCount.Add(1)
+		// Signal that the function was called
+		select {
+		case checkCalled <- true:
+		default:
+			// Channel is full, which is fine
+		}
 		return map[string]device.Device{}
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, nil)
+	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil)
 
 	// Start should be non-blocking
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Wait for CheckOnce to be called
+	select {
+	case <-checkCalled:
+		// Success - CheckOnce was called
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("CheckOnce was not called within expected time")
+	}
 }
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	err := component.Close()
 	assert.NoError(t, err)

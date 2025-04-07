@@ -53,12 +53,7 @@ type instance struct {
 
 	clockEventsSupported bool
 
-	gpmPollInterval time.Duration
-
 	gpmMetricsSupported bool
-	gpmMetricsIDs       []nvml.GpmMetricId
-	gpmEventCh          chan *GPMEvent
-	gpmEventChCloseOnce sync.Once
 }
 
 type Instance interface {
@@ -67,9 +62,6 @@ type Instance interface {
 	Start() error
 
 	ClockEventsSupported() bool
-
-	GPMMetricsSupported() bool
-	RecvGPMEvents() <-chan *GPMEvent
 
 	Shutdown() error
 	Get() (*Output, error)
@@ -115,11 +107,6 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		log.Logger.Warnw("nvml not found", "message", nvmlExistsMsg)
 	}
 
-	gpmMetricsIDs := make([]nvml.GpmMetricId, 0, len(op.gpmMetricsIDs))
-	for id := range op.gpmMetricsIDs {
-		gpmMetricsIDs = append(gpmMetricsIDs, id)
-	}
-
 	rootCtx, rootCancel := context.WithCancel(ctx)
 	return &instance{
 		rootCtx:    rootCtx,
@@ -142,12 +129,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 
 		clockEventsSupported: clockEventsSupported,
 
-		gpmPollInterval: time.Minute,
-
 		gpmMetricsSupported: false,
-		gpmMetricsIDs:       gpmMetricsIDs,
-		gpmEventCh:          make(chan *GPMEvent, 100),
-		gpmEventChCloseOnce: sync.Once{},
 	}, nil
 }
 
@@ -241,15 +223,6 @@ func (inst *instance) Start() error {
 
 			device: d,
 		}
-	}
-
-	if inst.gpmMetricsSupported && len(inst.gpmMetricsIDs) > 0 {
-		go inst.pollGPMEvents()
-	} else {
-		inst.gpmEventChCloseOnce.Do(func() {
-			log.Logger.Warnw("gpm metrics not supported")
-			close(inst.gpmEventCh)
-		})
 	}
 
 	return nil

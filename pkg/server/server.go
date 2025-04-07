@@ -33,12 +33,10 @@ import (
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
-	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
 	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	nvidia_fabric_manager_id "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager/id"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
-	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -47,9 +45,7 @@ import (
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_persistence_mode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
-	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
 	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
-	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -355,145 +351,29 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		case nvidia_clock_speed.Name:
 			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, nvmlInstanceV2))
 
-		case nvidia_ecc_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_ecc.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case nvidia_ecc.Name:
+			allComponents = append(allComponents, nvidia_ecc.New(ctx, nvmlInstanceV2))
 
 		case nvidia_memory.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_memory.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_memory.New(ctx, nvmlInstanceV2))
 
 		case nvidia_gpm.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			allComponents = append(allComponents, nvidia_gpm.New(ctx, cfg))
+			allComponents = append(allComponents, nvidia_gpm.New(ctx, nvmlInstanceV2))
 
 		case nvidia_nvlink.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_nvlink.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_nvlink.New(ctx, nvmlInstanceV2))
 
-		case nvidia_power_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_power.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case nvidia_power.Name:
+			allComponents = append(allComponents, nvidia_power.New(ctx, nvmlInstanceV2))
 
 		case nvidia_temperature.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_temperature.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_temperature.New(ctx, nvmlInstanceV2))
 
 		case nvidia_utilization.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_utilization.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_utilization.New(ctx, nvmlInstanceV2))
 
 		case nvidia_processes.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_processes.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+			allComponents = append(allComponents, nvidia_processes.New(ctx, nvmlInstanceV2))
 
 		case nvidia_remapped_rows.Name:
 			allComponents = append(allComponents, nvidia_remapped_rows.New(
@@ -509,23 +389,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, fabricManagerLogComponent)
 
-		case nvidia_gsp_firmware_mode_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_gsp_firmware_mode.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case nvidia_gsp_firmware_mode.Name:
+			allComponents = append(allComponents, nvidia_gsp_firmware_mode.New(ctx, nvmlInstanceV2))
 
 		case nvidia_infiniband.Name:
 			c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
@@ -552,23 +417,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 			allComponents = append(allComponents, c)
 
-		case nvidia_persistence_mode_id.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_persistence_mode.New(ctx, cfg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
+		case nvidia_persistence_mode.Name:
+			allComponents = append(allComponents, nvidia_persistence_mode.New(ctx, nvmlInstanceV2))
 
 		case nvidia_nccl.Name:
 			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}

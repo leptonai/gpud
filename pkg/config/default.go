@@ -9,9 +9,9 @@ import (
 	"time"
 
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
-	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
+	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
-	nvidia_gsp_firmware_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode/id"
+	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
@@ -19,8 +19,8 @@ import (
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
-	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
-	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
+	nvidia_persistence_mode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
+	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
 	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
 	nvidia_component_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -176,7 +176,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			log.Logger.Warnw("old nvidia driver -- skipping clock events in the default config, see https://github.com/NVIDIA/go-nvml/pull/123", "version", driverVersion)
 		}
 
-		cfg.Components[nvidia_ecc_id.Name] = nil
+		cfg.Components[nvidia_ecc.Name] = nil
 		cfg.Components[nvidia_component_xid.Name] = nil
 		cfg.Components[nvidia_component_sxid.Name] = nil
 		cfg.Components[nvidia_info.Name] = nil
@@ -197,7 +197,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		}
 
 		cfg.Components[nvidia_nvlink.Name] = nil
-		cfg.Components[nvidia_power_id.Name] = nil
+		cfg.Components[nvidia_power.Name] = nil
 		cfg.Components[nvidia_temperature.Name] = nil
 		cfg.Components[nvidia_utilization.Name] = nil
 		cfg.Components[nvidia_processes.Name] = nil
@@ -211,8 +211,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		cfg.Components[nvidia_infiniband.Name] = nil
 		cfg.Components[nvidia_nccl.Name] = nil
 		cfg.Components[nvidia_peermem.Name] = nil
-		cfg.Components[nvidia_persistence_mode_id.Name] = nil
-		cfg.Components[nvidia_gsp_firmware_mode_id.Name] = nil
+		cfg.Components[nvidia_persistence_mode.Name] = nil
+		cfg.Components[nvidia_gsp_firmware_mode.Name] = nil
 	} else {
 		log.Logger.Debugw("auto-detect nvidia not supported -- skipping", "os", runtime.GOOS)
 	}

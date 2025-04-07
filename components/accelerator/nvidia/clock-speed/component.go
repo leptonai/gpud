@@ -14,7 +14,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -26,19 +25,19 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstanceV2    nvml.InstanceV2
+	nvmlInstance      nvidianvml.InstanceV2
 	getClockSpeedFunc func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Component {
+func New(ctx context.Context, nvmlInstance nvidianvml.InstanceV2) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:               cctx,
 		cancel:            ccancel,
-		nvmlInstanceV2:    nvmlInstanceV2,
+		nvmlInstance:      nvmlInstance,
 		getClockSpeedFunc: nvidianvml.GetClockSpeed,
 	}
 }
@@ -95,19 +94,24 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	devs := c.nvmlInstanceV2.Devices()
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		clockSpeed, err := c.getClockSpeedFunc(uuid, dev)
 		if err != nil {
+			log.Logger.Errorw("error getting clock speed for device", "uuid", uuid, "error", err)
 			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting clock speed for device %s", uuid)
 			return
 		}
+		d.ClockSpeeds = append(d.ClockSpeeds, clockSpeed)
 
 		graphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.GraphicsMHz))
 		memoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.MemoryMHz))
-
-		d.ClockSpeeds = append(d.ClockSpeeds, clockSpeed)
 	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no clock speed issue found", len(devs))
 }
 
 type Data struct {
@@ -117,27 +121,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no clock speed data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get clock speed data -- %s", d.err)
-	}
-
-	return fmt.Sprintf("found %d GPU(s) for clock speed data", len(d.ClockSpeeds))
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -148,12 +136,28 @@ func (d *Data) getError() string {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

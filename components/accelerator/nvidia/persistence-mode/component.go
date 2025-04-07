@@ -3,94 +3,170 @@ package persistencemode
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+
 	"github.com/leptonai/gpud/components"
-	nvidia_persistence_mode_id "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode/id"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	"github.com/leptonai/gpud/pkg/query"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func New(ctx context.Context, cfg nvidia_common.Config) (components.Component, error) {
-	if nvidia_query.GetDefaultPoller() == nil {
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-
-	cctx, ccancel := context.WithCancel(ctx)
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, nvidia_persistence_mode_id.Name)
-
-	return &component{
-		rootCtx: ctx,
-		cancel:  ccancel,
-		poller:  nvidia_query.GetDefaultPoller(),
-	}, nil
-}
+const Name = "accelerator-nvidia-persistence-mode"
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx context.Context
-	cancel  context.CancelFunc
-	poller  query.Poller
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	nvmlInstance           nvml.InstanceV2
+	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error)
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func (c *component) Name() string { return nvidia_persistence_mode_id.Name }
+func New(ctx context.Context, nvmlInstance nvml.InstanceV2) components.Component {
+	cctx, ccancel := context.WithCancel(ctx)
+	return &component{
+		ctx:                    cctx,
+		cancel:                 ccancel,
+		nvmlInstance:           nvmlInstance,
+		getPersistenceModeFunc: nvidianvml.GetPersistenceMode,
+	}
+}
 
-func (c *component) Start() error { return nil }
+func (c *component) Name() string { return Name }
+
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", nvidia_persistence_mode_id.Name)
-		return []components.State{
-			{
-				Name:    nvidia_persistence_mode_id.Name,
-				Healthy: true,
-				Error:   query.ErrNoData.Error(),
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-	}
-
-	output := ToOutput(allOutput)
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
 }
 
+func (c *component) Close() error {
+	log.Logger.Debugw("closing component")
+
+	c.cancel()
+
+	return nil
+}
+
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking persistence mode")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
+
+	devs := c.nvmlInstance.Devices()
+	for uuid, dev := range devs {
+		persistenceMode, err := c.getPersistenceModeFunc(uuid, dev)
+		if err != nil {
+			log.Logger.Errorw("error getting persistence mode for device", "uuid", uuid, "error", err)
+			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting persistence mode for device %s", uuid)
+			return
+		}
+
+		d.PersistenceModes = append(d.PersistenceModes, persistenceMode)
+	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no persistence mode issue found", len(devs))
+}
+
+type Data struct {
+	PersistenceModes []nvidianvml.PersistenceMode `json:"persistence_modes,omitempty"`
+
+	// timestamp of the last check
+	ts time.Time
+	// error from the last check
+	err error
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
+}
+
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
+	state := components.State{
+		Name:   Name,
+		Reason: d.reason,
+		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
+}
+
+// TO BE DEPRECATED
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
 	return nil, nil
-}
-
-func (c *component) Close() error {
-	log.Logger.Debugw("closing component")
-
-	// safe to call stop multiple times
-	_ = c.poller.Stop(nvidia_persistence_mode_id.Name)
-
-	return nil
 }

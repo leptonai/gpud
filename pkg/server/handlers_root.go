@@ -16,11 +16,11 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
-	nvidia_ecc_id "github.com/leptonai/gpud/components/accelerator/nvidia/ecc/id"
+	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
-	nvidia_power_id "github.com/leptonai/gpud/components/accelerator/nvidia/power/id"
+	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	"github.com/leptonai/gpud/components/cpu"
@@ -99,7 +99,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		if c, err := components.GetComponent(nvidia_temperature.Name); c != nil && err == nil {
 			nvidiaTemperatureChart = true
 		}
-		if c, err := components.GetComponent(nvidia_power_id.Name); c != nil && err == nil {
+		if c, err := components.GetComponent(nvidia_power.Name); c != nil && err == nil {
 			nvidiaPowerChart = true
 		}
 		if c, err := components.GetComponent(nvidia_clock_speed.Name); c != nil && err == nil {
@@ -108,7 +108,7 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		if c, err := components.GetComponent(nvidia_hw_slowdown.Name); c != nil && err == nil {
 			nvidiaErrsChart = true
 		}
-		if c, err := components.GetComponent(nvidia_ecc_id.Name); c != nil && err == nil {
+		if c, err := components.GetComponent(nvidia_ecc.Name); c != nil && err == nil {
 			nvidiaErrsChart = true
 		}
 	}
@@ -136,14 +136,14 @@ func createRootHandler(handlerDescs []componentHandlerDescription, webConfig con
 		components = append(components, nvidia_temperature.Name)
 	}
 	if nvidiaPowerChart {
-		components = append(components, nvidia_power_id.Name)
+		components = append(components, nvidia_power.Name)
 	}
 	if nvidiaClockSpeedChart {
 		components = append(components, nvidia_clock_speed.Name)
 	}
 	if nvidiaErrsChart {
 		components = append(components, nvidia_hw_slowdown.Name)
-		components = append(components, nvidia_ecc_id.Name)
+		components = append(components, nvidia_ecc.Name)
 	}
 
 	return func(c *gin.Context) {

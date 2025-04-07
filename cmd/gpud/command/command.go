@@ -38,10 +38,9 @@ var (
 
 	createArchive bool
 
-	pollGPMEvents bool
-	netcheck      bool
-	diskcheck     bool
-	kmsgCheck     bool
+	netcheck  bool
+	diskcheck bool
+	kmsgCheck bool
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -494,11 +493,6 @@ cat summary.txt
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
-				},
-				&cli.BoolFlag{
-					Name:        "poll-gpm-events",
-					Usage:       "enable polling gpm events (default: false)",
-					Destination: &pollGPMEvents,
 				},
 				&cli.BoolTFlag{
 					Name:        "netcheck",
