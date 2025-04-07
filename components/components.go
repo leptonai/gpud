@@ -43,6 +43,13 @@ type Component interface {
 	Close() error
 }
 
+// HealthSettable is an optional interface that can be implemented by components
+// to allow setting the health state.
+type HealthSettable interface {
+	// SetHealthy sets the health state to healthy.
+	SetHealthy() error
+}
+
 type State struct {
 	Name      string            `json:"name,omitempty"`
 	Healthy   bool              `json:"healthy,omitempty"`

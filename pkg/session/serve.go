@@ -14,10 +14,6 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -101,37 +97,17 @@ func (s *Session) serve() {
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
-				switch componentName {
-				case nvidia_xid.Name:
-					comp, err := components.GetComponent(nvidia_xid.Name)
-					if err != nil {
-						log.Logger.Errorw("failed to get component", "error", err)
-						continue
+				comp, err := components.GetComponent(componentName)
+				if err != nil {
+					log.Logger.Errorw("failed to get component", "error", err)
+					continue
+				}
+				if healthSettable, ok := comp.(components.HealthSettable); ok {
+					if err := healthSettable.SetHealthy(); err != nil {
+						log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
 					}
-					if xidComp, ok := comp.(*xid.XIDComponent); ok {
-						if err = xidComp.SetHealthy(); err != nil {
-							log.Logger.Errorw("failed to set xid healthy", "error", err)
-						}
-					} else {
-						log.Logger.Errorf("failed to cast component to xid component: %T", comp)
-					}
-
-				case nvidia_sxid.Name:
-					comp, err := components.GetComponent(nvidia_sxid.Name)
-					if err != nil {
-						log.Logger.Errorw("failed to get component", "error", err)
-						continue
-					}
-					if sxidComp, ok := comp.(*sxid.SXIDComponent); ok {
-						if err = sxidComp.SetHealthy(); err != nil {
-							log.Logger.Errorw("failed to set sxid healthy", "error", err)
-						}
-					} else {
-						log.Logger.Errorf("failed to cast component to sxid component: %T", comp)
-					}
-
-				default:
-					log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
+				} else {
+					log.Logger.Debugw("component does not implement HealthSettable", "component", componentName)
 				}
 			}
 

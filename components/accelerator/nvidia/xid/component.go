@@ -200,6 +200,8 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 	}
 }
 
+var _ components.HealthSettable = &XIDComponent{}
+
 func (c *XIDComponent) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")
 	newEvent := &components.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
