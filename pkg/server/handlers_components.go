@@ -1,20 +1,18 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 	"sort"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/yaml"
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	lep_components "github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/query"
-
-	"github.com/gin-gonic/gin"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -232,17 +230,12 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		}
 		event, err := component.Events(c, startTime)
 		if err != nil {
-			if errors.Is(err, query.ErrNoData) {
-				log.Logger.Debugw("no event found", "component", componentName)
-				continue
-			}
-
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetEvents",
 				"component", componentName,
 				"error", err,
 			)
-		} else {
+		} else if len(event) > 0 {
 			currEvent.Events = event
 		}
 		events = append(events, currEvent)
@@ -332,17 +325,12 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		}
 		events, err := component.Events(c, startTime)
 		if err != nil {
-			if errors.Is(err, query.ErrNoData) {
-				log.Logger.Debugw("no event found", "component", componentName)
-				continue
-			}
-
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetInfo",
 				"component", componentName,
 				"error", err,
 			)
-		} else {
+		} else if len(events) > 0 {
 			currInfo.Info.Events = events
 		}
 		state, err := component.States(c)

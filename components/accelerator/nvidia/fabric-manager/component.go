@@ -117,7 +117,6 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-// Returns `github.com/leptonai/gpud/pkg/query.ErrNoData` if there is no event found.
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	if c.logLineProcessor != nil {
 		return c.logLineProcessor.getEvents(ctx, since)

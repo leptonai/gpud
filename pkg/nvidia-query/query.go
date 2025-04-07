@@ -6,82 +6,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/log"
 	metrics_clock "github.com/leptonai/gpud/pkg/nvidia-query/metrics/clock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/peermem"
-	"github.com/leptonai/gpud/pkg/query"
-	query_config "github.com/leptonai/gpud/pkg/query/config"
 )
-
-var (
-	defaultPollerOnce sync.Once
-	defaultPoller     query.Poller
-)
-
-// only set once since it relies on the kube client and specific port
-func SetDefaultPoller(opts ...OpOption) {
-	defaultPollerOnce.Do(func() {
-		defaultPoller = query.New(
-			"shared-nvidia-poller",
-			query_config.Config{
-				Interval:  metav1.Duration{Duration: query_config.DefaultPollInterval},
-				QueueSize: query_config.DefaultQueueSize,
-				State: &query_config.State{
-					Retention: metav1.Duration{Duration: query_config.DefaultStateRetention},
-				},
-			},
-			CreateGet(opts...),
-			nil,
-		)
-	})
-}
-
-var ErrDefaultPollerNotSet = errors.New("default nvidia poller is not set")
-
-func GetDefaultPoller() query.Poller {
-	return defaultPoller
-}
-
-var (
-	getSuccessOnceCloseOnce sync.Once
-	getSuccessOnce          = make(chan any)
-)
-
-func GetSuccessOnce() <-chan any {
-	return getSuccessOnce
-}
-
-func CreateGet(opts ...OpOption) query.GetFunc {
-	return func(ctx context.Context) (_ any, e error) {
-		// "ctx" here is the root level and used for instantiating the "shared" NVML instance "once"
-		// and all other sub-calls have its own context timeouts, thus we do not set the timeout here
-		// otherwise, we will cancel all future operations when the instance is created only once!
-		return Get(ctx, opts...)
-	}
-}
 
 // Get all nvidia component queries.
-func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, fmt.Errorf("failed to apply options: %w", err)
-	}
-
-	if err := nvml.StartDefaultInstance(
-		ctx,
-		nvml.WithHWSlowdownEventBucket(op.hwSlowdownEventsBucket),
-	); err != nil {
-		return nil, fmt.Errorf("failed to start nvml instance: %w", err)
-	}
-
-	o := &Output{
+func Get(ctx context.Context) (o *Output, err error) {
+	o = &Output{
 		Time: time.Now().UTC(),
 	}
 
@@ -90,13 +27,6 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 	if err != nil {
 		log.Logger.Warnw("failed to count gpu devices", "error", err)
 	}
-
-	defer func() {
-		getSuccessOnceCloseOnce.Do(func() {
-			log.Logger.Infow("signaling that the nvidia query completed once")
-			close(getSuccessOnce)
-		})
-	}()
 
 	log.Logger.Debugw("checking lsmod peermem")
 	cctx, ccancel := context.WithTimeout(ctx, 30*time.Second)
@@ -111,19 +41,16 @@ func Get(ctx context.Context, opts ...OpOption) (output any, err error) {
 		}
 	}
 
-	log.Logger.Infow("waiting for default nvml instance")
-	select {
-	case <-ctx.Done():
-		return o, fmt.Errorf("context canceled waiting for nvml instance: %w", ctx.Err())
-	case <-nvml.DefaultInstanceReady():
-		log.Logger.Debugw("default nvml instance ready")
+	instance, err := nvml.NewInstance(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO
 	// this may timeout when the GPU is broken
 	// e.g.,
 	// "nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT]"
-	o.NVML, err = nvml.DefaultInstance().Get()
+	o.NVML, err = instance.Get()
 	if err != nil {
 		log.Logger.Warnw("nvml get failed", "error", err)
 		o.NVMLErrors = append(o.NVMLErrors, err.Error())

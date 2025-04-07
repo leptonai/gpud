@@ -8,7 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
+	"github.com/dustin/go-humanize"
+
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
@@ -26,11 +27,7 @@ import (
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
-	"github.com/leptonai/gpud/pkg/sqlite"
-
-	"github.com/dustin/go-humanize"
 )
 
 const (
@@ -109,67 +106,29 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			}
 		}
 
-		db, err := sqlite.Open(":memory:")
+		output, err := nvidia_query.Get(ctx)
 		if err != nil {
-			log.Logger.Fatalw("failed to open database", "error", err)
-		}
-		defer db.Close()
-
-		eventStore, err := eventstore.New(db, db, eventstore.DefaultRetention)
-		if err != nil {
-			log.Logger.Fatalw("failed to open database", "error", err)
+			return err
 		}
 
-		xidEventBucket, err := eventStore.Bucket(nvidia_xid.Name)
-		if err != nil {
-			log.Logger.Fatalw("failed to create events bucket", "error", err)
-		}
+		output.PrintInfo(nvidia_query.WithDebug(op.debug))
 
-		hwSlowdownEventBucket, err := eventStore.Bucket(nvidia_hw_slowdown.Name)
-		if err != nil {
-			log.Logger.Fatalw("failed to create events bucket", "error", err)
-		}
-
-		outputRaw, err := nvidia_query.Get(
-			ctx,
-			nvidia_query.WithXidEventBucket(xidEventBucket),
-			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithIbstatCommand(op.ibstatCommand),
-		)
-		if err != nil {
-			log.Logger.Warnw("error getting nvidia info", "error", err)
-		} else {
-			defer func() {
-				serr := nvidia_query_nvml.DefaultInstance().Shutdown()
-				if serr != nil {
-					log.Logger.Warnw("error shutting down NVML", "error", serr)
-				}
-			}()
-
-			output, ok := outputRaw.(*nvidia_query.Output)
-			if !ok {
-				log.Logger.Warnf("expected *nvidia_query.Output, got %T", outputRaw)
+		if op.checkInfiniband {
+			fmt.Printf("\n%s checking nvidia infiniband ports/rates\n", inProgress)
+			threshold, err := infiniband.SupportsInfinibandPortRate(output.GPUProductName())
+			if err != nil {
+				log.Logger.Warnw("error getting infiniband port rate", "error", err)
 			} else {
-				output.PrintInfo(nvidia_query.WithDebug(op.debug))
-
-				if op.checkInfiniband {
-					fmt.Printf("\n%s checking nvidia infiniband ports/rates\n", inProgress)
-					threshold, err := infiniband.SupportsInfinibandPortRate(output.GPUProductName())
-					if err != nil {
-						log.Logger.Warnw("error getting infiniband port rate", "error", err)
-					} else {
-						atLeastPorts := threshold.AtLeastPorts
-						atLeastRate := threshold.AtLeastRate
-						if err := infiniband.CheckInfiniband(ctx, op.ibstatCommand, threshold); err != nil {
-							fmt.Printf("%s ibstat ports/rates check failed (at least ports: %d, rate: %v) (%s)\n", warningSign, atLeastPorts, atLeastRate, err)
-						} else {
-							fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
-						}
-					}
+				atLeastPorts := threshold.AtLeastPorts
+				atLeastRate := threshold.AtLeastRate
+				if err := infiniband.CheckInfiniband(ctx, op.ibstatCommand, threshold); err != nil {
+					fmt.Printf("%s ibstat ports/rates check failed (at least ports: %d, rate: %v) (%s)\n", warningSign, atLeastPorts, atLeastRate, err)
 				} else {
-					fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
+					fmt.Printf("%s ibstat ports/rates check passed (at least ports: %d, rate: %v)\n", checkMark, atLeastPorts, atLeastRate)
 				}
 			}
+		} else {
+			fmt.Printf("%s skipped ibstat check (infiniband class not found or ibstat not found)\n", checkMark)
 		}
 	}
 	println()

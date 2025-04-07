@@ -50,7 +50,12 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventBucket eventstore.Bucket) components.Component {
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (components.Component, error) {
+	eventBucket, err := eventStore.Bucket(Name)
+	if err != nil {
+		return nil, err
+	}
+
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:    cctx,
@@ -63,7 +68,7 @@ func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventBucket events
 		getClockEventsFunc: nvidianvml.GetClockEvents,
 
 		eventBucket: eventBucket,
-	}
+	}, nil
 }
 
 func (c *component) Name() string { return Name }
