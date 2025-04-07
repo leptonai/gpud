@@ -45,10 +45,6 @@ func (c *SimpleComponent) Events(ctx context.Context, since time.Time) ([]compon
 	return nil, nil
 }
 
-func (c *SimpleComponent) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	return nil, nil
-}
-
 func (c *SimpleComponent) Close() error {
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	lep_components "github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -306,6 +307,30 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		metricsSince = now.Add(-dur)
 	}
 
+	metricsData, err := g.metricsStore.Read(c, pkgmetrics.WithSince(metricsSince), pkgmetrics.WithComponents(components...))
+	if err != nil {
+		log.Logger.Errorw("failed to invoke component metrics",
+			"operation", "GetInfo",
+			"components", components,
+			"error", err,
+		)
+	}
+	componentsToMetrics := make(map[string][]lep_components.Metric)
+	for _, data := range metricsData {
+		if _, ok := componentsToMetrics[data.Component]; !ok {
+			componentsToMetrics[data.Component] = make([]lep_components.Metric, 0)
+		}
+		d := lep_components.Metric{
+			Metric: components_metrics_state.Metric{
+				UnixSeconds:         data.UnixMilliseconds,
+				MetricName:          data.Name,
+				MetricSecondaryName: data.Label,
+				Value:               data.Value,
+			},
+		}
+		componentsToMetrics[data.Component] = append(componentsToMetrics[data.Component], d)
+	}
+
 	for _, componentName := range components {
 		currInfo := v1.LeptonComponentInfo{
 			Component: componentName,
@@ -343,16 +368,9 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		} else {
 			currInfo.Info.States = state
 		}
-		metric, err := component.Metrics(c, metricsSince)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component metrics",
-				"operation", "GetInfo",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			currInfo.Info.Metrics = metric
-		}
+
+		currInfo.Info.Metrics = componentsToMetrics[componentName]
+
 		infos = append(infos, currInfo)
 	}
 
@@ -413,47 +431,13 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 		metricsSince = now.Add(-dur)
 	}
 
-	if g.cfg.EnableGlobalMetricsStore {
-		log.Logger.Infow("[experimental] reading metrics from global metrics store")
-
-		metrics, err := g.metricsStore.Read(c, metricsSince)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to read metrics: " + err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, pkgmetrics.ConvertToLeptonMetrics(metrics))
+	metricsData, err := g.metricsStore.Read(c, pkgmetrics.WithSince(metricsSince), pkgmetrics.WithComponents(components...))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to read metrics: " + err.Error()})
 		return
 	}
 
-	var metrics v1.LeptonMetrics
-	for _, componentName := range components {
-		currMetrics := v1.LeptonComponentMetrics{
-			Component: componentName,
-		}
-		component, err := lep_components.GetComponent(componentName)
-		if err != nil {
-			log.Logger.Errorw("failed to get component",
-				"operation", "GetEvents",
-				"component", componentName,
-				"error", err,
-			)
-			metrics = append(metrics, currMetrics)
-			continue
-		}
-		currMetric, err := component.Metrics(c, metricsSince)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component metrics",
-				"operation", "GetEvents",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			currMetrics.Metrics = currMetric
-		}
-		metrics = append(metrics, currMetrics)
-	}
-
+	metrics := pkgmetrics.ConvertToLeptonMetrics(metricsData)
 	switch c.GetHeader(RequestHeaderContentType) {
 	case RequestHeaderYAML:
 		yb, err := yaml.Marshal(metrics)

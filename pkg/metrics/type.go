@@ -42,7 +42,7 @@ type Store interface {
 
 	// Returns all the data points since the given time.
 	// If since is zero, returns all metrics.
-	Read(ctx context.Context, since time.Time) (Metrics, error)
+	Read(ctx context.Context, opts ...OpOption) (Metrics, error)
 
 	// Purge purges the metrics data points before the given time.
 	Purge(ctx context.Context, before time.Time) (int, error)

@@ -13,14 +13,17 @@ import (
 
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	lep_components "github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
+	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
@@ -119,6 +122,7 @@ func (s *Session) serve() {
 					} else {
 						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
 					}
+
 				case nvidia_sxid.Name:
 					rawComponent, err := components.GetComponent(nvidia_sxid.Name)
 					if err != nil {
@@ -136,6 +140,7 @@ func (s *Session) serve() {
 					} else {
 						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
 					}
+
 				default:
 					log.Logger.Warnw("unsupported component for sethealthy", "component", componentName)
 				}
@@ -379,8 +384,7 @@ func (s *Session) getEventsFromComponent(ctx context.Context, componentName stri
 }
 
 func (s *Session) getMetricsFromComponent(ctx context.Context, componentName string, since time.Time) v1.LeptonComponentMetrics {
-	component, err := components.GetComponent(componentName)
-	if err != nil {
+	if _, err := components.GetComponent(componentName); err != nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetEvents",
 			"component", componentName,
@@ -393,7 +397,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	currMetrics := v1.LeptonComponentMetrics{
 		Component: componentName,
 	}
-	currMetric, err := component.Metrics(ctx, since)
+	metricsData, err := s.metricsStore.Read(ctx, pkgmetrics.WithSince(since), pkgmetrics.WithComponents(componentName))
 	if err != nil {
 		log.Logger.Errorw("failed to invoke component metrics",
 			"operation", "GetEvents",
@@ -401,7 +405,16 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 			"error", err,
 		)
 	} else {
-		currMetrics.Metrics = currMetric
+		for _, data := range metricsData {
+			currMetrics.Metrics = append(currMetrics.Metrics, lep_components.Metric{
+				Metric: components_metrics_state.Metric{
+					UnixSeconds:         data.UnixMilliseconds,
+					MetricName:          data.Name,
+					MetricSecondaryName: data.Label,
+					Value:               data.Value,
+				},
+			})
+		}
 	}
 	return currMetrics
 }

@@ -233,16 +233,6 @@ func TestEvents(t *testing.T) {
 	assert.Nil(t, events, "Events should return nil")
 }
 
-func TestMetrics(t *testing.T) {
-	ctx := context.Background()
-	c := mockComponent(ctx, true, true, nil)
-
-	metrics, err := c.Metrics(ctx, time.Now().Add(-time.Hour))
-
-	assert.NoError(t, err, "Metrics should not return an error")
-	assert.Nil(t, metrics, "Metrics should return nil")
-}
-
 func TestDataGetReason(t *testing.T) {
 	testCases := []struct {
 		name           string

@@ -67,8 +67,8 @@ func (s *sqliteStore) Record(ctx context.Context, ms ...pkgmetrics.Metric) error
 	return insert(ctx, s.dbRW, s.table, ms...)
 }
 
-func (s *sqliteStore) Read(ctx context.Context, since time.Time) (pkgmetrics.Metrics, error) {
-	return read(ctx, s.dbRO, s.table, since)
+func (s *sqliteStore) Read(ctx context.Context, opts ...pkgmetrics.OpOption) (pkgmetrics.Metrics, error) {
+	return read(ctx, s.dbRO, s.table, opts...)
 }
 
 func (s *sqliteStore) Purge(ctx context.Context, before time.Time) (int, error) {
@@ -149,32 +149,63 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 // read returns the metric data in the ascending order of unix seconds
 // meaning the first element is the oldest event.
 // It returns nil if no record is found ("database/sql.ErrNoRows").
-func read(ctx context.Context, dbRO *sql.DB, table string, since time.Time) (pkgmetrics.Metrics, error) {
+func read(ctx context.Context, dbRO *sql.DB, table string, opts ...pkgmetrics.OpOption) (pkgmetrics.Metrics, error) {
+	op := &pkgmetrics.Op{}
+	if err := op.ApplyOpts(opts); err != nil {
+		return nil, err
+	}
+
 	if table == "" {
 		return nil, ErrEmptyTableName
 	}
 
-	query := fmt.Sprintf(`
-SELECT %s, %s, %s, %s, %s
+	params := []any{}
+	if !op.Since.IsZero() {
+		params = append(params, op.Since.UnixMilli())
+	}
+
+	orderByStatement := fmt.Sprintf("ORDER BY %s ASC;", ColumnUnixMilliseconds)
+	whereStatement := ""
+	if !op.Since.IsZero() {
+		whereStatement = fmt.Sprintf("%s >= ?", ColumnUnixMilliseconds)
+	}
+	if len(op.SelectedComponents) > 0 {
+		if whereStatement != "" {
+			whereStatement += " AND "
+		}
+		whereStatement += fmt.Sprintf("%s IN (", ColumnComponentName)
+
+		components := make([]string, 0, len(op.SelectedComponents))
+		for component := range op.SelectedComponents {
+			components = append(components, "'"+component+"'")
+		}
+		whereStatement += strings.Join(components, ", ") + ")"
+	}
+	if whereStatement != "" {
+		whereStatement = fmt.Sprintf("WHERE %s", whereStatement)
+	}
+
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
-WHERE %s >= ?
-ORDER BY %s ASC;`,
+`,
 		ColumnUnixMilliseconds,
 		ColumnComponentName,
 		ColumnMetricName,
 		ColumnMetricLabel,
 		ColumnMetricValue,
 		table,
-		ColumnUnixMilliseconds,
-		ColumnUnixMilliseconds,
 	)
+	if whereStatement != "" {
+		query += whereStatement + "\n"
+	}
+	query += orderByStatement
 
 	start := time.Now()
 	defer func() {
 		pkgsqlite.RecordSelect(time.Since(start).Seconds())
 	}()
 
-	queryRows, err := dbRO.QueryContext(ctx, query, since.UnixMilli())
+	queryRows, err := dbRO.QueryContext(ctx, query, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

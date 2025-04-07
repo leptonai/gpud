@@ -118,12 +118,6 @@ func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]component
 	return ret, nil
 }
 
-func (c *XIDComponent) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
 func (c *XIDComponent) Close() error {
 	log.Logger.Debugw("closing XIDComponent")
 	// safe to call stop multiple times

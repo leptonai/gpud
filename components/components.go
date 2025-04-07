@@ -47,9 +47,6 @@ type Component interface {
 	// Returns all the events from "since".
 	Events(ctx context.Context, since time.Time) ([]Event, error)
 
-	// Returns all the metrics from the component.
-	Metrics(ctx context.Context, since time.Time) ([]Metric, error)
-
 	// Called upon server close.
 	// Implements copmonent-specific poller cleanup logic.
 	Close() error

@@ -277,10 +277,3 @@ func (d *Data) getStates() ([]components.State, error) {
 	}
 	return []components.State{state}, nil
 }
-
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}

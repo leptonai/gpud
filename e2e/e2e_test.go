@@ -91,10 +91,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Sprintf("--listen-address=%s", ep),
 		}
 
-		if os.Getenv("ENABLE_EXPERIMENTAL_FEATURES") == "true" {
-			args = append(args, "--experimental-global-metrics-store")
-		}
-
 		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

@@ -73,17 +73,6 @@ func TestComponentEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
-func TestComponentMetrics(t *testing.T) {
-	t.Parallel()
-
-	component := New(map[string]string{}, nil, prometheus.DefaultGatherer)
-	ctx := context.Background()
-
-	metrics, err := component.Metrics(ctx, time.Now().Add(-1*time.Hour))
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
-}
-
 func TestComponentWithDB(t *testing.T) {
 	t.Parallel()
 

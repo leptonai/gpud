@@ -54,12 +54,6 @@ func (c *component) Close() error {
 	return nil
 }
 
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
-}
-
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {

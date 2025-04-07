@@ -77,6 +77,7 @@ import (
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
@@ -596,7 +597,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	go s.updateToken(ctx, dbRW, uid, endpoint)
+	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
 
 	go func(nvmlInstance nvidia_query_nvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
@@ -717,7 +718,7 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string) {
+func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string, metricsStore pkgmetrics.Store) {
 	var userToken string
 	pipePath := s.fifoPath
 	if dbToken, err := gpud_state.GetLoginInfo(ctx, db, uid); err == nil {
@@ -733,6 +734,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			session.WithMetricsStore(metricsStore),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -778,6 +780,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+				session.WithMetricsStore(metricsStore),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)

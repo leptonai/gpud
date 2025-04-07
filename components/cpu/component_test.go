@@ -461,21 +461,6 @@ func TestComponentClose(t *testing.T) {
 	}
 }
 
-func TestComponentMetrics(t *testing.T) {
-	// Setup
-	c := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-	}
-
-	// Test metrics method
-	metrics, err := c.Metrics(context.Background(), time.Now().Add(-time.Hour))
-
-	// Verify
-	assert.NoError(t, err)
-	assert.Nil(t, metrics) // Current implementation returns nil
-}
-
 func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 	// Setup mocks
 	mockEventBucket := new(MockEventBucket)

@@ -1,14 +1,11 @@
 package disk
 
 import (
-	"context"
 	"database/sql"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -89,11 +86,4 @@ func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, d
 		return err
 	}
 	return nil
-}
-
-// component level metrics method WILL BE DEPRECATED in favor of global metrics handler
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
 }

@@ -44,11 +44,6 @@ func TestComponentBasics(t *testing.T) {
 	events, err := c.Events(ctx, time.Now())
 	assert.NoError(t, err)
 	assert.Empty(t, events)
-
-	// Test Metrics method
-	metrics, err := c.Metrics(ctx, time.Now())
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
 }
 
 func TestParseUnixEndpoint(t *testing.T) {
@@ -271,14 +266,6 @@ func TestComponentWithDifferentContexts(t *testing.T) {
 	states, err := comp.States(ctx)
 	assert.NoError(t, err) // Should still work as it uses stored data
 	assert.NotNil(t, states)
-
-	// Test with timeout context
-	timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer timeoutCancel()
-
-	metrics, err := comp.Metrics(timeoutCtx, time.Now())
-	assert.NoError(t, err)
-	assert.Empty(t, metrics)
 }
 
 // Test marshalJSON function with different scenarios

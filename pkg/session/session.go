@@ -12,6 +12,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 type Op struct {
@@ -19,6 +20,7 @@ type Op struct {
 	pipeInterval       time.Duration
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+	metricsStore       pkgmetrics.Store
 }
 
 type OpOption func(*Op)
@@ -57,6 +59,12 @@ func WithEnableAutoUpdate(enableAutoUpdate bool) OpOption {
 	}
 }
 
+func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
+	return func(op *Op) {
+		op.metricsStore = metricsStore
+	}
+}
+
 // Triggers an auto update of GPUd itself by exiting the process with the given exit code.
 // Useful when the machine is managed by the Kubernetes daemonset and we want to
 // trigger an auto update when the daemonset restarts the machine.
@@ -74,6 +82,8 @@ type Session struct {
 
 	machineID string
 	endpoint  string
+
+	metricsStore pkgmetrics.Store
 
 	components []string
 
@@ -126,6 +136,8 @@ func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Sessio
 
 		endpoint:  endpoint,
 		machineID: op.machineID,
+
+		metricsStore: op.metricsStore,
 
 		components: cps,
 

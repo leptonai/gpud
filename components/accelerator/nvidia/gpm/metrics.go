@@ -2,9 +2,7 @@
 package gpm
 
 import (
-	"context"
 	"database/sql"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/prometheus/client_golang/prometheus"
@@ -199,11 +197,4 @@ func (c *component) RegisterCollectors(reg *prometheus.Registry, dbRW *sql.DB, d
 	}
 
 	return nil
-}
-
-// TO BE DEPRECATED
-func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
-	log.Logger.Debugw("querying metrics", "since", since)
-
-	return nil, nil
 }

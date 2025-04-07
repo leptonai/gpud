@@ -153,18 +153,6 @@ func TestComponent_Events(t *testing.T) {
 	assert.Nil(t, events)
 }
 
-func TestComponent_Metrics(t *testing.T) {
-	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
-
-	c := New(ctx, mockInstance)
-
-	metrics, err := c.Metrics(context.Background(), time.Now())
-
-	assert.NoError(t, err)
-	assert.Nil(t, metrics)
-}
-
 func TestCheckOnce_Success(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
