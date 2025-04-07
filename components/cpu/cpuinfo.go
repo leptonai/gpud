@@ -6,7 +6,6 @@ import (
 	"math"
 	"runtime"
 	"sync"
-	"time"
 
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -67,31 +66,18 @@ func getUsedPercentForAllCPUs(ctx context.Context) (float64, error) {
 
 // calculateCPUUsage calculates the CPU usage percentage and updates the data structure
 func calculateCPUUsage(
-	ctx context.Context,
 	prevStat *cpu.TimesStat,
-	getTimeStat func(ctx context.Context) (cpu.TimesStat, error),
-	getUsedPct func(ctx context.Context) (float64, error),
-) (cpu.TimesStat, float64, error) {
-	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
-	curStat, err := getTimeStat(cctx)
-	ccancel()
-	if err != nil {
-		return cpu.TimesStat{}, 0.0, err
-	}
-
+	curStat cpu.TimesStat,
+	usedPct float64,
+) float64 {
 	usedPercent := float64(0.0)
 	if prevStat == nil {
-		cctx, ccancel = context.WithTimeout(ctx, 5*time.Second)
-		usedPercent, err = getUsedPct(cctx)
-		ccancel()
-		if err != nil {
-			return cpu.TimesStat{}, 0, err
-		}
+		usedPercent = usedPct
 	} else {
 		usedPercent = calculateBusy(*prevStat, curStat)
 	}
 
-	return curStat, usedPercent, nil
+	return usedPercent
 }
 
 // copied from https://pkg.go.dev/github.com/shirou/gopsutil/v4/cpu#PercentWithContext

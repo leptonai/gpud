@@ -128,6 +128,12 @@ func (c *component) Close() error {
 	return nil
 }
 
+var (
+	oneMinute  = time.Minute.String()
+	fiveMinute = (5 * time.Minute).String()
+	fifteenMin = (15 * time.Minute).String()
+)
+
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
@@ -143,11 +149,30 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	curStat, usedPct, err := calculateCPUUsage(
-		c.ctx,
+	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
+	curStat, err := c.getTimeStatFunc(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return
+	}
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
+	usedPct, err := c.getUsedPctFunc(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return
+	}
+
+	usedPct = calculateCPUUsage(
 		c.getPrevTimeStatFunc(),
-		c.getTimeStatFunc,
-		c.getUsedPctFunc,
+		curStat,
+		usedPct,
 	)
 	if err != nil {
 		d.err = err
@@ -162,7 +187,7 @@ func (c *component) CheckOnce() {
 	d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 	usedPercent.With(prometheus.Labels{}).Set(usedPct)
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
+	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	loadAvg, err := c.getLoadAvgStatFunc(cctx)
 	ccancel()
 	if err != nil {
@@ -183,12 +208,6 @@ func (c *component) CheckOnce() {
 	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
 		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
 }
-
-var (
-	oneMinute  = time.Minute.String()
-	fiveMinute = (5 * time.Minute).String()
-	fifteenMin = (15 * time.Minute).String()
-)
 
 type Data struct {
 	Info  Info  `json:"info"`
