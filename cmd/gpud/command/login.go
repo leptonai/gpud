@@ -82,7 +82,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		if err != nil {
 			hostname = "UnknownName"
 		}
-		if err := login.Login(hostname, token, fmt.Sprintf("https://%s/api/v1/login", endpoint), components, uid); err != nil {
+		if err := login.Login(hostname, token, endpoint, components, uid); err != nil {
 			return err
 		}
 	} else {

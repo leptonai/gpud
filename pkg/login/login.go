@@ -14,8 +14,13 @@ import (
 )
 
 // Login calls PublicIP and then delegates to the login function
-func Login(name string, token string, url string, components string, uid string) error {
+func Login(name string, token string, endpoint string, components string, uid string) error {
+	url := createLoginURL(endpoint)
 	return login(name, token, url, components, uid, netutil.PublicIP)
+}
+
+func createLoginURL(endpoint string) string {
+	return fmt.Sprintf("https://%s/api/v1/login", endpoint)
 }
 
 type LoginRequest struct {

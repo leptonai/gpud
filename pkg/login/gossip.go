@@ -26,7 +26,16 @@ type GossipErrorResponse struct {
 	Status string `json:"status"`
 }
 
-func Gossip(endpoint string, uid string, url string, components []string) error {
+func createGossipURL(endpoint string) string {
+	return fmt.Sprintf("https://%s/api/v1/gossip", endpoint)
+}
+
+func Gossip(uid string, endpoint string, components []string) error {
+	url := createGossipURL(endpoint)
+	return gossip(uid, url, components)
+}
+
+func gossip(uid string, url string, components []string) error {
 	if os.Getenv("GPUD_NO_USAGE_STATS") == "true" {
 		log.Logger.Debug("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
 		return nil

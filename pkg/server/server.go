@@ -630,7 +630,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames
 	ghler.componentNamesMu.RUnlock()
-	if err = login.Gossip(fmt.Sprintf("https://%s/api/v1/gossip", endpoint), uid, config.Address, currComponents); err != nil {
+	if err = login.Gossip(uid, endpoint, currComponents); err != nil {
 		log.Logger.Debugf("failed to gossip: %v", err)
 	}
 	return s, nil

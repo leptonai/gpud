@@ -15,11 +15,10 @@ import (
 func TestGossip(t *testing.T) {
 	mockUID := "test-uid"
 	mockComponents := []string{"compA", "compB"}
-	mockEndpoint := ""
 
 	t.Run("Gossip skipped due to env var", func(t *testing.T) {
 		t.Setenv("GPUD_NO_USAGE_STATS", "true")
-		err := Gossip(mockEndpoint, mockUID, "dummy-url", mockComponents)
+		err := gossip(mockUID, "dummy-url", mockComponents)
 		assert.NoError(t, err)
 	})
 
@@ -42,7 +41,7 @@ func TestGossip(t *testing.T) {
 		}))
 		defer server.Close()
 
-		err := Gossip(mockEndpoint, mockUID, server.URL, mockComponents)
+		err := gossip(mockUID, server.URL, mockComponents)
 		assert.NoError(t, err)
 	})
 
@@ -50,7 +49,7 @@ func TestGossip(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 		server.Close() // Close server immediately
 
-		err := Gossip(mockEndpoint, mockUID, server.URL, mockComponents)
+		err := gossip(mockUID, server.URL, mockComponents)
 		assert.Error(t, err)
 	})
 
@@ -70,7 +69,7 @@ func TestGossip(t *testing.T) {
 		// Note: The current Gossip implementation doesn't return an error on non-200 status
 		// unless parsing the error response fails. It logs the error but returns nil.
 		// This test verifies that behavior.
-		err := Gossip(mockEndpoint, mockUID, server.URL, mockComponents)
+		err := gossip(mockUID, server.URL, mockComponents)
 		assert.NoError(t, err) // Expecting nil error despite non-200 status
 	})
 
@@ -82,7 +81,7 @@ func TestGossip(t *testing.T) {
 		}))
 		defer server.Close()
 
-		err := Gossip(mockEndpoint, mockUID, server.URL, mockComponents)
+		err := gossip(mockUID, server.URL, mockComponents)
 		assert.Error(t, err) // Expecting error because error response parsing fails
 		assert.Contains(t, err.Error(), "Error parsing error response")
 		assert.Contains(t, err.Error(), "Response body: invalid json")
