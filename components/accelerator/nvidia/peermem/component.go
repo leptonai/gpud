@@ -4,130 +4,179 @@ package peermem
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	"github.com/leptonai/gpud/pkg/query"
+	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 )
 
-const (
-	Name = "accelerator-nvidia-peermem"
-)
+const Name = "accelerator-nvidia-peermem"
 
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx     context.Context
-	cancel      context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
-	poller      query.Poller
+
+	lastMu   sync.RWMutex
+	lastData *Data
 }
 
-func New(ctx context.Context, cfg configcommon.Config, eventStore eventstore.Store) (components.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
 	}
 
-	cctx, ccancel := context.WithCancel(ctx)
-	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
+	kmsgSyncer, err := kmsg.NewSyncer(ctx, Match, eventBucket)
 	if err != nil {
-		ccancel()
 		return nil, err
 	}
 
-	// TODO: deprecate shared poller in favor of its own "lsmod" poller for peermem
-	if nvidia_query.GetDefaultPoller() == nil {
-		ccancel()
-		return nil, nvidia_query.ErrDefaultPollerNotSet
-	}
-
-	cfg.Query.SetDefaultsIfNotSet()
-	nvidia_query.GetDefaultPoller().Start(cctx, cfg.Query, Name)
-
+	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
-		rootCtx:     ctx,
+		ctx:         cctx,
 		cancel:      ccancel,
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: eventBucket,
-		poller:      nvidia_query.GetDefaultPoller(),
 	}, nil
 }
 
 func (c *component) Name() string { return Name }
 
-func (c *component) Start() error { return nil }
+func (c *component) Start() error {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.CheckOnce()
+
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return nil
+}
 
 func (c *component) States(ctx context.Context) ([]components.State, error) {
-	last, err := c.poller.LastSuccess()
-	if err == query.ErrNoData { // no data
-		log.Logger.Debugw("nothing found in last state (no data collected yet)", "component", Name)
-		return []components.State{
-			{
-				Name:    Name,
-				Healthy: true,
-				Error:   query.ErrNoData.Error(),
-				Reason:  query.ErrNoData.Error(),
-			},
-		}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	allOutput, ok := last.Output.(*nvidia_query.Output)
-	if !ok {
-		return nil, fmt.Errorf("invalid output type: %T", last.Output)
-	}
-	if lerr := c.poller.LastError(); lerr != nil {
-		log.Logger.Warnw("last query failed -- returning cached, possibly stale data", "error", lerr)
-	}
-	lastSuccessPollElapsed := time.Now().UTC().Sub(allOutput.Time)
-	if lastSuccessPollElapsed > 2*c.poller.Config().Interval.Duration {
-		log.Logger.Warnw("last poll is too old", "elapsed", lastSuccessPollElapsed, "interval", c.poller.Config().Interval.Duration)
-	}
-
-	if len(allOutput.LsmodPeermemErrors) > 0 {
-		cs := make([]components.State, 0)
-		for _, e := range allOutput.LsmodPeermemErrors {
-			cs = append(cs, components.State{
-				Name:    Name,
-				Healthy: false,
-				Error:   e,
-				Reason:  "lsmod peermem query failed with " + e,
-			})
-		}
-		return cs, nil
-	}
-	output := ToOutput(allOutput)
-	return output.States()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return c.eventBucket.Get(ctx, since)
 }
 
+func (c *component) Close() error {
+	log.Logger.Debugw("closing component")
+	c.kmsgSyncer.Close()
+	c.eventBucket.Close()
+	return nil
+}
+
+// CheckOnce checks the current pods
+// run this periodically
+func (c *component) CheckOnce() {
+	log.Logger.Infow("checking peermem")
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}()
+
+	var err error
+	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+	d.PeerMemModuleOutput, err = querypeermem.CheckLsmodPeermemModule(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error checking peermem: %s", err)
+		return
+	}
+
+	d.healthy = true
+	if d.PeerMemModuleOutput != nil && d.PeerMemModuleOutput.IbcoreUsingPeermemModule {
+		d.reason = "ibcore successfully loaded peermem module"
+	} else {
+		d.reason = "ibcore is not using peermem module"
+	}
+}
+
+type Data struct {
+	PeerMemModuleOutput *querypeermem.LsmodPeermemModuleOutput `json:"peer_mem_module_output,omitempty"`
+
+	// timestamp of the last check
+	ts time.Time
+	// error from the last check
+	err error
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
+}
+
+func (d *Data) getError() string {
+	if d == nil || d.err == nil {
+		return ""
+	}
+	return d.err.Error()
+}
+
+func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
+	state := components.State{
+		Name:   Name,
+		Reason: d.reason,
+		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
+	return []components.State{state}, nil
+}
+
+// TO BE DEPRECATED
 func (c *component) Metrics(ctx context.Context, since time.Time) ([]components.Metric, error) {
 	log.Logger.Debugw("querying metrics", "since", since)
 
 	return nil, nil
-}
-
-func (c *component) Close() error {
-	log.Logger.Debugw("closing component")
-	c.cancel()
-
-	// safe to call stop multiple times
-	_ = c.poller.Stop(Name)
-
-	c.kmsgSyncer.Close()
-	c.eventBucket.Close()
-	return nil
 }

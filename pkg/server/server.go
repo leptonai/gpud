@@ -15,7 +15,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/pprof"
-	goOS "os"
+	stdos "os"
 	"path"
 	"runtime"
 	"strings"
@@ -51,7 +51,6 @@ import (
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
-	nvidia_component_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
@@ -70,7 +69,6 @@ import (
 	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
@@ -84,7 +82,6 @@ import (
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	query_config "github.com/leptonai/gpud/pkg/query/config"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -94,13 +91,12 @@ type Server struct {
 	dbRW *sql.DB
 	dbRO *sql.DB
 
-	nvidiaComponentsExist bool
-	uid                   string
-	fifoPath              string
-	fifo                  *goOS.File
-	session               *session.Session
-	enableAutoUpdate      bool
-	autoUpdateExitCode    int
+	uid                string
+	fifoPath           string
+	fifo               *stdos.File
+	session            *session.Session
+	enableAutoUpdate   bool
+	autoUpdateExitCode int
 }
 
 func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpud_manager.Manager) (_ *Server, retErr error) {
@@ -167,32 +163,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
-	var xidEventBucket eventstore.Bucket
-	var hwSlowdownEventBucket eventstore.Bucket
-	var remappedRowsEventBucket eventstore.Bucket
 	if runtime.GOOS == "linux" && nvidiaInstalled {
 		nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 		}
-
-		xidEventBucket, err = eventStore.Bucket(nvidia_component_xid.Name)
-		if err != nil {
-			return nil, err
-		}
-		hwSlowdownEventBucket, err = eventStore.Bucket(nvidia_hw_slowdown.Name)
-		if err != nil {
-			return nil, err
-		}
-		remappedRowsEventBucket, err = eventStore.Bucket(nvidia_remapped_rows.Name)
-		if err != nil {
-			return nil, err
-		}
-		nvidia_query.SetDefaultPoller(
-			nvidia_query.WithXidEventBucket(xidEventBucket),
-			nvidia_query.WithHWSlowdownEventBucket(hwSlowdownEventBucket),
-			nvidia_query.WithIbstatCommand(config.NvidiaToolOverwrites.IbstatCommand),
-		)
 	}
 
 	if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
@@ -231,13 +206,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			}
 		}
 	}()
-
-	defaultQueryCfg := query_config.Config{
-		State: &query_config.State{
-			DBRW: dbRW,
-			DBRO: dbRO,
-		},
-	}
 
 	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os.Name]; !ok {
@@ -331,7 +299,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_sxid.New(ctx, rebootEventStore, eventStore))
 
 		case nvidia_hw_slowdown.Name:
-			allComponents = append(allComponents, nvidia_hw_slowdown.New(ctx, nvmlInstanceV2, hwSlowdownEventBucket))
+			c, err := nvidia_hw_slowdown.New(ctx, nvmlInstanceV2, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case nvidia_clock_speed.Name:
 			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, nvmlInstanceV2))
@@ -361,11 +333,11 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_processes.New(ctx, nvmlInstanceV2))
 
 		case nvidia_remapped_rows.Name:
-			allComponents = append(allComponents, nvidia_remapped_rows.New(
-				ctx,
-				nvmlInstanceV2,
-				remappedRowsEventBucket,
-			))
+			c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, eventStore)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case nvidia_fabric_manager_id.Name:
 			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
@@ -385,18 +357,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case nvidia_peermem.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
-			c, err := nvidia_peermem.New(ctx, cfg, eventStore)
+			c, err := nvidia_peermem.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
 			}
@@ -406,17 +367,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, nvidia_persistence_mode.New(ctx, nvmlInstanceV2))
 
 		case nvidia_nccl.Name:
-			cfg := nvidia_common.Config{Query: defaultQueryCfg, ToolOverwrites: config.NvidiaToolOverwrites}
-			if configValue != nil {
-				parsed, err := nvidia_common.ParseConfig(configValue, dbRW, dbRO)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				cfg = *parsed
-			}
-			if err := cfg.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate component %s config: %w", k, err)
-			}
 			c, err := nvidia_nccl.New(ctx, eventStore)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
@@ -533,9 +483,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	for _, c := range allComponents {
 		componentSet[c.Name()] = struct{}{}
 		componentNames = append(componentNames, c.Name())
-		if strings.Contains(c.Name(), "nvidia") {
-			s.nvidiaComponentsExist = true
-		}
 
 		// this guarantees no name conflict, thus safe to register handlers by its name
 		if err := components.RegisterComponent(c.Name(), c); err != nil {
@@ -561,20 +508,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if err = c.Start(); err != nil {
 			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
-		}
-	}
-
-	// to not start healthz until the initial gpu data is ready
-	if s.nvidiaComponentsExist {
-		// no need to wait for "nvidia_query_nvml.DefaultInstanceReady()"
-		// as "nvidia_query.GetSuccessOnce()" already waits for it
-
-		log.Logger.Infow("waiting for first nvidia query to succeed")
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-nvidia_query.GetSuccessOnce():
-			log.Logger.Debugw("first nvidia query succeeded")
 		}
 	}
 
@@ -730,19 +663,13 @@ func (s *Server) Stop() {
 		log.Logger.Debugw("successfully closed read-only db")
 	}
 
-	if s.nvidiaComponentsExist {
-		serr := nvidia_query_nvml.DefaultInstance().Shutdown()
-		if serr != nil {
-			log.Logger.Warnw("failed to shutdown NVML", "error", serr)
-		}
-	}
 	if s.fifo != nil {
 		if err := s.fifo.Close(); err != nil {
 			log.Logger.Errorf("failed to close fifo: %v", err)
 		}
 	}
 	if s.fifoPath != "" {
-		if err := goOS.Remove(s.fifoPath); err != nil {
+		if err := stdos.Remove(s.fifoPath); err != nil {
 			log.Logger.Errorf("failed to remove fifo: %s", err)
 		}
 	}
@@ -812,12 +739,12 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		}
 	}
 
-	if _, err := goOS.Stat(pipePath); err == nil {
-		if err = goOS.Remove(pipePath); err != nil {
+	if _, err := stdos.Stat(pipePath); err == nil {
+		if err = stdos.Remove(pipePath); err != nil {
 			log.Logger.Errorf("error creating pipe: %v", err)
 			return
 		}
-	} else if !goOS.IsNotExist(err) {
+	} else if !stdos.IsNotExist(err) {
 		log.Logger.Errorf("error stat pipe: %v", err)
 		return
 	}
@@ -827,7 +754,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		return
 	}
 	for {
-		pipe, err := goOS.OpenFile(pipePath, goOS.O_RDONLY, goOS.ModeNamedPipe)
+		pipe, err := stdos.OpenFile(pipePath, stdos.O_RDONLY, stdos.ModeNamedPipe)
 		if err != nil {
 			log.Logger.Errorf("error opening named pipe: %v", err)
 			return
@@ -862,10 +789,10 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 }
 
 func WriteToken(token string, fifoFile string) error {
-	var f *goOS.File
+	var f *stdos.File
 	var err error
 	for i := 0; i < 30; i++ {
-		if _, err = goOS.Stat(fifoFile); goOS.IsNotExist(err) {
+		if _, err = stdos.Stat(fifoFile); stdos.IsNotExist(err) {
 			time.Sleep(1 * time.Second)
 			continue
 		} else if err != nil {
@@ -876,7 +803,7 @@ func WriteToken(token string, fifoFile string) error {
 		return fmt.Errorf("server not ready")
 	}
 
-	if f, err = goOS.OpenFile(fifoFile, goOS.O_WRONLY, 0600); err != nil {
+	if f, err = stdos.OpenFile(fifoFile, stdos.O_WRONLY, 0600); err != nil {
 		return fmt.Errorf("failed to open fifo file: %w", err)
 	}
 	defer func() {

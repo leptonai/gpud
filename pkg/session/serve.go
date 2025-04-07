@@ -22,7 +22,6 @@ import (
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	"github.com/leptonai/gpud/pkg/query"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
 )
@@ -367,17 +366,12 @@ func (s *Session) getEventsFromComponent(ctx context.Context, componentName stri
 	log.Logger.Debugw("getting events", "component", componentName)
 	event, err := component.Events(ctx, startTime)
 	if err != nil {
-		if errors.Is(err, query.ErrNoData) {
-			log.Logger.Debugw("no event found", "component", componentName)
-			return currEvent
-		}
-
 		log.Logger.Errorw("failed to invoke component events",
 			"operation", "GetEvents",
 			"component", componentName,
 			"error", err,
 		)
-	} else {
+	} else if len(event) > 0 {
 		log.Logger.Debugw("successfully got events", "component", componentName)
 		currEvent.Events = event
 	}
