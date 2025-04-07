@@ -476,7 +476,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	for i := range allComponents {
 		metrics.SetRegistered(allComponents[i].Name())
-		allComponents[i] = metrics.NewWatchableComponent(allComponents[i])
 	}
 
 	var componentNames []string

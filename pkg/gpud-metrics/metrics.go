@@ -2,11 +2,7 @@
 package gpudmetrics
 
 import (
-	"context"
-
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/leptonai/gpud/components"
 )
 
 var (
@@ -115,40 +111,4 @@ func ReadUnhealthyTotal(gatherer prometheus.Gatherer) (int64, error) {
 		}
 	}
 	return total, nil
-}
-
-func NewWatchableComponent(c components.Component) components.WatchableComponent {
-	return &WatchableComponentStruct{
-		Component: c,
-	}
-}
-
-func (w *WatchableComponentStruct) Unwrap() interface{} {
-	return w.Component
-}
-
-type WatchableComponentStruct struct {
-	components.Component
-}
-
-func (w *WatchableComponentStruct) States(ctx context.Context) ([]components.State, error) {
-	states, err := w.Component.States(ctx)
-	if err != nil {
-		SetUnhealthy(w.Component.Name())
-		return nil, err
-	}
-
-	healthy := true
-	for _, state := range states {
-		if !state.Healthy {
-			healthy = false
-			break
-		}
-	}
-	if healthy {
-		SetHealthy(w.Component.Name())
-	} else {
-		SetUnhealthy(w.Component.Name())
-	}
-	return states, nil
 }

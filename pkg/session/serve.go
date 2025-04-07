@@ -19,7 +19,6 @@ import (
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -106,39 +105,31 @@ func (s *Session) serve() {
 			for _, componentName := range payload.Components {
 				switch componentName {
 				case nvidia_xid.Name:
-					rawComponent, err := components.GetComponent(nvidia_xid.Name)
+					comp, err := components.GetComponent(nvidia_xid.Name)
 					if err != nil {
 						log.Logger.Errorw("failed to get component", "error", err)
 						continue
 					}
-					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
-						if component, ok := watchable.Component.(*xid.XIDComponent); ok {
-							if err = component.SetHealthy(); err != nil {
-								log.Logger.Errorw("failed to set xid healthy", "error", err)
-							}
-						} else {
-							log.Logger.Errorf("failed to cast component to xid component: %T", watchable)
+					if xidComp, ok := comp.(*xid.XIDComponent); ok {
+						if err = xidComp.SetHealthy(); err != nil {
+							log.Logger.Errorw("failed to set xid healthy", "error", err)
 						}
 					} else {
-						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+						log.Logger.Errorf("failed to cast component to xid component: %T", comp)
 					}
 
 				case nvidia_sxid.Name:
-					rawComponent, err := components.GetComponent(nvidia_sxid.Name)
+					comp, err := components.GetComponent(nvidia_sxid.Name)
 					if err != nil {
 						log.Logger.Errorw("failed to get component", "error", err)
 						continue
 					}
-					if watchable, ok := rawComponent.(*metrics.WatchableComponentStruct); ok {
-						if component, ok := watchable.Component.(*sxid.SXIDComponent); ok {
-							if err = component.SetHealthy(); err != nil {
-								log.Logger.Errorw("failed to set sxid healthy", "error", err)
-							}
-						} else {
-							log.Logger.Errorf("failed to cast component to sxid component: %T", watchable)
+					if sxidComp, ok := comp.(*sxid.SXIDComponent); ok {
+						if err = sxidComp.SetHealthy(); err != nil {
+							log.Logger.Errorw("failed to set sxid healthy", "error", err)
 						}
 					} else {
-						log.Logger.Errorf("failed to cast component to watchable component: %T", rawComponent)
+						log.Logger.Errorf("failed to cast component to sxid component: %T", comp)
 					}
 
 				default:
