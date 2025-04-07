@@ -1,107 +1,89 @@
 package login
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/leptonai/gpud/version"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// Test version of Gossip function that uses HTTP instead of HTTPS for testing
-func testGossip(endpoint string, uid string, address string, components []string) error {
-	content := gossipPayload{
-		Name:          uid,
-		ID:            uid,
-		Provider:      "personal",
-		DaemonVersion: version.Version,
-		Components:    strings.Join(components, ","),
-	}
-	rawPayload, _ := json.Marshal(&content)
-	// Use HTTP instead of HTTPS for the test
-	response, err := http.Post(fmt.Sprintf("http://%s/api/v1/gossip", endpoint), "application/json", bytes.NewBuffer(rawPayload))
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("error reading response body: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		var errorResponse gossipRespErr
-		err = json.Unmarshal(body, &errorResponse)
-		if err != nil {
-			return fmt.Errorf("Error parsing error response: %v\nResponse body: %s", err, body)
-		}
-	}
-	return nil
-}
+func TestGossip(t *testing.T) {
+	mockUID := "test-uid"
+	mockComponents := []string{"compA", "compB"}
 
-func TestGossip_Success(t *testing.T) {
-	// Setup mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify request
-		assert.Equal(t, "/api/v1/gossip", r.URL.Path)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-
-		// Parse the request body
-		var reqBody map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&reqBody)
+	t.Run("Gossip skipped due to env var", func(t *testing.T) {
+		t.Setenv("GPUD_NO_USAGE_STATS", "true")
+		err := gossip(mockUID, "dummy-url", mockComponents)
 		assert.NoError(t, err)
+	})
 
-		// Verify request payload
-		assert.Equal(t, "test-uid", reqBody["name"])
-		assert.Equal(t, "test-uid", reqBody["id"])
-		assert.Equal(t, "personal", reqBody["provider"])
-		assert.Equal(t, version.Version, reqBody["daemon_version"])
-		assert.Equal(t, "gpu,cpu", reqBody["components"])
+	t.Run("Successful gossip", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		// Return success response
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status": "success"}`))
-	}))
-	defer server.Close()
+			var req GossipRequest
+			err := json.NewDecoder(r.Body).Decode(&req)
+			require.NoError(t, err)
 
-	// Get the server URL
-	serverURL := server.URL[7:] // Remove "http://" prefix
+			assert.Equal(t, mockUID, req.Name)
+			assert.Equal(t, mockUID, req.ID)
+			assert.Equal(t, "personal", req.Provider)
+			assert.Equal(t, version.Version, req.DaemonVersion)
+			assert.Equal(t, strings.Join(mockComponents, ","), req.Components)
 
-	// Call our test Gossip function that uses HTTP instead of HTTPS
-	err := testGossip(serverURL, "test-uid", "test-address", []string{"gpu", "cpu"})
-	assert.NoError(t, err)
-}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
 
-func TestGossip_NoUsageStats(t *testing.T) {
-	// Set environment variable to disable usage stats
-	os.Setenv("GPUD_NO_USAGE_STATS", "true")
-	defer os.Unsetenv("GPUD_NO_USAGE_STATS")
+		err := gossip(mockUID, server.URL, mockComponents)
+		assert.NoError(t, err)
+	})
 
-	// Call the Gossip function - should skip and return nil
-	err := Gossip("example.com", "test-uid", "test-address", []string{"gpu", "cpu"})
-	assert.NoError(t, err)
-}
+	t.Run("HTTP request failed (server down)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		server.Close() // Close server immediately
 
-func TestGossip_ServerError(t *testing.T) {
-	// Setup mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Return a server error
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"status": "server error", "error": "internal error"}`))
-	}))
-	defer server.Close()
+		err := gossip(mockUID, server.URL, mockComponents)
+		assert.Error(t, err)
+	})
 
-	// Get the server URL
-	serverURL := server.URL[7:] // Remove "http://" prefix
+	t.Run("HTTP non-OK status", func(t *testing.T) {
+		errorResp := GossipErrorResponse{
+			Error:  "gossip rejected",
+			Status: "failed",
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			err := json.NewEncoder(w).Encode(errorResp)
+			require.NoError(t, err)
+		}))
+		defer server.Close()
 
-	// Call our test Gossip function that uses HTTP instead of HTTPS
-	err := testGossip(serverURL, "test-uid", "test-address", []string{"gpu", "cpu"})
-	assert.NoError(t, err) // Gossip doesn't return an error for non-OK status
+		// Note: The current Gossip implementation doesn't return an error on non-200 status
+		// unless parsing the error response fails. It logs the error but returns nil.
+		// This test verifies that behavior.
+		err := gossip(mockUID, server.URL, mockComponents)
+		assert.NoError(t, err) // Expecting nil error despite non-200 status
+	})
+
+	t.Run("HTTP non-OK status (bad error response body)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte("invalid json"))
+			require.NoError(t, err)
+		}))
+		defer server.Close()
+
+		err := gossip(mockUID, server.URL, mockComponents)
+		assert.Error(t, err) // Expecting error because error response parsing fails
+		assert.Contains(t, err.Error(), "Error parsing error response")
+		assert.Contains(t, err.Error(), "Response body: invalid json")
+	})
 }
