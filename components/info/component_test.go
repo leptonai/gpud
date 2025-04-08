@@ -94,50 +94,71 @@ func TestComponentWithDB(t *testing.T) {
 	assert.NotNil(t, data)
 }
 
-func TestDataGetHealth(t *testing.T) {
+func TestDataGetStatesForHealth(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
 	var nilData *Data
-	health, healthy := nilData.getHealth()
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
+	states, err := nilData.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
 
 	// Test with error
-	data := &Data{err: assert.AnError}
-	health, healthy = data.getHealth()
-	assert.Equal(t, components.StateUnhealthy, health)
-	assert.False(t, healthy)
+	data := &Data{
+		err:     assert.AnError,
+		healthy: false,
+	}
+	states, err = data.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 
 	// Test without error
-	data = &Data{}
-	health, healthy = data.getHealth()
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
+	data = &Data{
+		healthy: true,
+	}
+	states, err = data.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
 }
 
-func TestDataGetReason(t *testing.T) {
+func TestDataGetStatesForReason(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
 	var nilData *Data
-	reason := nilData.getReason()
-	assert.Equal(t, "no info data", reason)
+	states, err := nilData.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with error
-	data := &Data{err: assert.AnError}
-	reason = data.getReason()
-	assert.Contains(t, reason, "failed to get info data")
+	data := &Data{
+		err:    assert.AnError,
+		reason: "failed to get info data",
+	}
+	states, err = data.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "failed to get info data", states[0].Reason)
 
 	// Test without error
 	data = &Data{
 		MacAddress:  "00:11:22:33:44:55",
 		Annotations: map[string]string{"test": "value"},
+		reason:      "daemon version: test, mac address: 00:11:22:33:44:55",
 	}
-	reason = data.getReason()
-	assert.Contains(t, reason, "daemon version")
-	assert.Contains(t, reason, "mac address: 00:11:22:33:44:55")
-	assert.Contains(t, reason, "annotations")
+	states, err = data.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Contains(t, states[0].Reason, "daemon version")
+	assert.Contains(t, states[0].Reason, "mac address: 00:11:22:33:44:55")
 }
 
 func TestDataGetStatesNil(t *testing.T) {
@@ -151,4 +172,52 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
+}
+
+func TestDataGetError(t *testing.T) {
+	t.Parallel()
+
+	// Test with nil Data
+	var nilData *Data
+	errStr := nilData.getError()
+	assert.Equal(t, "", errStr)
+
+	// Test with error
+	data := &Data{err: assert.AnError}
+	errStr = data.getError()
+	assert.Equal(t, assert.AnError.Error(), errStr)
+
+	// Test without error
+	data = &Data{}
+	errStr = data.getError()
+	assert.Equal(t, "", errStr)
+}
+
+func TestDataGetStatesWithExtraInfo(t *testing.T) {
+	t.Parallel()
+
+	// Test with basic data
+	data := &Data{
+		DaemonVersion: "test-version",
+		MacAddress:    "00:11:22:33:44:55",
+		Annotations:   map[string]string{"key": "value"},
+		healthy:       true,
+		reason:        "test reason",
+	}
+
+	states, err := data.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+
+	// Check extraInfo contains JSON data
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.Contains(t, states[0].ExtraInfo, "encoding")
+	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+
+	// Verify the JSON data contains our fields
+	jsonData := states[0].ExtraInfo["data"]
+	assert.Contains(t, jsonData, "test-version")
+	assert.Contains(t, jsonData, "00:11:22:33:44:55")
+	assert.Contains(t, jsonData, "key")
+	assert.Contains(t, jsonData, "value")
 }

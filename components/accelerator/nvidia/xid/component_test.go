@@ -125,13 +125,13 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
-	component := New(ctx, rebootEventStore, store)
-	assert.NotNil(t, component)
-	err = component.SetHealthy()
+	comp := New(ctx, rebootEventStore, store)
+	assert.NotNil(t, comp)
+	err = comp.SetHealthy()
 	assert.NoError(t, err)
 
 	select {
-	case event := <-component.extraEventCh:
+	case event := <-comp.extraEventCh:
 		assert.Equal(t, "SetHealthy", event.Name)
 	default:
 		t.Error("expected event in channel but got none")

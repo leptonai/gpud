@@ -4,7 +4,6 @@ package pod
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -26,8 +25,10 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkServiceActive       func(context.Context) (bool, error)
+	checkDependencyInstalledFunc func() bool
+	checkServiceActiveFunc       func(context.Context) (bool, error)
+	checkContainerdRunningFunc   func(context.Context) bool
+	listSandboxStatusFunc        func(context.Context, string) ([]PodSandbox, error)
 
 	endpoint string
 
@@ -38,12 +39,16 @@ type component struct {
 func New(ctx context.Context) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
-		ctx:                      cctx,
-		cancel:                   cancel,
-		checkDependencyInstalled: checkContainerdInstalled,
-		checkServiceActive: func(ctx context.Context) (bool, error) {
+		ctx:    cctx,
+		cancel: cancel,
+
+		checkDependencyInstalledFunc: checkContainerdInstalled,
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
+		checkContainerdRunningFunc: checkContainerdRunning,
+		listSandboxStatusFunc:      listSandboxStatus,
+
 		endpoint: defaultContainerRuntimeEndpoint,
 	}
 	return c
@@ -102,38 +107,69 @@ func (c *component) CheckOnce() {
 	}()
 
 	// assume "containerd" is not installed, thus not needed to check its activeness
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
+		d.healthy = true
+		d.reason = "containerd not installed"
 		return
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
 	if !checkSocketExists() {
-		d.err = errors.New("containerd is installed but containerd socket file does not exist")
+		d.healthy = false
+		d.reason = "containerd installed but socket file does not exist"
 		return
 	}
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	running := checkContainerdRunning(cctx)
-	ccancel()
-	if !running {
-		d.err = errors.New("containerd is installed but containerd is not running")
-		return
-	}
-
-	if c.checkServiceActive != nil {
-		var err error
-		cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-		d.ContainerdServiceActive, err = c.checkServiceActive(cctx)
+	running := false
+	if c.checkContainerdRunningFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		running = c.checkContainerdRunningFunc(cctx)
 		ccancel()
-		if !d.ContainerdServiceActive || err != nil {
-			d.err = fmt.Errorf("containerd is installed but containerd service is not active or failed to check (error %v)", err)
+		if !running {
+			d.healthy = false
+			d.reason = "containerd installed but not running"
 			return
 		}
 	}
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-	d.Pods, d.err = listSandboxStatus(cctx, c.endpoint)
-	ccancel()
+	if c.checkServiceActiveFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+		d.ContainerdServiceActive, d.err = c.checkServiceActiveFunc(cctx)
+		ccancel()
+		if !d.ContainerdServiceActive || d.err != nil {
+			d.healthy = false
+			d.reason = "containerd installed but service is not active"
+			return
+		}
+	}
+
+	if c.listSandboxStatusFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		d.Pods, d.err = c.listSandboxStatusFunc(cctx, c.endpoint)
+		ccancel()
+		if d.err != nil {
+			d.healthy = false
+
+			st, ok := status.FromError(d.err)
+			if ok {
+				// this is the error from "ListSandboxStatus"
+				// e.g.,
+				// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
+				if st.Code() == codes.Unimplemented {
+					d.reason = "containerd didn't enable CRI"
+				} else {
+					d.reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
+				}
+			} else {
+				d.reason = fmt.Sprintf("error listing pod sandbox status: %v", d.err)
+			}
+
+			return
+		}
+	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("found %d pod sandbox(es)", len(d.Pods))
 }
 
 type Data struct {
@@ -147,43 +183,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil || len(d.Pods) == 0 {
-		r := "no pod sandbox found or containerd is not running"
-		if d.err != nil {
-			r += fmt.Sprintf(", error: %v", d.err)
-		}
-		return r
-	}
-
-	reason := fmt.Sprintf("total %d pod sandboxe(s)", len(d.Pods))
-
-	if d.err != nil {
-		st, ok := status.FromError(d.err)
-		if ok {
-			// this is the error from "ListSandboxStatus"
-			// e.g.,
-			// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
-			if st.Code() == codes.Unimplemented {
-				reason = "containerd didn't enable CRI"
-			} else {
-				reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
-			}
-		} else {
-			reason = fmt.Sprintf("failed to list pod sandbox status %v", d.err)
-		}
-	}
-
-	return reason
-}
-
-func (d *Data) getHealth() (string, bool) {
-	if d != nil && d.err != nil {
-		return components.StateUnhealthy, false
-	}
-	return components.StateHealthy, true
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -207,13 +211,14 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
-	}
-	state.Health, state.Healthy = d.getHealth()
 
-	if d == nil || len(d.Pods) == 0 { // no pod found yet
-		return []components.State{state}, nil
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
 	}
 
 	b, _ := json.Marshal(d)

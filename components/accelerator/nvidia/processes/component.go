@@ -100,6 +100,8 @@ func (c *component) CheckOnce() {
 		procs, err := c.getProcessesFunc(uuid, dev)
 		if err != nil {
 			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
 			return
 		}
 

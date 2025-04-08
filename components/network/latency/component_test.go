@@ -1,6 +1,7 @@
 package latency
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -13,154 +14,128 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 )
 
-func TestDataGetReason(t *testing.T) {
+func TestDataGetError(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
 	var d *Data
-	assert.Equal(t, "no network latency data", d.getReason(DefaultGlobalMillisecondThreshold))
+	assert.Equal(t, "", d.getError())
+
+	// Test data with nil error
+	d = &Data{}
+	assert.Equal(t, "", d.getError())
 
 	// Test data with error
 	d = &Data{
 		err: errors.New("test error"),
 	}
-	assert.Equal(t, "failed to get network latency data -- test error", d.getReason(DefaultGlobalMillisecondThreshold))
-
-	// Test data with latencies
-	d = &Data{
-		EgressLatencies: []latency.Latency{
-			{
-				RegionName:          "us-west-2",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 50 * time.Millisecond},
-				LatencyMilliseconds: 50,
-			},
-			{
-				RegionName:          "us-east-1",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 100 * time.Millisecond},
-				LatencyMilliseconds: 100,
-			},
-		},
-	}
-
-	reason := d.getReason(DefaultGlobalMillisecondThreshold)
-	assert.Contains(t, reason, "latency to us-west-2 edge derp server")
-	assert.Contains(t, reason, "latency to us-east-1 edge derp server")
-
-	// Test with zero threshold
-	assert.Equal(t, "no issue", d.getReason(0))
+	assert.Equal(t, "test error", d.getError())
 }
 
-func TestDataGetHealth(t *testing.T) {
+func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	// Test nil data
-	var d *Data
-	health, healthy := d.getHealth(DefaultGlobalMillisecondThreshold)
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
-
-	// Test data with error
-	d = &Data{
-		err: errors.New("test error"),
-	}
-	health, healthy = d.getHealth(DefaultGlobalMillisecondThreshold)
-	assert.Equal(t, components.StateUnhealthy, health)
-	assert.False(t, healthy)
-
-	// Test data with latencies below threshold
-	d = &Data{
-		EgressLatencies: []latency.Latency{
-			{
-				RegionName:          "us-west-2",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 50 * time.Millisecond},
-				LatencyMilliseconds: 50,
-			},
-			{
-				RegionName:          "us-east-1",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 100 * time.Millisecond},
-				LatencyMilliseconds: 100,
-			},
-		},
-	}
-	health, healthy = d.getHealth(DefaultGlobalMillisecondThreshold)
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
-
-	// Test data with latencies above threshold
-	d = &Data{
-		EgressLatencies: []latency.Latency{
-			{
-				RegionName:          "us-west-2",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 5000 * time.Millisecond},
-				LatencyMilliseconds: 8000,
-			},
-			{
-				RegionName:          "us-east-1",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 8000 * time.Millisecond},
-				LatencyMilliseconds: 8000,
-			},
-		},
-	}
-	health, healthy = d.getHealth(DefaultGlobalMillisecondThreshold)
-	assert.Equal(t, components.StateUnhealthy, health)
-	assert.False(t, healthy)
-
-	// Test with zero threshold
-	health, healthy = d.getHealth(0)
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
+	c := New(context.Background())
+	assert.Equal(t, Name, c.Name())
 }
 
-func TestDataGetStates(t *testing.T) {
+func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
-	// Test nil data
-	var d *Data
-	states, err := d.getStates(DefaultGlobalMillisecondThreshold)
-	require.NoError(t, err)
+	c := New(context.Background())
+	events, err := c.Events(context.Background(), time.Now())
+	assert.NoError(t, err)
+	assert.Empty(t, events)
+}
+
+func TestComponentClose(t *testing.T) {
+	t.Parallel()
+
+	c := New(context.Background())
+	err := c.Close()
+	assert.NoError(t, err)
+}
+
+func TestComponentStatesNoData(t *testing.T) {
+	t.Parallel()
+
+	c := New(context.Background())
+	states, err := c.States(context.Background())
+	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, "network-latency", states[0].Name)
-	assert.Equal(t, "no network latency data", states[0].Reason)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+}
+
+func TestComponentStartAndCheckOnce(t *testing.T) {
+	t.Parallel()
+
+	mockLatencies := []latency.Latency{
+		{
+			RegionName:          "us-west-2",
+			Provider:            "aws",
+			Latency:             metav1.Duration{Duration: 50 * time.Millisecond},
+			LatencyMilliseconds: 50,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create component with mock latency function
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		getEgressLatenciesFunc: func(context.Context) (latency.Latencies, error) {
+			return mockLatencies, nil
+		},
+		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
+	}
+
+	// Test start and cancel
+	err := comp.Start()
+	assert.NoError(t, err)
+
+	// Test check once with success
+	comp.CheckOnce()
+
+	// Check states
+	states, err := comp.States(context.Background())
+	assert.NoError(t, err)
+	require.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, components.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
+}
 
-	// Test data with error
-	d = &Data{
-		err: errors.New("test error"),
+func TestComponentStartAndCheckOnceWithError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create component with mock latency function
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		getEgressLatenciesFunc: func(context.Context) (latency.Latencies, error) {
+			return nil, errors.New("test error")
+		},
+		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
 	}
-	states, err = d.getStates(DefaultGlobalMillisecondThreshold)
-	require.NoError(t, err)
+
+	// Test start and cancel
+	err := comp.Start()
+	assert.NoError(t, err)
+
+	comp.CheckOnce()
+
+	// Check states when there's an error
+	states, err := comp.States(context.Background())
+	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, "network-latency", states[0].Name)
-	assert.Equal(t, "failed to get network latency data -- test error", states[0].Reason)
+	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, components.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
-
-	// Test data with latencies
-	d = &Data{
-		EgressLatencies: []latency.Latency{
-			{
-				RegionName:          "us-west-2",
-				Provider:            "aws",
-				Latency:             metav1.Duration{Duration: 50 * time.Millisecond},
-				LatencyMilliseconds: 50,
-			},
-		},
-		ts: time.Now(),
-	}
-	states, err = d.getStates(DefaultGlobalMillisecondThreshold)
-	require.NoError(t, err)
-	require.Len(t, states, 1)
-	assert.Equal(t, "network-latency", states[0].Name)
-	assert.Contains(t, states[0].Reason, "latency to us-west-2 edge derp server")
-	assert.Equal(t, components.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
-	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
+	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
 }

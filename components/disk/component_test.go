@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -68,43 +69,9 @@ func TestEmptyDataStates(t *testing.T) {
 	// No data set yet
 	states, err := c.States(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "no disk data", states[0].Reason)
+	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, "Healthy", states[0].Health)
 	assert.True(t, states[0].Healthy)
-}
-
-func TestDataWithError(t *testing.T) {
-	d := &Data{
-		err: assert.AnError,
-	}
-
-	reason := d.getReason()
-	assert.Contains(t, reason, "failed to get disk data")
-
-	health, healthy := d.getHealth()
-	assert.Equal(t, "Unhealthy", health)
-	assert.False(t, healthy)
-}
-
-func TestDataWithPartitionsAndDevices(t *testing.T) {
-	d := &Data{
-		ExtPartitions: disk.Partitions{
-			{Device: "/dev/sda1", MountPoint: "/mnt/data1"},
-			{Device: "/dev/sda2", MountPoint: "/mnt/data2"},
-		},
-		BlockDevices: disk.BlockDevices{
-			{Name: "sda", Type: "disk"},
-			{Name: "sdb", Type: "disk"},
-			{Name: "sdc", Type: "disk"},
-		},
-	}
-
-	reason := d.getReason()
-	assert.Equal(t, "found 2 ext4 partitions and 3 block devices", reason)
-
-	health, healthy := d.getHealth()
-	assert.Equal(t, "Healthy", health)
-	assert.True(t, healthy)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -115,6 +82,9 @@ func TestDataGetStates(t *testing.T) {
 		BlockDevices: disk.BlockDevices{
 			{Name: "sda", Type: "disk"},
 		},
+
+		healthy: true,
+		reason:  "found 1 ext4 partitions and 1 block devices",
 	}
 
 	states, err := d.getStates()
@@ -149,17 +119,16 @@ func TestDataGetError(t *testing.T) {
 
 func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
-		err: assert.AnError,
+		err: errors.New("failed to get disk data"),
 	}
 
 	states, err := d.getStates()
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
-	assert.Contains(t, states[0].Reason, "failed to get disk data")
+	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.False(t, states[0].Healthy)
-	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 	assert.Contains(t, states[0].ExtraInfo, "data")
 	assert.Contains(t, states[0].ExtraInfo, "encoding")
 }
@@ -172,7 +141,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	// Manually set lastData with an error
 	c.lastMu.Lock()
 	c.lastData = &Data{
-		err: assert.AnError,
+		err: errors.New("failed to get disk data"),
 	}
 	c.lastMu.Unlock()
 
@@ -180,8 +149,346 @@ func TestComponentStatesWithError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
-	assert.Contains(t, states[0].Reason, "failed to get disk data")
+	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, "Unhealthy", states[0].Health)
 	assert.False(t, states[0].Healthy)
-	assert.Equal(t, assert.AnError.Error(), states[0].Error)
+}
+
+func TestCheckOnce(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+	mockPartition := disk.Partition{
+		Device:     "/dev/sda1",
+		MountPoint: "/mnt/data1",
+		Usage: &disk.Usage{
+			TotalBytes:             1000,
+			FreeBytes:              500,
+			UsedBytes:              500,
+			UsedPercentFloat:       50.0,
+			InodesUsedPercentFloat: 20.0,
+		},
+	}
+
+	t.Run("successful check", func(t *testing.T) {
+		c := New(ctx, []string{"/mnt/data1"}, []string{}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
+		assert.Len(t, lastData.BlockDevices, 1)
+		assert.Len(t, lastData.ExtPartitions, 1)
+	})
+
+	t.Run("no block devices", func(t *testing.T) {
+		c := New(ctx, []string{}, []string{}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Equal(t, "no block device found", lastData.reason)
+	})
+
+	t.Run("no ext4 partitions", func(t *testing.T) {
+		c := New(ctx, []string{}, []string{}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Equal(t, "no ext4 partition found", lastData.reason)
+	})
+}
+
+func TestErrorRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+	mockPartition := disk.Partition{
+		Device:     "/dev/sda1",
+		MountPoint: "/mnt/data1",
+		Usage:      &disk.Usage{},
+	}
+
+	t.Run("retry on block device error", func(t *testing.T) {
+		c := New(ctx, []string{}, []string{}).(*component)
+		defer c.Close()
+
+		callCount := 0
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, assert.AnError
+			}
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
+		assert.Equal(t, 2, callCount)
+	})
+
+	t.Run("retry on partition error", func(t *testing.T) {
+		c := New(ctx, []string{}, []string{}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+
+		callCount := 0
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, assert.AnError
+			}
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
+		assert.Equal(t, 2, callCount)
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
+		c := New(ctxWithCancel, []string{}, []string{}).(*component)
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			ctxCancel()
+			return nil, assert.AnError
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.False(t, lastData.healthy)
+		assert.NotNil(t, lastData.err)
+		assert.Contains(t, lastData.err.Error(), "context canceled")
+	})
+}
+
+func TestMountTargetUsages(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+	mockPartition := disk.Partition{
+		Device:     "/dev/sda1",
+		MountPoint: "/mnt/data1",
+		Usage:      &disk.Usage{},
+	}
+	mockMountOutput := disk.FindMntOutput{
+		Target: "/dev/sda1",
+		Filesystems: []disk.FoundMnt{
+			{
+				MountedPoint: "/mnt/data1",
+				Fstype:       "ext4",
+				Sources:      []string{"/dev/sda1"},
+			},
+		},
+	}
+
+	t.Run("track mount target", func(t *testing.T) {
+		// Create a temp dir to use as mount target
+		tempDir := t.TempDir()
+
+		c := New(ctx, []string{}, []string{tempDir}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+		c.findMntFunc = func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			return &mockMountOutput, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Contains(t, lastData.MountTargetUsages, tempDir)
+		assert.Equal(t, mockMountOutput, lastData.MountTargetUsages[tempDir])
+	})
+
+	t.Run("mount target error handling", func(t *testing.T) {
+		// Create a temp dir to use as mount target
+		tempDir := t.TempDir()
+
+		c := New(ctx, []string{}, []string{tempDir}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+		c.findMntFunc = func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			return nil, assert.AnError
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Nil(t, lastData.MountTargetUsages)
+	})
+
+	t.Run("non-existent mount target", func(t *testing.T) {
+		nonExistentDir := "/path/that/doesnt/exist"
+
+		c := New(ctx, []string{}, []string{nonExistentDir}).(*component)
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		c.CheckOnce()
+
+		c.lastMu.RLock()
+		lastData := c.lastData
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastData)
+		assert.True(t, lastData.healthy)
+		assert.Nil(t, lastData.MountTargetUsages)
+	})
+}
+
+// Test nil data handling in the Data type methods
+func TestNilDataHandling(t *testing.T) {
+	var nilData *Data
+
+	states, err := nilData.getStates()
+	require.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, "disk", states[0].Name)
+	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.True(t, states[0].Healthy)
+}
+
+// Test metrics tracking for mount points
+func TestMetricsTracking(t *testing.T) {
+	ctx := context.Background()
+	mockPartition := disk.Partition{
+		Device:     "/dev/sda1",
+		MountPoint: "/mnt/data1",
+		Usage: &disk.Usage{
+			TotalBytes:             1000,
+			FreeBytes:              500,
+			UsedBytes:              500,
+			UsedPercentFloat:       50.0,
+			InodesUsedPercentFloat: 20.0,
+		},
+	}
+
+	c := New(ctx, []string{"/mnt/data1"}, []string{}).(*component)
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{
+				Name: "sda",
+				Type: "disk",
+			},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockPartition}, nil
+	}
+
+	c.CheckOnce()
+
+	// Check that the component is tracking the mount point correctly
+	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/data1")
+
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+
+	// Ensure data was collected
+	assert.NotNil(t, lastData)
+	assert.True(t, lastData.healthy)
+	assert.Len(t, lastData.ExtPartitions, 1)
+	assert.Equal(t, mockPartition.MountPoint, lastData.ExtPartitions[0].MountPoint)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,6 +81,28 @@ func TestComponentEvents(t *testing.T) {
 	events, err := comp.Events(ctx, since)
 	require.NoError(t, err)
 	assert.Empty(t, events)
+
+	// Add a test event and verify it can be retrieved
+	testEvent := components.Event{
+		Time:    metav1.Time{Time: time.Now().UTC()},
+		Name:    "acs_enabled",
+		Type:    "Warning",
+		Message: "Test event",
+	}
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	err = bucket.Insert(ctx, testEvent)
+	require.NoError(t, err)
+
+	// Get events since the past hour
+	events, err = comp.Events(ctx, since)
+	require.NoError(t, err)
+	assert.NotEmpty(t, events)
+	assert.Equal(t, "acs_enabled", events[0].Name)
+	assert.Equal(t, "Test event", events[0].Message)
 }
 
 // createEvent is a test helper that mimics the behavior of Data.createEvent
@@ -239,110 +262,6 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 	// since not all systems will have this capability
 }
 
-func TestData_GetReason(t *testing.T) {
-	tests := []struct {
-		name     string
-		data     *Data
-		expected string
-	}{
-		{
-			name:     "nil data",
-			data:     nil,
-			expected: "no pci data",
-		},
-		{
-			name: "error case",
-			data: &Data{
-				err: assert.AnError,
-			},
-			expected: "failed to get pci data -- assert.AnError general error for testing",
-		},
-		{
-			name: "with devices",
-			data: &Data{
-				Devices: []pci.Device{
-					{ID: "0000:00:00.0"},
-					{ID: "0000:00:01.0"},
-				},
-			},
-			expected: "no acs enabled devices found",
-		},
-		{
-			name: "no devices",
-			data: &Data{
-				Devices: []pci.Device{},
-			},
-			expected: "no pci device found",
-		},
-		{
-			name: "with acs enabled devices",
-			data: &Data{
-				Devices: []pci.Device{
-					{
-						ID: "0000:00:00.0",
-						AccessControlService: &pci.AccessControlService{
-							ACSCtl: pci.ACS{
-								SrcValid: true,
-							},
-						},
-					},
-					{ID: "0000:00:01.0"},
-				},
-			},
-			expected: "found 1 acs enabled devices (out of 2 total)",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.data.getReason()
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestData_GetHealth(t *testing.T) {
-	tests := []struct {
-		name           string
-		data           *Data
-		expectedHealth string
-		expectedBool   bool
-	}{
-		{
-			name:           "nil data",
-			data:           nil,
-			expectedHealth: components.StateHealthy,
-			expectedBool:   true,
-		},
-		{
-			name: "error case",
-			data: &Data{
-				err: assert.AnError,
-			},
-			expectedHealth: components.StateUnhealthy,
-			expectedBool:   false,
-		},
-		{
-			name: "healthy case",
-			data: &Data{
-				Devices: []pci.Device{
-					{ID: "0000:00:00.0"},
-				},
-			},
-			expectedHealth: components.StateHealthy,
-			expectedBool:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			health, healthy := tt.data.getHealth()
-			assert.Equal(t, tt.expectedHealth, health)
-			assert.Equal(t, tt.expectedBool, healthy)
-		})
-	}
-}
-
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -400,16 +319,18 @@ func TestData_GetStates(t *testing.T) {
 		{
 			name: "with error",
 			data: &Data{
-				err: assert.AnError,
-				ts:  time.Now().UTC(),
+				err:     assert.AnError,
+				ts:      time.Now().UTC(),
+				healthy: false,
+				reason:  "failed to get pci data -- " + assert.AnError.Error(),
 			},
 			validate: func(t *testing.T, states []components.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, components.StateUnhealthy, states[0].Health)
 				assert.False(t, states[0].Healthy)
-				assert.Equal(t, "failed to get pci data -- assert.AnError general error for testing", states[0].Reason)
-				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
+				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
+				assert.Equal(t, assert.AnError.Error(), states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
 				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
@@ -421,7 +342,9 @@ func TestData_GetStates(t *testing.T) {
 					{ID: "0000:00:00.0"},
 					{ID: "0000:00:01.0"},
 				},
-				ts: time.Now().UTC(),
+				ts:      time.Now().UTC(),
+				healthy: true,
+				reason:  "no acs enabled devices found",
 			},
 			validate: func(t *testing.T, states []components.State) {
 				assert.Len(t, states, 1)
@@ -478,7 +401,9 @@ func TestComponent_States(t *testing.T) {
 			Devices: []pci.Device{
 				{ID: "0000:00:00.0"},
 			},
-			ts: time.Now().UTC(),
+			ts:      time.Now().UTC(),
+			healthy: true,
+			reason:  "no acs enabled devices found",
 		}
 		c.lastMu.Unlock()
 
@@ -495,9 +420,12 @@ func TestComponent_States(t *testing.T) {
 		// Inject error data
 		c := comp.(*component)
 		c.lastMu.Lock()
+		testError := errors.New("test error")
 		c.lastData = &Data{
-			err: errors.New("test error"),
-			ts:  time.Now().UTC(),
+			err:     testError,
+			ts:      time.Now().UTC(),
+			healthy: false,
+			reason:  "failed to get pci data -- test error",
 		}
 		c.lastMu.Unlock()
 
@@ -538,7 +466,7 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 
 	// Mock the listFunc to return an error
 	testErr := errors.New("test list error")
-	c.listFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
 		called = true
 		return nil, testErr
 	}
@@ -604,7 +532,7 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 			},
 		},
 	}
-	c.listFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -677,7 +605,7 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 			AccessControlService: nil,
 		},
 	}
-	c.listFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -737,7 +665,7 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 
 	// Set up a mock listFunc that should not be called
 	called := false
-	c.listFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
 		called = true
 		return nil, nil
 	}
@@ -831,7 +759,7 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 			},
 		},
 	}
-	c.listFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -921,4 +849,216 @@ func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 
 func (m *mockEventBucket) Close() {
 	// No-op implementation to match the interface
+}
+
+func TestData_CreateEvent(t *testing.T) {
+	// Modify test to use the actual methods available in Data
+	tests := []struct {
+		name      string
+		virtEnv   host.VirtualizationEnvironment
+		devices   []pci.Device
+		wantNil   bool
+		wantUUIDs []string
+	}{
+		{
+			name: "baremetal with ACS devices",
+			virtEnv: host.VirtualizationEnvironment{
+				Type:  "baremetal",
+				IsKVM: false,
+			},
+			devices: []pci.Device{
+				{
+					ID: "0000:00:00.0",
+					AccessControlService: &pci.AccessControlService{
+						ACSCtl: pci.ACS{
+							SrcValid: true,
+						},
+					},
+				},
+			},
+			wantNil:   false,
+			wantUUIDs: []string{"0000:00:00.0"},
+		},
+		{
+			name: "kvm without ACS devices",
+			virtEnv: host.VirtualizationEnvironment{
+				Type:  "kvm",
+				IsKVM: true,
+			},
+			devices: []pci.Device{
+				{
+					ID:                   "0000:00:00.0",
+					AccessControlService: nil,
+				},
+			},
+			wantNil:   true,
+			wantUUIDs: nil,
+		},
+		{
+			name: "empty devices array",
+			virtEnv: host.VirtualizationEnvironment{
+				Type:  "baremetal",
+				IsKVM: false,
+			},
+			devices:   []pci.Device{},
+			wantNil:   true,
+			wantUUIDs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &Data{
+				Devices: tt.devices,
+			}
+
+			// Instead of testing createEvent directly, test listACSEnabledDeviceUUIDs
+			uuids := d.listACSEnabledDeviceUUIDs()
+
+			if tt.wantNil {
+				assert.Nil(t, uuids)
+				return
+			}
+
+			assert.NotNil(t, uuids)
+			assert.Equal(t, tt.wantUUIDs, uuids)
+		})
+	}
+}
+
+func TestConcurrentAccess(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(ctx, store)
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Setup data
+	testDevices := []pci.Device{
+		{ID: "0000:00:00.0"},
+	}
+
+	c.lastMu.Lock()
+	c.lastData = &Data{
+		Devices: testDevices,
+		ts:      time.Now().UTC(),
+	}
+	c.lastMu.Unlock()
+
+	// Test concurrent access to lastData
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			states, err := comp.States(ctx)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, states)
+		}()
+	}
+	wg.Wait()
+}
+
+func TestKVMEnvironment(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(ctx, store)
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Simulate KVM environment
+	c.currentVirtEnv = host.VirtualizationEnvironment{
+		Type:  "kvm",
+		IsKVM: true,
+	}
+
+	// This function should return early for KVM virtualization
+	var getPCICalled bool
+	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+		getPCICalled = true
+		return nil, nil
+	}
+
+	c.CheckOnce()
+
+	// Verify the check function exited early
+	assert.False(t, getPCICalled, "getPCIDevicesFunc should not be called in KVM environment")
+
+	// Verify the data reflects the KVM environment
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastData)
+	// Don't try to access virtEnv on Data, it doesn't have this field
+}
+
+func TestStartWithBadPeriod(t *testing.T) {
+	// Since component doesn't have a checkPeriod field,
+	// we'll test something else about the Start() method
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(ctx, store)
+	require.NoError(t, err)
+	defer comp.Close()
+
+	// Start the component
+	err = comp.Start()
+	require.NoError(t, err)
+
+	// Start it again to verify it can be called multiple times
+	err = comp.Start()
+	require.NoError(t, err)
+}
+
+func TestNewComponentError(t *testing.T) {
+	// Create a mock eventstore.Store that returns an error when Bucket is called
+	mockStore := &mockStore{
+		bucketErr: errors.New("bucket creation error"),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Try to create a component with the mock store
+	comp, err := New(ctx, mockStore)
+
+	// Verify that an error is returned
+	assert.Error(t, err)
+	assert.Nil(t, comp)
+	assert.Equal(t, "bucket creation error", err.Error())
+}
+
+// mockStore is a test implementation of eventstore.Store
+type mockStore struct {
+	bucketErr error
+}
+
+func (m *mockStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return nil, m.bucketErr
 }

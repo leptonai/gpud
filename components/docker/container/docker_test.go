@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
+	docker_types "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	docker_types "github.com/docker/docker/api/types"
 )
 
 func Test_checkDockerInstalled(t *testing.T) {
@@ -172,9 +171,8 @@ func TestDataMarshalJSON(t *testing.T) {
 				Image: "test-image",
 			},
 		},
-		ts:      time.Now(),
-		err:     nil,
-		connErr: false,
+		ts:  time.Now(),
+		err: nil,
 	}
 
 	json, err := json.Marshal(d)

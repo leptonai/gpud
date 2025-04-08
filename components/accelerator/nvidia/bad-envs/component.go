@@ -22,6 +22,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// returns true if the specified environment variable is set
+	checkEnvFunc func(key string) bool
+
 	lastMu   sync.RWMutex
 	lastData *Data
 }
@@ -31,6 +34,10 @@ func New(ctx context.Context) components.Component {
 	return &component{
 		ctx:    cctx,
 		cancel: ccancel,
+
+		checkEnvFunc: func(key string) bool {
+			return os.Getenv(key) == "1"
+		},
 	}
 }
 
@@ -102,12 +109,24 @@ func (c *component) CheckOnce() {
 
 	foundBadEnvsForCUDA := make(map[string]string)
 	for k, desc := range BAD_CUDA_ENV_KEYS {
-		if os.Getenv(k) == "1" {
+		if c.checkEnvFunc(k) {
 			foundBadEnvsForCUDA[k] = desc
 		}
 	}
 	if len(foundBadEnvsForCUDA) > 0 {
 		d.FoundBadEnvsForCUDA = foundBadEnvsForCUDA
+	}
+
+	d.healthy = true
+
+	if len(foundBadEnvsForCUDA) == 0 {
+		d.reason = "no bad envs found"
+	} else {
+		kvs := make([]string, 0, len(d.FoundBadEnvsForCUDA))
+		for k, v := range d.FoundBadEnvsForCUDA {
+			kvs = append(kvs, fmt.Sprintf("%s: %s", k, v))
+		}
+		d.reason = strings.Join(kvs, "; ")
 	}
 }
 
@@ -121,35 +140,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no bad envs data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get bad envs data -- %s", d.err)
-	}
-
-	if len(d.FoundBadEnvsForCUDA) == 0 {
-		return "no bad envs found"
-	}
-
-	kvs := make([]string, 0, len(d.FoundBadEnvsForCUDA))
-	for k, v := range d.FoundBadEnvsForCUDA {
-		kvs = append(kvs, fmt.Sprintf("%s: %s", k, v))
-	}
-	return strings.Join(kvs, "; ")
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -173,10 +168,15 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

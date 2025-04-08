@@ -25,8 +25,11 @@ const Name = "os"
 var _ components.Component = &component{}
 
 type component struct {
-	ctx              context.Context
-	cancel           context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)
+
 	rebootEventStore pkghost.RebootEventStore
 
 	lastMu   sync.RWMutex
@@ -36,8 +39,11 @@ type component struct {
 func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
-		ctx:              cctx,
-		cancel:           ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		countProcessesByStatusFunc: process.CountProcessesByStatus,
+
 		rebootEventStore: rebootEventStore,
 	}
 }
@@ -68,7 +74,10 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.rebootEventStore.GetRebootEvents(ctx, since)
+	if c.rebootEventStore != nil {
+		return c.rebootEventStore.GetRebootEvents(ctx, since)
+	}
+	return nil, nil
 }
 
 func (c *component) Close() error {
@@ -104,14 +113,16 @@ func (c *component) CheckOnce() {
 	d.Platform = Platform{Name: pkghost.Platform(), Family: pkghost.PlatformFamily(), Version: pkghost.PlatformVersion()}
 
 	if err := c.rebootEventStore.RecordReboot(c.ctx); err != nil {
-		log.Logger.Warnw("failed to create reboot event", "error", err)
+		log.Logger.Warnw("error creating reboot event", "error", err)
 	}
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 	uptime, err := host.UptimeWithContext(cctx)
 	ccancel()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get uptime: %w", err)
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting uptime: %s", err)
 		return
 	}
 
@@ -121,10 +132,12 @@ func (c *component) CheckOnce() {
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 10*time.Second)
-	allProcs, err := process.CountProcessesByStatus(cctx)
+	allProcs, err := c.countProcessesByStatusFunc(cctx)
 	ccancel()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get process count: %w", err)
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting process count: %s", err)
 		return
 	}
 
@@ -134,6 +147,14 @@ func (c *component) CheckOnce() {
 			break
 		}
 	}
+	if d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
+		d.healthy = false
+		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, zombieProcessCountThreshold)
+		return
+	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
 }
 
 type Data struct {
@@ -151,6 +172,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
+
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 type MachineMetadata struct {
@@ -179,36 +205,6 @@ type Uptimes struct {
 	BootTimeUnixSeconds uint64 `json:"boot_time_unix_seconds"`
 }
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no os data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get os data -- %s", d.err)
-	}
-
-	if d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
-		return fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, zombieProcessCountThreshold)
-	}
-
-	return fmt.Sprintf("os kernel version %s", d.Kernel.Version)
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	if d != nil && d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
-		healthy = false
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
-}
-
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -230,10 +226,15 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

@@ -26,12 +26,13 @@ const Name = "pci"
 var _ components.Component = &component{}
 
 type component struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	eventBucket eventstore.Bucket
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	currentVirtEnv pkghost.VirtualizationEnvironment
-	listFunc       func(ctx context.Context) (pci.Devices, error)
+	currentVirtEnv    pkghost.VirtualizationEnvironment
+	getPCIDevicesFunc func(ctx context.Context) (pci.Devices, error)
+
+	eventBucket eventstore.Bucket
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -45,11 +46,13 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
-		ctx:            cctx,
-		cancel:         ccancel,
-		eventBucket:    eventBucket,
-		currentVirtEnv: pkghost.VirtualizationEnv(),
-		listFunc:       pci.List,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		currentVirtEnv:    pkghost.VirtualizationEnv(),
+		getPCIDevicesFunc: pci.List,
+
+		eventBucket: eventBucket,
 	}, nil
 }
 
@@ -86,7 +89,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
-	c.eventBucket.Close()
+
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -119,6 +125,8 @@ func (c *component) CheckOnce() {
 	lastEvent, err := c.eventBucket.Latest(c.ctx)
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting latest event: %s", err)
 		return
 	}
 
@@ -141,15 +149,18 @@ func (c *component) CheckOnce() {
 	//
 	// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
 	cctx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
-	d.Devices, err = c.listFunc(cctx)
+	d.Devices, d.err = c.getPCIDevicesFunc(cctx)
 	cancel()
-	if err != nil {
-		d.err = err
+	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error listing devices: %s", d.err)
 		return
 	}
 
-	ev := d.createEvent(nowUTC)
-	if ev == nil {
+	acsEnabledDevices := d.listACSEnabledDeviceUUIDs()
+	if len(acsEnabledDevices) == 0 {
+		d.healthy = true
+		d.reason = "no acs enabled devices found"
 		return
 	}
 
@@ -157,12 +168,21 @@ func (c *component) CheckOnce() {
 	// since we check once above
 
 	cctx, cancel = context.WithTimeout(c.ctx, 15*time.Second)
-	err = c.eventBucket.Insert(cctx, *ev)
+	d.err = c.eventBucket.Insert(cctx, components.Event{
+		Time:    metav1.Time{Time: nowUTC},
+		Name:    "acs_enabled",
+		Type:    common.EventTypeWarning,
+		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", pkghost.VirtualizationEnv().Type, strings.Join(acsEnabledDevices, ", ")),
+	})
 	cancel()
-	if err != nil {
-		d.err = err
+	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error creating event: %s", d.err)
 		return
 	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("found %d acs enabled devices (out of %d total)", len(acsEnabledDevices), len(d.Devices))
 }
 
 type Data struct {
@@ -172,54 +192,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) listACSEnabledDeviceUUIDs() []string {
-	if d == nil || len(d.Devices) == 0 {
-		return nil
-	}
-
-	uuids := make([]string, 0)
-	for _, dev := range d.Devices {
-		// check whether ACS is enabled on PCI bridges
-		if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
-			uuids = append(uuids, dev.ID)
-		}
-	}
-	if len(uuids) == 0 {
-		return nil
-	}
-
-	return uuids
-}
-
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no pci data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get pci data -- %s", d.err)
-	}
-	if len(d.Devices) == 0 {
-		return "no pci device found"
-	}
-
-	acsEnabledDevices := d.listACSEnabledDeviceUUIDs()
-	if len(acsEnabledDevices) == 0 {
-		return "no acs enabled devices found"
-	}
-
-	return fmt.Sprintf("found %d acs enabled devices (out of %d total)", len(acsEnabledDevices), len(d.Devices))
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -243,10 +220,15 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{
@@ -256,16 +238,21 @@ func (d *Data) getStates() ([]components.State, error) {
 	return []components.State{state}, nil
 }
 
-func (d *Data) createEvent(time time.Time) *components.Event {
-	uuids := d.listACSEnabledDeviceUUIDs()
+func (d *Data) listACSEnabledDeviceUUIDs() []string {
+	if d == nil || len(d.Devices) == 0 {
+		return nil
+	}
+
+	uuids := make([]string, 0)
+	for _, dev := range d.Devices {
+		// check whether ACS is enabled on PCI bridges
+		if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
+			uuids = append(uuids, dev.ID)
+		}
+	}
 	if len(uuids) == 0 {
 		return nil
 	}
 
-	return &components.Event{
-		Time:    metav1.Time{Time: time.UTC()},
-		Name:    "acs_enabled",
-		Type:    common.EventTypeWarning,
-		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", pkghost.VirtualizationEnv().Type, strings.Join(uuids, ", ")),
-	}
+	return uuids
 }

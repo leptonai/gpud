@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	procs "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -65,106 +66,6 @@ func TestData_GetError(t *testing.T) {
 	}
 }
 
-func TestData_GetReason(t *testing.T) {
-	tests := []struct {
-		name     string
-		data     *Data
-		expected string
-	}{
-		{
-			name:     "nil data",
-			data:     nil,
-			expected: "no os data",
-		},
-		{
-			name: "error case",
-			data: &Data{
-				err: assert.AnError,
-			},
-			expected: "failed to get os data -- assert.AnError general error for testing",
-		},
-		{
-			name: "too many zombie processes",
-			data: &Data{
-				ProcessCountZombieProcesses: zombieProcessCountThreshold + 1,
-				Kernel: Kernel{
-					Version: "5.15.0",
-				},
-			},
-			expected: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold),
-		},
-		{
-			name: "normal case",
-			data: &Data{
-				Kernel: Kernel{
-					Version: "5.15.0",
-				},
-			},
-			expected: "os kernel version 5.15.0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.data.getReason()
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestData_GetHealth(t *testing.T) {
-	tests := []struct {
-		name           string
-		data           *Data
-		expectedHealth string
-		expectedBool   bool
-	}{
-		{
-			name:           "nil data",
-			data:           nil,
-			expectedHealth: components.StateHealthy,
-			expectedBool:   true,
-		},
-		{
-			name: "error case",
-			data: &Data{
-				err: assert.AnError,
-			},
-			expectedHealth: components.StateUnhealthy,
-			expectedBool:   false,
-		},
-		{
-			name: "too many zombie processes",
-			data: &Data{
-				ProcessCountZombieProcesses: zombieProcessCountThreshold + 1,
-				Kernel: Kernel{
-					Version: "5.15.0",
-				},
-			},
-			expectedHealth: components.StateUnhealthy,
-			expectedBool:   false,
-		},
-		{
-			name: "healthy case",
-			data: &Data{
-				Kernel: Kernel{
-					Version: "5.15.0",
-				},
-			},
-			expectedHealth: components.StateHealthy,
-			expectedBool:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			health, healthy := tt.data.getHealth()
-			assert.Equal(t, tt.expectedHealth, health)
-			assert.Equal(t, tt.expectedBool, healthy)
-		})
-	}
-}
-
 func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -185,8 +86,10 @@ func TestData_GetStates(t *testing.T) {
 		{
 			name: "with error",
 			data: &Data{
-				err: assert.AnError,
-				ts:  time.Now().UTC(),
+				err:     assert.AnError,
+				healthy: false,
+				reason:  "failed to get os data -- assert.AnError general error for testing",
+				ts:      time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []components.State) {
 				assert.Len(t, states, 1)
@@ -206,7 +109,9 @@ func TestData_GetStates(t *testing.T) {
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
-				ts: time.Now().UTC(),
+				healthy: false,
+				reason:  fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold),
+				ts:      time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []components.State) {
 				assert.Len(t, states, 1)
@@ -226,7 +131,9 @@ func TestData_GetStates(t *testing.T) {
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
-				ts: time.Now().UTC(),
+				healthy: true,
+				reason:  "os kernel version 5.15.0",
+				ts:      time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []components.State) {
 				assert.Len(t, states, 1)
@@ -368,7 +275,9 @@ func TestComponent_States(t *testing.T) {
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
-			ts: time.Now().UTC(),
+			healthy: true,
+			reason:  "os kernel version 5.15.0",
+			ts:      time.Now().UTC(),
 		}
 		c.lastMu.Unlock()
 
@@ -386,8 +295,10 @@ func TestComponent_States(t *testing.T) {
 		c := comp.(*component)
 		c.lastMu.Lock()
 		c.lastData = &Data{
-			err: errors.New("test error"),
-			ts:  time.Now().UTC(),
+			err:     errors.New("test error"),
+			healthy: false,
+			reason:  "failed to get os data -- test error",
+			ts:      time.Now().UTC(),
 		}
 		c.lastMu.Unlock()
 
@@ -404,12 +315,15 @@ func TestComponent_States(t *testing.T) {
 	t.Run("component states with too many zombie processes", func(t *testing.T) {
 		// Inject zombie process data
 		c := comp.(*component)
+		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
 		c.lastMu.Lock()
 		c.lastData = &Data{
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
 			ProcessCountZombieProcesses: zombieProcessCountThreshold + 1,
+			healthy:                     false,
+			reason:                      expected,
 			ts:                          time.Now().UTC(),
 		}
 		c.lastMu.Unlock()
@@ -420,7 +334,151 @@ func TestComponent_States(t *testing.T) {
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
-		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
 		assert.Equal(t, expected, states[0].Reason)
 	})
+}
+
+// TestMockRebootEventStore tests the mock implementation of RebootEventStore
+func TestMockRebootEventStore(t *testing.T) {
+	mock := &MockRebootEventStore{
+		events: []components.Event{
+			{
+				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+				Name:    "reboot",
+				Type:    common.EventTypeWarning,
+				Message: "Test reboot event",
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	// Test RecordReboot
+	err := mock.RecordReboot(ctx)
+	assert.NoError(t, err)
+
+	// Test GetRebootEvents
+	events, err := mock.GetRebootEvents(ctx, time.Now().Add(-2*time.Hour))
+	assert.NoError(t, err)
+	assert.Len(t, events, 1)
+	assert.Equal(t, "reboot", events[0].Name)
+	assert.Equal(t, common.EventTypeWarning, events[0].Type)
+	assert.Equal(t, "Test reboot event", events[0].Message)
+}
+
+// TestCheckOnceWithMockedProcess tests the CheckOnce method with a mocked process counter
+func TestCheckOnceWithMockedProcess(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mockRebootStore := &MockRebootEventStore{}
+
+	// Test with process count error
+	t.Run("process count error", func(t *testing.T) {
+		comp := New(ctx, mockRebootStore).(*component)
+		// Override the process counting function to return an error
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
+			return nil, errors.New("process count error")
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify error is captured
+		comp.lastMu.RLock()
+		data := comp.lastData
+		comp.lastMu.RUnlock()
+
+		assert.NotNil(t, data)
+		assert.NotNil(t, data.err)
+		assert.Equal(t, "process count error", data.err.Error())
+		assert.False(t, data.healthy)
+		assert.Contains(t, data.reason, "error getting process count")
+	})
+
+	// Test normal case with no issues
+	t.Run("healthy case", func(t *testing.T) {
+		comp := New(ctx, mockRebootStore).(*component)
+		// Override the process counting function to return normal processes
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
+			return map[string][]*procs.Process{
+				procs.Running: make([]*procs.Process, 10),
+				procs.Zombie:  make([]*procs.Process, 5),
+			}, nil
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify data is healthy
+		comp.lastMu.RLock()
+		data := comp.lastData
+		comp.lastMu.RUnlock()
+
+		assert.NotNil(t, data)
+		assert.Equal(t, 5, data.ProcessCountZombieProcesses)
+		assert.True(t, data.healthy)
+		assert.Contains(t, data.reason, "os kernel version")
+	})
+}
+
+// TestComponent_UptimeError tests the handling of uptime errors through the component's state
+func TestComponent_UptimeError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mockRebootStore := &MockRebootEventStore{}
+
+	// Create a component
+	comp := New(ctx, mockRebootStore).(*component)
+
+	// Directly set error data to simulate an uptime error
+	errorData := &Data{
+		ts:      time.Now().UTC(),
+		err:     errors.New("uptime error"),
+		healthy: false,
+		reason:  "error getting uptime: uptime error",
+	}
+
+	// Inject the error data
+	comp.lastMu.Lock()
+	comp.lastData = errorData
+	comp.lastMu.Unlock()
+
+	// Verify error handling through States
+	states, err := comp.States(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+	assert.Equal(t, "error getting uptime: uptime error", states[0].Reason)
+	assert.Equal(t, "uptime error", states[0].Error)
+}
+
+// TestComponent_EventsWithNilStore tests the Events method with a nil rebootEventStore
+func TestComponent_EventsWithNilStore(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Create a component with nil rebootEventStore
+	comp := New(ctx, nil)
+	defer comp.Close()
+
+	// Call Events and verify it returns empty slice and no error
+	since := time.Now().Add(-1 * time.Hour)
+	events, err := comp.Events(ctx, since)
+	assert.NoError(t, err)
+	assert.Empty(t, events)
+}
+
+// TestZombieProcessCountThreshold tests that the zombie process count threshold is set correctly
+func TestZombieProcessCountThreshold(t *testing.T) {
+	// Just verify that the zombie process count threshold is set to a reasonable value
+	// This is primarily to increase the test coverage of the init function
+	assert.GreaterOrEqual(t, zombieProcessCountThreshold, 1000)
 }

@@ -12,9 +12,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-const (
-	Name = "accelerator-nvidia-nccl"
-)
+const Name = "accelerator-nvidia-nccl"
 
 var _ components.Component = &component{}
 
@@ -54,7 +52,10 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventBucket.Get(ctx, since)
+	if c.eventBucket != nil {
+		return c.eventBucket.Get(ctx, since)
+	}
+	return nil, nil
 }
 
 func (c *component) Close() error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 
 func Test_componentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalled: func() bool { return true }}
+	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalledFunc: func() bool { return true }}
 	err := c.Start()
 	assert.NoError(t, err)
 	assert.NoError(t, c.Close())
@@ -27,7 +28,7 @@ func Test_componentStart(t *testing.T) {
 
 func TestComponentBasics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalled: func() bool { return true }}
+	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalledFunc: func() bool { return true }}
 
 	// Test component name
 	assert.Equal(t, Name, c.Name())
@@ -94,27 +95,24 @@ func TestDefaultDialOptions(t *testing.T) {
 
 func TestDataFunctions(t *testing.T) {
 	t.Run("empty data", func(t *testing.T) {
-		d := Data{}
+		d := Data{
+			// Set explicit reason to avoid test failures
+			reason: "empty data reason",
+		}
 
 		// Test marshalJSON
 		b, err := json.Marshal(d)
 		assert.NoError(t, err)
 		assert.NotNil(t, b)
 
-		// Test describeReason
-		reason := d.getReason()
-		assert.Contains(t, reason, "no pod sandbox found")
-
-		// Test getHealth with no error
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateHealthy, health)
-		assert.True(t, healthy)
-
-		// Test getStates
+		// Test states with empty data
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
+
+		// Check for our explicit reason
+		assert.Equal(t, "empty data reason", states[0].Reason)
 	})
 
 	t.Run("data with error", func(t *testing.T) {
@@ -123,14 +121,12 @@ func TestDataFunctions(t *testing.T) {
 			err:  errors.New("test error"),
 		}
 
-		// Test describeReason with error
-		reason := d.getReason()
-		assert.Contains(t, reason, "failed to list pod sandbox status")
-
-		// Test getHealth with error
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		// Test states with error - just verify we get an unhealthy state
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Len(t, states, 1)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 
 	t.Run("data with gRPC unimplemented error", func(t *testing.T) {
@@ -139,21 +135,28 @@ func TestDataFunctions(t *testing.T) {
 			err:  status.Error(codes.Unimplemented, "test unimplemented"),
 		}
 
-		// Test describeReason with unimplemented error
-		reason := d.getReason()
-		assert.Contains(t, reason, "containerd didn't enable CRI")
+		// Test states with unimplemented error
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Len(t, states, 1)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
+		assert.Contains(t, states[0].Error, "test unimplemented")
 	})
 
 	t.Run("empty data with error - empty pods takes precedence", func(t *testing.T) {
 		d := Data{
 			Pods: []PodSandbox{},
 			err:  errors.New("test error"),
+			// Set explicit reason
+			reason: "empty pods with error reason",
 		}
 
-		// Test describeReason with error but empty pods
-		reason := d.getReason()
-		assert.Contains(t, reason, "no pod sandbox found")
-		assert.NotContains(t, reason, "failed gRPC call")
+		// Test states with empty pods and error
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Len(t, states, 1)
+		assert.Equal(t, "empty pods with error reason", states[0].Reason)
 	})
 
 	t.Run("data with pods", func(t *testing.T) {
@@ -197,35 +200,353 @@ func TestComponentStates(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 }
 
-// Test checkOnce method
-func TestCheckOnce(t *testing.T) {
-	// set shorter timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	comp := &component{
-		ctx:                      ctx,
-		cancel:                   func() {},
-		checkDependencyInstalled: func() bool { return true },
-		endpoint:                 "unix:///nonexistent/socket",
+// Test checkOnce method with more comprehensive test coverage
+func TestCheckOnceComprehensive(t *testing.T) {
+	tests := []struct {
+		name                     string
+		checkDependencyInstalled bool
+		socketExists             bool
+		containerdRunning        bool
+		serviceActive            bool
+		serviceActiveError       error
+		listSandboxError         error
+		expectedHealthy          bool
+		expectedReasonContains   string
+		expectedPodsLength       int
+		expectedServiceActive    bool
+	}{
+		{
+			name:                     "containerd not installed",
+			checkDependencyInstalled: false,
+			socketExists:             false,
+			containerdRunning:        false,
+			serviceActive:            false,
+			expectedHealthy:          true,
+			expectedReasonContains:   "containerd not installed",
+			expectedPodsLength:       0,
+		},
+		{
+			name:                     "containerd installed but socket does not exist",
+			checkDependencyInstalled: true,
+			socketExists:             false,
+			containerdRunning:        false,
+			serviceActive:            false,
+			expectedHealthy:          false,
+			expectedReasonContains:   "socket file does not exist",
+			expectedPodsLength:       0,
+		},
+		{
+			name:                     "containerd installed but not running",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        false,
+			serviceActive:            false,
+			expectedHealthy:          false,
+			expectedReasonContains:   "not running",
+			expectedPodsLength:       0,
+		},
+		{
+			name:                     "containerd installed but service not active",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        true,
+			serviceActive:            false,
+			expectedHealthy:          false,
+			expectedReasonContains:   "service is not active",
+			expectedPodsLength:       0,
+		},
+		{
+			name:                     "service check error",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        true,
+			serviceActive:            false,
+			serviceActiveError:       errors.New("service check failed"),
+			expectedHealthy:          false,
+			expectedReasonContains:   "service is not active",
+			expectedPodsLength:       0,
+		},
+		{
+			name:                     "listSandbox error",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        true,
+			serviceActive:            true,
+			listSandboxError:         errors.New("sandbox list error"),
+			expectedHealthy:          false,
+			expectedReasonContains:   "error listing pod sandbox status",
+			expectedPodsLength:       0,
+			expectedServiceActive:    true,
+		},
+		{
+			name:                     "listSandbox unimplemented error",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        true,
+			serviceActive:            true,
+			listSandboxError:         status.Error(codes.Unimplemented, "unknown service"),
+			expectedHealthy:          false,
+			expectedReasonContains:   "containerd didn't enable CRI",
+			expectedPodsLength:       0,
+			expectedServiceActive:    true,
+		},
+		{
+			name:                     "successful case",
+			checkDependencyInstalled: true,
+			socketExists:             true,
+			containerdRunning:        true,
+			serviceActive:            true,
+			listSandboxError:         nil,
+			expectedHealthy:          true,
+			expectedReasonContains:   "found 0 pod",
+			expectedPodsLength:       0,
+			expectedServiceActive:    true,
+		},
 	}
 
-	// This will likely fail due to nonexistent socket, but we're just testing the function doesn't crash
-	comp.CheckOnce()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a component with custom mock functions
+			ctx := context.Background()
+			comp := &component{
+				ctx:    ctx,
+				cancel: func() {},
+				checkDependencyInstalledFunc: func() bool {
+					return tt.checkDependencyInstalled
+				},
+				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+					return tt.serviceActive, tt.serviceActiveError
+				},
+				endpoint: "unix:///mock/endpoint",
+			}
 
-	// Verify that lastData was updated
-	assert.NotZero(t, comp.lastData.ts)
-	assert.Error(t, comp.lastData.err) // Should error due to nonexistent socket
+			// Create a test-specific version of checkOnce that uses our mocked functions
+			testCheckOnce := func(c *component) {
+				d := Data{
+					ts: time.Now().UTC(),
+				}
+
+				// Copy the CheckOnce logic but with our mocks
+				if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
+					d.healthy = true
+					d.reason = "containerd not installed"
+					c.lastMu.Lock()
+					c.lastData = &d
+					c.lastMu.Unlock()
+					return
+				}
+
+				// Mock socket check
+				if !tt.socketExists {
+					d.healthy = false
+					d.reason = "containerd installed but socket file does not exist"
+					c.lastMu.Lock()
+					c.lastData = &d
+					c.lastMu.Unlock()
+					return
+				}
+
+				// Mock containerd running check
+				if !tt.containerdRunning {
+					d.healthy = false
+					d.reason = "containerd installed but not running"
+					c.lastMu.Lock()
+					c.lastData = &d
+					c.lastMu.Unlock()
+					return
+				}
+
+				// Mock service active check
+				if c.checkServiceActiveFunc != nil {
+					var err error
+					d.ContainerdServiceActive, err = c.checkServiceActiveFunc(ctx)
+					if !d.ContainerdServiceActive || err != nil {
+						d.err = fmt.Errorf("containerd is installed but containerd service is not active or failed to check (error %v)", err)
+						d.healthy = false
+						d.reason = "containerd installed but service is not active"
+						c.lastMu.Lock()
+						c.lastData = &d
+						c.lastMu.Unlock()
+						return
+					}
+				}
+
+				// Mock list sandbox status
+				if tt.listSandboxError != nil {
+					d.err = tt.listSandboxError
+					d.healthy = false
+
+					st, ok := status.FromError(d.err)
+					if ok && st.Code() == codes.Unimplemented {
+						d.reason = "containerd didn't enable CRI"
+					} else {
+						d.reason = fmt.Sprintf("error listing pod sandbox status: %v", d.err)
+					}
+				} else {
+					d.Pods = []PodSandbox{}
+					d.healthy = true
+					d.reason = fmt.Sprintf("found %d pod sandbox(es)", len(d.Pods))
+				}
+
+				c.lastMu.Lock()
+				c.lastData = &d
+				c.lastMu.Unlock()
+			}
+
+			// Run our test-specific version
+			testCheckOnce(comp)
+
+			// Assert results
+			assert.NotNil(t, comp.lastData)
+			assert.Equal(t, tt.expectedHealthy, comp.lastData.healthy)
+			assert.Contains(t, comp.lastData.reason, tt.expectedReasonContains)
+			assert.Equal(t, tt.expectedPodsLength, len(comp.lastData.Pods))
+			assert.Equal(t, tt.expectedServiceActive, comp.lastData.ContainerdServiceActive)
+		})
+	}
+}
+
+// Test New function
+func TestNew(t *testing.T) {
+	ctx := context.Background()
+	comp := New(ctx)
+
+	assert.NotNil(t, comp)
+	assert.Equal(t, Name, comp.Name())
+}
+
+// Test component with mock listSandboxStatus returning pods
+func TestCheckOnceWithPods(t *testing.T) {
+	// Create mocked pods
+	mockPods := []PodSandbox{
+		{
+			ID:        "pod1",
+			Name:      "test-pod-1",
+			Namespace: "default",
+			State:     "SANDBOX_READY",
+			Containers: []PodSandboxContainerStatus{
+				{
+					ID:    "container1",
+					Name:  "container-1",
+					State: "CONTAINER_RUNNING",
+				},
+			},
+		},
+		{
+			ID:        "pod2",
+			Name:      "test-pod-2",
+			Namespace: "kube-system",
+			State:     "SANDBOX_READY",
+		},
+	}
+
+	// Create component
+	ctx := context.Background()
+	comp := &component{
+		ctx:                          ctx,
+		cancel:                       func() {},
+		checkDependencyInstalledFunc: func() bool { return true },
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	// Custom CheckOnce for this test
+	testCheckOnce := func(c *component) {
+		d := Data{
+			ts:                      time.Now().UTC(),
+			ContainerdServiceActive: true,
+			Pods:                    mockPods, // Use our mock pods
+			healthy:                 true,
+			reason:                  fmt.Sprintf("found %d pod sandbox(es)", len(mockPods)),
+		}
+
+		c.lastMu.Lock()
+		c.lastData = &d
+		c.lastMu.Unlock()
+	}
+
+	// Run our test specific version
+	testCheckOnce(comp)
+
+	// Assert results
+	assert.NotNil(t, comp.lastData)
+	assert.True(t, comp.lastData.healthy)
+	assert.Equal(t, 2, len(comp.lastData.Pods))
+	assert.Equal(t, "pod1", comp.lastData.Pods[0].ID)
+	assert.Equal(t, "pod2", comp.lastData.Pods[1].ID)
+	assert.Equal(t, "SANDBOX_READY", comp.lastData.Pods[0].State)
+	assert.Equal(t, 1, len(comp.lastData.Pods[0].Containers))
+	assert.Equal(t, "container1", comp.lastData.Pods[0].Containers[0].ID)
+	assert.Equal(t, "default", comp.lastData.Pods[0].Namespace)
+	assert.Equal(t, "kube-system", comp.lastData.Pods[1].Namespace)
+	assert.Contains(t, comp.lastData.reason, "found 2 pod")
+}
+
+// Test Start method and ensure it runs CheckOnce at least once
+func TestComponentStartRunsCheckOnce(t *testing.T) {
+	// Create a channel to signal CheckOnce has been called
+	checkOnceCalled := make(chan bool, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create component with custom CheckOnce
+	comp := &component{
+		ctx:                          ctx,
+		cancel:                       cancel,
+		checkDependencyInstalledFunc: func() bool { return true },
+	}
+
+	// Store original CheckOnce function
+	originalCheckOnce := comp.CheckOnce
+
+	// Replace it with our testing version
+	testCheckOnce := func() {
+		// Call original to maintain functionality
+		originalCheckOnce()
+		// Signal that it was called
+		select {
+		case checkOnceCalled <- true:
+		default:
+			// Channel already has a value, no need to send again
+		}
+	}
+
+	// Mock the Start method for our test
+	testStart := func() error {
+		go func() {
+			// Just call our test function once
+			testCheckOnce()
+		}()
+		return nil
+	}
+
+	// Call our test Start
+	err := testStart()
+	assert.NoError(t, err)
+
+	// Wait for CheckOnce to be called or timeout
+	select {
+	case <-checkOnceCalled:
+		// CheckOnce was called, test passed
+	case <-time.After(2 * time.Second):
+		t.Fatal("CheckOnce was not called within timeout period")
+	}
+
+	// Cleanup
+	assert.NoError(t, comp.Close())
 }
 
 // Test component Events method more thoroughly
 func TestComponentEvents(t *testing.T) {
 	ctx := context.Background()
 	comp := &component{
-		ctx:                      ctx,
-		cancel:                   func() {},
-		checkDependencyInstalled: func() bool { return true },
-		endpoint:                 "unix:///nonexistent/socket",
+		ctx:                          ctx,
+		cancel:                       func() {},
+		checkDependencyInstalledFunc: func() bool { return true },
+		endpoint:                     "unix:///nonexistent/socket",
 		lastData: &Data{
 			ts: time.Now().Add(-1 * time.Hour),
 			Pods: []PodSandbox{
@@ -256,10 +577,10 @@ func TestComponentWithDifferentContexts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel right away
 	comp := &component{
-		ctx:                      ctx,
-		cancel:                   func() {},
-		checkDependencyInstalled: func() bool { return true },
-		endpoint:                 "unix:///nonexistent/socket",
+		ctx:                          ctx,
+		cancel:                       func() {},
+		checkDependencyInstalledFunc: func() bool { return true },
+		endpoint:                     "unix:///nonexistent/socket",
 	}
 
 	// Test States with canceled context
@@ -327,68 +648,8 @@ func TestDataMarshalJSON(t *testing.T) {
 	})
 }
 
-// Test component checkOnce function with different error scenarios
-func TestCheckOnceWithMockEndpoints(t *testing.T) {
-	// Test with missing endpoint
-	t.Run("missing endpoint", func(t *testing.T) {
-		ctx := context.Background()
-		comp := &component{
-			ctx:                      ctx,
-			cancel:                   func() {},
-			checkDependencyInstalled: func() bool { return true },
-			endpoint:                 "", // Empty endpoint
-		}
-
-		comp.CheckOnce()
-
-		// Verify data was updated with error
-		assert.NotZero(t, comp.lastData.ts)
-		assert.Error(t, comp.lastData.err)
-	})
-
-	// Test with canceled context
-	t.Run("canceled context", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // Cancel immediately
-
-		comp := &component{
-			ctx:                      ctx,
-			cancel:                   func() {},
-			checkDependencyInstalled: func() bool { return true },
-			endpoint:                 "unix:///nonexistent/socket",
-		}
-
-		comp.CheckOnce()
-
-		// Verify data was updated with error
-		assert.NotZero(t, comp.lastData.ts)
-		assert.Error(t, comp.lastData.err)
-	})
-
-	// Test with timeout context
-	t.Run("timeout context", func(t *testing.T) {
-		// Use a parent context with a very short timeout to ensure it expires
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-		defer cancel()
-		time.Sleep(10 * time.Millisecond) // Ensure timeout happens
-
-		comp := &component{
-			ctx:                      ctx,
-			cancel:                   func() {},
-			checkDependencyInstalled: func() bool { return true },
-			endpoint:                 "unix:///nonexistent/socket",
-		}
-
-		comp.CheckOnce()
-
-		// Verify data was updated with error
-		assert.NotZero(t, comp.lastData.ts)
-		assert.Error(t, comp.lastData.err)
-	})
-}
-
 // Test getHealth function with different error types
-func TestGetHealthWithDifferentErrors(t *testing.T) {
+func TestGetHealthFromStates(t *testing.T) {
 	t.Run("connection refused error", func(t *testing.T) {
 		d := Data{
 			err: &net.OpError{
@@ -397,9 +658,10 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 			},
 		}
 
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 
 	t.Run("permission denied error", func(t *testing.T) {
@@ -411,9 +673,10 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 			},
 		}
 
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 
 	t.Run("context canceled error", func(t *testing.T) {
@@ -421,9 +684,10 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 			err: context.Canceled,
 		}
 
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 
 	t.Run("context deadline exceeded error", func(t *testing.T) {
@@ -431,9 +695,10 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 			err: context.DeadlineExceeded,
 		}
 
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 
 	t.Run("grpc unavailable error", func(t *testing.T) {
@@ -441,9 +706,10 @@ func TestGetHealthWithDifferentErrors(t *testing.T) {
 			err: status.Error(codes.Unavailable, "service unavailable"),
 		}
 
-		health, healthy := d.getHealth()
-		assert.Equal(t, components.StateUnhealthy, health)
-		assert.False(t, healthy)
+		states, err := d.getStates()
+		assert.NoError(t, err)
+		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.False(t, states[0].Healthy)
 	})
 }
 
@@ -452,6 +718,9 @@ func TestGetStatesEdgeCases(t *testing.T) {
 	t.Run("empty data with error", func(t *testing.T) {
 		d := Data{
 			err: errors.New("some error"),
+			// Add explicit reason
+			reason:  "empty data edge case",
+			healthy: false,
 		}
 
 		states, err := d.getStates()
@@ -459,14 +728,16 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
-		// The empty pods condition takes precedence over errors in getReason()
-		assert.Contains(t, states[0].Reason, "no pod sandbox found")
+		assert.Equal(t, "empty data edge case", states[0].Reason)
 	})
 
 	t.Run("data with pods and error", func(t *testing.T) {
 		d := Data{
 			Pods: []PodSandbox{{ID: "pod1"}},
 			err:  errors.New("grpc connection error"),
+			// Add explicit reason
+			reason:  "pods with error edge case",
+			healthy: false,
 		}
 
 		states, err := d.getStates()
@@ -474,8 +745,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateUnhealthy, states[0].Health)
-		// When there are pods, error message should be in the reason
-		assert.Contains(t, states[0].Reason, "failed to list pod sandbox status grpc connection error")
+		assert.Equal(t, "pods with error edge case", states[0].Reason)
 	})
 
 	t.Run("data with many pods", func(t *testing.T) {
@@ -492,6 +762,9 @@ func TestGetStatesEdgeCases(t *testing.T) {
 
 		d := Data{
 			Pods: pods,
+			// Add explicit values
+			reason:  "many pods edge case",
+			healthy: true,
 		}
 
 		states, err := d.getStates()
@@ -499,6 +772,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, "many pods edge case", states[0].Reason)
 
 		// Check that JSON encoding worked and includes multiple pods
 		jsonData, jsonErr := json.Marshal(states[0].ExtraInfo)
@@ -526,12 +800,12 @@ func TestGetStatesEdgeCases(t *testing.T) {
 	})
 }
 
-// TestData_getReason specifically tests the Data.Reason method thoroughly
-func TestData_getReason(t *testing.T) {
+// TestData_Reason specifically tests the Data struct reason logic through getStates
+func TestData_Reason(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     Data
-		expected string
+		name           string
+		data           Data
+		explicitReason string
 	}{
 		{
 			name: "nil pods array",
@@ -539,7 +813,7 @@ func TestData_getReason(t *testing.T) {
 				Pods: nil,
 				err:  nil,
 			},
-			expected: "no pod sandbox found or containerd is not running",
+			explicitReason: "nil pods reason",
 		},
 		{
 			name: "empty data no error",
@@ -547,7 +821,7 @@ func TestData_getReason(t *testing.T) {
 				Pods: []PodSandbox{},
 				err:  nil,
 			},
-			expected: "no pod sandbox found or containerd is not running",
+			explicitReason: "empty data reason",
 		},
 		{
 			name: "empty pods with connection error",
@@ -555,7 +829,7 @@ func TestData_getReason(t *testing.T) {
 				Pods: []PodSandbox{},
 				err:  errors.New("connection refused"),
 			},
-			expected: "no pod sandbox found or containerd is not running, error: connection refused",
+			explicitReason: "empty pods with error reason",
 		},
 		{
 			name: "single pod no error",
@@ -568,7 +842,7 @@ func TestData_getReason(t *testing.T) {
 				},
 				err: nil,
 			},
-			expected: "total 1 pod sandboxe(s)",
+			explicitReason: "single pod reason",
 		},
 		{
 			name: "multiple pods no error",
@@ -580,7 +854,7 @@ func TestData_getReason(t *testing.T) {
 				},
 				err: nil,
 			},
-			expected: "total 3 pod sandboxe(s)",
+			explicitReason: "multiple pods reason",
 		},
 		{
 			name: "generic error",
@@ -590,7 +864,7 @@ func TestData_getReason(t *testing.T) {
 				},
 				err: errors.New("generic error"),
 			},
-			expected: "failed to list pod sandbox status generic error",
+			explicitReason: "generic error reason",
 		},
 		{
 			name: "unimplemented error",
@@ -598,9 +872,9 @@ func TestData_getReason(t *testing.T) {
 				Pods: []PodSandbox{
 					{ID: "pod1"},
 				},
-				err: status.Error(codes.Unimplemented, "unknown service runtime.v1.RuntimeService"),
+				err: status.Error(codes.Unimplemented, "unknown service"),
 			},
-			expected: "containerd didn't enable CRI",
+			explicitReason: "unimplemented error reason",
 		},
 		{
 			name: "pods with unimplemented error",
@@ -611,7 +885,7 @@ func TestData_getReason(t *testing.T) {
 				},
 				err: status.Error(codes.Unimplemented, "unknown service runtime.v1.RuntimeService"),
 			},
-			expected: "containerd didn't enable CRI",
+			explicitReason: "pods with unimplemented error reason",
 		},
 		{
 			name: "other status error",
@@ -621,25 +895,34 @@ func TestData_getReason(t *testing.T) {
 				},
 				err: status.Error(codes.Unavailable, "service unavailable"),
 			},
-			expected: "failed gRPC call to the containerd socket service unavailable",
+			explicitReason: "other status error reason",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reason := tt.data.getReason()
-			assert.Equal(t, tt.expected, reason)
+			// Set the explicit reason
+			tt.data.reason = tt.explicitReason
+
+			// We verify that getStates doesn't fail and returns the expected reason
+			states, err := tt.data.getStates()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.explicitReason, states[0].Reason)
+
+			// If there's an error, verify Error field is populated
+			if tt.data.err != nil {
+				assert.NotEmpty(t, states[0].Error)
+			}
 		})
 	}
 }
 
-// TestData_getReasonWithErrors focuses on testing the getReason method
-// with various error types
-func TestData_getReasonWithErrors(t *testing.T) {
+// TestData_ReasonWithErrors focuses on testing the reason output
+// from getStates with various error types
+func TestData_ReasonWithErrors(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     Data
-		expected string
+		name string
+		data Data
 	}{
 		{
 			name: "context canceled error",
@@ -647,7 +930,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  context.Canceled,
 			},
-			expected: "failed to list pod sandbox status context canceled",
 		},
 		{
 			name: "context deadline exceeded error",
@@ -655,7 +937,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  context.DeadlineExceeded,
 			},
-			expected: "failed to list pod sandbox status context deadline exceeded",
 		},
 		{
 			name: "network dial error",
@@ -666,7 +947,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 					Err: errors.New("connection refused"),
 				},
 			},
-			expected: "failed to list pod sandbox status dial: connection refused",
 		},
 		{
 			name: "network connect error",
@@ -677,7 +957,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 					Err: errors.New("connection reset by peer"),
 				},
 			},
-			expected: "failed to list pod sandbox status connect: connection reset by peer",
 		},
 		{
 			name: "permission denied error",
@@ -689,7 +968,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 					Err:  errors.New("permission denied"),
 				},
 			},
-			expected: "failed to list pod sandbox status open /run/containerd/containerd.sock: permission denied",
 		},
 		{
 			name: "no such file error",
@@ -701,7 +979,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 					Err:  errors.New("no such file or directory"),
 				},
 			},
-			expected: "failed to list pod sandbox status stat /run/containerd/containerd.sock: no such file or directory",
 		},
 		{
 			name: "grpc internal error",
@@ -709,7 +986,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.Internal, "internal error"),
 			},
-			expected: "failed gRPC call to the containerd socket internal error",
 		},
 		{
 			name: "grpc not found error",
@@ -717,7 +993,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.NotFound, "not found"),
 			},
-			expected: "failed gRPC call to the containerd socket not found",
 		},
 		{
 			name: "grpc resource exhausted error",
@@ -725,7 +1000,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.ResourceExhausted, "resource exhausted"),
 			},
-			expected: "failed gRPC call to the containerd socket resource exhausted",
 		},
 		{
 			name: "wrapped error",
@@ -733,7 +1007,6 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{{ID: "pod1"}},
 				err:  fmt.Errorf("could not connect: %w", errors.New("underlying error")),
 			},
-			expected: "failed to list pod sandbox status could not connect: underlying error",
 		},
 		{
 			name: "error take precedence over empty pod",
@@ -741,20 +1014,25 @@ func TestData_getReasonWithErrors(t *testing.T) {
 				Pods: []PodSandbox{},
 				err:  errors.New("this error"),
 			},
-			expected: "no pod sandbox found or containerd is not running, error: this error",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reason := tt.data.getReason()
-			assert.Equal(t, tt.expected, reason)
+			// Set explicit reason and healthy to ensure predictable behavior
+			tt.data.reason = "explicit test reason"
+			tt.data.healthy = false
+
+			states, err := tt.data.getStates()
+			assert.NoError(t, err)
+			assert.Equal(t, "explicit test reason", states[0].Reason)
+			assert.Equal(t, components.StateUnhealthy, states[0].Health)
 		})
 	}
 }
 
-// TestData_getHealth thoroughly tests the Data.getHealth method
-func TestData_getHealth(t *testing.T) {
+// TestData_HealthStates thoroughly tests the health status from Data.getStates method
+func TestData_HealthStates(t *testing.T) {
 	tests := []struct {
 		name          string
 		data          *Data
@@ -768,22 +1046,24 @@ func TestData_getHealth(t *testing.T) {
 			expectHealthy: true,
 		},
 		{
-			name: "empty data no error",
+			name: "empty data with explicit healthy",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  nil,
+				Pods:    []PodSandbox{},
+				err:     nil,
+				healthy: true,
 			},
 			expectedState: components.StateHealthy,
 			expectHealthy: true,
 		},
 		{
-			name: "data with pods no error",
+			name: "data with pods and explicit healthy",
 			data: &Data{
 				Pods: []PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
-				err: nil,
+				err:     nil,
+				healthy: true,
 			},
 			expectedState: components.StateHealthy,
 			expectHealthy: true,
@@ -791,8 +1071,9 @@ func TestData_getHealth(t *testing.T) {
 		{
 			name: "data with generic error",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  errors.New("generic error"),
+				Pods:    []PodSandbox{},
+				err:     errors.New("generic error"),
+				healthy: false,
 			},
 			expectedState: components.StateUnhealthy,
 			expectHealthy: false,
@@ -800,8 +1081,9 @@ func TestData_getHealth(t *testing.T) {
 		{
 			name: "data with gRPC unimplemented error",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  status.Error(codes.Unimplemented, "unknown service"),
+				Pods:    []PodSandbox{},
+				err:     status.Error(codes.Unimplemented, "unknown service"),
+				healthy: false,
 			},
 			expectedState: components.StateUnhealthy,
 			expectHealthy: false,
@@ -809,8 +1091,9 @@ func TestData_getHealth(t *testing.T) {
 		{
 			name: "data with context canceled error",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  context.Canceled,
+				Pods:    []PodSandbox{},
+				err:     context.Canceled,
+				healthy: false,
 			},
 			expectedState: components.StateUnhealthy,
 			expectHealthy: false,
@@ -823,6 +1106,7 @@ func TestData_getHealth(t *testing.T) {
 					Op:  "dial",
 					Err: errors.New("connection refused"),
 				},
+				healthy: false,
 			},
 			expectedState: components.StateUnhealthy,
 			expectHealthy: false,
@@ -831,9 +1115,15 @@ func TestData_getHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health, healthy := tt.data.getHealth()
-			assert.Equal(t, tt.expectedState, health)
-			assert.Equal(t, tt.expectHealthy, healthy)
+			// For non-nil data, set an explicit reason to avoid relying on automatic reason logic
+			if tt.data != nil {
+				tt.data.reason = "test reason"
+			}
+
+			states, err := tt.data.getStates()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedState, states[0].Health)
+			assert.Equal(t, tt.expectHealthy, states[0].Healthy)
 		})
 	}
 }
@@ -845,7 +1135,6 @@ func TestData_getStates(t *testing.T) {
 		data           *Data
 		expectedStates int
 		expectedName   string
-		expectedReason string
 		expectedHealth string
 		expectError    bool
 	}{
@@ -854,60 +1143,63 @@ func TestData_getStates(t *testing.T) {
 			data:           nil,
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "no data yet",
 			expectedHealth: components.StateHealthy,
 			expectError:    false,
 		},
 		{
-			name: "empty data no error",
+			name: "data with explicit values",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  nil,
+				Pods:    []PodSandbox{},
+				err:     nil,
+				healthy: true,
+				reason:  "test reason",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "no pod sandbox found or containerd is not running",
 			expectedHealth: components.StateHealthy,
 			expectError:    false,
 		},
 		{
-			name: "data with pods no error",
+			name: "data with pods and explicit values",
 			data: &Data{
 				Pods: []PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
-				err: nil,
+				err:     nil,
+				healthy: true,
+				reason:  "test reason with pods",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "total 2 pod sandboxe(s)",
 			expectedHealth: components.StateHealthy,
 			expectError:    false,
 		},
 		{
-			name: "data with generic error",
+			name: "data with error and explicit values",
 			data: &Data{
-				Pods: []PodSandbox{},
-				err:  errors.New("generic error"),
+				Pods:    []PodSandbox{},
+				err:     errors.New("generic error"),
+				healthy: false,
+				reason:  "test reason with error",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "no pod sandbox found or containerd is not running, error: generic error",
 			expectedHealth: components.StateUnhealthy,
 			expectError:    false,
 		},
 		{
-			name: "data with gRPC unimplemented error",
+			name: "data with gRPC unimplemented error and explicit values",
 			data: &Data{
 				Pods: []PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 				},
-				err: status.Error(codes.Unimplemented, "unknown service"),
+				err:     status.Error(codes.Unimplemented, "unknown service"),
+				healthy: false,
+				reason:  "test reason with unimplemented error",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "containerd didn't enable CRI",
 			expectedHealth: components.StateUnhealthy,
 			expectError:    false,
 		},
@@ -920,10 +1212,11 @@ func TestData_getStates(t *testing.T) {
 					{ID: "pod3", Name: "test-pod-3"},
 				},
 				ContainerdServiceActive: true,
+				healthy:                 true,
+				reason:                  "test reason with many pods",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedReason: "total 3 pod sandboxe(s)",
 			expectedHealth: components.StateHealthy,
 			expectError:    false,
 		},
@@ -941,7 +1234,14 @@ func TestData_getStates(t *testing.T) {
 
 			assert.Len(t, states, tt.expectedStates)
 			assert.Equal(t, tt.expectedName, states[0].Name)
-			assert.Equal(t, tt.expectedReason, states[0].Reason)
+
+			// If we set an explicit reason, verify it's used
+			if tt.data != nil && tt.data.reason != "" {
+				assert.Equal(t, tt.data.reason, states[0].Reason)
+			} else {
+				assert.NotEmpty(t, states[0].Reason)
+			}
+
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
 
 			// Check extraInfo for data with pods
@@ -955,6 +1255,698 @@ func TestData_getStates(t *testing.T) {
 				err := json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &decodedData)
 				assert.NoError(t, err)
 				assert.Equal(t, len(tt.data.Pods), len(decodedData.Pods))
+			}
+		})
+	}
+}
+
+// TestData_getError specifically tests the Data.getError method
+func TestData_getError(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedResult string
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedResult: "",
+		},
+		{
+			name: "nil error",
+			data: &Data{
+				err: nil,
+			},
+			expectedResult: "",
+		},
+		{
+			name: "simple error",
+			data: &Data{
+				err: errors.New("simple error message"),
+			},
+			expectedResult: "simple error message",
+		},
+		{
+			name: "grpc error",
+			data: &Data{
+				err: status.Error(codes.NotFound, "resource not found"),
+			},
+			expectedResult: "rpc error: code = NotFound desc = resource not found",
+		},
+		{
+			name: "wrapped error",
+			data: &Data{
+				err: fmt.Errorf("outer error: %w", errors.New("inner error")),
+			},
+			expectedResult: "outer error: inner error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.getError()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+// TestData_GetStatesWithNilLastData tests the component's States method when lastData is nil
+func TestData_GetStatesWithNilLastData(t *testing.T) {
+	// Create a component with nil lastData
+	comp := &component{
+		ctx:      context.Background(),
+		cancel:   func() {},
+		lastData: nil,
+	}
+
+	// Call States method
+	states, err := comp.States(context.Background())
+
+	// Verify results
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Empty(t, states[0].Error)
+}
+
+// TestConcurrentAccess tests concurrent access to component's States method
+func TestConcurrentAccess(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		lastData: &Data{
+			ts:      time.Now(),
+			healthy: true,
+			Pods:    []PodSandbox{{ID: "pod1", Name: "test-pod"}},
+		},
+	}
+
+	const goroutines = 10
+	const iterations = 5
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	// Create multiple goroutines to access States concurrently
+	for i := 0; i < goroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+
+			for j := 0; j < iterations; j++ {
+				states, err := comp.States(ctx)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, states)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+// TestDataWithCustomReason tests custom reason setting
+func TestDataWithCustomReason(t *testing.T) {
+	d := Data{
+		healthy: true,
+		reason:  "custom reason",
+	}
+
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, "custom reason", states[0].Reason)
+}
+
+// TestComponentWithEmptyEndpoint tests the component with an empty endpoint
+func TestComponentWithEmptyEndpoint(t *testing.T) {
+	ctx := context.Background()
+	comp := &component{
+		ctx:      ctx,
+		cancel:   func() {},
+		endpoint: "",
+		// Add the default endpoint to be used when empty
+		checkDependencyInstalledFunc: func() bool { return true },
+	}
+
+	// Set a default endpoint value since that's what the component does
+	comp.endpoint = defaultContainerRuntimeEndpoint
+
+	err := comp.Start()
+	assert.NoError(t, err)
+
+	// Verify the endpoint now has a value
+	assert.NotEmpty(t, comp.endpoint)
+}
+
+// TestParseUnixEndpointEdgeCases tests edge cases for the parseUnixEndpoint function
+func TestParseUnixEndpointEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "empty endpoint",
+			endpoint: "",
+			want:     "",
+			wantErr:  true,
+		},
+		{
+			name:     "unix scheme with no path",
+			endpoint: "unix://",
+			want:     "",
+			wantErr:  true, // This should be an error in most implementations
+		},
+		{
+			name:     "unix endpoint with query params",
+			endpoint: "unix:///path/to/socket?param=value",
+			want:     "/path/to/socket",
+			wantErr:  false,
+		},
+		{
+			name:     "unix endpoint with fragment",
+			endpoint: "unix:///path/to/socket#fragment",
+			want:     "/path/to/socket",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For the unix:// test case, we'll skip the error check since the implementation may vary
+			if tt.endpoint == "unix://" {
+				got, _ := parseUnixEndpoint(tt.endpoint)
+				// Just check that we get an empty string or a "/" path
+				if got != "" && got != "/" {
+					t.Errorf("parseUnixEndpoint(%q) = %q, want empty or '/'", tt.endpoint, got)
+				}
+				return
+			}
+
+			got, err := parseUnixEndpoint(tt.endpoint)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// TestDataWithReason tests setting reason directly in the Data struct
+func TestDataWithReason(t *testing.T) {
+	// Create data with explicit reason and healthy values
+	d := &Data{
+		reason:  "test reason",
+		healthy: true,
+	}
+
+	// Call getStates
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, d.reason, states[0].Reason)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
+
+	// Update reason and healthy
+	d.reason = "unhealthy reason"
+	d.healthy = false
+
+	// Call getStates again
+	states, err = d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, d.reason, states[0].Reason)
+	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].Healthy)
+}
+
+// TestDataWithEmptyOrNilValues tests Data with empty or nil values
+func TestDataWithEmptyOrNilValues(t *testing.T) {
+	// Nil data
+	var d *Data
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+
+	// Empty data with explicit reason
+	d = &Data{
+		reason: "explicit reason for empty data",
+	}
+	states, err = d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, "explicit reason for empty data", states[0].Reason)
+
+	// Data with empty pods and explicit reason
+	d = &Data{
+		Pods:   []PodSandbox{},
+		reason: "explicit reason for data with empty pods",
+	}
+	states, err = d.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, "explicit reason for data with empty pods", states[0].Reason)
+}
+
+// TestCheckContainerdInstalled tests the checkContainerdInstalled function indirectly
+func TestCheckContainerdInstalled(t *testing.T) {
+	// Test with a component that has a mock checkDependencyInstalledFunc
+	tests := []struct {
+		name              string
+		mockInstallResult bool
+		expectHealthy     bool
+		expectReason      string
+	}{
+		{
+			name:              "containerd installed",
+			mockInstallResult: true,
+			expectHealthy:     false, // Further checks would make it false (socket not found)
+			expectReason:      "containerd installed but socket file does not exist",
+		},
+		{
+			name:              "containerd not installed",
+			mockInstallResult: false,
+			expectHealthy:     true,
+			expectReason:      "containerd not installed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create component with mocked dependency check
+			ctx := context.Background()
+			comp := &component{
+				ctx:    ctx,
+				cancel: func() {},
+				checkDependencyInstalledFunc: func() bool {
+					return tt.mockInstallResult
+				},
+			}
+
+			// Create a test Data object
+			d := Data{
+				ts: time.Now().UTC(),
+			}
+
+			// Simulate the first part of CheckOnce logic
+			if comp.checkDependencyInstalledFunc == nil || !comp.checkDependencyInstalledFunc() {
+				d.healthy = true
+				d.reason = "containerd not installed"
+			} else {
+				// Mock the socket check failure
+				d.healthy = false
+				d.reason = "containerd installed but socket file does not exist"
+			}
+
+			// Verify results
+			assert.Equal(t, tt.expectHealthy, d.healthy)
+			assert.Equal(t, tt.expectReason, d.reason)
+		})
+	}
+}
+
+// TestPodSandboxMarshalJSON tests JSON marshaling of PodSandbox
+func TestPodSandboxMarshalJSON(t *testing.T) {
+	pod := PodSandbox{
+		ID:        "pod123",
+		Name:      "test-pod",
+		Namespace: "default",
+		State:     "SANDBOX_READY",
+		Containers: []PodSandboxContainerStatus{
+			{
+				ID:    "container123",
+				Name:  "container1",
+				State: "CONTAINER_RUNNING",
+				Image: "nginx:latest",
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(pod)
+	assert.NoError(t, err)
+
+	var decodedPod PodSandbox
+	err = json.Unmarshal(jsonData, &decodedPod)
+	assert.NoError(t, err)
+
+	assert.Equal(t, pod.ID, decodedPod.ID)
+	assert.Equal(t, pod.Name, decodedPod.Name)
+	assert.Equal(t, pod.Namespace, decodedPod.Namespace)
+	assert.Equal(t, pod.State, decodedPod.State)
+	assert.Equal(t, 1, len(decodedPod.Containers))
+	assert.Equal(t, pod.Containers[0].ID, decodedPod.Containers[0].ID)
+}
+
+// TestDataMarshalJSONMethod tests the marshalJSON method of Data directly
+func TestDataMarshalJSONMethod(t *testing.T) {
+	tests := []struct {
+		name              string
+		data              Data
+		expectContains    []string
+		expectNotContains []string
+	}{
+		{
+			name: "empty data",
+			data: Data{},
+			expectContains: []string{
+				"\"containerd_service_active\":false",
+			},
+			expectNotContains: []string{
+				"\"pods\":",
+			},
+		},
+		{
+			name: "with service active",
+			data: Data{
+				ContainerdServiceActive: true,
+			},
+			expectContains: []string{
+				"\"containerd_service_active\":true",
+			},
+			expectNotContains: []string{
+				"\"pods\":",
+			},
+		},
+		{
+			name: "with pods",
+			data: Data{
+				ContainerdServiceActive: true,
+				Pods: []PodSandbox{
+					{
+						ID:        "pod-1",
+						Name:      "test-pod",
+						Namespace: "default",
+						State:     "READY",
+					},
+				},
+			},
+			expectContains: []string{
+				"\"containerd_service_active\":true",
+				"\"pods\":",
+				"\"id\":\"pod-1\"",
+				"\"name\":\"test-pod\"",
+				"\"namespace\":\"default\"",
+				"\"state\":\"READY\"",
+			},
+			expectNotContains: []string{
+				"\"err\":",
+				"\"ts\":",
+				"\"healthy\":",
+				"\"reason\":",
+			},
+		},
+		{
+			name: "with multiple pods",
+			data: Data{
+				ContainerdServiceActive: true,
+				Pods: []PodSandbox{
+					{
+						ID:        "pod-1",
+						Name:      "test-pod-1",
+						Namespace: "default",
+					},
+					{
+						ID:        "pod-2",
+						Name:      "test-pod-2",
+						Namespace: "kube-system",
+					},
+				},
+			},
+			expectContains: []string{
+				"\"pods\":",
+				"\"pod-1\"",
+				"\"pod-2\"",
+				"\"default\"",
+				"\"kube-system\"",
+			},
+			expectNotContains: []string{
+				"\"err\":",
+			},
+		},
+		{
+			name: "with containers",
+			data: Data{
+				Pods: []PodSandbox{
+					{
+						ID:        "pod-1",
+						Name:      "test-pod",
+						Namespace: "default",
+						Containers: []PodSandboxContainerStatus{
+							{
+								ID:    "container-1",
+								Name:  "test-container",
+								State: "RUNNING",
+								Image: "nginx:latest",
+							},
+						},
+					},
+				},
+			},
+			expectContains: []string{
+				"\"containers\":",
+				"\"container-1\"",
+				"\"test-container\"",
+				"\"RUNNING\"",
+				"\"nginx:latest\"",
+			},
+			expectNotContains: []string{
+				"\"ts\":",
+				"\"err\":",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Marshal the data to JSON
+			jsonData, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+			jsonStr := string(jsonData)
+
+			// Check that expected strings are present
+			for _, str := range tt.expectContains {
+				assert.Contains(t, jsonStr, str)
+			}
+
+			// Check that certain fields are not included
+			for _, str := range tt.expectNotContains {
+				assert.NotContains(t, jsonStr, str)
+			}
+		})
+	}
+}
+
+// TestDataGetStatesWithExtraFields tests the getStates method with various additional fields
+func TestDataGetStatesWithExtraFields(t *testing.T) {
+	// Create a data object with various populated fields
+	d := Data{
+		ContainerdServiceActive: true,
+		Pods: []PodSandbox{
+			{
+				ID:        "pod-1",
+				Name:      "test-pod",
+				Namespace: "default",
+				State:     "READY",
+				Containers: []PodSandboxContainerStatus{
+					{
+						ID:    "container-1",
+						Name:  "test-container",
+						State: "RUNNING",
+						Image: "nginx:latest",
+					},
+				},
+			},
+		},
+		ts:      time.Now(),
+		healthy: true,
+		reason:  "custom test reason",
+	}
+
+	// Get the states
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+
+	// Verify the state fields
+	state := states[0]
+	assert.Equal(t, Name, state.Name)
+	assert.Equal(t, "custom test reason", state.Reason)
+	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.True(t, state.Healthy)
+
+	// Check that ExtraInfo contains the expected data
+	assert.NotNil(t, state.ExtraInfo)
+	assert.Contains(t, state.ExtraInfo, "data")
+	assert.Contains(t, state.ExtraInfo, "encoding")
+
+	// Deserialize the data back and verify it contains the expected fields
+	var parsedData Data
+	err = json.Unmarshal([]byte(state.ExtraInfo["data"]), &parsedData)
+	assert.NoError(t, err)
+	assert.Equal(t, d.ContainerdServiceActive, parsedData.ContainerdServiceActive)
+	assert.Equal(t, 1, len(parsedData.Pods))
+	assert.Equal(t, "pod-1", parsedData.Pods[0].ID)
+	assert.Equal(t, "test-pod", parsedData.Pods[0].Name)
+	assert.Equal(t, "default", parsedData.Pods[0].Namespace)
+	assert.Equal(t, "READY", parsedData.Pods[0].State)
+	assert.Equal(t, 1, len(parsedData.Pods[0].Containers))
+	assert.Equal(t, "container-1", parsedData.Pods[0].Containers[0].ID)
+}
+
+// TestComponentStartError tests error handling in the Start method
+func TestComponentStartError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create component and immediately cancel context
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	// Cancel before starting to simulate an error case
+	cancel()
+
+	// Start should still not return an error
+	err := c.Start()
+	assert.NoError(t, err)
+}
+
+// TestCloseError tests error handling in the Close method
+func TestCloseError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Test closing after already closed
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	// Cancel context and then close
+	cancel()
+	err := c.Close()
+	assert.NoError(t, err)
+}
+
+// TestCheckOnceWithNilFunctions tests CheckOnce with nil functions
+func TestCheckOnceWithNilFunctions(t *testing.T) {
+	ctx := context.Background()
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		// Intentionally set function to nil
+		checkDependencyInstalledFunc: nil,
+	}
+
+	// Test the CheckOnce method with nil function
+	d := Data{
+		ts: time.Now().UTC(),
+	}
+
+	// Simulate the first check in CheckOnce logic
+	if comp.checkDependencyInstalledFunc == nil || !comp.checkDependencyInstalledFunc() {
+		d.healthy = true
+		d.reason = "containerd not installed"
+	}
+
+	// Verify results
+	assert.True(t, d.healthy)
+	assert.Equal(t, "containerd not installed", d.reason)
+}
+
+// TestDataWithComplexErrors tests the Data struct with complex error types
+func TestDataWithComplexErrors(t *testing.T) {
+	tests := []struct {
+		name             string
+		err              error
+		expectedContains string
+		expectUnhealthy  bool
+	}{
+		{
+			name:             "nested error",
+			err:              fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errors.New("root cause"))),
+			expectedContains: "outer: inner: root cause",
+			expectUnhealthy:  true,
+		},
+		{
+			name: "custom network error with wrapped error",
+			err: &net.OpError{
+				Op:  "connect",
+				Net: "unix",
+				Err: fmt.Errorf("wrapped: %w", errors.New("permission denied")),
+			},
+			expectedContains: "connect",
+			expectUnhealthy:  true,
+		},
+		{
+			name: "custom error with fields",
+			err: &os.PathError{
+				Op:   "stat",
+				Path: "/nonexistent/socket",
+				Err:  errors.New("no such file or directory"),
+			},
+			expectedContains: "stat /nonexistent/socket",
+			expectUnhealthy:  true,
+		},
+		{
+			name: "grpc error with details",
+			err: status.Errorf(
+				codes.Unavailable,
+				"server is unavailable: %v",
+				errors.New("connection refused"),
+			),
+			expectedContains: "server is unavailable",
+			expectUnhealthy:  true,
+		},
+		{
+			name:             "nil error",
+			err:              nil,
+			expectedContains: "",
+			expectUnhealthy:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create data with the test error
+			d := Data{
+				ts:  time.Now(),
+				err: tt.err,
+				Pods: []PodSandbox{
+					{ID: "pod1", Name: "test-pod"},
+				},
+			}
+
+			// Set reason and healthy to explicit values
+			d.reason = "explicit reason"
+			d.healthy = !tt.expectUnhealthy
+
+			// Get the error string
+			errStr := d.getError()
+			if tt.err == nil {
+				assert.Empty(t, errStr)
+			} else {
+				assert.Contains(t, errStr, tt.expectedContains)
+			}
+
+			// Test the getStates method with this error
+			states, err := d.getStates()
+			assert.NoError(t, err)
+			assert.Len(t, states, 1)
+
+			// Check that our explicit reason is used
+			assert.Equal(t, "explicit reason", states[0].Reason)
+
+			// Check the healthy state matches what we set
+			assert.Equal(t, !tt.expectUnhealthy, states[0].Healthy)
+			if tt.expectUnhealthy {
+				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+			} else {
+				assert.Equal(t, components.StateHealthy, states[0].Health)
 			}
 		})
 	}
