@@ -29,6 +29,27 @@ func mockComponent(
 			return isActive, activeError
 		},
 	}
+	// Initialize lastData for tests that don't call CheckOnce
+	if isInstalled && (!isActive || activeError != nil) {
+		c.lastData = &Data{
+			TailscaledServiceActive: isActive,
+			healthy:                 false,
+			err:                     activeError,
+			reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
+		}
+	} else if isInstalled && isActive {
+		c.lastData = &Data{
+			TailscaledServiceActive: true,
+			healthy:                 true,
+			reason:                  "tailscaled service is active/running",
+		}
+	} else {
+		c.lastData = &Data{
+			TailscaledServiceActive: false,
+			healthy:                 true,
+			reason:                  "tailscaled is not installed",
+		}
+	}
 	return c
 }
 
@@ -99,6 +120,7 @@ func TestCheckOnce(t *testing.T) {
 		activeError  error
 		expectActive bool
 		expectError  bool
+		expectReason string
 	}{
 		{
 			name:         "tailscaled installed and active",
@@ -107,6 +129,7 @@ func TestCheckOnce(t *testing.T) {
 			activeError:  nil,
 			expectActive: true,
 			expectError:  false,
+			expectReason: "tailscaled service is active/running",
 		},
 		{
 			name:         "tailscaled installed but not active",
@@ -114,7 +137,8 @@ func TestCheckOnce(t *testing.T) {
 			isActive:     false,
 			activeError:  nil,
 			expectActive: false,
-			expectError:  true,
+			expectError:  false,
+			expectReason: "tailscaled installed but tailscaled service is not active or failed to check (error <nil>)",
 		},
 		{
 			name:         "tailscaled installed but error checking active status",
@@ -123,6 +147,7 @@ func TestCheckOnce(t *testing.T) {
 			activeError:  errors.New("test error"),
 			expectActive: false,
 			expectError:  true,
+			expectReason: "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
 		},
 		{
 			name:         "tailscaled not installed",
@@ -131,6 +156,7 @@ func TestCheckOnce(t *testing.T) {
 			activeError:  nil,
 			expectActive: false,
 			expectError:  false,
+			expectReason: "tailscaled is not installed",
 		},
 	}
 
@@ -148,10 +174,16 @@ func TestCheckOnce(t *testing.T) {
 			assert.NotNil(t, lastData, "lastData should be set after CheckOnce")
 			assert.Equal(t, tc.expectActive, lastData.TailscaledServiceActive,
 				"TailscaledServiceActive should match expected value")
+			assert.Equal(t, tc.expectReason, lastData.reason,
+				"Reason should match expected value")
 
 			if tc.expectError {
-				assert.NotNil(t, lastData.err, "Error should be set when expected")
-			} else if tc.isInstalled {
+				if tc.activeError != nil {
+					assert.Equal(t, tc.activeError, lastData.err, "Error should match expected error")
+				} else {
+					assert.NotNil(t, lastData.err, "Error should be set when expected")
+				}
+			} else {
 				assert.Nil(t, lastData.err, "Error should not be set when not expected")
 			}
 		})
@@ -233,112 +265,46 @@ func TestEvents(t *testing.T) {
 	assert.Nil(t, events, "Events should return nil")
 }
 
-func TestDataGetReason(t *testing.T) {
-	testCases := []struct {
-		name           string
-		data           *Data
-		expectedReason string
-	}{
-		{
-			name:           "nil data",
-			data:           nil,
-			expectedReason: "no tailscaled check yet",
-		},
-		{
-			name: "error present",
-			data: &Data{
-				err: errors.New("test error"),
-			},
-			expectedReason: "tailscaled check failed -- test error",
-		},
-		{
-			name: "service active",
-			data: &Data{
-				TailscaledServiceActive: true,
-			},
-			expectedReason: "tailscaled service is active/running",
-		},
-		{
-			name: "service not active",
-			data: &Data{
-				TailscaledServiceActive: false,
-			},
-			expectedReason: "tailscaled service is not active",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			reason := tc.data.getReason()
-			assert.Equal(t, tc.expectedReason, reason, "Reason should match expected")
-		})
-	}
-}
-
-func TestDataGetHealth(t *testing.T) {
+func TestDataGetStates(t *testing.T) {
 	testCases := []struct {
 		name            string
 		data            *Data
+		expectedReason  string
 		expectedHealth  string
 		expectedHealthy bool
 	}{
 		{
-			name:            "nil data",
-			data:            nil,
+			name: "active service",
+			data: &Data{
+				TailscaledServiceActive: true,
+				healthy:                 true,
+				reason:                  "tailscaled service is active/running",
+			},
+			expectedReason:  "tailscaled service is active/running",
 			expectedHealth:  components.StateHealthy,
 			expectedHealthy: true,
 		},
 		{
-			name: "error present",
+			name: "inactive service",
 			data: &Data{
-				err: errors.New("test error"),
+				TailscaledServiceActive: false,
+				healthy:                 false,
+				reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 			},
+			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check",
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
 		{
-			name: "no error",
+			name: "error state",
 			data: &Data{
-				TailscaledServiceActive: true,
+				err:     errors.New("test error"),
+				healthy: false,
+				reason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
 			},
-			expectedHealth:  components.StateHealthy,
-			expectedHealthy: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			health, healthy := tc.data.getHealth()
-			assert.Equal(t, tc.expectedHealth, health, "Health string should match expected")
-			assert.Equal(t, tc.expectedHealthy, healthy, "Healthy boolean should match expected")
-		})
-	}
-}
-
-func TestDataGetStates(t *testing.T) {
-	testCases := []struct {
-		name           string
-		data           *Data
-		expectedReason string
-		expectedHealth string
-	}{
-		{
-			name:           "active service",
-			data:           &Data{TailscaledServiceActive: true},
-			expectedReason: "tailscaled service is active/running",
-			expectedHealth: components.StateHealthy,
-		},
-		{
-			name:           "inactive service",
-			data:           &Data{TailscaledServiceActive: false},
-			expectedReason: "tailscaled service is not active",
-			expectedHealth: components.StateHealthy,
-		},
-		{
-			name:           "error state",
-			data:           &Data{err: errors.New("test error")},
-			expectedReason: "tailscaled check failed -- test error",
-			expectedHealth: components.StateUnhealthy,
+			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
+			expectedHealth:  components.StateUnhealthy,
+			expectedHealthy: false,
 		},
 	}
 
@@ -346,7 +312,6 @@ func TestDataGetStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			states, err := tc.data.getStates()
 
-			// No longer checking if err is returned from getStates
 			assert.NoError(t, err)
 			assert.Len(t, states, 1, "getStates should return exactly one state")
 
@@ -354,6 +319,7 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedReason, state.Reason, "State reason should match expected")
 			assert.Equal(t, tc.expectedHealth, state.Health, "State health should match expected")
+			assert.Equal(t, tc.expectedHealthy, state.Healthy, "State healthy flag should match expected")
 
 			// Check that Error field is set correctly
 			if tc.data != nil && tc.data.err != nil {

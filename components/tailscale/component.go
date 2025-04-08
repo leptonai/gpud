@@ -3,6 +3,7 @@ package tailscale
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -83,7 +84,7 @@ func (c *component) Close() error {
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
-	log.Logger.Infow("checking docker containers")
+	log.Logger.Infow("checking tailscale")
 	d := Data{
 		ts: time.Now().UTC(),
 	}
@@ -95,18 +96,23 @@ func (c *component) CheckOnce() {
 
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+		d.healthy = true
+		d.reason = "tailscaled is not installed"
 		return
 	}
 
 	// below are the checks in case "tailscaled" is installed, thus requires activeness checks
 	if c.checkServiceActiveFunc != nil {
-		var err error
-		d.TailscaledServiceActive, err = c.checkServiceActiveFunc()
-		if !d.TailscaledServiceActive || err != nil {
-			d.err = fmt.Errorf("tailscaled is installed but tailscaled service is not active or failed to check (error %v)", err)
+		d.TailscaledServiceActive, d.err = c.checkServiceActiveFunc()
+		if !d.TailscaledServiceActive || d.err != nil {
+			d.healthy = false
+			d.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", d.err)
 			return
 		}
 	}
+
+	d.healthy = true
+	d.reason = "tailscaled service is active/running"
 }
 
 type Data struct {
@@ -117,31 +123,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no tailscaled check yet"
-	}
-
-	if d.err != nil {
-		return fmt.Sprintf("tailscaled check failed -- %s", d.err)
-	}
-
-	if d.TailscaledServiceActive {
-		return "tailscaled service is active/running"
-	}
-
-	return "tailscaled service is not active"
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -165,10 +151,20 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
-	}
-	state.Health, state.Healthy = d.getHealth()
 
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
+
+	b, _ := json.Marshal(d)
+	state.ExtraInfo = map[string]string{
+		"data":     string(b),
+		"encoding": "json",
+	}
 	return []components.State{state}, nil
 }

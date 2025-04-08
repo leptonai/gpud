@@ -4,7 +4,6 @@ package disk
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -27,6 +26,10 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getBlockDevicesFunc   func(ctx context.Context) (disk.BlockDevices, error)
+	getExt4PartitionsFunc func(ctx context.Context) (disk.Partitions, error)
+	findMntFunc           func(ctx context.Context, target string) (*disk.FindMntOutput, error)
+
 	mountPointsToTrackUsage map[string]struct{}
 
 	lastMu   sync.RWMutex
@@ -44,8 +47,21 @@ func New(ctx context.Context, mountPoints []string, mountTargets []string) compo
 
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
-		ctx:                     cctx,
-		cancel:                  ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.GetBlockDevices(ctx, disk.WithDeviceType(func(dt string) bool {
+				return dt == "disk"
+			}))
+		},
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.GetPartitions(ctx, disk.WithFstype(func(fs string) bool {
+				return fs == "ext4"
+			}))
+		},
+		findMntFunc: disk.FindMnt,
+
 		mountPointsToTrackUsage: mountPointsToTrackUsage,
 	}
 }
@@ -105,9 +121,7 @@ func (c *component) CheckOnce() {
 	prevFailed := false
 	for i := 0; i < 5; i++ {
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		blks, err := disk.GetBlockDevices(cctx, disk.WithDeviceType(func(dt string) bool {
-			return dt == "disk"
-		}))
+		blks, err := c.getBlockDevicesFunc(cctx)
 		ccancel()
 		if err != nil {
 			log.Logger.Errorw("failed to get block devices", "error", err)
@@ -130,16 +144,15 @@ func (c *component) CheckOnce() {
 		break
 	}
 	if len(d.BlockDevices) == 0 {
-		d.err = errors.New("no block device found")
+		d.healthy = true
+		d.reason = "no block device found"
 		return
 	}
 
 	prevFailed = false
 	for i := 0; i < 5; i++ {
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := disk.GetPartitions(cctx, disk.WithFstype(func(fs string) bool {
-			return fs == "ext4"
-		}))
+		parts, err := c.getExt4PartitionsFunc(cctx)
 		ccancel()
 		if err != nil {
 			log.Logger.Errorw("failed to get partitions", "error", err)
@@ -162,7 +175,8 @@ func (c *component) CheckOnce() {
 		break
 	}
 	if len(d.ExtPartitions) == 0 {
-		d.err = errors.New("no ext4 partition found")
+		d.healthy = true
+		d.reason = "no ext4 partition found"
 		return
 	}
 
@@ -194,10 +208,10 @@ func (c *component) CheckOnce() {
 		}
 
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		mntOut, err := disk.FindMnt(cctx, target)
+		mntOut, err := c.findMntFunc(cctx, target)
 		ccancel()
 		if err != nil {
-			log.Logger.Warnw("error finding mount target device", "mount_target", target, "error", err)
+			log.Logger.Errorw("error finding mount target device", "mount_target", target, "error", err)
 			continue
 		}
 
@@ -206,6 +220,9 @@ func (c *component) CheckOnce() {
 		}
 		d.MountTargetUsages[target] = *mntOut
 	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("found %d ext4 partition(s) and %d block device(s)", len(d.ExtPartitions), len(d.BlockDevices))
 }
 
 type Data struct {
@@ -217,27 +234,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no disk data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get disk data -- %s", d.err)
-	}
-
-	return fmt.Sprintf("found %d ext4 partitions and %d block devices", len(d.ExtPartitions), len(d.BlockDevices))
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -248,12 +249,28 @@ func (d *Data) getError() string {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

@@ -19,8 +19,8 @@ const Name = "kernel-module"
 var _ components.Component = &component{}
 
 type component struct {
-	getAllModules  func() ([]string, error)
-	modulesToCheck []string
+	getAllModulesFunc func() ([]string, error)
+	modulesToCheck    []string
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -28,8 +28,8 @@ type component struct {
 
 func New(modulesToCheck []string) components.Component {
 	return &component{
-		getAllModules:  getAllModules,
-		modulesToCheck: modulesToCheck,
+		getAllModulesFunc: getAllModules,
+		modulesToCheck:    modulesToCheck,
 	}
 }
 
@@ -41,7 +41,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates(c.modulesToCheck)
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -67,71 +67,50 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	d.LoadedModules, d.err = c.getAllModules()
+	d.LoadedModules, d.err = c.getAllModulesFunc()
 	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting all modules: %v", d.err)
 		return
 	}
+
 	if len(d.LoadedModules) > 0 {
 		d.loadedModules = make(map[string]struct{})
 		for _, module := range d.LoadedModules {
 			d.loadedModules[module] = struct{}{}
 		}
 	}
+
+	missingModules := []string{}
+	for _, module := range c.modulesToCheck {
+		if _, ok := d.loadedModules[module]; !ok {
+			missingModules = append(missingModules, module)
+		}
+	}
+	sort.Strings(missingModules)
+
+	if len(missingModules) == 0 {
+		d.healthy = true
+		d.reason = "all modules are loaded"
+	} else {
+		d.healthy = false
+		d.reason = fmt.Sprintf("missing modules: %q", missingModules)
+	}
 }
 
 type Data struct {
-	LoadedModules []string            `json:"loaded_modules"`
-	loadedModules map[string]struct{} `json:"-"`
+	LoadedModules []string `json:"loaded_modules"`
+	loadedModules map[string]struct{}
 
 	// timestamp of the last check
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason(modulesToCheck []string) string {
-	if d == nil {
-		return "no module data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to read modules -- %v", d.err)
-	}
-	if len(modulesToCheck) == 0 {
-		return "no modules to check"
-	}
-
-	missingModules := []string{}
-	for _, module := range modulesToCheck {
-		if _, ok := d.loadedModules[module]; !ok {
-			missingModules = append(missingModules, module)
-		}
-	}
-	if len(missingModules) == 0 {
-		return "all modules are loaded"
-	}
-
-	sort.Strings(missingModules)
-	return fmt.Sprintf("missing modules: %q", missingModules)
-}
-
-func (d *Data) getHealth(modulesToCheck []string) (string, bool) {
-	healthy := d == nil || d.err == nil || len(modulesToCheck) == 0
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	if len(modulesToCheck) > 0 {
-		for _, module := range modulesToCheck {
-			if _, ok := d.loadedModules[module]; !ok {
-				healthy = false
-				health = components.StateUnhealthy
-				break
-			}
-		}
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -141,7 +120,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates(modulesToCheck []string) ([]components.State, error) {
+func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
@@ -155,10 +134,15 @@ func (d *Data) getStates(modulesToCheck []string) ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(modulesToCheck),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth(modulesToCheck)
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

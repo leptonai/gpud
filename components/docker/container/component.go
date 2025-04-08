@@ -4,7 +4,6 @@ package container
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,8 +23,10 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkServiceActiveFunc   func() (bool, error)
+	checkDependencyInstalledFunc func() bool
+	checkServiceActiveFunc       func() (bool, error)
+	checkDockerRunningFunc       func(context.Context) bool
+	listContainersFunc           func(context.Context) ([]DockerContainer, error)
 
 	// In case the docker daemon is not running, we ignore such errors as
 	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
@@ -38,12 +39,16 @@ type component struct {
 func New(ctx context.Context, ignoreConnectionErrors bool) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
-		ctx:                      cctx,
-		cancel:                   cancel,
-		checkDependencyInstalled: checkDockerInstalled,
+		ctx:    cctx,
+		cancel: cancel,
+
+		checkDependencyInstalledFunc: checkDockerInstalled,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("docker")
 		},
+		checkDockerRunningFunc: checkDockerRunning,
+		listContainersFunc:     listContainers,
+
 		ignoreConnectionErrors: ignoreConnectionErrors,
 	}
 	return c
@@ -73,7 +78,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates(c.ignoreConnectionErrors)
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -102,36 +107,50 @@ func (c *component) CheckOnce() {
 	}()
 
 	// assume "docker" is not installed, thus not needed to check its activeness
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
 		return
 	}
 
 	// below are the checks in case "docker" is installed, thus requires activeness checks
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	running := checkDockerRunning(cctx)
+	running := c.checkDockerRunningFunc(cctx)
 	ccancel()
 	if !running {
-		d.err = errors.New("docker is installed but docker is not running")
+		d.healthy = false
+		d.reason = "docker installed but docker is not running"
 		return
 	}
 
 	if c.checkServiceActiveFunc != nil {
-		var err error
-		d.DockerServiceActive, err = c.checkServiceActiveFunc()
-		if !d.DockerServiceActive || err != nil {
-			d.err = fmt.Errorf("docker is installed but docker service is not active or failed to check (error %v)", err)
+		d.DockerServiceActive, d.err = c.checkServiceActiveFunc()
+		if !d.DockerServiceActive || d.err != nil {
+			d.healthy = false
+			d.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", d.err)
 			return
 		}
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-	d.Containers, d.err = listContainers(cctx)
+	d.Containers, d.err = c.listContainersFunc(cctx)
 	ccancel()
 
-	// e.g.,
-	// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-	if d.err != nil && (strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running")) {
-		d.connErr = true
+	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error listing containers -- %s", d.err)
+
+		if isErrDockerClientVersionNewerThanDaemon(d.err) {
+			d.reason = fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", d.err)
+		}
+
+		// e.g.,
+		// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+		if strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running") {
+			d.healthy = c.ignoreConnectionErrors
+			d.reason = fmt.Sprintf("connection error to docker daemon -- %s", d.err)
+		}
+	} else {
+		d.healthy = true
+		d.reason = fmt.Sprintf("total %d container(s)", len(d.Containers))
 	}
 }
 
@@ -146,40 +165,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-	// set to true if the error is the connection error to the docker daemon
-	connErr bool
-}
 
-func (d *Data) getReason() string {
-	if d == nil || len(d.Containers) == 0 {
-		return "no container found or docker is not running"
-	}
-
-	if d.err != nil {
-		if isErrDockerClientVersionNewerThanDaemon(d.err) {
-			return fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", d.err)
-		}
-
-		if d.connErr {
-			return fmt.Sprintf("connection error to docker daemon -- %s", d.err)
-		}
-
-		return fmt.Sprintf("failed to list containers -- %s", d.err)
-	}
-
-	return fmt.Sprintf("total %d containers", len(d.Containers))
-}
-
-func (d *Data) getHealth(ignoreConnErr bool) (string, bool) {
-	healthy := d == nil || d.err == nil
-	if d != nil && d.err != nil && d.connErr && ignoreConnErr {
-		healthy = true
-	}
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -189,7 +179,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
+func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
@@ -203,13 +193,14 @@ func (d *Data) getStates(ignoreConnErr bool) ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
-	}
-	state.Health, state.Healthy = d.getHealth(ignoreConnErr)
 
-	if len(d.Containers) == 0 { // no container found yet
-		return []components.State{state}, nil
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
+	}
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
 	}
 
 	b, _ := json.Marshal(d)

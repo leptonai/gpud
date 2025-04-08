@@ -20,9 +20,9 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-const (
-	Name = "fuse"
+const Name = "fuse"
 
+const (
 	DefaultCongestedPercentAgainstThreshold     = float64(90)
 	DefaultMaxBackgroundPercentAgainstThreshold = float64(80)
 )
@@ -30,17 +30,19 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	eventBucket eventstore.Bucket
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// congestedPercentAgainstThreshold is the percentage of the FUSE connections waiting
 	// at which we consider the system to be congested.
 	congestedPercentAgainstThreshold float64
-
 	// maxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
 	// at which we consider the system to be congested.
 	maxBackgroundPercentAgainstThreshold float64
+
+	listConnectionsFunc func() (fuse.ConnectionInfos, error)
+
+	eventBucket eventstore.Bucket
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -66,12 +68,15 @@ func New(ctx context.Context, congestedPercentAgainstThreshold float64, maxBackg
 
 	cctx, ccancel := context.WithCancel(ctx)
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: eventBucket,
+		ctx:    cctx,
+		cancel: ccancel,
 
 		congestedPercentAgainstThreshold:     congestedPercentAgainstThreshold,
 		maxBackgroundPercentAgainstThreshold: maxBackgroundPercentAgainstThreshold,
+
+		listConnectionsFunc: fuse.ListConnections,
+
+		eventBucket: eventBucket,
 	}
 
 	return c, nil
@@ -105,7 +110,10 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	return c.eventBucket.Get(ctx, since)
+	if c.eventBucket != nil {
+		return c.eventBucket.Get(ctx, since)
+	}
+	return nil, nil
 }
 
 func (c *component) Close() error {
@@ -113,7 +121,9 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	c.eventBucket.Close()
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -131,9 +141,11 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	infos, err := fuse.ListConnections()
+	infos, err := c.listConnectionsFunc()
 	if err != nil {
 		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error listing fuse connections %v", err)
 		return
 	}
 
@@ -162,6 +174,7 @@ func (c *component) CheckOnce() {
 
 		ib, err := info.JSON()
 		if err != nil {
+			log.Logger.Errorw("error getting json of fuse connection info", "error", err)
 			continue
 		}
 		ev := components.Event{
@@ -178,6 +191,8 @@ func (c *component) CheckOnce() {
 		found, err := c.eventBucket.Find(c.ctx, ev)
 		if err != nil {
 			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error finding event %v", err)
 			return
 		}
 		if found == nil {
@@ -185,11 +200,16 @@ func (c *component) CheckOnce() {
 		}
 		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
 			d.err = err
+			d.healthy = false
+			d.reason = fmt.Sprintf("error inserting event %v", err)
 			return
 		}
 
 		foundDev[info.DeviceName] = info
 	}
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("found %d fuse connection(s)", len(d.ConnectionInfos))
 }
 
 type Data struct {
@@ -199,27 +219,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no fuse data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get fuse data -- %s", d.err)
-	}
-
-	return fmt.Sprintf("found %d fuse connections", len(d.ConnectionInfos))
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -230,12 +234,28 @@ func (d *Data) getError() string {
 }
 
 func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

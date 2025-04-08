@@ -67,6 +67,51 @@ func TestCheckOnce(t *testing.T) {
 	assert.NotNil(t, lastData)
 	assert.Len(t, lastData.FoundBadEnvsForCUDA, 1)
 	assert.Contains(t, lastData.FoundBadEnvsForCUDA, badEnvVar)
+
+	// Test with multiple bad env vars set
+	secondBadEnvVar := "COMPUTE_PROFILE"
+	os.Setenv(secondBadEnvVar, "1")
+	c.CheckOnce()
+	c.lastMu.RLock()
+	lastData = c.lastData
+	c.lastMu.RUnlock()
+	assert.NotNil(t, lastData)
+	assert.Len(t, lastData.FoundBadEnvsForCUDA, 2)
+	assert.Contains(t, lastData.FoundBadEnvsForCUDA, badEnvVar)
+	assert.Contains(t, lastData.FoundBadEnvsForCUDA, secondBadEnvVar)
+}
+
+func TestCustomCheckEnvFunc(t *testing.T) {
+	ctx := context.Background()
+	c := New(ctx).(*component)
+
+	// Set custom environment check function that always returns true
+	c.checkEnvFunc = func(key string) bool {
+		return true
+	}
+
+	c.CheckOnce()
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+
+	// All environment variables should be detected as "bad"
+	assert.NotNil(t, lastData)
+	assert.Equal(t, len(BAD_CUDA_ENV_KEYS), len(lastData.FoundBadEnvsForCUDA))
+
+	// Set custom environment check function that always returns false
+	c.checkEnvFunc = func(key string) bool {
+		return false
+	}
+
+	c.CheckOnce()
+	c.lastMu.RLock()
+	lastData = c.lastData
+	c.lastMu.RUnlock()
+
+	// No environment variables should be detected as "bad"
+	assert.NotNil(t, lastData)
+	assert.Empty(t, lastData.FoundBadEnvsForCUDA)
 }
 
 func TestStates(t *testing.T) {
@@ -83,7 +128,11 @@ func TestStates(t *testing.T) {
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with empty data
-	c.lastData = &Data{ts: time.Now()}
+	c.lastData = &Data{
+		ts:      time.Now(),
+		healthy: true,
+		reason:  "no bad envs found",
+	}
 	states, err = c.States(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
@@ -98,6 +147,8 @@ func TestStates(t *testing.T) {
 		FoundBadEnvsForCUDA: map[string]string{
 			"CUDA_PROFILE": BAD_CUDA_ENV_KEYS["CUDA_PROFILE"],
 		},
+		healthy: true,
+		reason:  "CUDA_PROFILE: Enables CUDA profiling.",
 	}
 	states, err = c.States(ctx)
 	require.NoError(t, err)
@@ -109,8 +160,10 @@ func TestStates(t *testing.T) {
 
 	// Test with error
 	c.lastData = &Data{
-		ts:  time.Now(),
-		err: assert.AnError,
+		ts:      time.Now(),
+		err:     assert.AnError,
+		healthy: false,
+		reason:  "failed to get bad envs data",
 	}
 	states, err = c.States(ctx)
 	require.NoError(t, err)
@@ -147,38 +200,74 @@ func TestClose(t *testing.T) {
 	}
 }
 
-func TestDataMethods(t *testing.T) {
-	// Test nil data
+func TestDataGetError(t *testing.T) {
+	// Test with nil Data
 	var d *Data
-	reason := d.getReason()
-	assert.Equal(t, "no bad envs data", reason)
+	assert.Empty(t, d.getError())
 
-	health, healthy := d.getHealth()
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
+	// Test with nil error
+	d = &Data{}
+	assert.Empty(t, d.getError())
 
-	errStr := d.getError()
-	assert.Empty(t, errStr)
-
-	// Test data with error
+	// Test with actual error
 	d = &Data{err: assert.AnError}
-	reason = d.getReason()
-	assert.Equal(t, "failed to get bad envs data -- assert.AnError general error for testing", reason)
+	assert.Equal(t, assert.AnError.Error(), d.getError())
+}
 
-	health, healthy = d.getHealth()
-	assert.Equal(t, components.StateUnhealthy, health)
-	assert.False(t, healthy)
+func TestPeriodicCheck(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	errStr = d.getError()
-	assert.Equal(t, assert.AnError.Error(), errStr)
+	// Create a component with a mocked check function
+	c := New(ctx).(*component)
 
-	// Test data with found bad envs
-	d = &Data{
-		FoundBadEnvsForCUDA: map[string]string{
-			"CUDA_PROFILE": "Enables CUDA profiling.",
-		},
+	checkCalled := make(chan struct{}, 5) // Buffer to avoid blocking
+	c.checkEnvFunc = func(key string) bool {
+		// Signal that check was called
+		select {
+		case checkCalled <- struct{}{}:
+		default:
+		}
+		return false
 	}
-	reason = d.getReason()
-	assert.Contains(t, reason, "CUDA_PROFILE")
-	assert.Contains(t, reason, "Enables CUDA profiling.")
+
+	// Start the component
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Wait for the initial check
+	select {
+	case <-checkCalled:
+		// Check was called
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Initial check was not called")
+	}
+
+	// Cancel context to stop the goroutine
+	cancel()
+}
+
+func TestDataWithMultipleBadEnvs(t *testing.T) {
+	// Create data with multiple bad environments and set a valid reason
+	reason := "CUDA_PROFILE: Enables CUDA profiling.; COMPUTE_PROFILE: Enables compute profiling."
+	d := &Data{
+		FoundBadEnvsForCUDA: map[string]string{
+			"CUDA_PROFILE":    "Enables CUDA profiling.",
+			"COMPUTE_PROFILE": "Enables compute profiling.",
+		},
+		ts:      time.Now(),
+		healthy: true,
+		reason:  reason,
+	}
+
+	// Check the reason string contains both env vars
+	states, err := d.getStates()
+	assert.NoError(t, err)
+	assert.Len(t, states, 1)
+	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")
+	assert.Contains(t, states[0].Reason, "COMPUTE_PROFILE")
+
+	// Verify JSON marshaling in ExtraInfo
+	assert.Contains(t, states[0].ExtraInfo["data"], "CUDA_PROFILE")
+	assert.Contains(t, states[0].ExtraInfo["data"], "COMPUTE_PROFILE")
 }

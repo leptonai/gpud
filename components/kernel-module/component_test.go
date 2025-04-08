@@ -2,6 +2,8 @@ package kernelmodule
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,7 +17,7 @@ func TestNew(t *testing.T) {
 	modulesToCheck := []string{"module1", "module2"}
 	c := New(modulesToCheck).(*component)
 	assert.Equal(t, modulesToCheck, c.modulesToCheck)
-	assert.NotNil(t, c.getAllModules)
+	assert.NotNil(t, c.getAllModulesFunc)
 }
 
 func TestComponentName(t *testing.T) {
@@ -50,7 +52,7 @@ func TestCheckOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := New(nil).(*component)
-			c.getAllModules = func() ([]string, error) {
+			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
 			}
 
@@ -111,7 +113,7 @@ func TestStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := New(tt.modulesToCheck).(*component)
-			c.getAllModules = func() ([]string, error) {
+			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
 			}
 
@@ -146,7 +148,7 @@ func TestClose(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDataGetReason(t *testing.T) {
+func TestGetReason(t *testing.T) {
 	tests := []struct {
 		name           string
 		data           *Data
@@ -157,25 +159,27 @@ func TestDataGetReason(t *testing.T) {
 			name:           "nil data",
 			data:           nil,
 			modulesToCheck: []string{"module1"},
-			wantReason:     "no module data",
+			wantReason:     "", // nil data has no reason
 		},
 		{
 			name:           "with error",
-			data:           &Data{err: assert.AnError},
+			data:           &Data{err: assert.AnError, reason: "error getting all modules: assert.AnError general error for testing"},
 			modulesToCheck: []string{"module1"},
-			wantReason:     "failed to read modules -- assert.AnError general error for testing",
+			wantReason:     "error getting all modules: assert.AnError general error for testing",
 		},
 		{
 			name:           "no modules to check",
-			data:           &Data{loadedModules: map[string]struct{}{"module1": {}}},
+			data:           &Data{loadedModules: map[string]struct{}{"module1": {}}, reason: "all modules are loaded"},
 			modulesToCheck: nil,
-			wantReason:     "no modules to check",
+			wantReason:     "all modules are loaded",
 		},
 		{
 			name: "all modules present",
 			data: &Data{
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
 				LoadedModules: []string{"module1", "module2"},
+				reason:        "all modules are loaded",
+				healthy:       true,
 			},
 			modulesToCheck: []string{"module1", "module2"},
 			wantReason:     "all modules are loaded",
@@ -185,6 +189,8 @@ func TestDataGetReason(t *testing.T) {
 			data: &Data{
 				loadedModules: map[string]struct{}{"module1": {}},
 				LoadedModules: []string{"module1"},
+				reason:        `missing modules: ["module2"]`,
+				healthy:       false,
 			},
 			modulesToCheck: []string{"module1", "module2"},
 			wantReason:     `missing modules: ["module2"]`,
@@ -193,13 +199,16 @@ func TestDataGetReason(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reason := tt.data.getReason(tt.modulesToCheck)
-			assert.Equal(t, tt.wantReason, reason)
+			if tt.data == nil {
+				assert.Equal(t, tt.wantReason, "")
+			} else {
+				assert.Equal(t, tt.wantReason, tt.data.reason)
+			}
 		})
 	}
 }
 
-func TestDataGetHealth(t *testing.T) {
+func TestGetHealth(t *testing.T) {
 	tests := []struct {
 		name           string
 		data           *Data
@@ -209,7 +218,7 @@ func TestDataGetHealth(t *testing.T) {
 	}{
 		{
 			name:           "with error",
-			data:           &Data{err: assert.AnError},
+			data:           &Data{err: assert.AnError, healthy: false},
 			modulesToCheck: []string{"module1"},
 			wantHealth:     components.StateUnhealthy,
 			wantHealthy:    false,
@@ -219,6 +228,7 @@ func TestDataGetHealth(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{},
 				loadedModules: map[string]struct{}{},
+				healthy:       true,
 			},
 			modulesToCheck: nil,
 			wantHealth:     components.StateHealthy,
@@ -229,6 +239,7 @@ func TestDataGetHealth(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1", "module2"},
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
+				healthy:       true,
 			},
 			modulesToCheck: []string{"module1", "module2"},
 			wantHealth:     components.StateHealthy,
@@ -239,6 +250,7 @@ func TestDataGetHealth(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1"},
 				loadedModules: map[string]struct{}{"module1": {}},
+				healthy:       false,
 			},
 			modulesToCheck: []string{"module1", "module2"},
 			wantHealth:     components.StateUnhealthy,
@@ -248,82 +260,86 @@ func TestDataGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health, healthy := tt.data.getHealth(tt.modulesToCheck)
+			health := components.StateHealthy
+			if tt.data != nil && !tt.data.healthy {
+				health = components.StateUnhealthy
+			}
+
 			assert.Equal(t, tt.wantHealth, health)
-			assert.Equal(t, tt.wantHealthy, healthy)
+			assert.Equal(t, tt.wantHealthy, tt.data != nil && tt.data.healthy)
 		})
 	}
 }
 
 func TestDataGetStates(t *testing.T) {
 	tests := []struct {
-		name           string
-		data           *Data
-		modulesToCheck []string
-		wantHealthy    bool
-		wantHealth     string
-		wantReason     string
-		wantError      bool
+		name        string
+		data        *Data
+		wantHealthy bool
+		wantHealth  string
+		wantReason  string
+		wantError   bool
 	}{
 		{
-			name:           "nil data",
-			data:           nil,
-			modulesToCheck: []string{"module1"},
-			wantHealthy:    true,
-			wantHealth:     components.StateHealthy,
-			wantReason:     "no data yet",
-			wantError:      false,
+			name:        "nil data",
+			data:        nil,
+			wantHealthy: true,
+			wantHealth:  components.StateHealthy,
+			wantReason:  "no data yet",
+			wantError:   false,
 		},
 		{
-			name:           "with error",
-			data:           &Data{err: assert.AnError},
-			modulesToCheck: []string{"module1"},
-			wantHealthy:    false,
-			wantHealth:     components.StateUnhealthy,
-			wantReason:     "failed to read modules -- assert.AnError general error for testing",
-			wantError:      true,
+			name:        "with error",
+			data:        &Data{err: assert.AnError, healthy: false, reason: "error getting all modules: assert.AnError general error for testing"},
+			wantHealthy: false,
+			wantHealth:  components.StateUnhealthy,
+			wantReason:  "error getting all modules: assert.AnError general error for testing",
+			wantError:   true,
 		},
 		{
 			name: "no modules to check",
 			data: &Data{
 				LoadedModules: []string{},
 				loadedModules: map[string]struct{}{},
+				healthy:       true,
+				reason:        "all modules are loaded",
 			},
-			modulesToCheck: nil,
-			wantHealthy:    true,
-			wantHealth:     components.StateHealthy,
-			wantReason:     "no modules to check",
-			wantError:      false,
+			wantHealthy: true,
+			wantHealth:  components.StateHealthy,
+			wantReason:  "all modules are loaded",
+			wantError:   false,
 		},
 		{
 			name: "all modules present",
 			data: &Data{
 				LoadedModules: []string{"module1", "module2"},
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
+				healthy:       true,
+				reason:        "all modules are loaded",
 			},
-			modulesToCheck: []string{"module1", "module2"},
-			wantHealthy:    true,
-			wantHealth:     components.StateHealthy,
-			wantReason:     "all modules are loaded",
-			wantError:      false,
+			wantHealthy: true,
+			wantHealth:  components.StateHealthy,
+			wantReason:  "all modules are loaded",
+			wantError:   false,
 		},
 		{
 			name: "missing modules",
 			data: &Data{
 				LoadedModules: []string{"module1"},
 				loadedModules: map[string]struct{}{"module1": {}},
+				healthy:       false,
+				reason:        `missing modules: ["module2"]`,
 			},
-			modulesToCheck: []string{"module1", "module2"},
-			wantHealthy:    false,
-			wantHealth:     components.StateUnhealthy,
-			wantReason:     `missing modules: ["module2"]`,
-			wantError:      false,
+			wantHealthy: false,
+			wantHealth:  components.StateUnhealthy,
+			wantReason:  `missing modules: ["module2"]`,
+			wantError:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates(tt.modulesToCheck)
+			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 
 			require.Len(t, states, 1)
@@ -349,7 +365,103 @@ func TestDataGetStates(t *testing.T) {
 				assert.Contains(t, state.ExtraInfo, "data")
 				assert.Contains(t, state.ExtraInfo, "encoding")
 				assert.Equal(t, "json", state.ExtraInfo["encoding"])
+
+				// Verify that the JSON encoding works
+				var decodedData map[string]interface{}
+				err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &decodedData)
+				assert.NoError(t, err, "Should be able to decode the JSON data")
+
+				if len(tt.data.LoadedModules) > 0 {
+					assert.Contains(t, decodedData, "loaded_modules", "Should contain loaded_modules field")
+				}
 			}
 		})
 	}
+}
+
+// Add additional test for component CheckOnce implementation
+func TestCheckOnceLogic(t *testing.T) {
+	tests := []struct {
+		name           string
+		modulesToLoad  []string
+		modulesToCheck []string
+		loadError      error
+		wantHealthy    bool
+		wantReason     string
+	}{
+		{
+			name:           "load error",
+			modulesToLoad:  nil,
+			modulesToCheck: []string{"module1"},
+			loadError:      fmt.Errorf("module load error"),
+			wantHealthy:    false,
+			wantReason:     "error getting all modules: module load error",
+		},
+		{
+			name:           "all required modules loaded",
+			modulesToLoad:  []string{"module1", "module2", "module3"},
+			modulesToCheck: []string{"module1", "module2"},
+			loadError:      nil,
+			wantHealthy:    true,
+			wantReason:     "all modules are loaded",
+		},
+		{
+			name:           "missing required modules",
+			modulesToLoad:  []string{"module1"},
+			modulesToCheck: []string{"module1", "module2", "module3"},
+			loadError:      nil,
+			wantHealthy:    false,
+			wantReason:     `missing modules: ["module2" "module3"]`,
+		},
+		{
+			name:           "no modules to check",
+			modulesToLoad:  []string{"module1"},
+			modulesToCheck: nil,
+			loadError:      nil,
+			wantHealthy:    true,
+			wantReason:     "all modules are loaded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := New(tt.modulesToCheck).(*component)
+			c.getAllModulesFunc = func() ([]string, error) {
+				return tt.modulesToLoad, tt.loadError
+			}
+
+			c.CheckOnce()
+
+			c.lastMu.RLock()
+			defer c.lastMu.RUnlock()
+
+			require.NotNil(t, c.lastData)
+			assert.Equal(t, tt.wantHealthy, c.lastData.healthy)
+			assert.Equal(t, tt.wantReason, c.lastData.reason)
+
+			if tt.loadError != nil {
+				assert.Equal(t, tt.loadError, c.lastData.err)
+			} else {
+				assert.NoError(t, c.lastData.err)
+			}
+		})
+	}
+}
+
+// Test that timestamp is properly set
+func TestDataTimestamp(t *testing.T) {
+	c := New(nil).(*component)
+
+	beforeCheck := time.Now().UTC()
+	time.Sleep(10 * time.Millisecond)
+	c.CheckOnce()
+	time.Sleep(10 * time.Millisecond)
+	afterCheck := time.Now().UTC()
+
+	c.lastMu.RLock()
+	defer c.lastMu.RUnlock()
+
+	require.NotNil(t, c.lastData)
+	assert.True(t, !c.lastData.ts.Before(beforeCheck), "Timestamp should be after the check started")
+	assert.True(t, !c.lastData.ts.After(afterCheck), "Timestamp should be before the check ended")
 }

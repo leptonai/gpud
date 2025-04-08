@@ -11,7 +11,7 @@ import (
 	"github.com/leptonai/gpud/components"
 )
 
-func TestData_getReason(t *testing.T) {
+func TestData_getStates(t *testing.T) {
 	tests := []struct {
 		name         string
 		data         Data
@@ -22,30 +22,38 @@ func TestData_getReason(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{}, {}, {}},
 				err:        nil,
+				healthy:    true,
+				reason:     "total 3 container(s)",
 			},
-			expectedText: "total 3 containers",
+			expectedText: "total 3 container",
 		},
 		{
 			name: "Empty containers",
 			data: Data{
 				Containers: []DockerContainer{},
 				err:        nil,
+				healthy:    true,
+				reason:     "total 0 container(s)",
 			},
-			expectedText: "no container found or docker is not running",
+			expectedText: "total 0 container",
 		},
 		{
 			name: "Nil containers",
 			data: Data{
 				Containers: nil,
 				err:        nil,
+				healthy:    true,
+				reason:     "total 0 container(s)",
 			},
-			expectedText: "no container found or docker is not running",
+			expectedText: "total 0 container",
 		},
 		{
 			name: "Docker client version newer than daemon",
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
+				healthy:    false,
+				reason:     "not supported; Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43 (needs upgrading docker daemon in the host)",
 			},
 			expectedText: "not supported",
 		},
@@ -54,7 +62,8 @@ func TestData_getReason(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Cannot connect to the Docker daemon"),
-				connErr:    true,
+				healthy:    false,
+				reason:     "connection error to docker daemon -- Cannot connect to the Docker daemon",
 			},
 			expectedText: "connection error to docker daemon",
 		},
@@ -63,8 +72,10 @@ func TestData_getReason(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("some general error"),
+				healthy:    false,
+				reason:     "error listing containers -- some general error",
 			},
-			expectedText: "failed to list containers",
+			expectedText: "error listing containers",
 		},
 		// Additional test cases for different error scenarios
 		{
@@ -72,16 +83,18 @@ func TestData_getReason(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("connection refused"),
-				connErr:    true,
+				healthy:    false,
+				reason:     "error listing containers -- connection refused",
 			},
-			expectedText: "connection error to docker daemon",
+			expectedText: "error listing containers",
 		},
 		{
 			name: "Daemon not running",
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Is the docker daemon running?"),
-				connErr:    true,
+				healthy:    false,
+				reason:     "connection error to docker daemon -- Is the docker daemon running?",
 			},
 			expectedText: "connection error to docker daemon",
 		},
@@ -90,45 +103,50 @@ func TestData_getReason(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("permission denied"),
+				healthy:    false,
+				reason:     "error listing containers -- permission denied",
 			},
-			expectedText: "failed to list containers",
+			expectedText: "error listing containers",
 		},
 		{
 			name: "Docker network error",
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("network error communicating with Docker daemon"),
+				healthy:    false,
+				reason:     "error listing containers -- network error communicating with Docker daemon",
 			},
-			expectedText: "failed to list containers",
+			expectedText: "error listing containers",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.data.getReason()
-			assert.Contains(t, result, tt.expectedText)
+			assert.Contains(t, tt.data.reason, tt.expectedText)
 		})
 	}
 
 	// Test with nil data
 	var nilData *Data
-	assert.Equal(t, "no container found or docker is not running", nilData.getReason())
+	states, err := nilData.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
-func TestDataGetHealth(t *testing.T) {
+func TestDataHealthField(t *testing.T) {
 	tests := []struct {
 		name            string
 		data            Data
-		ignoreConnErr   bool
 		expectedHealth  string
 		expectedHealthy bool
 	}{
 		{
 			name: "No error",
 			data: Data{
-				err: nil,
+				err:     nil,
+				healthy: true,
+				reason:  "healthy",
 			},
-			ignoreConnErr:   false,
 			expectedHealth:  components.StateHealthy,
 			expectedHealthy: true,
 		},
@@ -136,9 +154,9 @@ func TestDataGetHealth(t *testing.T) {
 			name: "Connection error - ignored",
 			data: Data{
 				err:     errors.New("Cannot connect to the Docker daemon"),
-				connErr: true,
+				healthy: true,
+				reason:  "connection error to docker daemon but ignored",
 			},
-			ignoreConnErr:   true,
 			expectedHealth:  components.StateHealthy,
 			expectedHealthy: true,
 		},
@@ -146,18 +164,19 @@ func TestDataGetHealth(t *testing.T) {
 			name: "Connection error - not ignored",
 			data: Data{
 				err:     errors.New("Cannot connect to the Docker daemon"),
-				connErr: true,
+				healthy: false,
+				reason:  "connection error to docker daemon",
 			},
-			ignoreConnErr:   false,
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
 		{
 			name: "General error",
 			data: Data{
-				err: errors.New("some general error"),
+				err:     errors.New("some general error"),
+				healthy: false,
+				reason:  "error occurred",
 			},
-			ignoreConnErr:   true,
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
@@ -165,9 +184,10 @@ func TestDataGetHealth(t *testing.T) {
 		{
 			name: "Permission denied error - not ignored",
 			data: Data{
-				err: errors.New("permission denied"),
+				err:     errors.New("permission denied"),
+				healthy: false,
+				reason:  "permission denied error",
 			},
-			ignoreConnErr:   false,
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
@@ -176,17 +196,19 @@ func TestDataGetHealth(t *testing.T) {
 			data: Data{
 				err:                 errors.New("docker service is not active"),
 				DockerServiceActive: false,
+				healthy:             false,
+				reason:              "docker service is not active",
 			},
-			ignoreConnErr:   false,
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
 		{
-			name: "Docker not found error - ignored doesn't matter for non-connection errors",
+			name: "Docker not found error - not ignored",
 			data: Data{
-				err: errors.New("docker not found"),
+				err:     errors.New("docker not found"),
+				healthy: false,
+				reason:  "docker not found error",
 			},
-			ignoreConnErr:   true, // Should still be unhealthy since it's not a connection error
 			expectedHealth:  components.StateUnhealthy,
 			expectedHealthy: false,
 		},
@@ -194,9 +216,9 @@ func TestDataGetHealth(t *testing.T) {
 			name: "Is docker daemon running - ignored",
 			data: Data{
 				err:     errors.New("Is the docker daemon running?"),
-				connErr: true,
+				healthy: true,
+				reason:  "connection error ignored",
 			},
-			ignoreConnErr:   true,
 			expectedHealth:  components.StateHealthy,
 			expectedHealthy: true,
 		},
@@ -204,24 +226,25 @@ func TestDataGetHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health, healthy := tt.data.getHealth(tt.ignoreConnErr)
-			assert.Equal(t, tt.expectedHealth, health)
-			assert.Equal(t, tt.expectedHealthy, healthy)
+			states, err := tt.data.getStates()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedHealth, states[0].Health)
+			assert.Equal(t, tt.expectedHealthy, states[0].Healthy)
 		})
 	}
 
 	// Test with nil data
 	var nilData *Data
-	health, healthy := nilData.getHealth(false)
-	assert.Equal(t, components.StateHealthy, health)
-	assert.True(t, healthy)
+	states, err := nilData.getStates()
+	assert.NoError(t, err)
+	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.True(t, states[0].Healthy)
 }
 
 func TestDataGetStates(t *testing.T) {
 	tests := []struct {
 		name           string
 		data           Data
-		ignoreConnErr  bool
 		stateCount     int
 		expectedHealth string
 	}{
@@ -231,8 +254,9 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{},
 				err:                 nil,
+				healthy:             true,
+				reason:              "no container found",
 			},
-			ignoreConnErr:  false,
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -242,8 +266,9 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 nil,
+				healthy:             true,
+				reason:              "total 1 container(s)",
 			},
-			ignoreConnErr:  false,
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -253,8 +278,9 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("test error"),
+				healthy:             false,
+				reason:              "error listing containers -- test error",
 			},
-			ignoreConnErr:  false,
 			stateCount:     1,
 			expectedHealth: components.StateUnhealthy,
 		},
@@ -264,9 +290,9 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
-				connErr:             true,
+				healthy:             true,
+				reason:              "connection error but ignored",
 			},
-			ignoreConnErr:  true,
 			stateCount:     1,
 			expectedHealth: components.StateHealthy,
 		},
@@ -276,9 +302,9 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
-				connErr:             true,
+				healthy:             false,
+				reason:              "connection error not ignored",
 			},
-			ignoreConnErr:  false,
 			stateCount:     1,
 			expectedHealth: components.StateUnhealthy,
 		},
@@ -286,12 +312,14 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates(tt.ignoreConnErr)
+			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
+			assert.Equal(t, tt.data.healthy, states[0].Healthy)
+			assert.Equal(t, tt.data.reason, states[0].Reason)
 
 			// For cases with containers, check ExtraInfo
 			if len(tt.data.Containers) > 0 {
@@ -304,7 +332,7 @@ func TestDataGetStates(t *testing.T) {
 
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getStates(false)
+	states, err := nilData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -370,7 +398,8 @@ func TestComponentStates(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 nil,
-		connErr:             false,
+		healthy:             true,
+		reason:              "total 0 container(s)",
 	}
 
 	states, err := comp.States(ctx)
@@ -389,7 +418,8 @@ func TestComponentStates(t *testing.T) {
 		},
 		ts:      time.Now(),
 		err:     nil,
-		connErr: false,
+		healthy: true,
+		reason:  "total 1 container(s)",
 	}
 
 	states, err = comp.States(ctx)
@@ -403,7 +433,8 @@ func TestComponentStates(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon"),
-		connErr:             true,
+		healthy:             true,
+		reason:              "connection error to docker daemon -- Cannot connect to the Docker daemon",
 	}
 
 	states, err = comp.States(ctx)
@@ -423,7 +454,8 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
-		connErr:             true,
+		healthy:             true,
+		reason:              "connection error to docker daemon -- Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
 	}
 
 	comp.lastMu.Lock()
@@ -438,6 +470,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 
 	// Create a new component that doesn't ignore connection errors
 	comp2 := New(ctx, false).(*component)
+	mockData.healthy = false // this would be set by CheckOnce() when ignoreConnectionErrors=false
 	comp2.lastMu.Lock()
 	comp2.lastData = mockData
 	comp2.lastMu.Unlock()
@@ -455,7 +488,8 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 		},
 		ts:      time.Now(),
 		err:     errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
-		connErr: false,
+		healthy: false,
+		reason:  "not supported; Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43 (needs upgrading docker daemon in the host)",
 	}
 
 	comp.lastMu.Lock()
@@ -479,8 +513,14 @@ func TestDirectCheckOnce(t *testing.T) {
 		comp := &component{
 			ctx:    ctx,
 			cancel: func() {},
-			checkDependencyInstalled: func() bool {
+			checkDependencyInstalledFunc: func() bool {
 				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return []DockerContainer{{ID: "container1", Name: "test-container-1"}}, nil
 			},
 			lastData: &Data{},
 		}
@@ -495,138 +535,220 @@ func TestDirectCheckOnce(t *testing.T) {
 		comp.lastMu.RUnlock()
 	})
 
-	// Test case 2: Connection error
-	t.Run("Connection error", func(t *testing.T) {
+	// Test case 2: Docker service is not active
+	t.Run("Docker service not active", func(t *testing.T) {
 		comp := &component{
 			ctx:    ctx,
 			cancel: func() {},
-			checkDependencyInstalled: func() bool {
+			checkDependencyInstalledFunc: func() bool {
 				return true
 			},
-			lastData:               &Data{},
-			ignoreConnectionErrors: true,
+			checkServiceActiveFunc: func() (bool, error) {
+				return false, nil
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			lastData: &Data{},
 		}
 
-		// Create a mock error
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify error handling
+		comp.lastMu.RLock()
+		assert.False(t, comp.lastData.DockerServiceActive)
+		assert.False(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "docker service is not active")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 3: Docker is not running
+	t.Run("Docker not running", func(t *testing.T) {
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return false
+			},
+			lastData: &Data{},
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify error handling
+		comp.lastMu.RLock()
+		assert.False(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "docker installed but docker is not running")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 4: Error listing containers
+	t.Run("Error listing containers", func(t *testing.T) {
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return nil, errors.New("listing error")
+			},
+			lastData: &Data{},
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify error handling
+		comp.lastMu.RLock()
+		assert.False(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "error listing containers")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 5: Client version newer than daemon
+	t.Run("Client version newer than daemon", func(t *testing.T) {
+		versionErr := errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43")
+
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return nil, versionErr
+			},
+			lastData: &Data{},
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify special error handling
+		comp.lastMu.RLock()
+		assert.False(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "not supported")
+		assert.Contains(t, comp.lastData.reason, "needs upgrading docker daemon")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 6: Connection error with ignoreConnectionErrors=true
+	t.Run("Connection error ignored", func(t *testing.T) {
 		connErr := errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?")
 
-		// Manually set the data to simulate the error
-		errData := &Data{
-			Containers: []DockerContainer{
-				{ID: "test-id"},
-			},
-			ts:      time.Now(),
-			err:     connErr,
-			connErr: true,
-		}
-
-		comp.lastMu.Lock()
-		comp.lastData = errData
-		comp.lastMu.Unlock()
-
-		// Verify the connection error is handled correctly through getReason
-		reason := comp.lastData.getReason()
-		assert.Contains(t, reason, "connection error to docker daemon")
-
-		// Verify the connection error is handled correctly through States
-		states, err := comp.States(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, components.StateHealthy, states[0].Health) // Should be healthy with ignoreConnectionErrors=true
-
-		// Now test with ignoreConnectionErrors=false
-		comp.ignoreConnectionErrors = false
-		states, err = comp.States(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health) // Should be unhealthy with ignoreConnectionErrors=false
-	})
-
-	// Test case 4: Docker client version newer than daemon
-	t.Run("Client version newer than daemon", func(t *testing.T) {
-		// First check that the error detection function works as expected
-		versionErr := errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43")
-		assert.True(t, isErrDockerClientVersionNewerThanDaemon(versionErr))
-
-		// Create a Data instance with the error
-		data := &Data{
-			Containers: []DockerContainer{
-				{ID: "test-id"},
-			},
-			err: versionErr,
-		}
-
-		// Directly test the getReason() function to ensure it returns the expected error message
-		reason := data.getReason()
-		assert.Contains(t, reason, "not supported;")
-		assert.Contains(t, reason, "needs upgrading docker daemon")
-	})
-}
-
-// TestCheckOnceMetrics tests that metrics are set correctly in CheckOnce
-func TestCheckOnceMetrics(t *testing.T) {
-	ctx := context.Background()
-
-	// Test case 1: Success case - no error
-	t.Run("Success metrics on no error", func(t *testing.T) {
 		comp := &component{
 			ctx:    ctx,
 			cancel: func() {},
-			checkDependencyInstalled: func() bool {
+			checkDependencyInstalledFunc: func() bool {
 				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return nil, connErr
+			},
+			ignoreConnectionErrors: true,
+			lastData:               &Data{},
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify connection error handling with ignoreConnectionErrors=true
+		comp.lastMu.RLock()
+		assert.True(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "connection error to docker daemon")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 7: Connection error with ignoreConnectionErrors=false
+	t.Run("Connection error not ignored", func(t *testing.T) {
+		connErr := errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?")
+
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return nil, connErr
+			},
+			ignoreConnectionErrors: false,
+			lastData:               &Data{},
+		}
+
+		// Call CheckOnce
+		comp.CheckOnce()
+
+		// Verify connection error handling with ignoreConnectionErrors=false
+		comp.lastMu.RLock()
+		assert.False(t, comp.lastData.healthy)
+		assert.Contains(t, comp.lastData.reason, "connection error to docker daemon")
+		comp.lastMu.RUnlock()
+	})
+
+	// Test case 8: Successful container list
+	t.Run("Successful container list", func(t *testing.T) {
+		containers := []DockerContainer{
+			{ID: "container1", Name: "test-container-1"},
+			{ID: "container2", Name: "test-container-2"},
+		}
+
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+				return containers, nil
 			},
 			lastData: &Data{},
 		}
 
-		// Set up test data with no error
-		mockData := &Data{
-			DockerServiceActive: true,
-			Containers: []DockerContainer{
-				{ID: "test-id"},
-			},
-			ts:      time.Now(),
-			err:     nil, // No error should trigger success metric
-			connErr: false,
-		}
+		// Call CheckOnce
+		comp.CheckOnce()
 
-		comp.lastMu.Lock()
-		comp.lastData = mockData
-		comp.lastMu.Unlock()
-
-		// For success metrics, we can only verify indirectly
-		// by checking that States returns healthy state
-		states, err := comp.States(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
-	})
-
-	// Test case 2: Failure case - with error
-	t.Run("Failure metrics on error", func(t *testing.T) {
-		comp := &component{
-			ctx:    ctx,
-			cancel: func() {},
-			checkDependencyInstalled: func() bool {
-				return true
-			},
-			lastData: &Data{},
-		}
-
-		// Set up test data with error
-		mockData := &Data{
-			DockerServiceActive: true,
-			Containers:          []DockerContainer{},
-			ts:                  time.Now(),
-			err:                 errors.New("some error"), // Error should trigger failure metric
-			connErr:             false,
-		}
-
-		comp.lastMu.Lock()
-		comp.lastData = mockData
-		comp.lastMu.Unlock()
-
-		// For failure metrics with non-connection error, verify indirectly
-		// by checking that States returns unhealthy state
-		comp.ignoreConnectionErrors = false
-		states, err := comp.States(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		// Verify successful container list
+		comp.lastMu.RLock()
+		assert.True(t, comp.lastData.healthy)
+		assert.Equal(t, containers, comp.lastData.Containers)
+		assert.Contains(t, comp.lastData.reason, "total 2 container")
+		comp.lastMu.RUnlock()
 	})
 }

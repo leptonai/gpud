@@ -114,7 +114,9 @@ func (c *component) CheckOnce() {
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get interfaces: %v", err)
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting interfaces: %v", err)
 		return
 	}
 
@@ -128,34 +130,38 @@ func (c *component) CheckOnce() {
 
 	if gpud_manager.GlobalController != nil {
 		cctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
-		d.Packages, err = gpud_manager.GlobalController.Status(cctx)
+		d.Packages, d.err = gpud_manager.GlobalController.Status(cctx)
 		cancel()
 		if err != nil {
-			d.err = fmt.Errorf("failed to get package status: %v", err)
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting package status: %v", err)
 			return
 		}
 	}
 
 	d.GPUdPID = os.Getpid()
-	d.GPUdUsageFileDescriptors, err = file.GetCurrentProcessUsage()
+	d.GPUdUsageFileDescriptors, d.err = file.GetCurrentProcessUsage()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get current process usage: %v", err)
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting current process usage: %v", err)
 		return
 	}
 
-	d.GPUdUsageMemoryInBytes, err = memory.GetCurrentProcessRSSInBytes()
+	d.GPUdUsageMemoryInBytes, d.err = memory.GetCurrentProcessRSSInBytes()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get current process RSS: %v", err)
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting current process RSS: %v", err)
 		return
 	}
 	d.GPUdUsageMemoryHumanized = humanize.Bytes(d.GPUdUsageMemoryInBytes)
 
 	if c.dbRO != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-		d.GPUdUsageDBInBytes, err = sqlite.ReadDBSize(cctx, c.dbRO)
+		d.GPUdUsageDBInBytes, d.err = sqlite.ReadDBSize(cctx, c.dbRO)
 		ccancel()
 		if err != nil {
-			d.err = fmt.Errorf("failed to get DB size: %v", err)
+			d.healthy = false
+			d.reason = fmt.Sprintf("error getting DB size: %v", err)
 			return
 		}
 		d.GPUdUsageDBHumanized = humanize.Bytes(d.GPUdUsageDBInBytes)
@@ -163,7 +169,9 @@ func (c *component) CheckOnce() {
 
 	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
 	if err != nil {
-		d.err = fmt.Errorf("failed to get SQLite metrics: %v", err)
+		d.err = err
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting SQLite metrics: %v", err)
 		return
 	}
 
@@ -181,12 +189,16 @@ func (c *component) CheckOnce() {
 	lastSQLiteMetrics = curMetrics
 	lastSQLiteMetricsMu.Unlock()
 
-	d.GPUdStartTimeInUnixTime, err = uptime.GetCurrentProcessStartTimeInUnixTime()
+	d.GPUdStartTimeInUnixTime, d.err = uptime.GetCurrentProcessStartTimeInUnixTime()
 	if err != nil {
-		d.err = fmt.Errorf("failed to get GPUd start time: %v", err)
+		d.healthy = false
+		d.reason = fmt.Sprintf("error getting GPUd start time: %v", err)
 		return
 	}
 	d.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(d.GPUdStartTimeInUnixTime), 0))
+
+	d.healthy = true
+	d.reason = fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
 }
 
 type Data struct {
@@ -231,29 +243,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason() string {
-	if d == nil {
-		return "no info data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get info data -- %s", d.err)
-	}
-	r := fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
-	if len(d.Annotations) > 0 {
-		r += fmt.Sprintf(", annotations: %q", d.Annotations)
-	}
-	return r
-}
-
-func (d *Data) getHealth() (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -277,10 +271,15 @@ func (d *Data) getStates() ([]components.State, error) {
 
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth()
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{

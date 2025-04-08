@@ -33,6 +33,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getEgressLatenciesFunc func(context.Context, ...latency_edge.OpOption) (latency.Latencies, error)
+
 	// GlobalMillisecondThreshold is the global threshold in milliseconds for the DERP latency.
 	// If all DERP latencies are greater than this threshold, the component will be marked as failed.
 	// If at least one DERP latency is less than this threshold, the component will be marked as healthy.
@@ -47,6 +49,8 @@ func New(ctx context.Context) components.Component {
 	return &component{
 		ctx:    cctx,
 		cancel: ccancel,
+
+		getEgressLatenciesFunc: latency_edge.Measure,
 
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
 	}
@@ -76,7 +80,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates(c.globalMillisecondThreshold)
+	return lastData.getStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -104,21 +108,34 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	defer ccancel()
+	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+	defer cancel()
 
-	var err error
-	d.EgressLatencies, err = latency_edge.Measure(cctx)
-	if err != nil {
-		d.err = err
+	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(ctx)
+	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
 		return
 	}
 
+	exceededMsgs := []string{}
 	for _, lat := range d.EgressLatencies {
 		region := fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider)
 		metricEdgeInMilliseconds.With(prometheus.Labels{
 			pkgmetrics.MetricLabelKey: region,
 		}).Set(float64(lat.LatencyMilliseconds))
+
+		if c.globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > c.globalMillisecondThreshold {
+			exceededMsgs = append(exceededMsgs, fmt.Sprintf("latency to %s edge server is %s (exceeded threshold %dms)", lat.RegionName, lat.Latency, c.globalMillisecondThreshold))
+		}
+	}
+
+	if len(exceededMsgs) == 0 {
+		d.healthy = true
+		d.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(d.EgressLatencies))
+	} else {
+		d.healthy = false
+		d.reason = strings.Join(exceededMsgs, "; ")
 	}
 }
 
@@ -130,47 +147,11 @@ type Data struct {
 	ts time.Time
 	// error from the last check
 	err error
-}
 
-func (d *Data) getReason(globalMillisecondThreshold int64) string {
-	if d == nil {
-		return "no network latency data"
-	}
-	if d.err != nil {
-		return fmt.Sprintf("failed to get network latency data -- %s", d.err)
-	}
-
-	reasons := []string{}
-	if globalMillisecondThreshold > 0 {
-		for _, latency := range d.EgressLatencies {
-			reasons = append(reasons, fmt.Sprintf("latency to %s edge derp server (%s) is %dms", latency.RegionName, latency.Latency, latency.LatencyMilliseconds))
-		}
-	}
-	if len(reasons) == 0 {
-		return "no issue"
-	}
-
-	return strings.Join(reasons, "; ")
-}
-
-func (d *Data) getHealth(globalMillisecondThreshold int64) (string, bool) {
-	healthy := d == nil || d.err == nil
-	health := components.StateHealthy
-	if !healthy {
-		health = components.StateUnhealthy
-	}
-
-	if globalMillisecondThreshold > 0 && d != nil && len(d.EgressLatencies) > 0 {
-		for _, latency := range d.EgressLatencies {
-			if latency.LatencyMilliseconds > globalMillisecondThreshold {
-				healthy = false
-				health = components.StateUnhealthy
-				break
-			}
-		}
-	}
-
-	return health, healthy
+	// tracks the healthy evaluation result of the last check
+	healthy bool
+	// tracks the reason of the last check
+	reason string
 }
 
 func (d *Data) getError() string {
@@ -180,13 +161,29 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates(globalMillisecondThreshold int64) ([]components.State, error) {
+func (d *Data) getStates() ([]components.State, error) {
+	if d == nil {
+		return []components.State{
+			{
+				Name:    Name,
+				Health:  components.StateHealthy,
+				Healthy: true,
+				Reason:  "no data yet",
+			},
+		}, nil
+	}
+
 	state := components.State{
 		Name:   Name,
-		Reason: d.getReason(globalMillisecondThreshold),
+		Reason: d.reason,
 		Error:  d.getError(),
+
+		Healthy: d.healthy,
+		Health:  components.StateHealthy,
 	}
-	state.Health, state.Healthy = d.getHealth(globalMillisecondThreshold)
+	if !d.healthy {
+		state.Health = components.StateUnhealthy
+	}
 
 	b, _ := json.Marshal(d)
 	state.ExtraInfo = map[string]string{
