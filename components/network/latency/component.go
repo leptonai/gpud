@@ -110,7 +110,7 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(c.ctx, time.Minute)
 	defer ccancel()
 
 	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(cctx)
