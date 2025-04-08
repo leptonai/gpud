@@ -913,7 +913,7 @@ func TestData_CreateEvent(t *testing.T) {
 			}
 
 			// Instead of testing createEvent directly, test listACSEnabledDeviceUUIDs
-			uuids := d.listACSEnabledDeviceUUIDs()
+			uuids := findACSEnabledDeviceUUIDs(d.Devices)
 
 			if tt.wantNil {
 				assert.Nil(t, uuids)

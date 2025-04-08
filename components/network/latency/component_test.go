@@ -12,6 +12,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
+	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 )
 
 func TestDataGetError(t *testing.T) {
@@ -86,7 +87,7 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	comp := &component{
 		ctx:    ctx,
 		cancel: cancel,
-		getEgressLatenciesFunc: func(context.Context) (latency.Latencies, error) {
+		getEgressLatenciesFunc: func(_ context.Context, _ ...latency_edge.OpOption) (latency.Latencies, error) {
 			return mockLatencies, nil
 		},
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
@@ -118,7 +119,7 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	comp := &component{
 		ctx:    ctx,
 		cancel: cancel,
-		getEgressLatenciesFunc: func(context.Context) (latency.Latencies, error) {
+		getEgressLatenciesFunc: func(_ context.Context, _ ...latency_edge.OpOption) (latency.Latencies, error) {
 			return nil, errors.New("test error")
 		},
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,

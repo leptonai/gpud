@@ -157,7 +157,7 @@ func (c *component) CheckOnce() {
 		return
 	}
 
-	acsEnabledDevices := d.listACSEnabledDeviceUUIDs()
+	acsEnabledDevices := findACSEnabledDeviceUUIDs(d.Devices)
 	if len(acsEnabledDevices) == 0 {
 		d.healthy = true
 		d.reason = "no acs enabled devices found"
@@ -238,13 +238,9 @@ func (d *Data) getStates() ([]components.State, error) {
 	return []components.State{state}, nil
 }
 
-func (d *Data) listACSEnabledDeviceUUIDs() []string {
-	if d == nil || len(d.Devices) == 0 {
-		return nil
-	}
-
+func findACSEnabledDeviceUUIDs(devs []pci.Device) []string {
 	uuids := make([]string, 0)
-	for _, dev := range d.Devices {
+	for _, dev := range devs {
 		// check whether ACS is enabled on PCI bridges
 		if dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid {
 			uuids = append(uuids, dev.ID)
