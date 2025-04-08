@@ -33,7 +33,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getEgressLatenciesFunc func(context.Context) (latency.Latencies, error)
+	getEgressLatenciesFunc func(context.Context, ...latency_edge.OpOption) (latency.Latencies, error)
 
 	// GlobalMillisecondThreshold is the global threshold in milliseconds for the DERP latency.
 	// If all DERP latencies are greater than this threshold, the component will be marked as failed.
@@ -50,9 +50,7 @@ func New(ctx context.Context) components.Component {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		getEgressLatenciesFunc: func(ctx2 context.Context) (latency.Latencies, error) {
-			return latency_edge.Measure(ctx2)
-		},
+		getEgressLatenciesFunc: latency_edge.Measure,
 
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
 	}
@@ -110,10 +108,10 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(c.ctx, time.Minute)
-	defer ccancel()
+	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+	defer cancel()
 
-	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(cctx)
+	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(ctx)
 	if d.err != nil {
 		d.healthy = false
 		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
