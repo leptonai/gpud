@@ -99,8 +99,8 @@ func (c *component) CheckOnce() {
 }
 
 type Data struct {
-	LoadedModules []string            `json:"loaded_modules"`
-	loadedModules map[string]struct{} 
+	LoadedModules []string `json:"loaded_modules"`
+	loadedModules map[string]struct{}
 
 	// timestamp of the last check
 	ts time.Time
