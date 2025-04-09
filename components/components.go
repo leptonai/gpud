@@ -11,6 +11,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 // Component represents an individual component of the system.
@@ -115,6 +116,23 @@ func RegisterComponent(name string, comp Component) error {
 	if _, ok := defaultSet[name]; ok {
 		return fmt.Errorf("component %s already registered: %w", name, errdefs.ErrAlreadyExists)
 	}
+	defaultSet[name] = comp
+	return nil
+}
+
+// SetComponente stops and overwrites the existing component if exists.
+func SetComponent(name string, comp Component) error {
+	defaultSetMu.Lock()
+	defer defaultSetMu.Unlock()
+
+	if defaultSet == nil {
+		return fmt.Errorf("component set not initialized: %w", errdefs.ErrUnavailable)
+	}
+
+	if comp, ok := defaultSet[name]; ok {
+		log.Logger.Warn("component already registered, stopping", "error", comp.Close())
+	}
+
 	defaultSet[name] = comp
 	return nil
 }

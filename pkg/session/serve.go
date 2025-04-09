@@ -14,10 +14,12 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsplugins "github.com/leptonai/gpud/components/plugins"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/pkg/plugins"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
 )
@@ -35,6 +37,7 @@ type Request struct {
 	Since         time.Duration     `json:"since"`
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
+	Plugin        *plugins.Plugin   `json:"plugin,omitempty"`
 }
 
 type Response struct {
@@ -44,6 +47,8 @@ type Response struct {
 	States  v1.LeptonStates  `json:"states,omitempty"`
 	Events  v1.LeptonEvents  `json:"events,omitempty"`
 	Metrics v1.LeptonMetrics `json:"metrics,omitempty"`
+
+	Plugins plugins.Plugins `json:"plugins,omitempty"`
 }
 
 func (s *Session) serve() {
@@ -108,6 +113,22 @@ func (s *Session) serve() {
 					}
 				} else {
 					log.Logger.Warnw("component does not implement HealthSettable, dropping sethealthy request", "component", componentName)
+				}
+			}
+
+		case "registerPlugin":
+			if payload.Plugin != nil {
+				componentName := payload.Plugin.ComponentName()
+				log.Logger.Infow("registerPlugin received", "plugin", componentName)
+
+				c, err := componentsplugins.New(payload.Plugin, s.eventStore)
+				if err != nil {
+					log.Logger.Errorw("failed to get validate plugin", "error", err)
+					continue
+				}
+				if err := components.RegisterComponent(componentName, c); err != nil {
+					log.Logger.Errorw("failed to get register plugin", "error", err)
+					continue
 				}
 			}
 
