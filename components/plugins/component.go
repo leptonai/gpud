@@ -4,42 +4,50 @@ package plugins
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/plugins"
-	"github.com/leptonai/gpud/pkg/sqlite"
 )
-
-const Name = "info"
 
 var _ components.Component = &component{}
 
 type component struct {
-	name   string
-	plugin *plugins.Plugin
+	componentName string
+	plugin        *plugins.Plugin
 
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	eventBucket eventstore.Bucket
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(plugin *plugins.Plugin) (components.Component, error) {
+func New(plugin *plugins.Plugin, eventStore eventstore.Store) (components.Component, error) {
 	if err := plugin.Validate(); err != nil {
+		return nil, err
+	}
+
+	eventBucket, err := eventStore.Bucket(plugin.ComponentName())
+	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &component{
-		name:   plugin.ComponentName(),
-		plugin: plugin,
+		componentName: plugin.ComponentName(),
+		plugin:        plugin,
 
 		ctx:    ctx,
 		cancel: cancel,
+
+		eventBucket: eventBucket,
 	}, nil
 }
 
@@ -78,30 +86,32 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return lastData.getStates()
 }
 
-// TODO
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+	if c.eventBucket != nil {
+		return c.eventBucket.Get(ctx, since)
+	}
 	return nil, nil
 }
 
 func (c *component) Close() error {
-	log.Logger.Debugw("closing component", "name", c.name)
+	log.Logger.Debugw("closing component", "component", c.componentName)
 
 	c.cancel()
 
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
+
 	return nil
 }
-
-var (
-	lastSQLiteMetricsMu sync.Mutex
-	lastSQLiteMetrics   sqlite.Metrics
-)
 
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking info")
 	d := Data{
-		ts: time.Now().UTC(),
+		componentName: c.componentName,
+		ts:            time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -112,12 +122,21 @@ func (c *component) CheckOnce() {
 	cctx, cancel := context.WithTimeout(c.ctx, c.plugin.Timeout.Duration)
 	d.err = c.plugin.CheckOnce(cctx)
 	cancel()
+	if d.err != nil {
+		d.healthy = false
+		d.reason = fmt.Sprintf("error running check")
+		return
+	}
 
 	d.healthy = true
-	d.reason = "test"
+	d.reason = "success"
 }
 
 type Data struct {
+	// TODO
+
+	componentName string
+
 	// timestamp of the last check
 	ts time.Time
 	// error from the last check
@@ -140,7 +159,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
-				Name:    Name,
+				Name:    d.componentName,
 				Health:  components.StateHealthy,
 				Healthy: true,
 				Reason:  "no data yet",
@@ -149,7 +168,7 @@ func (d *Data) getStates() ([]components.State, error) {
 	}
 
 	state := components.State{
-		Name:   Name,
+		Name:   d.componentName,
 		Reason: d.reason,
 		Error:  d.getError(),
 
