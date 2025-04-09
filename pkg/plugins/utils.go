@@ -2,7 +2,7 @@ package plugins
 
 import "strings"
 
-const ComponentPrefix = "plugin-"
+const ComponentPrefix = "ext-plugin-"
 
 // ConvertToComponentName converts the plugin name to a component name.
 // It replaces all whitespace characters with underscores.

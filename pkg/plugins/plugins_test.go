@@ -168,10 +168,10 @@ func TestComponentName(t *testing.T) {
 	plugin = Plugin{
 		Name: "test plugin",
 	}
-	assert.Equal(t, "plugin-test-plugin", plugin.ComponentName())
+	assert.Equal(t, "ext-plugin-test-plugin", plugin.ComponentName())
 
 	// Check that the componentName field is cached
-	assert.Equal(t, "plugin-test-plugin", plugin.componentName)
+	assert.Equal(t, "ext-plugin-test-plugin", plugin.componentName)
 }
 
 func TestRun(t *testing.T) {

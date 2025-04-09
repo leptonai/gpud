@@ -15,32 +15,32 @@ func TestConvertToComponentName(t *testing.T) {
 		{
 			name:     "simple name",
 			input:    "nvidia",
-			expected: "plugin-nvidia",
+			expected: "ext-plugin-nvidia",
 		},
 		{
 			name:     "name with spaces",
 			input:    "nvidia smi",
-			expected: "plugin-nvidia-smi",
+			expected: "ext-plugin-nvidia-smi",
 		},
 		{
 			name:     "mixed case",
 			input:    "Nvidia SMI",
-			expected: "plugin-nvidia-smi",
+			expected: "ext-plugin-nvidia-smi",
 		},
 		{
 			name:     "already has prefix",
-			input:    "plugin-nvidia",
-			expected: "plugin-nvidia",
+			input:    "ext-plugin-nvidia",
+			expected: "ext-plugin-nvidia",
 		},
 		{
 			name:     "whitespace trimming",
 			input:    "  nvidia  ",
-			expected: "plugin-nvidia",
+			expected: "ext-plugin-nvidia",
 		},
 		{
 			name:     "mixed case with spaces and prefix",
 			input:    "  Plugin-Nvidia SMI  ",
-			expected: "plugin-nvidia-smi",
+			expected: "ext-plugin-nvidia-smi",
 		},
 		{
 			name:     "empty string",
