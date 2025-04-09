@@ -54,6 +54,8 @@ func New(plugin *plugins.Plugin, eventStore eventstore.Store) (components.Compon
 func (c *component) Name() string { return c.plugin.Name }
 
 func (c *component) Start() error {
+	log.Logger.Debugw("starting component", "component", c.componentName)
+
 	if c.plugin == nil {
 		return nil
 	}
@@ -108,7 +110,7 @@ func (c *component) Close() error {
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
-	log.Logger.Infow("checking info")
+	log.Logger.Infow("checking", "component", c.componentName)
 	d := Data{
 		componentName: c.componentName,
 		ts:            time.Now().UTC(),
@@ -119,6 +121,7 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
+	// TODO
 	cctx, cancel := context.WithTimeout(c.ctx, c.plugin.Timeout.Duration)
 	d.err = c.plugin.CheckOnce(cctx)
 	cancel()
