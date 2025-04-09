@@ -3,6 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/leptonai/gpud)](https://goreportcard.com/report/github.com/leptonai/gpud)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/leptonai/gpud?sort=semver)
 [![Go Reference](https://pkg.go.dev/badge/github.com/leptonai/gpud.svg)](https://pkg.go.dev/github.com/leptonai/gpud)
+[![codecov](https://codecov.io/gh/leptonai/gpud/graph/badge.svg?token=G8MGRK9X4A)](https://codecov.io/gh/leptonai/gpud)
 
 ## Overview
 
