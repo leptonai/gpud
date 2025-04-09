@@ -1,0 +1,6 @@
+- name: "nvidia-smi"
+  state_script: bnZpZGlhLXNtaQo=
+  event_script: bnZpZGlhLXNtaQo=
+  dry_run: true
+  timeout: 10s
+  interval: 10s
