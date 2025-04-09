@@ -83,7 +83,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates()
+	return lastData.getStates(c.componentName)
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
@@ -155,11 +155,11 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates() ([]components.State, error) {
+func (d *Data) getStates(componentName string) ([]components.State, error) {
 	if d == nil {
 		return []components.State{
 			{
-				Name:    d.componentName,
+				Name:    componentName,
 				Health:  components.StateHealthy,
 				Healthy: true,
 				Reason:  "no data yet",
