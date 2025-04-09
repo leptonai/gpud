@@ -26,46 +26,50 @@ func TestLoad(t *testing.T) {
 	// Check the plugin data
 	plugin := plugins[0]
 	assert.Equal(t, "nvidia-smi", plugin.Name)
-	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.StateScript)
-	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.EventScript)
+	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.StateJob.Script)
+	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.EventJob.Script)
 	assert.True(t, plugin.DryRun)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugin.Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugin.Interval)
 
 	// Check the decoded scripts - can access these as we're in the same package
-	assert.Equal(t, "nvidia-smi\n", plugin.stateScriptDecoded)
-	assert.Equal(t, "nvidia-smi\n", plugin.eventScriptDecoded)
+	assert.Equal(t, "nvidia-smi\n", plugin.StateJob.scriptDecoded)
+	assert.Equal(t, "nvidia-smi\n", plugin.EventJob.scriptDecoded)
 }
 
 func TestDecode(t *testing.T) {
 	// Create a plugin with base64 encoded scripts
 	plugin := Plugin{
-		StateScript: "c3RhdGUgc2NyaXB0", // "state script" in base64
-		EventScript: "ZXZlbnQgc2NyaXB0", // "event script" in base64
+		Name: "test",
+		StateJob: &Job{
+			Script: "c3RhdGUgc2NyaXB0",
+		},
+		EventJob: &Job{
+			Script: "ZXZlbnQgc2NyaXB0",
+		},
+		Timeout: metav1.Duration{Duration: 10 * time.Second},
 	}
 
 	// Decode the plugin
-	err := plugin.decode()
-
-	// Assert no error occurred
+	err := plugin.Validate()
 	assert.NoError(t, err)
 
 	// Check that the scripts were decoded correctly
-	assert.Equal(t, "state script", plugin.stateScriptDecoded)
-	assert.Equal(t, "event script", plugin.eventScriptDecoded)
+	assert.Equal(t, "state script", plugin.StateJob.scriptDecoded)
+	assert.Equal(t, "event script", plugin.EventJob.scriptDecoded)
 }
 
 func TestDecodeWithInvalidBase64(t *testing.T) {
 	// Create a plugin with invalid base64 encoded scripts
 	plugin := Plugin{
-		StateScript: "invalid base64",
+		StateJob: &Job{Script: "invalid base64"},
 	}
 
 	// Decode the plugin
-	err := plugin.decode()
-
-	// Assert an error occurred
+	err := plugin.Validate()
 	assert.Error(t, err)
+
+	assert.Empty(t, plugin.StateJob.scriptDecoded)
 }
 
 func TestLoadWithInvalidPath(t *testing.T) {
@@ -87,18 +91,22 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid plugin",
 			plugin: Plugin{
-				Name:        "test-plugin",
-				StateScript: "c3RhdGUgc2NyaXB0", // "state script" in base64
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Name: "test-plugin",
+				StateJob: &Job{
+					Script: "c3RhdGUgc2NyaXB0",
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "missing component name",
 			plugin: Plugin{
-				Name:        "",
-				StateScript: "c3RhdGUgc2NyaXB0",
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Name: "",
+				StateJob: &Job{
+					Script: "c3RhdGUgc2NyaXB0",
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectedError: ErrComponentNameRequired,
 		},
@@ -113,17 +121,21 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing timeout",
 			plugin: Plugin{
-				Name:        "test-plugin",
-				StateScript: "c3RhdGUgc2NyaXB0",
+				Name: "test-plugin",
+				StateJob: &Job{
+					Script: "c3RhdGUgc2NyaXB0",
+				},
 			},
 			expectedError: ErrTimeoutRequired,
 		},
 		{
 			name: "invalid base64 in state script",
 			plugin: Plugin{
-				Name:        "test-plugin",
-				StateScript: "invalid base64",
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Name: "test-plugin",
+				StateJob: &Job{
+					Script: "invalid base64",
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectedError: nil, // The exact error is not defined, just check for non-nil
 		},
@@ -164,11 +176,13 @@ func TestComponentName(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	plugin := Plugin{
-		Name:        "test-plugin",
-		StateScript: "c3RhdGUgc2NyaXB0",
+		Name: "test-plugin",
+		StateJob: &Job{
+			Script: "c3RhdGUgc2NyaXB0",
+		},
 	}
 
 	// Test that Run method returns nil (current implementation)
-	err := plugin.Run(context.Background())
+	err := plugin.CheckOnce(context.Background())
 	assert.NoError(t, err)
 }

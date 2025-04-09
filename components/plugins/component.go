@@ -46,8 +46,16 @@ func New(plugin *plugins.Plugin) (components.Component, error) {
 func (c *component) Name() string { return c.plugin.Name }
 
 func (c *component) Start() error {
+	if c.plugin == nil {
+		return nil
+	}
+	if c.plugin.Interval.Duration == 0 {
+		c.CheckOnce()
+		return nil
+	}
+
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(c.plugin.Interval.Duration)
 		defer ticker.Stop()
 
 		for {
@@ -70,6 +78,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	return lastData.getStates()
 }
 
+// TODO
 func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
 	return nil, nil
 }
@@ -99,6 +108,10 @@ func (c *component) CheckOnce() {
 		c.lastData = &d
 		c.lastMu.Unlock()
 	}()
+
+	cctx, cancel := context.WithTimeout(c.ctx, c.plugin.Timeout.Duration)
+	d.err = c.plugin.CheckOnce(cctx)
+	cancel()
 
 	d.healthy = true
 	d.reason = "test"
