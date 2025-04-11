@@ -14,7 +14,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/file"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
@@ -28,7 +28,7 @@ import (
 
 const Name = "info"
 
-var _ components.Component = &component{}
+var _ apiv1.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -42,7 +42,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(annotations map[string]string, dbRO *sql.DB) components.Component {
+func New(annotations map[string]string, dbRO *sql.DB) apiv1.Component {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &component{
 		ctx:         ctx,
@@ -73,14 +73,14 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
 	return lastData.getStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return nil, nil
 }
 
@@ -257,28 +257,28 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates() ([]components.State, error) {
+func (d *Data) getStates() ([]apiv1.State, error) {
 	if d == nil {
-		return []components.State{
+		return []apiv1.State{
 			{
 				Name:    Name,
-				Health:  components.StateHealthy,
+				Health:  apiv1.StateHealthy,
 				Healthy: true,
 				Reason:  "no data yet",
 			},
 		}, nil
 	}
 
-	state := components.State{
+	state := apiv1.State{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
 
 		Healthy: d.healthy,
-		Health:  components.StateHealthy,
+		Health:  apiv1.StateHealthy,
 	}
 	if !d.healthy {
-		state.Health = components.StateUnhealthy
+		state.Health = apiv1.StateUnhealthy
 	}
 
 	b, _ := json.Marshal(d)
@@ -286,5 +286,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []apiv1.State{state}, nil
 }

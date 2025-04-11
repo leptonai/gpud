@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 // Defines the Xid error information that is static.
@@ -17,12 +17,12 @@ type Detail struct {
 	Description string `json:"description"`
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
-	SuggestedActionsByGPUd *components.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this Xid as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 	// EventType is the type of the event.
-	EventType components.EventType `json:"event_type"`
+	EventType apiv1.EventType `json:"event_type"`
 
 	// PotentialHWError is true if the Xid indicates a potential hardware error.
 	// Source: https://docs.nvidia.com/deploy/xid-errors/index.html#xid-error-listing
@@ -111,7 +111,7 @@ func GetDetail(id int) (*Detail, bool) {
 // make sure we do not have unknown event type
 func init() {
 	for id, detail := range details {
-		if detail.EventType == components.EventTypeUnknown || string(detail.EventType) == "" {
+		if detail.EventType == apiv1.EventTypeUnknown || string(detail.EventType) == "" {
 			panic(fmt.Sprintf("unknown event type for Xid %d", id))
 		}
 	}
@@ -130,7 +130,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -152,7 +152,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -174,7 +174,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -196,7 +196,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -218,7 +218,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -240,7 +240,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -262,7 +262,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -284,7 +284,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -303,7 +303,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -314,14 +314,14 @@ var details = map[int]Detail{
 				"Xid 9 indicates driver error programming GPU, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -343,7 +343,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -365,7 +365,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -384,7 +384,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -395,14 +395,14 @@ var details = map[int]Detail{
 				"Xid 12 indicates a driver error handling GPU exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -420,7 +420,7 @@ var details = map[int]Detail{
 		Name:            "Graphics Engine Exception",
 		Description:     `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
 				`"NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)`,
@@ -460,15 +460,15 @@ var details = map[int]Detail{
 				"Xid 13, marked as non-critical in GPUd, indicates GPU memory anomalies affecting code and data segments, arrays being out of their declared ranges, applications having illegal memory access issues, or instruction errors. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html. Since in rare cases it can be caused by the hardware degradation, please report if the issue persists.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeCheckUserAppAndGPU,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -494,7 +494,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -516,7 +516,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -535,7 +535,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -546,14 +546,14 @@ var details = map[int]Detail{
 				"Xid 16 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -575,7 +575,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -594,7 +594,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -605,14 +605,14 @@ var details = map[int]Detail{
 				"Xid 18 indicates bus mastering disabled in PCI Config Space, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -631,7 +631,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -642,14 +642,14 @@ var details = map[int]Detail{
 				"Xid 19 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -671,7 +671,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -693,7 +693,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -715,7 +715,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -737,7 +737,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -759,7 +759,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -781,7 +781,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -800,7 +800,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -811,14 +811,14 @@ var details = map[int]Detail{
 				"Xid 26 indicates framebuffer timeout, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -837,7 +837,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -848,14 +848,14 @@ var details = map[int]Detail{
 				"Xid 27 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -874,7 +874,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -885,14 +885,14 @@ var details = map[int]Detail{
 				"Xid 28 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -911,7 +911,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -922,14 +922,14 @@ var details = map[int]Detail{
 				"Xid 29 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -948,7 +948,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -959,14 +959,14 @@ var details = map[int]Detail{
 				"Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -984,7 +984,7 @@ var details = map[int]Detail{
 		Name:            "GPU memory page fault",
 		Description:     `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
 				// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
@@ -1028,15 +1028,15 @@ var details = map[int]Detail{
 				"Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault. In rare cases it can be caused by the hardware degradation. If the issue persists, please report for hardware inspection and repair.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeCheckUserAppAndGPU,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
 		PotentialHWError:     true,
@@ -1057,7 +1057,7 @@ var details = map[int]Detail{
 		Name:            "Invalid or corrupted push buffer stream",
 		Description:     "The event is reported by the DMA controller of the PCIE bus that manages communication between the NVIDIA driver and GPU. In most cases, a PCI quality issue occurs.",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
 				// Which indicates the PCI quality issues, not the user application issues.
@@ -1101,15 +1101,15 @@ var details = map[int]Detail{
 				"Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. If the issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1128,7 +1128,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1139,14 +1139,14 @@ var details = map[int]Detail{
 				"Xid 33 indicates internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1165,7 +1165,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1176,14 +1176,14 @@ var details = map[int]Detail{
 				"Xid 34 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1202,7 +1202,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1213,14 +1213,14 @@ var details = map[int]Detail{
 				"Xid 35 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1239,7 +1239,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1250,14 +1250,14 @@ var details = map[int]Detail{
 				"Xid 36 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1279,7 +1279,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1297,7 +1297,7 @@ var details = map[int]Detail{
 		Name:            "Driver firmware error",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 38 as a potential driver firmware error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1339,15 +1339,15 @@ var details = map[int]Detail{
 				"Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. If the firmware issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1369,7 +1369,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1391,7 +1391,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1413,7 +1413,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1432,7 +1432,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1443,14 +1443,14 @@ var details = map[int]Detail{
 				"Xid 42 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1468,7 +1468,7 @@ var details = map[int]Detail{
 		Name:            "GPU stopped processing",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
 				`"NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)`,
@@ -1510,14 +1510,14 @@ var details = map[int]Detail{
 				"Xid 43, marked as non-critical in GPUd, indicates GPU stopped processing, due to a user application encountering a software induced fault. Restart applications and check whether the same Xid is returned. And report if the issue persists.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeCheckUserAppAndGPU,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1539,7 +1539,7 @@ var details = map[int]Detail{
 		Name:            "Graphics Engine fault during context switch",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 44 as a potential driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1581,15 +1581,15 @@ var details = map[int]Detail{
 				"Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. If the uncorrectable GPU error persists after rebooting the system, inspect and repair the hardware.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1607,7 +1607,7 @@ var details = map[int]Detail{
 		Name:            "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
 		Description:     "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
 				`"NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)`,
@@ -1652,8 +1652,8 @@ var details = map[int]Detail{
 				"Xid 45, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeIgnoreNoActionRequired,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
 		// TODO
@@ -1662,7 +1662,7 @@ var details = map[int]Detail{
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1685,7 +1685,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1696,14 +1696,14 @@ var details = map[int]Detail{
 				"Xid 46 indicates GPU stopped processing, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1722,7 +1722,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1733,14 +1733,14 @@ var details = map[int]Detail{
 				"Xid 47 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1767,7 +1767,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 The error is also reported to your application. In most cases, you need to reset the GPU or node to fix this error.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
 				`"NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)`,
@@ -1813,15 +1813,15 @@ The error is also reported to your application. In most cases, you need to reset
 				"Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE). If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1843,7 +1843,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1865,7 +1865,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1887,7 +1887,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1909,7 +1909,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1931,7 +1931,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1953,7 +1953,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1975,7 +1975,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -1997,7 +1997,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2019,7 +2019,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2041,7 +2041,7 @@ The error is also reported to your application. In most cases, you need to reset
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2060,7 +2060,7 @@ The error is also reported to your application. In most cases, you need to reset
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2071,14 +2071,14 @@ The error is also reported to your application. In most cases, you need to reset
 				"Xid 59 indicates an internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2097,7 +2097,7 @@ The error is also reported to your application. In most cases, you need to reset
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2108,14 +2108,14 @@ The error is also reported to your application. In most cases, you need to reset
 				"Xid 60 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2136,7 +2136,7 @@ The error is also reported to your application. In most cases, you need to reset
 Internal micro-controller breakpoint/warning. The GPU internal engine stops working. Consequently, your businesses are affected.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 61 indicates internal micro-controller warning.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2178,14 +2178,14 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 				"Xid 61, marked as critical in GPUd, indicates internal micro-controller breakpoint/warning and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2203,7 +2203,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 		Name:            "Internal micro-controller halt (newer drivers)",
 		Description:     "This event is similar to Xid 61. PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 62 indicates internal micro-controller halt.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2246,15 +2246,15 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 				"Xid 62, marked as critical in GPUd, indicates internal micro-controller halt. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2288,7 +2288,7 @@ If not, it is from a single bit error and the system can keep running as is unti
 Xid 63 indicates that the retirement or remapping information is successfully recorded in infoROM.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
 				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
@@ -2338,15 +2338,15 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 				"Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event or row remapping recording event. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2382,7 +2382,7 @@ ECC page retirement or row remapper recording failure. This event is similar to 
 Xid 64 indicates that the retirement or remapping information fails to be recorded.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
 				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
@@ -2430,15 +2430,15 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				"Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure or row remapping recording failure. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2459,7 +2459,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		// "Triggered when the GPU handles memory ECC errors on the GPU"
 		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
 		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				//
 			},
@@ -2468,14 +2468,14 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
-		EventType: components.EventTypeCritical,
+		EventType: apiv1.EventTypeCritical,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2497,7 +2497,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2519,7 +2519,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2537,7 +2537,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Name:            "NVDEC0 Exception",
 		Description:     "Video processor exception",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 68 as a potential hardware/driver issue or a user application error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2580,9 +2580,9 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				"Xid 68, marked as non-critical in GPUd, indicates video processor exception. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		// TODO
@@ -2590,7 +2590,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2613,7 +2613,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Name:            "Graphics Engine class error",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 69 as a potential hardware/driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2655,15 +2655,15 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				"Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2685,7 +2685,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2707,7 +2707,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2729,7 +2729,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2751,7 +2751,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2799,7 +2799,7 @@ Apart from stress testing to exclude those that are constantly repeating errors,
 The XID indicates an NVLink hardware error. The GPU encounters a critical hardware error and must be repaired.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
 				// GPU reset or system reboot is needed to clear the error.
@@ -2843,15 +2843,15 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 				"Xid 74, marked as critical in GPUd, is a critical hardware error that impacts the physical link between the GPUs, must be repaired if the issue persists after rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2873,7 +2873,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2895,7 +2895,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2917,7 +2917,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2936,7 +2936,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 		Description:     "",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2947,14 +2947,14 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 				"Xid 78 indicates vGPU start error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -2980,7 +2980,7 @@ Reviewing system event logs and kernel PCI event logs may provide additional ind
 This event may also be cause by failing GPU hardware or other driver issues.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
 				`"NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)`,
@@ -3023,15 +3023,15 @@ This event may also be cause by failing GPU hardware or other driver issues.
 				"Xid 79, marked as critical in GPUd, indicates GPU driver is not able to communicate with underlying GPUs. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3053,7 +3053,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3072,7 +3072,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		Description:     "",
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3083,14 +3083,14 @@ This event may also be cause by failing GPU hardware or other driver issues.
 				"Xid 81 indicates VGA subsystem error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3112,7 +3112,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3134,7 +3134,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3156,7 +3156,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3178,7 +3178,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3200,7 +3200,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3222,7 +3222,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3244,7 +3244,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3266,7 +3266,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3288,7 +3288,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3310,7 +3310,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3333,7 +3333,7 @@ See Running Field Diagnostics to collect additional debug information, via https
 See below for guidelines on when to RMA GPUs based on excessive errors.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 92 as a potential hardware or driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3376,15 +3376,15 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				"Xid 92, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeIgnoreNoActionRequired,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3406,7 +3406,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3444,7 +3444,7 @@ When the application encounters an uncorrectable GPU memory ECC error, the ECC m
 This event is generated if the error suppression mechanism successfully suppresses the error. In this case, only the faulty application is affected by the uncorrectable ECC error.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
 				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
@@ -3490,9 +3490,9 @@ This event is generated if the error suppression mechanism successfully suppress
 				"Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeIgnoreNoActionRequired,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
 		// TODO
@@ -3500,7 +3500,7 @@ This event is generated if the error suppression mechanism successfully suppress
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
-		EventType: components.EventTypeCritical,
+		EventType: apiv1.EventTypeCritical,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3537,7 +3537,7 @@ https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#user-visible-s
 This event is similar to Xid 94. However, Xid 94 indicates that the error is suppressed. Xid 95 indicates that the error fails to be suppressed. Other applications on the GPU-accelerated node are also affected.
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
@@ -3582,16 +3582,16 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				"Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3613,7 +3613,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3635,7 +3635,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3657,7 +3657,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3679,7 +3679,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3701,7 +3701,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3723,7 +3723,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3745,7 +3745,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3767,7 +3767,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3789,7 +3789,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3811,7 +3811,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3833,7 +3833,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3855,7 +3855,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3877,7 +3877,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3899,7 +3899,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3918,7 +3918,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     `This event should be uncommon unless there is a hardware failure. To recover, revert any recent system hardware modifications and cold reset the system. If this fails to correct the issue, contact your hardware vendor for assistance.`,
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3929,14 +3929,14 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				"Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3958,7 +3958,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -3980,7 +3980,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4002,7 +4002,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4024,7 +4024,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4046,7 +4046,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4068,7 +4068,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4090,7 +4090,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4112,7 +4112,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4130,7 +4130,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Name:            "GSP RPC Timeout",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
 				// recommending GPU reset or node power cycle if the issue persists.
@@ -4174,15 +4174,15 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				"Xid 119, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4200,7 +4200,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Name:            "GSP Error",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
 				// recommending GPU reset or node power cycle if the issue persists.
@@ -4244,15 +4244,15 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				"Xid 120, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4270,7 +4270,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Name:            "C2C Link Error",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
 				// recommending the GPU reset to retrain the link.
@@ -4314,15 +4314,15 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				"Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU. If the same Xid is returned after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4344,7 +4344,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4364,7 +4364,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabilities/limitations section provided in Section D.9 of the FM User Guide: https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf).
 `,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 123 indicates potential hardware or driver errors.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -4406,15 +4406,15 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				"Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4436,7 +4436,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4458,7 +4458,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4480,7 +4480,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4502,7 +4502,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4524,7 +4524,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4546,7 +4546,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4568,7 +4568,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4590,7 +4590,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4612,7 +4612,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4634,7 +4634,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4656,7 +4656,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4678,7 +4678,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4696,7 +4696,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Name:            "NVLink FLA privilege error",
 		Description:     `This event is logged when a fault is reported by the remote MMU, such as when an illegal NVLink peer-to-peer access is made by an applicable unit on the chip. Typically these are application-level bugs, but can also be driver bugs or hardware bugs.`,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
 				`"NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)`,
@@ -4738,15 +4738,15 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				"Xid 137, marked as non-critical in GPUd, indicates illegal NVLink peer-to-peer access by an applicable unit on the chip, typically application-level bugs, but can also be driver bugs or hardware issues. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeCheckUserAppAndGPU,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4768,7 +4768,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4790,7 +4790,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4808,7 +4808,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Name:            "Unrecovered ECC Error",
 		Description:     `This event may occur when the GPU driver has observed uncorrectable errors in GPU memory, in such a way as to interrupt the GPU driver’s ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU, and if the problem persists, contact your hardware vendor for support.`,
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
 				// recommending GPU reset if the issue persists.
@@ -4852,15 +4852,15 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				"Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeRebootSystem,
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4882,7 +4882,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4904,7 +4904,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them
@@ -4922,7 +4922,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Name:            "GPU Initialization Failure",
 		Description:     "",
 
-		SuggestedActionsByGPUd: &components.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				// e.g., "Error status 0x... while polling for FSP boot complete"
 				`"GPU_INIT_ERROR in driver", https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c#L84`,
@@ -4932,14 +4932,14 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				"Xid 143, marked as critical in GPUd, indicates GPU initialization failure. GPU hardware should be inspected and repaired.",
 			},
 
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is empty
-		EventType: components.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		// below are defined in https://docs.nvidia.com/deploy/xid-errors/index.html
 		// only indicates potential causes thus we do not solely rely on them

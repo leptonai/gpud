@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -291,7 +291,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, "ibstat", state.Name)
 	assert.True(t, state.Healthy)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.Equal(t, msgNoIbIssueFound, state.Reason)
 	assert.Nil(t, state.SuggestedActions)
 
@@ -313,17 +313,17 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	state = states[0]
 	assert.Equal(t, "ibstat", state.Name)
 	assert.False(t, state.Healthy)
-	assert.Equal(t, components.StateUnhealthy, state.Health)
+	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "only 8 ports (>= 400 Gb/s) are active, expect at least 12")
 	assert.NotNil(t, state.SuggestedActions)
-	assert.Equal(t, []components.RepairActionType{components.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
 }
 
 func TestComponentGetStatesWithThresholds(t *testing.T) {
 	tests := []struct {
 		name       string
 		thresholds infiniband.ExpectedPortStates
-		wantState  components.State
+		wantState  apiv1.State
 		wantErr    bool
 	}{
 		{
@@ -332,9 +332,9 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastPorts: 0,
 				AtLeastRate:  0,
 			},
-			wantState: components.State{
+			wantState: apiv1.State{
 				Name:    "ibstat",
-				Health:  components.StateHealthy,
+				Health:  apiv1.StateHealthy,
 				Healthy: true,
 				Reason:  msgThresholdNotSetSkipped,
 			},
@@ -346,9 +346,9 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			},
-			wantState: components.State{
+			wantState: apiv1.State{
 				Name:    "ibstat",
-				Health:  components.StateUnhealthy,
+				Health:  apiv1.StateUnhealthy,
 				Healthy: false,
 				Reason:  "ibstat threshold set but ibstat not found",
 			},
@@ -458,7 +458,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 
 			state := states[0]
 			assert.Equal(t, "ibstat", state.Name)
-			assert.Equal(t, components.StateUnhealthy, state.Health)
+			assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 			assert.False(t, state.Healthy)
 			assert.Contains(t, state.Reason, tc.wantReason)
 		})
@@ -568,7 +568,7 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, msgThresholdNotSetSkipped, states[0].Reason)
 
@@ -580,23 +580,23 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 
 	// Test case 3: With an event in store
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    "ibstat",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "test message",
 		ExtraInfo: map[string]string{
 			"state_healthy": "false",
-			"state_health":  components.StateUnhealthy,
+			"state_health":  apiv1.StateUnhealthy,
 		},
-		SuggestedActions: &components.SuggestedActions{
-			RepairActions: []components.RepairActionType{
-				components.RepairActionTypeHardwareInspection,
+		SuggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 			Descriptions: []string{
 				"test action",
@@ -618,7 +618,7 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, testEvent.Message, states[0].Reason)
 	assert.NotNil(t, states[0].SuggestedActions)
@@ -626,14 +626,14 @@ func TestGetStates(t *testing.T) {
 	assert.Equal(t, testEvent.SuggestedActions.Descriptions, states[0].SuggestedActions.Descriptions)
 
 	// Test case 4: With recent event (within 10 seconds)
-	recentEvent := components.Event{
+	recentEvent := apiv1.Event{
 		Time:    metav1.Time{Time: now.Add(-5 * time.Second)},
 		Name:    "ibstat",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "recent test message",
 		ExtraInfo: map[string]string{
 			"state_healthy": "false",
-			"state_health":  components.StateUnhealthy,
+			"state_health":  apiv1.StateUnhealthy,
 		},
 	}
 	c.lastEventMu.Lock()
@@ -674,7 +674,7 @@ func TestGetStates(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, msgNoIbIssueFound, states[0].Reason)
 
@@ -686,7 +686,7 @@ func TestGetStates(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 }
@@ -724,10 +724,10 @@ func TestEvents(t *testing.T) {
 	assert.Empty(t, events)
 
 	// Test with an event
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    "ibstat",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "test message",
 	}
 	err = c.eventBucket.Insert(ctx, testEvent)
@@ -778,13 +778,13 @@ func TestClose(t *testing.T) {
 
 // MockEventBucket implements the events_db.Store interface for testing
 type MockEventBucket struct {
-	events []components.Event
+	events []apiv1.Event
 	mu     sync.Mutex
 }
 
 func NewMockEventBucket() *MockEventBucket {
 	return &MockEventBucket{
-		events: []components.Event{},
+		events: []apiv1.Event{},
 	}
 }
 
@@ -792,7 +792,7 @@ func (m *MockEventBucket) Name() string {
 	return "mock"
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -805,7 +805,7 @@ func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) er
 	return nil
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -815,7 +815,7 @@ func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]component
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []components.Event
+	var result []apiv1.Event
 	for _, event := range m.events {
 		if !event.Time.Time.Before(since) {
 			result = append(result, event)
@@ -824,7 +824,7 @@ func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]component
 	return result, nil
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -842,7 +842,7 @@ func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*co
 	return nil, nil
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -875,7 +875,7 @@ func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var newEvents []components.Event
+	var newEvents []apiv1.Event
 	var purgedCount int
 
 	for _, event := range m.events {
@@ -894,11 +894,11 @@ func (m *MockEventBucket) Close() {
 	// No-op for mock
 }
 
-func (m *MockEventBucket) GetEvents() []components.Event {
+func (m *MockEventBucket) GetEvents() []apiv1.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]components.Event, len(m.events))
+	result := make([]apiv1.Event, len(m.events))
 	copy(result, m.events)
 	return result
 }
@@ -964,10 +964,10 @@ func TestLogLineProcessor(t *testing.T) {
 	for _, tt := range tests {
 		if tt.expectMatch {
 			eventName, eventMessage := Match(tt.logLine)
-			event := components.Event{
+			event := apiv1.Event{
 				Time:      metav1.Time{Time: now},
 				Name:      eventName,
-				Type:      components.EventTypeWarning,
+				Type:      apiv1.EventTypeWarning,
 				Message:   eventMessage,
 				ExtraInfo: map[string]string{"log_line": tt.logLine},
 			}
@@ -987,7 +987,7 @@ func TestLogLineProcessor(t *testing.T) {
 	require.Len(t, events, matchingTests)
 
 	for _, event := range events {
-		assert.Equal(t, components.EventTypeWarning, event.Type)
+		assert.Equal(t, apiv1.EventTypeWarning, event.Type)
 		assert.NotEmpty(t, event.Name)
 		assert.NotEmpty(t, event.Message)
 		assert.Contains(t, event.ExtraInfo, "log_line")
@@ -1041,10 +1041,10 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 
 	// Manually create an event and insert it
 	now := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    eventName,
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: eventMessage,
 		ExtraInfo: map[string]string{
 			"log_line": logLine,
@@ -1069,10 +1069,10 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	assert.True(t, foundManualEvent, "Our manually created event should be in the results")
 
 	// Now add another event with a different timestamp and verify filtering works
-	olderEvent := components.Event{
+	olderEvent := apiv1.Event{
 		Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
 		Name:    "port_module_high_temperature",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "Overheated MLX5 adapter",
 		ExtraInfo: map[string]string{
 			"log_line": "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",

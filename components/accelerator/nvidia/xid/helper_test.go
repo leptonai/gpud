@@ -8,20 +8,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-func createXidEvent(eventTime time.Time, xid uint64, eventType components.EventType, suggestedAction components.RepairActionType) components.Event {
+func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) apiv1.Event {
 	xidErr := xidErrorEventDetail{
 		Xid:        xid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
-		SuggestedActionsByGPUd: &components.SuggestedActions{
-			RepairActions: []components.RepairActionType{suggestedAction},
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{suggestedAction},
 		},
 	}
 	xidData, _ := json.Marshal(xidErr)
-	ret := components.Event{
+	ret := apiv1.Event{
 		Name:      EventNameErrorXid,
 		Type:      eventType,
 		ExtraInfo: map[string]string{EventKeyErrorXidData: string(xidData)},
@@ -34,78 +34,78 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType components.EventT
 
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
-		state := EvolveHealthyState([]components.Event{})
+		state := EvolveHealthyState([]apiv1.Event{})
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 		assert.Equal(t, "XIDComponent is healthy", state.Reason)
 	})
 
 	t.Run("critical xid", func(t *testing.T) {
-		events := []components.Event{
-			createXidEvent(time.Time{}, 123, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createXidEvent(time.Time{}, 123, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, components.StateDegraded, state.Health)
+		assert.Equal(t, apiv1.StateDegraded, state.Health)
 		assert.Equal(t, "XID 123(SPI PMU RPC Write Failure) detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
-		events := []components.Event{
-			createXidEvent(time.Time{}, 456, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, components.StateUnhealthy, state.Health)
+		assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 		assert.Equal(t, "XID 456 detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("reboot recover", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{Name: "reboot"},
-			createXidEvent(time.Time{}, 789, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 789, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 	})
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
-		events := []components.Event{
-			createXidEvent(time.Time{}, 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createXidEvent(time.Time{}, 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createXidEvent(time.Time{}, 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
-			createXidEvent(time.Time{}, 31, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 31, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, components.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
 	t.Run("SetHealthy", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{Name: "SetHealthy"},
-			createXidEvent(time.Time{}, 789, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{
 				Name:      EventNameErrorXid,
-				Type:      components.EventTypeCritical,
+				Type:      apiv1.EventTypeCritical,
 				ExtraInfo: map[string]string{EventKeyErrorXidData: "invalid json"},
 			},
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 	})
 }
 
@@ -118,8 +118,8 @@ func Test_xidErrorEventDetailJSON(t *testing.T) {
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
 			Xid:        123,
-			SuggestedActionsByGPUd: &components.SuggestedActions{
-				RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem},
+			SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 			},
 			CriticalErrorMarkedByGPUd: true,
 		}

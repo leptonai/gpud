@@ -9,7 +9,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-func InsertMetric(ctx context.Context, db *sql.DB, tableName string, metric components.Metric) error {
+func InsertMetric(ctx context.Context, db *sql.DB, tableName string, metric apiv1.Metric) error {
 	query := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 `,
@@ -58,7 +58,7 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 
 // Reads the last metric.
 // Returns nil if no record is found ("database/sql.ErrNoRows").
-func ReadLastMetric(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string) (*components.Metric, error) {
+func ReadLastMetric(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string) (*apiv1.Metric, error) {
 	if secondaryName == "" {
 		return readLastWithAllSecondaryNames(ctx, db, tableName, name)
 	}
@@ -78,7 +78,7 @@ LIMIT 1;
 		ColumnUnixSeconds,
 	)
 
-	metric := components.Metric{
+	metric := apiv1.Metric{
 		MetricName:          name,
 		MetricSecondaryName: secondaryName,
 	}
@@ -97,7 +97,7 @@ LIMIT 1;
 	return &metric, nil
 }
 
-func readLastWithAllSecondaryNames(ctx context.Context, db *sql.DB, tableName string, name string) (*components.Metric, error) {
+func readLastWithAllSecondaryNames(ctx context.Context, db *sql.DB, tableName string, name string) (*apiv1.Metric, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s, %s
 FROM %s
@@ -113,7 +113,7 @@ LIMIT 1;
 		ColumnUnixSeconds,
 	)
 
-	metric := components.Metric{
+	metric := apiv1.Metric{
 		MetricName: name,
 	}
 
@@ -132,7 +132,7 @@ LIMIT 1;
 }
 
 // Returns nil if no record is found ("database/sql.ErrNoRows").
-func ReadMetricsSince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, since time.Time) (components.Metrics, error) {
+func ReadMetricsSince(ctx context.Context, db *sql.DB, tableName string, name string, secondaryName string, since time.Time) (apiv1.Metrics, error) {
 	if secondaryName == "" {
 		return readSinceWithAllSecondaryNames(ctx, db, tableName, name, since)
 	}
@@ -165,10 +165,10 @@ ORDER BY %s ASC;`,
 	}
 	defer queryRows.Close()
 
-	rows := make(components.Metrics, 0)
+	rows := make(apiv1.Metrics, 0)
 	for queryRows.Next() {
 		var unixSeconds int64
-		metric := components.Metric{
+		metric := apiv1.Metric{
 			MetricName:          name,
 			MetricSecondaryName: secondaryName,
 		}
@@ -183,7 +183,7 @@ ORDER BY %s ASC;`,
 	return rows, nil
 }
 
-func readSinceWithAllSecondaryNames(ctx context.Context, db *sql.DB, tableName string, name string, since time.Time) (components.Metrics, error) {
+func readSinceWithAllSecondaryNames(ctx context.Context, db *sql.DB, tableName string, name string, since time.Time) (apiv1.Metrics, error) {
 	query := fmt.Sprintf(`
 SELECT %s, %s, %s
 FROM %s
@@ -212,9 +212,9 @@ ORDER BY %s ASC;`,
 	}
 	defer queryRows.Close()
 
-	rows := make(components.Metrics, 0)
+	rows := make(apiv1.Metrics, 0)
 	for queryRows.Next() {
-		metric := components.Metric{
+		metric := apiv1.Metric{
 			MetricName: name,
 		}
 		if err := queryRows.Scan(&metric.UnixSeconds, &metric.MetricSecondaryName, &metric.Value); err != nil {

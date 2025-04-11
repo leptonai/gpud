@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -56,7 +56,7 @@ func TestComponentEvents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
 
-	expectedEvent := components.Event{
+	expectedEvent := apiv1.Event{
 		Time:    metav1.Time{Time: time.Date(2025, 2, 27, 15, 10, 2, 0, time.UTC)},
 		Name:    "fabricmanager_nvswitch_non_fatal_error",
 		Type:    "Warning",
@@ -75,7 +75,7 @@ func TestComponentEvents(t *testing.T) {
 	states, err := comp.States(ctx)
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
@@ -163,7 +163,7 @@ func TestEventsWithProcessor(t *testing.T) {
 	}
 
 	// Insert a test event directly into the store
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 		Name:    "test-error",
 		Message: "This is a test error",
@@ -208,7 +208,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
 }
@@ -292,7 +292,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
 }
@@ -323,7 +323,7 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
@@ -337,7 +337,7 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)

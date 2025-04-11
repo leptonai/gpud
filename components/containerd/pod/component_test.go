@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 func Test_componentStart(t *testing.T) {
@@ -125,7 +125,7 @@ func TestDataFunctions(t *testing.T) {
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 
@@ -139,7 +139,7 @@ func TestDataFunctions(t *testing.T) {
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 		assert.Contains(t, states[0].Error, "test unimplemented")
 	})
@@ -660,7 +660,7 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 
@@ -675,7 +675,7 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 
@@ -686,7 +686,7 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 
@@ -697,7 +697,7 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 
@@ -708,7 +708,7 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 	})
 }
@@ -727,7 +727,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.Equal(t, "empty data edge case", states[0].Reason)
 	})
 
@@ -744,7 +744,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.Equal(t, "pods with error edge case", states[0].Reason)
 	})
 
@@ -771,7 +771,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.Equal(t, "many pods edge case", states[0].Reason)
 
 		// Check that JSON encoding worked and includes multiple pods
@@ -1026,7 +1026,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 			assert.Equal(t, "explicit test reason", states[0].Reason)
-			assert.Equal(t, components.StateUnhealthy, states[0].Health)
+			assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		})
 	}
 }
@@ -1042,7 +1042,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name:          "nil data",
 			data:          nil,
-			expectedState: components.StateHealthy,
+			expectedState: apiv1.StateHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1052,7 +1052,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     nil,
 				healthy: true,
 			},
-			expectedState: components.StateHealthy,
+			expectedState: apiv1.StateHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1065,7 +1065,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     nil,
 				healthy: true,
 			},
-			expectedState: components.StateHealthy,
+			expectedState: apiv1.StateHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1075,7 +1075,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     errors.New("generic error"),
 				healthy: false,
 			},
-			expectedState: components.StateUnhealthy,
+			expectedState: apiv1.StateUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1085,7 +1085,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     status.Error(codes.Unimplemented, "unknown service"),
 				healthy: false,
 			},
-			expectedState: components.StateUnhealthy,
+			expectedState: apiv1.StateUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1095,7 +1095,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     context.Canceled,
 				healthy: false,
 			},
-			expectedState: components.StateUnhealthy,
+			expectedState: apiv1.StateUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1108,7 +1108,7 @@ func TestData_HealthStates(t *testing.T) {
 				},
 				healthy: false,
 			},
-			expectedState: components.StateUnhealthy,
+			expectedState: apiv1.StateUnhealthy,
 			expectHealthy: false,
 		},
 	}
@@ -1143,7 +1143,7 @@ func TestData_getStates(t *testing.T) {
 			data:           nil,
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectError:    false,
 		},
 		{
@@ -1156,7 +1156,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectError:    false,
 		},
 		{
@@ -1172,7 +1172,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectError:    false,
 		},
 		{
@@ -1185,7 +1185,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateUnhealthy,
+			expectedHealth: apiv1.StateUnhealthy,
 			expectError:    false,
 		},
 		{
@@ -1200,7 +1200,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateUnhealthy,
+			expectedHealth: apiv1.StateUnhealthy,
 			expectError:    false,
 		},
 		{
@@ -1217,7 +1217,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectError:    false,
 		},
 	}
@@ -1326,7 +1326,7 @@ func TestData_GetStatesWithNilLastData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error)
@@ -1471,7 +1471,7 @@ func TestDataWithReason(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 
 	// Update reason and healthy
@@ -1482,7 +1482,7 @@ func TestDataWithReason(t *testing.T) {
 	states, err = d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 }
 
@@ -1493,7 +1493,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 
 	// Empty data with explicit reason
 	d = &Data{
@@ -1776,7 +1776,7 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, "custom test reason", state.Reason)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 
 	// Check that ExtraInfo contains the expected data
@@ -1944,9 +1944,9 @@ func TestDataWithComplexErrors(t *testing.T) {
 			// Check the healthy state matches what we set
 			assert.Equal(t, !tt.expectUnhealthy, states[0].Healthy)
 			if tt.expectUnhealthy {
-				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 			} else {
-				assert.Equal(t, components.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 			}
 		})
 	}

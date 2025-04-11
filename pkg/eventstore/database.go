@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	components "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/sqlite"
-
 	_ "github.com/mattn/go-sqlite3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 const (
@@ -170,22 +170,22 @@ func (t *table) Close() {
 	}
 }
 
-func (t *table) Insert(ctx context.Context, ev components.Event) error {
+func (t *table) Insert(ctx context.Context, ev apiv1.Event) error {
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
 // Find returns nil if the event is not found.
-func (t *table) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
+func (t *table) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
 	return findEvent(ctx, t.dbRO, t.table, ev)
 }
 
 // Get queries the event in the descending order of timestamp (latest event first).
-func (t *table) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (t *table) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return getEvents(ctx, t.dbRO, t.table, since)
 }
 
 // Latest queries the latest event, returns nil if no event found.
-func (t *table) Latest(ctx context.Context) (*components.Event, error) {
+func (t *table) Latest(ctx context.Context) (*apiv1.Event, error) {
 	return lastEvent(ctx, t.dbRO, t.table)
 }
 
@@ -244,7 +244,7 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	return tx.Commit()
 }
 
-func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) error {
+func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev apiv1.Event) error {
 	start := time.Now()
 	var extraInfoJSON, suggestedActionsJSON []byte
 	var err error
@@ -282,7 +282,7 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev component
 	return err
 }
 
-func findEvent(ctx context.Context, db *sql.DB, tableName string, ev components.Event) (*components.Event, error) {
+func findEvent(ctx context.Context, db *sql.DB, tableName string, ev apiv1.Event) (*apiv1.Event, error) {
 	selectStatement := fmt.Sprintf(`
 SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 		columnTimestamp,
@@ -340,7 +340,7 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) ([]components.Event, error) {
+func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) ([]apiv1.Event, error) {
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s > ?
@@ -364,7 +364,7 @@ ORDER BY %s DESC`,
 	}
 	defer rows.Close()
 
-	var events []components.Event
+	var events []apiv1.Event
 	for rows.Next() {
 		event, err := scanRows(rows)
 		if err != nil {
@@ -378,7 +378,7 @@ ORDER BY %s DESC`,
 	return events, nil
 }
 
-func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*components.Event, error) {
+func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*apiv1.Event, error) {
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s FROM %s ORDER BY %s DESC LIMIT 1`,
 		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, columnSuggestedActions, tableName, columnTimestamp)
 
@@ -397,8 +397,8 @@ func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*components.E
 	return &foundEvent, nil
 }
 
-func scanRow(row *sql.Row) (components.Event, error) {
-	var event components.Event
+func scanRow(row *sql.Row) (apiv1.Event, error) {
+	var event apiv1.Event
 	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
@@ -431,8 +431,8 @@ func scanRow(row *sql.Row) (components.Event, error) {
 	return event, nil
 }
 
-func scanRows(rows *sql.Rows) (components.Event, error) {
-	var event components.Event
+func scanRows(rows *sql.Rows) (apiv1.Event, error) {
+	var event apiv1.Event
 	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
@@ -482,7 +482,7 @@ func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimest
 	return int(affected), nil
 }
 
-func compareEvent(eventA, eventB components.Event) bool {
+func compareEvent(eventA, eventB apiv1.Event) bool {
 	if len(eventA.ExtraInfo) != len(eventB.ExtraInfo) {
 		return false
 	}

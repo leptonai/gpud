@@ -3,7 +3,7 @@ package xid
 import (
 	"testing"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 func TestDetail_IsOnlyHWError(t *testing.T) {
@@ -186,7 +186,7 @@ func TestDetailsValidation(t *testing.T) {
 			t.Fatalf("xid %d is only hardware error, but has no suggested actions", d.Xid)
 		}
 		if d.Xid != 48 && d.IsOnlyHWError() && d.SuggestedActionsByGPUd != nil {
-			if d.SuggestedActionsByGPUd.RepairActions[0] != components.RepairActionTypeHardwareInspection {
+			if d.SuggestedActionsByGPUd.RepairActions[0] != apiv1.RepairActionTypeHardwareInspection {
 				t.Errorf("xid %d is only hardware error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
 			}
 		}
@@ -201,7 +201,7 @@ func TestDetailsValidation(t *testing.T) {
 			t.Fatalf("xid %d is only driver error expecting 1 action, but %+v", d.Xid, d.SuggestedActionsByGPUd)
 		}
 		if d.Xid != 38 && d.Xid != 44 && d.IsOnlyDriverError() && d.SuggestedActionsByGPUd != nil {
-			if d.SuggestedActionsByGPUd.RepairActions[0] != components.RepairActionTypeRebootSystem {
+			if d.SuggestedActionsByGPUd.RepairActions[0] != apiv1.RepairActionTypeRebootSystem {
 				t.Fatalf("xid %d is only driver error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
 			}
 		}

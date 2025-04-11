@@ -11,20 +11,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 // MockRebootEventStore is a mock implementation of the RebootEventStore interface
 type MockRebootEventStore struct {
-	events []components.Event
+	events []apiv1.Event
 }
 
 func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return m.events, nil
 }
 
@@ -69,15 +69,15 @@ func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
 		data     *Data
-		validate func(*testing.T, []components.State)
+		validate func(*testing.T, []apiv1.State)
 	}{
 		{
 			name: "nil data",
 			data: nil,
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 				assert.True(t, states[0].Healthy)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
@@ -90,10 +90,10 @@ func TestData_GetStates(t *testing.T) {
 				reason:  "failed to get os data -- assert.AnError general error for testing",
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 				assert.False(t, states[0].Healthy)
 				assert.Equal(t, "failed to get os data -- assert.AnError general error for testing", states[0].Reason)
 				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
@@ -112,10 +112,10 @@ func TestData_GetStates(t *testing.T) {
 				reason:  fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold),
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 				assert.False(t, states[0].Healthy)
 				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
 				assert.Equal(t, expected, states[0].Reason)
@@ -134,10 +134,10 @@ func TestData_GetStates(t *testing.T) {
 				reason:  "os kernel version 5.15.0",
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 				assert.True(t, states[0].Healthy)
 				assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 				assert.Empty(t, states[0].Error)
@@ -167,11 +167,11 @@ func TestComponent(t *testing.T) {
 
 	// Create a RebootEventStore implementation
 	mockRebootStore := &MockRebootEventStore{
-		events: []components.Event{
+		events: []apiv1.Event{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
-				Type:    components.EventTypeWarning,
+				Type:    apiv1.EventTypeWarning,
 				Message: "Test reboot event",
 			},
 		},
@@ -196,7 +196,7 @@ func TestComponent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 	})
 
@@ -212,7 +212,7 @@ func TestComponent(t *testing.T) {
 
 		// Verify our test event
 		assert.Equal(t, "reboot", events[0].Name)
-		assert.Equal(t, components.EventTypeWarning, events[0].Type)
+		assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
 		assert.Equal(t, "Test reboot event", events[0].Message)
 	})
 
@@ -261,7 +261,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
@@ -284,7 +284,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 	})
@@ -305,7 +305,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 		assert.Equal(t, "failed to get os data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
@@ -331,7 +331,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 		assert.Equal(t, expected, states[0].Reason)
 	})
@@ -340,11 +340,11 @@ func TestComponent_States(t *testing.T) {
 // TestMockRebootEventStore tests the mock implementation of RebootEventStore
 func TestMockRebootEventStore(t *testing.T) {
 	mock := &MockRebootEventStore{
-		events: []components.Event{
+		events: []apiv1.Event{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
-				Type:    components.EventTypeWarning,
+				Type:    apiv1.EventTypeWarning,
 				Message: "Test reboot event",
 			},
 		},
@@ -361,7 +361,7 @@ func TestMockRebootEventStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, events, 1)
 	assert.Equal(t, "reboot", events[0].Name)
-	assert.Equal(t, components.EventTypeWarning, events[0].Type)
+	assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
 	assert.Equal(t, "Test reboot event", events[0].Message)
 }
 
@@ -451,7 +451,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, "error getting uptime: uptime error", states[0].Reason)
 	assert.Equal(t, "uptime error", states[0].Error)

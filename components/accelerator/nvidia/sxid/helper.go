@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
@@ -22,11 +22,11 @@ const (
 
 // EvolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
-func EvolveHealthyState(events []components.Event) (ret components.State) {
+func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
-	var lastSuggestedAction *components.SuggestedActions
+	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastSXidErr *sxidErrorEventDetail
 	lastHealth := StateHealthy
 	sxidRebootMap := make(map[uint64]int)
@@ -43,9 +43,9 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 
 			currEvent := StateHealthy
 			switch resolvedEvent.Type {
-			case components.EventTypeCritical:
+			case apiv1.EventTypeCritical:
 				currEvent = StateDegraded
-			case components.EventTypeFatal:
+			case apiv1.EventTypeFatal:
 				currEvent = StateUnhealthy
 			}
 			if currEvent < lastHealth {
@@ -54,18 +54,18 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 			lastHealth = currEvent
 			lastSXidErr = &currSXidErr
 			if currSXidErr.SuggestedActionsByGPUd != nil && len(currSXidErr.SuggestedActionsByGPUd.RepairActions) > 0 {
-				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == components.RepairActionTypeRebootSystem {
+				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == apiv1.RepairActionTypeRebootSystem {
 					if count, ok := sxidRebootMap[currSXidErr.SXid]; !ok {
 						sxidRebootMap[currSXidErr.SXid] = 0
 					} else if count >= rebootThreshold {
-						currSXidErr.SuggestedActionsByGPUd.RepairActions[0] = components.RepairActionTypeHardwareInspection
+						currSXidErr.SuggestedActionsByGPUd.RepairActions[0] = apiv1.RepairActionTypeHardwareInspection
 					}
 				}
 				lastSXidErr.SuggestedActionsByGPUd.RepairActions = lastSXidErr.SuggestedActionsByGPUd.RepairActions[:1]
 				lastSuggestedAction = currSXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
-			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == components.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == components.RepairActionTypeCheckUserAppAndGPU) {
+			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeCheckUserAppAndGPU) {
 				lastHealth = StateHealthy
 				lastSuggestedAction = nil
 				lastSXidErr = nil
@@ -90,7 +90,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 			reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
 		}
 	}
-	return components.State{
+	return apiv1.State{
 		Name:             StateNameErrorSXid,
 		Healthy:          lastHealth == StateHealthy,
 		Health:           translateToStateHealth(lastHealth),
@@ -102,17 +102,17 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 func translateToStateHealth(health int) string {
 	switch health {
 	case StateHealthy:
-		return components.StateHealthy
+		return apiv1.StateHealthy
 	case StateDegraded:
-		return components.StateDegraded
+		return apiv1.StateDegraded
 	case StateUnhealthy:
-		return components.StateUnhealthy
+		return apiv1.StateUnhealthy
 	default:
-		return components.StateHealthy
+		return apiv1.StateHealthy
 	}
 }
 
-func resolveSXIDEvent(event components.Event) components.Event {
+func resolveSXIDEvent(event apiv1.Event) apiv1.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currSXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorSXidData]); err == nil {
@@ -156,7 +156,7 @@ type sxidErrorEventDetail struct {
 	SXid uint64 `json:"sxid"`
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
-	SuggestedActionsByGPUd *components.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`

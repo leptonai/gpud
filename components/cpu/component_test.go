@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -36,30 +36,30 @@ func (m *MockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).([]components.Event), args.Error(1)
+	return args.Get(0).([]apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -88,7 +88,7 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
@@ -105,7 +105,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, testError.Error(), states[0].Error)
 	assert.Equal(t, d.reason, states[0].Reason)
@@ -135,7 +135,7 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
@@ -168,7 +168,7 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, testData.reason, states[0].Reason)
 }
@@ -177,11 +177,11 @@ func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
 	testTime := metav1.Now()
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		{
 			Time:    testTime,
 			Name:    Name,
-			Type:    components.EventType("test"),
+			Type:    apiv1.EventType("test"),
 			Message: "Test event",
 		},
 	}
@@ -609,7 +609,7 @@ func TestComponentEventsError(t *testing.T) {
 	// Setup mock
 	mockEventBucket := new(MockEventBucket)
 	testError := errors.New("events retrieval error")
-	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return([]components.Event{}, testError)
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return([]apiv1.Event{}, testError)
 
 	c := &component{
 		ctx:         context.Background(),

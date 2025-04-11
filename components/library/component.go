@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -17,7 +17,7 @@ import (
 // Name is the name of the library component.
 const Name = "library"
 
-var _ components.Component = &component{}
+var _ apiv1.Component = &component{}
 
 type component struct {
 	libraries   map[string][]string
@@ -31,7 +31,7 @@ type Config struct {
 	SearchDirs []string
 }
 
-func New(cfg Config) components.Component {
+func New(cfg Config) apiv1.Component {
 	searchDirs := make(map[string]any)
 	for _, dir := range cfg.SearchDirs {
 		searchDirs[dir] = struct{}{}
@@ -53,7 +53,7 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	reasons := []string{}
 	for lib, alternatives := range c.libraries {
 		opts := []file.OpOption{}
@@ -72,7 +72,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
 	if len(reasons) == 0 {
-		return []components.State{
+		return []apiv1.State{
 			{
 				Name:    Name,
 				Healthy: true,
@@ -82,7 +82,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	sort.Strings(reasons)
-	return []components.State{
+	return []apiv1.State{
 		{
 			Name:    Name,
 			Healthy: false,
@@ -91,7 +91,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return nil, nil
 }
 

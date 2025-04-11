@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -56,7 +56,7 @@ func MockMemoryComponent(
 	ctx context.Context,
 	nvmlInstance nvidianvml.InstanceV2,
 	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error),
-) components.Component {
+) apiv1.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
 		ctx:           cctx,
@@ -296,7 +296,7 @@ func TestStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", state.Reason)
 	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
@@ -322,7 +322,7 @@ func TestStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateUnhealthy, state.Health)
+	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 	assert.False(t, state.Healthy)
 	assert.Equal(t, "error getting memory for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test memory error", state.Error)
@@ -341,7 +341,7 @@ func TestStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 	assert.Equal(t, "no data yet", state.Reason)
 }

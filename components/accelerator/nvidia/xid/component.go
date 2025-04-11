@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -34,17 +34,17 @@ const (
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
-var _ components.Component = &XIDComponent{}
+var _ apiv1.Component = &XIDComponent{}
 
 type XIDComponent struct {
 	rootCtx          context.Context
 	cancel           context.CancelFunc
-	extraEventCh     chan *components.Event
+	extraEventCh     chan *apiv1.Event
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
 	mu               sync.RWMutex
-	currState        components.State
+	currState        apiv1.State
 }
 
 func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *XIDComponent {
@@ -60,7 +60,7 @@ func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventSt
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
-	extraEventCh := make(chan *components.Event, 256)
+	extraEventCh := make(chan *apiv1.Event, 256)
 	return &XIDComponent{
 		rootCtx:          cctx,
 		cancel:           ccancel,
@@ -100,14 +100,14 @@ func (c *XIDComponent) Start() error {
 	return nil
 }
 
-func (c *XIDComponent) States(_ context.Context) ([]components.State, error) {
+func (c *XIDComponent) States(_ context.Context) ([]apiv1.State, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return []components.State{c.currState}, nil
+	return []apiv1.State{c.currState}, nil
 }
 
-func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
-	var ret []components.Event
+func (c *XIDComponent) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+	var ret []apiv1.Event
 	events, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
 			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
 
-			event := components.Event{
+			event := apiv1.Event{
 				Time: message.Timestamp,
 				Name: EventNameErrorXid,
 				ExtraInfo: map[string]string{
@@ -200,11 +200,11 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 	}
 }
 
-var _ components.HealthSettable = &XIDComponent{}
+var _ apiv1.HealthSettable = &XIDComponent{}
 
 func (c *XIDComponent) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")
-	newEvent := &components.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
+	newEvent := &apiv1.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
 	select {
 	case c.extraEventCh <- newEvent:
 	default:
@@ -235,12 +235,12 @@ func (c *XIDComponent) updateCurrentState() error {
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice
-func mergeEvents(a, b []components.Event) []components.Event {
+func mergeEvents(a, b []apiv1.Event) []apiv1.Event {
 	totalLen := len(a) + len(b)
 	if totalLen == 0 {
 		return nil
 	}
-	result := make([]components.Event, 0, totalLen)
+	result := make([]apiv1.Event, 0, totalLen)
 	result = append(result, a...)
 	result = append(result, b...)
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -14,14 +14,14 @@ import (
 
 const Name = "accelerator-nvidia-nccl"
 
-var _ components.Component = &component{}
+var _ apiv1.Component = &component{}
 
 type component struct {
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store) (apiv1.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
@@ -42,8 +42,8 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
-	return []components.State{
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
+	return []apiv1.State{
 		{
 			Healthy: true,
 			Reason:  "no issue",
@@ -51,7 +51,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	if c.eventBucket != nil {
 		return c.eventBucket.Get(ctx, since)
 	}

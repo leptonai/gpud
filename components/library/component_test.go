@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/file"
 )
 
 // mockComponent creates a test component with a mocked FindLibrary function
-func mockComponent(findLibrary func(string, ...file.OpOption) (string, error), cfg Config) components.Component {
+func mockComponent(findLibrary func(string, ...file.OpOption) (string, error), cfg Config) apiv1.Component {
 	c := New(cfg).(*component)
 	c.findLibrary = findLibrary
 	return c

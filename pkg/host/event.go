@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	components "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -16,7 +16,7 @@ const defaultBucketName = "os"
 
 type RebootEventStore interface {
 	RecordReboot(ctx context.Context) error
-	GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error)
+	GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error)
 }
 
 var _ RebootEventStore = &rebootEventStore{}
@@ -37,7 +37,7 @@ func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, s.getLastRebootTime)
 }
 
-func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 
@@ -53,10 +53,10 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 		return nil
 	}
 
-	rebootEvent := components.Event{
+	rebootEvent := apiv1.Event{
 		Time:    metav1.Time{Time: bootTime},
 		Name:    "reboot",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: fmt.Sprintf("system reboot detected %v", bootTime),
 	}
 
@@ -79,7 +79,7 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 	return bucket.Insert(ctx, rebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) ([]components.Event, error) {
+func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) ([]apiv1.Event, error) {
 	bucket, err := eventStore.Bucket(defaultBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return nil, err

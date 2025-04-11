@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	components "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -91,15 +91,15 @@ func TestTableInsertsReads(t *testing.T) {
 
 	first := time.Now().UTC()
 
-	events := []components.Event{}
+	events := []apiv1.Event{}
 	eventsN := 10
 	for i := 0; i < eventsN; i++ {
-		events = append(events, components.Event{
+		events = append(events, apiv1.Event{
 			Time:    metav1.Time{Time: first.Add(time.Duration(i) * time.Second)},
 			Name:    "kmsg",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: fmt.Sprintf("OOM event %d occurred", i),
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{fmt.Sprintf("oom_reaper: reaped process %d (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0", i)},
 			},
 		})
@@ -141,28 +141,28 @@ func TestGetEventsTimeRange(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name: "kmsg",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(-5 * time.Minute)},
 			Name: "kmsg",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"mid event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime},
 			Name: "kmsg",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"recent event"},
 			},
 		},
@@ -225,28 +225,28 @@ func TestMultipleEventTypes(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time: metav1.Time{Time: baseTime},
 			Name: "kmsg",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"oom event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(1 * time.Second)},
 			Name: "syslog",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"edac event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(2 * time.Second)},
 			Name: "kmsg",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"cgroup event"},
 			},
 		},
@@ -262,9 +262,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	assert.Equal(t, 3, len(results))
 
 	// Verify events are in descending order
-	assert.Equal(t, components.EventTypeWarning, results[0].Type)
-	assert.Equal(t, components.EventTypeWarning, results[1].Type)
-	assert.Equal(t, components.EventTypeWarning, results[2].Type)
+	assert.Equal(t, apiv1.EventTypeWarning, results[0].Type)
+	assert.Equal(t, apiv1.EventTypeWarning, results[1].Type)
+	assert.Equal(t, apiv1.EventTypeWarning, results[2].Type)
 }
 
 func TestPurgePartial(t *testing.T) {
@@ -285,22 +285,22 @@ func TestPurgePartial(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:      "kmsg",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"recent event"},
 			},
 		},
@@ -324,10 +324,10 @@ func TestPurgePartial(t *testing.T) {
 	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
 
 	// Try to find old event by ExtraInfo
-	oldEvent := components.Event{
+	oldEvent := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "test",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
@@ -353,12 +353,12 @@ func TestFindEvent(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "kmsg",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"old event"},
 		},
 	}
@@ -399,12 +399,12 @@ func TestFindEventPartialMatch(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"original details"},
 		},
 	}
@@ -412,12 +412,12 @@ func TestFindEventPartialMatch(t *testing.T) {
 	assert.NoError(t, bucket.Insert(ctx, testEvent))
 
 	// Test finding with matching timestamp/source/type but different details
-	searchEvent := components.Event{
+	searchEvent := apiv1.Event{
 		Time:      metav1.Time{Time: testEvent.Time.Time},
 		Name:      testEvent.Name,
 		Type:      testEvent.Type,
 		ExtraInfo: testEvent.ExtraInfo,
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"different details"},
 		},
 	}
@@ -445,22 +445,22 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b", "c": "d"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"first event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"second event"},
 			},
 		},
@@ -472,10 +472,10 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	}
 
 	// Search should return the first matching event
-	searchEvent := components.Event{
+	searchEvent := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
 	}
 
@@ -512,15 +512,15 @@ func TestEventWithIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time: metav1.Time{Time: baseTime},
 		Name: "nvidia-smi",
-		Type: components.EventTypeWarning,
+		Type: apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{
 			"xid":      "123",
 			"gpu_uuid": "gpu-123",
 		},
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"GPU error details"},
 		},
 	}
@@ -535,7 +535,7 @@ func TestEventWithIDs(t *testing.T) {
 	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 
 	// Test find with partial ExtraInfo match
-	partialEvent := components.Event{
+	partialEvent := apiv1.Event{
 		Time: metav1.Time{Time: event.Time.Time},
 		Name: event.Name,
 		Type: event.Type,
@@ -546,7 +546,7 @@ func TestEventWithIDs(t *testing.T) {
 	assert.Nil(t, found, "Should not find event with different ExtraInfo")
 
 	// Test find with different ExtraInfo
-	differentEvent := components.Event{
+	differentEvent := apiv1.Event{
 		Time: metav1.Time{Time: event.Time.Time},
 		Name: event.Name,
 		Type: event.Type,
@@ -579,12 +579,12 @@ func TestNullEventIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{},
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"Event with null ExtraInfo"},
 		},
 	}
@@ -617,22 +617,22 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:      "test",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "test",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"new event"},
 			},
 		},
@@ -657,10 +657,10 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
 
 	// Try to find old event by ExtraInfo
-	oldEvent := components.Event{
+	oldEvent := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "test",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
@@ -699,11 +699,11 @@ func TestContextCancellation(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	event := components.Event{
+	event := apiv1.Event{
 		Time: metav1.Time{Time: time.Now().UTC()},
 		Name: "test",
-		Type: components.EventTypeWarning,
-		SuggestedActions: &components.SuggestedActions{
+		Type: apiv1.EventTypeWarning,
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"Test details"},
 		},
 	}
@@ -742,11 +742,11 @@ func TestConcurrentAccess(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := components.Event{
+			event := apiv1.Event{
 				Time: metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name: "concurrent",
-				Type: components.EventTypeWarning,
-				SuggestedActions: &components.SuggestedActions{
+				Type: apiv1.EventTypeWarning,
+				SuggestedActions: &apiv1.SuggestedActions{
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
@@ -791,24 +791,24 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:      metav1.Time{Time: time.Now().UTC()},
 			Name:      "test;source",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			Message:   "message with special chars: !@#$%^&*()",
 			ExtraInfo: map[string]string{"special chars": "!@#$%^&*()"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"details with special chars"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: time.Now().UTC()},
 			Name:      "unicode_source_🔥",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			Message:   "unicode message: 你好",
 			ExtraInfo: map[string]string{"unicode info": "你好"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"unicode details: 世界！"},
 			},
 		},
@@ -853,11 +853,11 @@ func TestLargeEventDetails(t *testing.T) {
 		largeDetail[i] = byte('a' + (i % 26))
 	}
 
-	event := components.Event{
+	event := apiv1.Event{
 		Time: metav1.Time{Time: time.Now().UTC()},
 		Name: "test",
-		Type: components.EventTypeWarning,
-		SuggestedActions: &components.SuggestedActions{
+		Type: apiv1.EventTypeWarning,
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{string(largeDetail)},
 		},
 	}
@@ -899,11 +899,11 @@ func TestTimestampBoundaries(t *testing.T) {
 	}
 
 	for _, ts := range timestamps {
-		event := components.Event{
+		event := apiv1.Event{
 			Time: metav1.Time{Time: time.Unix(ts, 0)},
 			Name: "test",
-			Type: components.EventTypeWarning,
-			SuggestedActions: &components.SuggestedActions{
+			Type: apiv1.EventTypeWarning,
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{fmt.Sprintf("timestamp: %d", ts)},
 			},
 		}
@@ -951,12 +951,12 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := components.Event{
+			event := apiv1.Event{
 				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name:      "concurrent",
-				Type:      components.EventTypeWarning,
+				Type:      apiv1.EventTypeWarning,
 				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
-				SuggestedActions: &components.SuggestedActions{
+				SuggestedActions: &apiv1.SuggestedActions{
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
@@ -968,10 +968,10 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent reads
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := components.Event{
+			event := apiv1.Event{
 				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name:      "concurrent",
-				Type:      components.EventTypeWarning,
+				Type:      apiv1.EventTypeWarning,
 				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
 			found, err := bucket.Find(ctx, event)
@@ -1019,29 +1019,29 @@ func TestEventMessage(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:    metav1.Time{Time: baseTime},
 			Name:    "test",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "Test message with normal text",
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
 			Name:    "test",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "", // Empty message
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(2 * time.Second)},
 			Name:    "test",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "Message with special chars: !@#$%^&*()",
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(3 * time.Second)},
 			Name:    "test",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "Unicode message: 你好世界",
 		},
 	}
@@ -1058,10 +1058,10 @@ func TestEventMessage(t *testing.T) {
 	}
 
 	// Test finding with message as part of search criteria
-	searchEvent := components.Event{
+	searchEvent := apiv1.Event{
 		Time:    metav1.Time{Time: baseTime},
 		Name:    "test",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "Test message with normal text",
 	}
 	found, err := bucket.Find(ctx, searchEvent)
@@ -1070,10 +1070,10 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, searchEvent.Message, found.Message)
 
 	// Test finding with empty message
-	emptyMessageEvent := components.Event{
+	emptyMessageEvent := apiv1.Event{
 		Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
 		Name:    "test",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "",
 	}
 	found, err = bucket.Find(ctx, emptyMessageEvent)
@@ -1082,10 +1082,10 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, "", found.Message)
 
 	// Test finding with non-matching message
-	nonMatchingEvent := components.Event{
+	nonMatchingEvent := apiv1.Event{
 		Time:    metav1.Time{Time: baseTime},
 		Name:    "test",
-		Type:    components.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "Non-matching message",
 	}
 	found, err = bucket.Find(ctx, nonMatchingEvent)
@@ -1122,10 +1122,10 @@ func TestNilSuggestedActions(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:             metav1.Time{Time: baseTime},
 		Name:             "test",
-		Type:             components.EventTypeWarning,
+		Type:             apiv1.EventTypeWarning,
 		Message:          "Test message",
 		ExtraInfo:        map[string]string{"key": "value"},
 		SuggestedActions: nil, // Explicitly set to nil
@@ -1160,12 +1160,12 @@ func TestInvalidJSONHandling(t *testing.T) {
 
 	// Insert a valid event first
 	baseTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "test",
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		ExtraInfo: map[string]string{"key": "value"},
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{"test action"},
 		},
 	}
@@ -1179,7 +1179,7 @@ func TestInvalidJSONHandling(t *testing.T) {
 		bucket.Name()),
 		baseTime.Add(time.Second).Unix(),
 		"test",
-		components.EventTypeWarning,
+		apiv1.EventTypeWarning,
 		"{invalid_json", // Invalid JSON for ExtraInfo
 		"{invalid_json", // Invalid JSON for SuggestedActions
 	)
@@ -1215,13 +1215,13 @@ func TestLongEventFields(t *testing.T) {
 		longMap[fmt.Sprintf("key_%d", i)] = longString
 	}
 
-	event := components.Event{
+	event := apiv1.Event{
 		Time:      metav1.Time{Time: time.Now().UTC()},
 		Name:      longString,
-		Type:      components.EventTypeWarning,
+		Type:      apiv1.EventTypeWarning,
 		Message:   longString,
 		ExtraInfo: longMap,
-		SuggestedActions: &components.SuggestedActions{
+		SuggestedActions: &apiv1.SuggestedActions{
 			Descriptions: []string{longString},
 		},
 	}
@@ -1298,17 +1298,17 @@ func TestEventTypeValidation(t *testing.T) {
 	defer bucket.Close()
 
 	// Test all valid event types
-	validTypes := []components.EventType{
-		components.EventTypeWarning,
-		components.EventTypeInfo,
-		components.EventTypeCritical,
-		components.EventTypeFatal,
-		components.EventTypeUnknown,
+	validTypes := []apiv1.EventType{
+		apiv1.EventTypeWarning,
+		apiv1.EventTypeInfo,
+		apiv1.EventTypeCritical,
+		apiv1.EventTypeFatal,
+		apiv1.EventTypeUnknown,
 	}
 
 	baseTime := time.Now().UTC()
 	for i, eventType := range validTypes {
-		event := components.Event{
+		event := apiv1.Event{
 			Time:    metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 			Name:    "test",
 			Type:    eventType,
@@ -1354,22 +1354,22 @@ func TestRetentionPurge(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-15 * time.Second)},
 			Name:      "test",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-5 * time.Second)},
 			Name:      "test",
-			Type:      components.EventTypeWarning,
+			Type:      apiv1.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"new event"},
 			},
 		},
@@ -1412,40 +1412,40 @@ func TestLatest(t *testing.T) {
 
 	// Insert events with different timestamps
 	baseTime := time.Now().UTC()
-	events := []components.Event{
+	events := []apiv1.Event{
 		{
 			Time:    metav1.Time{Time: baseTime.Add(-10 * time.Second)},
 			Name:    "test",
-			Type:    components.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "old event",
 			ExtraInfo: map[string]string{
 				"id": "event1",
 			},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"old event action"},
 			},
 		},
 		{
 			Time:    metav1.Time{Time: baseTime},
 			Name:    "test",
-			Type:    components.EventTypeInfo,
+			Type:    apiv1.EventTypeInfo,
 			Message: "latest event",
 			ExtraInfo: map[string]string{
 				"id": "event2",
 			},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"latest event action"},
 			},
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(-5 * time.Second)},
 			Name:    "test",
-			Type:    components.EventTypeCritical,
+			Type:    apiv1.EventTypeCritical,
 			Message: "middle event",
 			ExtraInfo: map[string]string{
 				"id": "event3",
 			},
-			SuggestedActions: &components.SuggestedActions{
+			SuggestedActions: &apiv1.SuggestedActions{
 				Descriptions: []string{"middle event action"},
 			},
 		},
@@ -1465,7 +1465,7 @@ func TestLatest(t *testing.T) {
 	// Verify it's the event with the most recent timestamp
 	assert.Equal(t, baseTime.Unix(), latestEvent.Time.Unix())
 	assert.Equal(t, "latest event", latestEvent.Message)
-	assert.Equal(t, components.EventTypeInfo, latestEvent.Type)
+	assert.Equal(t, apiv1.EventTypeInfo, latestEvent.Type)
 	assert.Equal(t, "event2", latestEvent.ExtraInfo["id"])
 	assert.Equal(t, "latest event action", latestEvent.SuggestedActions.Descriptions[0])
 
@@ -1488,19 +1488,19 @@ func TestLatest(t *testing.T) {
 func TestCompareEvent(t *testing.T) {
 	tests := []struct {
 		name     string
-		eventA   components.Event
-		eventB   components.Event
+		eventA   apiv1.Event
+		eventB   apiv1.Event
 		expected bool
 	}{
 		{
 			name: "same events",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -1510,13 +1510,13 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "different key-value pairs",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "different_value",
@@ -1526,13 +1526,13 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "eventB missing key",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
@@ -1541,12 +1541,12 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "eventA missing key",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
@@ -1556,20 +1556,20 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "empty events",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{},
 			},
 			expected: true,
 		},
 		{
 			name: "one empty event",
-			eventA: components.Event{
+			eventA: apiv1.Event{
 				ExtraInfo: map[string]string{},
 			},
-			eventB: components.Event{
+			eventB: apiv1.Event{
 				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
