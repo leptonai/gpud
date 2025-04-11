@@ -3,7 +3,7 @@ package xid
 import (
 	"testing"
 
-	"github.com/leptonai/gpud/components"
+	components "github.com/leptonai/gpud/api/v1"
 )
 
 func TestDetail_IsOnlyHWError(t *testing.T) {

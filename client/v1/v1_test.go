@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 
+	components "github.com/leptonai/gpud/api/v1"
 	v1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/server"
 )

@@ -1,4 +1,4 @@
-package components
+package v1
 
 import "testing"
 

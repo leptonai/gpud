@@ -12,7 +12,7 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	procs "github.com/shirou/gopsutil/v4/process"
 
-	"github.com/leptonai/gpud/components"
+	components "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"

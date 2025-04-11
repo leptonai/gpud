@@ -3,8 +3,8 @@ package metrics
 import (
 	"sort"
 
+	components "github.com/leptonai/gpud/api/v1"
 	v1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 )
 
 func ConvertToLeptonMetrics(ms Metrics) v1.LeptonMetrics {

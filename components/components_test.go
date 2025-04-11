@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/stretchr/testify/assert"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/errdefs"
 )
 
 // Mock implementation of Component interface for testing
@@ -27,12 +29,12 @@ func (m *mockComponent) Start() error {
 	return nil
 }
 
-func (m *mockComponent) States(ctx context.Context) ([]State, error) {
-	return []State{{Name: m.name, Healthy: true}}, nil
+func (m *mockComponent) States(ctx context.Context) ([]apiv1.State, error) {
+	return []apiv1.State{{Name: m.name, Healthy: true}}, nil
 }
 
-func (m *mockComponent) Events(ctx context.Context, since time.Time) ([]Event, error) {
-	return []Event{}, nil
+func (m *mockComponent) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+	return []apiv1.Event{}, nil
 }
 
 func (m *mockComponent) Close() error {
@@ -82,7 +84,7 @@ func TestGetComponentErrors(t *testing.T) {
 	}
 
 	// Test component not found error
-	_, err = getComponent(map[string]Component{}, "nvidia")
+	_, err = getComponent(map[string]apiv1.Component{}, "nvidia")
 	if !errors.Is(err, errdefs.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -103,7 +105,7 @@ func TestGetComponentErrors(t *testing.T) {
 func TestGetComponent(t *testing.T) {
 	// Create test components
 	testComp := newMockComponent("test")
-	set := map[string]Component{
+	set := map[string]apiv1.Component{
 		"test": testComp,
 	}
 
@@ -128,7 +130,7 @@ func TestGetComponent(t *testing.T) {
 
 func TestRegisterComponent(t *testing.T) {
 	// Test with nil set
-	nilSet := map[string]Component(nil)
+	nilSet := map[string]apiv1.Component(nil)
 	err := registerComponent(nilSet, newMockComponent("test"))
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errdefs.ErrUnavailable)
@@ -142,7 +144,7 @@ func TestRegisterComponent(t *testing.T) {
 	assert.Equal(t, errdefs.ErrUnavailable, unwrapped)
 
 	// Test with empty set
-	set := map[string]Component{}
+	set := map[string]apiv1.Component{}
 	testComp := newMockComponent("test")
 	err = registerComponent(set, testComp)
 	assert.NoError(t, err)
@@ -164,7 +166,7 @@ func TestRegisterComponent(t *testing.T) {
 
 func TestGetAllComponents(t *testing.T) {
 	// Setup custom map
-	customSet := map[string]Component{
+	customSet := map[string]apiv1.Component{
 		"comp1": newMockComponent("comp1"),
 		"comp2": newMockComponent("comp2"),
 	}
@@ -178,7 +180,7 @@ func TestGetAllComponents(t *testing.T) {
 func TestGlobalFunctions(t *testing.T) {
 	// Clear defaultSet before testing
 	defaultSetMu.Lock()
-	defaultSet = make(map[string]Component)
+	defaultSet = make(map[string]apiv1.Component)
 	defaultSetMu.Unlock()
 
 	// Test GetAllComponents with empty set
@@ -226,6 +228,6 @@ func TestGlobalFunctions(t *testing.T) {
 
 	// Clean up
 	defaultSetMu.Lock()
-	defaultSet = make(map[string]Component)
+	defaultSet = make(map[string]apiv1.Component)
 	defaultSetMu.Unlock()
 }

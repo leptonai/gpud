@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components"
+	components "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/stretchr/testify/assert"

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
+	components "github.com/leptonai/gpud/api/v1"
 )
 
 func createXidEvent(eventTime time.Time, xid uint64, eventType components.EventType, suggestedAction components.RepairActionType) components.Event {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leptonai/gpud/components"
+	components "github.com/leptonai/gpud/api/v1"
 )
 
 const (
