@@ -65,20 +65,20 @@ func newMockErrorComponent(name string, closeError error) *mockErrorComponent {
 func TestGetComponentErrors(t *testing.T) {
 	// Test nil set error
 	_, err := getComponent(nil, "nvidia")
-	if !errors.Is(err, errdefs.ErrUnavailable) {
-		t.Errorf("expected ErrUnavailable, got %v", err)
+	if !errors.Is(err, errdefs.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 
 	// Verify error message
-	expectedMsg := "component set not initialized: unavailable"
+	expectedMsg := "component nvidia not found: not found"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
 
 	// Test unwrapping
 	unwrapped := errors.Unwrap(err)
-	if unwrapped != errdefs.ErrUnavailable {
-		t.Errorf("expected unwrapped error to be ErrUnavailable, got %v", unwrapped)
+	if unwrapped != errdefs.ErrNotFound {
+		t.Errorf("expected unwrapped error to be ErrNotFound, got %v", unwrapped)
 	}
 
 	// Test component not found error
@@ -178,98 +178,6 @@ func TestRegisterComponent(t *testing.T) {
 	assert.Equal(t, errdefs.ErrAlreadyExists, unwrapped)
 }
 
-func TestStopDeregisterComponent(t *testing.T) {
-	// Test with nil set
-	nilSet := map[string]Component(nil)
-	err := stopDeregisterComponent(nilSet, "test")
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, errdefs.ErrUnavailable)
-
-	// Test error message
-	expectedMsg := "component set not initialized: unavailable"
-	assert.Equal(t, expectedMsg, err.Error())
-
-	// Test error unwrapping
-	unwrapped := errors.Unwrap(err)
-	assert.Equal(t, errdefs.ErrUnavailable, unwrapped)
-
-	// Test with nonexistent component
-	set := map[string]Component{}
-	err = stopDeregisterComponent(set, "nonexistent")
-	assert.NoError(t, err) // Should return nil for nonexistent component
-
-	// Test with existing component
-	testComp := newMockComponent("test")
-	set["test"] = testComp
-	assert.False(t, testComp.closed)
-
-	err = stopDeregisterComponent(set, "test")
-	assert.NoError(t, err)
-	assert.True(t, testComp.closed)
-	_, exists := set["test"]
-	assert.False(t, exists) // Component should be removed from set
-
-	// Test with component that returns error on Close
-	customErr := fmt.Errorf("custom close error: %w", context.Canceled)
-	errorComp := newMockErrorComponent("error-test", customErr)
-	set["error-test"] = errorComp
-
-	err = stopDeregisterComponent(set, "error-test")
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
-	assert.Equal(t, "custom close error: context canceled", err.Error())
-
-	// Test error unwrapping
-	unwrapped = errors.Unwrap(err)
-	assert.Equal(t, context.Canceled, unwrapped)
-}
-
-func TestSetComponent(t *testing.T) {
-	// Test with nil set
-	nilSet := map[string]Component(nil)
-	newComp := newMockComponent("test")
-	err := setComponent(nilSet, newComp)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, errdefs.ErrUnavailable)
-
-	// Test error message
-	expectedMsg := "component set not initialized: unavailable"
-	assert.Equal(t, expectedMsg, err.Error())
-
-	// Test error unwrapping
-	unwrapped := errors.Unwrap(err)
-	assert.Equal(t, errdefs.ErrUnavailable, unwrapped)
-
-	// Test with empty set (new component)
-	set := map[string]Component{}
-	testComp := newMockComponent("test")
-	err = setComponent(set, testComp)
-	assert.NoError(t, err)
-	assert.Contains(t, set, "test")
-
-	// Test with existing component (replacement)
-	existingComp := newMockComponent("test")
-	set["test"] = existingComp
-	assert.False(t, existingComp.closed)
-
-	replacementComp := newMockComponent("test")
-	err = setComponent(set, replacementComp)
-	assert.NoError(t, err)
-	assert.Contains(t, set, "test")
-	assert.True(t, existingComp.closed) // Old component should be closed
-	// In the current implementation, set["test"] will be existingComp after calling Close()
-
-	// Test with component that returns error on Close
-	customErr := fmt.Errorf("custom close error: %w", context.Canceled)
-	errorComp := newMockErrorComponent("error-comp", customErr)
-	set["error-comp"] = errorComp
-
-	newComp = newMockComponent("error-comp")
-	err = setComponent(set, newComp)
-	assert.NoError(t, err) // Note: setComponent doesn't return Close errors
-	assert.True(t, errorComp.closed)
-}
-
 func TestGetAllComponents(t *testing.T) {
 	// Setup custom map
 	customSet := map[string]Component{
@@ -319,29 +227,11 @@ func TestGlobalFunctions(t *testing.T) {
 	unwrapped := errors.Unwrap(err)
 	assert.Equal(t, errdefs.ErrNotFound, unwrapped)
 
-	// Test SetComponent
-	newComp := newMockComponent("test-global")
-	err = SetComponent("test-global", newComp)
-	assert.NoError(t, err)
-	assert.True(t, testComp.closed) // Old component should be closed
-
 	// Register a component that will return error on Close
 	customErr := fmt.Errorf("custom close error: %w", context.Canceled)
 	errorComp := newMockErrorComponent("error-global", customErr)
 	err = RegisterComponent("error-global", errorComp)
 	assert.NoError(t, err)
-
-	// Test StopDeregisterComponent with error
-	err = StopDeregisterComponent("error-global")
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
-	assert.Equal(t, "custom close error: context canceled", err.Error())
-	assert.True(t, errorComp.closed)
-
-	// Test regular StopDeregisterComponent
-	err = StopDeregisterComponent("test-global")
-	assert.NoError(t, err)
-	assert.False(t, IsComponentRegistered("test-global"))
 
 	// Test GetAllComponents after adding components
 	comp1 := newMockComponent("comp1")
@@ -350,7 +240,7 @@ func TestGlobalFunctions(t *testing.T) {
 	assert.NoError(t, RegisterComponent("comp2", comp2))
 
 	comps = GetAllComponents()
-	assert.Len(t, comps, 2)
+	assert.Len(t, comps, 4)
 	assert.Contains(t, comps, "comp1")
 	assert.Contains(t, comps, "comp2")
 
