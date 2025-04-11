@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
@@ -28,7 +29,7 @@ type component struct {
 	checkDependencyInstalledFunc func() bool
 	checkServiceActiveFunc       func(context.Context) (bool, error)
 	checkContainerdRunningFunc   func(context.Context) bool
-	listSandboxStatusFunc        func(context.Context, string) ([]PodSandbox, error)
+	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
 	endpoint string
 
@@ -47,7 +48,22 @@ func New(ctx context.Context) components.Component {
 			return systemd.IsActive("containerd")
 		},
 		checkContainerdRunningFunc: checkContainerdRunning,
-		listSandboxStatusFunc:      listSandboxStatus,
+		listAllSandboxesFunc: func(ctx2 context.Context, ep string) ([]PodSandbox, error) {
+			return listAllSandboxes(
+				ctx2,
+				ep,
+				func(ctx context.Context, client runtimeapi.RuntimeServiceClient) (*runtimeapi.ListPodSandboxResponse, error) {
+					return client.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
+						Filter: &runtimeapi.PodSandboxFilter{},
+					})
+				},
+				func(ctx context.Context, client runtimeapi.RuntimeServiceClient) (*runtimeapi.ListContainersResponse, error) {
+					return client.ListContainers(ctx, &runtimeapi.ListContainersRequest{
+						Filter: &runtimeapi.ContainerFilter{},
+					})
+				},
+			)
+		},
 
 		endpoint: defaultContainerRuntimeEndpoint,
 	}
@@ -143,9 +159,9 @@ func (c *component) CheckOnce() {
 		}
 	}
 
-	if c.listSandboxStatusFunc != nil {
+	if c.listAllSandboxesFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-		d.Pods, d.err = c.listSandboxStatusFunc(cctx, c.endpoint)
+		d.Pods, d.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
 		if d.err != nil {
 			d.healthy = false
