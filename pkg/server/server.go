@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	stdos "os"
-	"path"
 	"runtime"
 	"strings"
 	"syscall"
@@ -483,7 +482,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// TODO: implement configuration file refresh + apply
 
 	router := gin.Default()
-	router.SetHTMLTemplate(rootTmpl)
 
 	cert, err := s.generateSelfSignedCert()
 	if err != nil {
@@ -500,15 +498,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
 	ghler := newGlobalHandler(config, components.GetAllComponents(), metricsSQLiteStore)
-	registeredPaths := ghler.registerComponentRoutes(v1)
-	for i := range registeredPaths {
-		registeredPaths[i].Path = path.Join(v1.BasePath(), registeredPaths[i].Path)
-	}
-
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: "/metrics",
-		Desc: "Prometheus metrics",
-	})
+	ghler.registerComponentRoutes(v1)
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
@@ -516,44 +506,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.GET(URLPathHealthz, createHealthzHandler())
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: URLPathHealthz,
-		Desc: URLPathHealthzDesc,
-	})
 
 	admin := router.Group(urlPathAdmin)
-
 	admin.GET(URLPathConfig, createConfigHandler(config))
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: path.Join("/admin", URLPathConfig),
-		Desc: URLPathConfigDesc,
-	})
 	admin.GET(urlPathPackages, createPackageHandler(packageManager))
-	registeredPaths = append(registeredPaths, componentHandlerDescription{
-		Path: URLPathAdminPackages,
-		Desc: urlPathPackagesDesc,
-	})
 
 	if config.Pprof {
 		log.Logger.Debugw("registering pprof handlers")
 		admin.GET("/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
 		admin.GET("/pprof/heap", gin.WrapH(pprof.Handler("heap")))
 		admin.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
-	}
-
-	if config.Web != nil && config.Web.Enable {
-		router.GET("/", createRootHandler(registeredPaths, *config.Web))
-
-		if config.Web.Enable {
-			go func() {
-				time.Sleep(2 * time.Second)
-				url := "https://" + config.Address
-				if !strings.HasPrefix(config.Address, "127.0.0.1") && !strings.HasPrefix(config.Address, "0.0.0.0") && !strings.HasPrefix(config.Address, "localhost") {
-					url = "https://localhost" + config.Address
-				}
-				fmt.Printf("\n\n\n\n\n%s serving %s\n\n\n\n\n", checkMark, url)
-			}()
-		}
 	}
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
@@ -595,8 +557,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 	return s, nil
 }
-
-const checkMark = "\033[32m✔\033[0m"
 
 func (s *Server) Stop() {
 	if s.session != nil {

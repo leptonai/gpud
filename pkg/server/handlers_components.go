@@ -25,45 +25,12 @@ const (
 	RequestHeaderEncodingGzip   = "gzip"
 )
 
-type componentHandlerDescription struct {
-	Path string
-	Desc string
-}
-
-func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) []componentHandlerDescription {
-	paths := make([]componentHandlerDescription, 0)
-
+func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
-	paths = append(paths, componentHandlerDescription{
-		Path: URLPathComponents,
-		Desc: URLPathComponentsDesc,
-	})
-
 	r.GET(URLPathStates, g.getStates)
-	paths = append(paths, componentHandlerDescription{
-		Path: URLPathStates,
-		Desc: URLPathStatesDesc,
-	})
-
 	r.GET(URLPathEvents, g.getEvents)
-	paths = append(paths, componentHandlerDescription{
-		Path: URLPathEvents,
-		Desc: URLPathEventsDesc,
-	})
-
 	r.GET(URLPathInfo, g.getInfo)
-	paths = append(paths, componentHandlerDescription{
-		Path: URLPathInfo,
-		Desc: URLPathInfoDesc,
-	})
-
 	r.GET(URLPathMetrics, g.getMetrics)
-	paths = append(paths, componentHandlerDescription{
-		Path: URLPathMetrics,
-		Desc: URLPathMetricsDesc,
-	})
-
-	return paths
 }
 
 const (

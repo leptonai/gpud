@@ -9,17 +9,17 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/urfave/cli"
+	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	lepServer "github.com/leptonai/gpud/pkg/server"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
-
-	"github.com/gin-gonic/gin"
-	"github.com/urfave/cli"
-	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func cmdRun(cliContext *cli.Context) error {
@@ -67,18 +67,9 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	if retentionPeriod > 0 {
 		cfg.RetentionPeriod = metav1.Duration{Duration: retentionPeriod}
-		cfg.Web.SincePeriod = metav1.Duration{Duration: retentionPeriod}
 	}
 
 	cfg.CompactPeriod = config.DefaultCompactPeriod
-
-	cfg.Web.Enable = webEnable
-	if webAdmin {
-		cfg.Web.Admin = true
-	}
-	if webRefreshPeriod > 0 {
-		cfg.Web.RefreshPeriod = metav1.Duration{Duration: webRefreshPeriod}
-	}
 
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
