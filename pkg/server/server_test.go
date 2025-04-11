@@ -40,32 +40,6 @@ func TestServerConfigValidation(t *testing.T) {
 			expectedErr: "retention_period must be at least 1 minute",
 		},
 		{
-			name: "web refresh period too short",
-			config: &config.Config{
-				Address:         "localhost:8080",
-				RetentionPeriod: metav1.Duration{Duration: time.Hour},
-				Web: &config.Web{
-					Enable:        true,
-					RefreshPeriod: metav1.Duration{Duration: 30 * time.Second},
-					SincePeriod:   metav1.Duration{Duration: 10 * time.Minute},
-				},
-			},
-			expectedErr: "web_refresh_period must be at least 1 minute",
-		},
-		{
-			name: "web metrics since period too short",
-			config: &config.Config{
-				Address:         "localhost:8080",
-				RetentionPeriod: metav1.Duration{Duration: time.Hour},
-				Web: &config.Web{
-					Enable:        true,
-					RefreshPeriod: metav1.Duration{Duration: time.Minute},
-					SincePeriod:   metav1.Duration{Duration: 5 * time.Minute},
-				},
-			},
-			expectedErr: "web_metrics_since_period must be at least 10 minutes",
-		},
-		{
 			name: "invalid auto update exit code",
 			config: &config.Config{
 				Address:            "localhost:8080",

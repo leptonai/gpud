@@ -101,13 +101,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		Pprof: false,
 
-		Web: &Web{
-			Enable:        true,
-			Admin:         false,
-			RefreshPeriod: DefaultRefreshPeriod,
-			SincePeriod:   DefaultRetentionPeriod,
-		},
-
 		ToolOverwriteOptions: ToolOverwriteOptions{
 			IbstatCommand: options.IbstatCommand,
 		},

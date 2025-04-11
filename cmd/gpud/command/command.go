@@ -32,10 +32,6 @@ var (
 
 	retentionPeriod time.Duration
 
-	webEnable        bool
-	webAdmin         bool
-	webRefreshPeriod time.Duration
-
 	createArchive bool
 
 	netcheck  bool
@@ -52,6 +48,8 @@ var (
 	ibstatCommand string
 
 	checkInfiniBand bool
+
+	deprecatedWebEnable bool
 )
 
 const (
@@ -203,21 +201,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Destination: &retentionPeriod,
 					Value:       config.DefaultRetentionPeriod.Duration,
 				},
-				&cli.BoolTFlag{
-					Name:        "web-enable",
-					Usage:       "enable local web interface (default: true)",
-					Destination: &webEnable,
-				},
 				&cli.BoolFlag{
-					Name:        "web-admin",
-					Usage:       "enable admin interface (default: false)",
-					Destination: &webAdmin,
-				},
-				&cli.DurationFlag{
-					Name:        "web-refresh-period",
-					Usage:       "set the time period to refresh states/metrics",
-					Destination: &webRefreshPeriod,
-					Value:       time.Minute,
+					Name:        "web-enable",
+					Usage:       "(DEPRECATED) enable local web interface",
+					Destination: &deprecatedWebEnable,
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
