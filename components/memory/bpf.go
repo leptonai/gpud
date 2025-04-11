@@ -3,24 +3,30 @@ package memory
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"strconv"
 )
 
-// Fetches the current BPF JIT buffer size in bytes.
+const vmallocInfoFile = "/proc/vmallocinfo"
+
+// getCurrentBPFJITBufferBytes returns the current BPF JIT buffer size in bytes.
 // Useful to debug "failed to create shim task: OCI" due to insufficient BPF JIT buffer.
 // ref. https://github.com/awslabs/amazon-eks-ami/issues/1179
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
-func getCurrentBPFJITBufferBytes(ctx context.Context) (uint64, error) {
+func getCurrentBPFJITBufferBytes() (uint64, error) {
+	return readBPFJITBufferBytes(vmallocInfoFile)
+}
+
+// readBPFJITBufferBytes reads the current BPF JIT buffer size in bytes.
+func readBPFJITBufferBytes(file string) (uint64, error) {
 	// e.g.,
 	// cat /proc/vmallocinfo | grep bpf_jit | awk '{s+=$2} END {print s}'
-	if _, err := os.Stat("/proc/vmallocinfo"); err != nil {
+	if _, err := os.Stat(file); err != nil {
 		return 0, err
 	}
 
-	f, err := os.Open("/proc/vmallocinfo")
+	f, err := os.Open(file)
 	if err != nil {
 		return 0, err
 	}

@@ -204,7 +204,7 @@ func TestComponentCheckOnce(t *testing.T) {
 		return mockVMStat, nil
 	}
 
-	mockGetBPFJITFunc := func(ctx context.Context) (uint64, error) {
+	mockGetBPFJITFunc := func() (uint64, error) {
 		return 1024 * 1024, nil // 1MB
 	}
 
@@ -274,7 +274,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	// Mock BPF JIT function with error
-	mockGetBPFJITFunc := func(ctx context.Context) (uint64, error) {
+	mockGetBPFJITFunc := func() (uint64, error) {
 		return 0, testError
 	}
 

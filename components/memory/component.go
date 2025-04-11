@@ -28,7 +28,7 @@ type component struct {
 	cancel context.CancelFunc
 
 	getVirtualMemoryFunc            func(context.Context) (*mem.VirtualMemoryStat, error)
-	getCurrentBPFJITBufferBytesFunc func(ctx context.Context) (uint64, error)
+	getCurrentBPFJITBufferBytesFunc func() (uint64, error)
 
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
@@ -146,9 +146,7 @@ func (c *component) CheckOnce() {
 	metricUsedPercent.With(prometheus.Labels{}).Set(vm.UsedPercent)
 	metricFreeBytes.With(prometheus.Labels{}).Set(float64(vm.Free))
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	bpfJITBufferBytes, err := c.getCurrentBPFJITBufferBytesFunc(cctx)
-	ccancel()
+	bpfJITBufferBytes, err := c.getCurrentBPFJITBufferBytesFunc()
 	if err != nil {
 		log.Logger.Errorw("failed to get bpf jit buffer bytes", "error", err)
 		d.err = err
