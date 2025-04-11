@@ -1,5 +1,5 @@
 definitions:
-  components.Event:
+  apiv1.Event:
     properties:
       extra_info:
         additionalProperties:
@@ -21,7 +21,7 @@ definitions:
     properties:
       events:
         items:
-          $ref: '#/definitions/components.Event'
+          $ref: '#/definitions/apiv1.Event'
         type: array
       metrics:
         items:
@@ -29,13 +29,13 @@ definitions:
         type: array
       states:
         items:
-          $ref: '#/definitions/components.State'
+          $ref: '#/definitions/apiv1.State'
         type: array
     type: object
   components.Metric:
     additionalProperties: true
     type: object
-  components.State:
+  apiv1.State:
     properties:
       error:
         description: the unprocessed error returned from the component
@@ -72,7 +72,7 @@ definitions:
         type: string
       events:
         items:
-          $ref: '#/definitions/components.Event'
+          $ref: '#/definitions/apiv1.Event'
         type: array
       startTime:
         type: string
@@ -103,7 +103,7 @@ definitions:
         type: string
       states:
         items:
-          $ref: '#/definitions/components.State'
+          $ref: '#/definitions/apiv1.State'
         type: array
     type: object
 info:

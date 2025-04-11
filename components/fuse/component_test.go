@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -116,7 +115,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
@@ -130,7 +129,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "all good", states[0].Reason)
 	})
@@ -145,7 +144,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 		assert.Equal(t, "something wrong", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
@@ -263,7 +262,7 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 	findCallCount := 0
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev components.Event) (*components.Event, error) {
+		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
 			findCallCount++
 			// First call returns nil to trigger insert
 			if findCallCount == 1 {
@@ -299,7 +298,7 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 		if event.Name == "fuse_connections" {
 			foundEvent = true
 			// Verify the event details
-			assert.Equal(t, common.EventTypeCritical, event.Type)
+			assert.Equal(t, apiv1.EventTypeCritical, event.Type)
 			assert.Contains(t, event.Message, "congested percent")
 			assert.Contains(t, event.Message, "max background percent")
 
@@ -318,25 +317,25 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 // Helper struct for wrapping event buckets with custom behavior
 type eventWrapperBucket struct {
 	wrapped eventstore.Bucket
-	findFn  func(ctx context.Context, ev components.Event) (*components.Event, error)
+	findFn  func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error)
 }
 
-func (b *eventWrapperBucket) Insert(ctx context.Context, ev components.Event) error {
+func (b *eventWrapperBucket) Insert(ctx context.Context, ev apiv1.Event) error {
 	return b.wrapped.Insert(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return b.wrapped.Get(ctx, since)
 }
 
-func (b *eventWrapperBucket) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
+func (b *eventWrapperBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
 	if b.findFn != nil {
 		return b.findFn(ctx, ev)
 	}
 	return b.wrapped.Find(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (b *eventWrapperBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	return b.wrapped.Latest(ctx)
 }
 
@@ -401,7 +400,7 @@ func TestFindError(t *testing.T) {
 	// Mock find call to return an error
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev components.Event) (*components.Event, error) {
+		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
 			return nil, errors.New("mock find error")
 		},
 	}

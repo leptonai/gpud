@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 // Defines the SXid error information that is static.
@@ -18,12 +18,12 @@ type Detail struct {
 	Description string `json:"description"`
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
-	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this SXid as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 	// EventType is the type of the event.
-	EventType common.EventType `json:"event_type"`
+	EventType apiv1.EventType `json:"event_type"`
 
 	PotentialFatal bool   `json:"potential_fatal"`
 	AlwaysFatal    bool   `json:"always_fatal"`
@@ -52,7 +52,7 @@ var defaultPotentialFatalErr = Detail{
 	CriticalErrorMarkedByGPUd: false,
 
 	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-	EventType: common.EventTypeWarning,
+	EventType: apiv1.EventTypeWarning,
 
 	PotentialFatal: true,
 	AlwaysFatal:    false,
@@ -78,7 +78,7 @@ var defaultAlwaysFatalErr = Detail{
 	CriticalErrorMarkedByGPUd: false,
 
 	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-	EventType: common.EventTypeWarning,
+	EventType: apiv1.EventTypeWarning,
 
 	PotentialFatal: true,
 	AlwaysFatal:    true,
@@ -90,7 +90,7 @@ var defaultAlwaysFatalErr = Detail{
 // make sure we do not have unknown event type
 func init() {
 	for id, detail := range details {
-		if detail.EventType == common.EventTypeUnknown || string(detail.EventType) == "" {
+		if detail.EventType == apiv1.EventTypeUnknown || string(detail.EventType) == "" {
 			panic(fmt.Sprintf("unknown event type for SXid %d", id))
 		}
 	}
@@ -121,7 +121,7 @@ var details = map[int]Detail{
 		Name:        "Ingress invalid ACL",
 		Description: "This SXid error can happen only because of an incorrect FM partition configuration and is expected not to occur in the field.",
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -130,14 +130,14 @@ var details = map[int]Detail{
 				"Restart the system to reset the NVSwitch.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -157,7 +157,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -177,7 +177,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -197,7 +197,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -217,7 +217,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -237,7 +237,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -257,7 +257,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -277,7 +277,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -297,7 +297,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -317,7 +317,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -337,7 +337,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -357,7 +357,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -377,7 +377,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -397,7 +397,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -417,7 +417,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -437,7 +437,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -457,7 +457,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -477,7 +477,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -497,7 +497,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -517,7 +517,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -538,7 +538,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -553,7 +553,7 @@ var details = map[int]Detail{
 		Name:        "egress nonposted PRIV error",
 		Description: "",
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -562,14 +562,14 @@ var details = map[int]Detail{
 				"Restart the system to reset the GPUs and NVSwitches.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -584,7 +584,7 @@ var details = map[int]Detail{
 		Name:        "AN1 Heartbeat Timeout Error",
 		Description: "",
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -593,14 +593,14 @@ var details = map[int]Detail{
 				"Restart the system to reset the GPUs and NVSwitches.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -621,7 +621,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -642,7 +642,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,
@@ -669,7 +669,7 @@ var details = map[int]Detail{
 		Name:        "ingress invalid command",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -679,15 +679,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -702,7 +702,7 @@ var details = map[int]Detail{
 		Name:        "ingress invalid VCSet",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -712,15 +712,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -735,7 +735,7 @@ var details = map[int]Detail{
 		Name:        "ingress header DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -745,15 +745,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -768,7 +768,7 @@ var details = map[int]Detail{
 		Name:        "ingress RID DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -778,15 +778,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -801,7 +801,7 @@ var details = map[int]Detail{
 		Name:        "ingress RLAN DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -811,15 +811,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -834,7 +834,7 @@ var details = map[int]Detail{
 		Name:        "ingress control parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -844,15 +844,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -867,7 +867,7 @@ var details = map[int]Detail{
 		Name:        "egress crossbar overflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -877,15 +877,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -900,7 +900,7 @@ var details = map[int]Detail{
 		Name:        "egress packet route",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -910,15 +910,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -933,7 +933,7 @@ var details = map[int]Detail{
 		Name:        "egress input ECC DBE error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -943,15 +943,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -966,7 +966,7 @@ var details = map[int]Detail{
 		Name:        "egress output ECC DBE error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -976,15 +976,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -999,7 +999,7 @@ var details = map[int]Detail{
 		Name:        "egress credit overflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1009,15 +1009,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1032,7 +1032,7 @@ var details = map[int]Detail{
 		Name:        "egress destination request ID error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1042,15 +1042,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1065,7 +1065,7 @@ var details = map[int]Detail{
 		Name:        "egress destination response ID error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1075,15 +1075,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1103,7 +1103,7 @@ var details = map[int]Detail{
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1118,7 +1118,7 @@ var details = map[int]Detail{
 		Name:        "egress credit parity error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1128,15 +1128,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1151,7 +1151,7 @@ var details = map[int]Detail{
 		Name:        "egress flit type mismatch",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1161,15 +1161,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1184,7 +1184,7 @@ var details = map[int]Detail{
 		Name:        "TS ATO timeout",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1194,15 +1194,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1217,7 +1217,7 @@ var details = map[int]Detail{
 		Name:        "route buffer over/underflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1227,15 +1227,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1250,7 +1250,7 @@ var details = map[int]Detail{
 		Name:        "route transdone over/underflow",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1260,15 +1260,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1283,7 +1283,7 @@ var details = map[int]Detail{
 		Name:        "route GLT DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1293,15 +1293,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1316,7 +1316,7 @@ var details = map[int]Detail{
 		Name:        "route parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1326,15 +1326,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1349,7 +1349,7 @@ var details = map[int]Detail{
 		Name:        "route incoming DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1359,15 +1359,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1382,7 +1382,7 @@ var details = map[int]Detail{
 		Name:        "route credit parity",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1392,15 +1392,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1415,7 +1415,7 @@ var details = map[int]Detail{
 		Name:        "NCISOC HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1425,15 +1425,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1448,7 +1448,7 @@ var details = map[int]Detail{
 		Name:        "NCISOC DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1458,15 +1458,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1481,7 +1481,7 @@ var details = map[int]Detail{
 		Name:        "HDR RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1491,15 +1491,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1514,7 +1514,7 @@ var details = map[int]Detail{
 		Name:        "DAT0 RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1524,15 +1524,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1547,7 +1547,7 @@ var details = map[int]Detail{
 		Name:        "DAT1 RAM ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1557,15 +1557,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1580,7 +1580,7 @@ var details = map[int]Detail{
 		Name:        "CREQ RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1590,15 +1590,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1613,7 +1613,7 @@ var details = map[int]Detail{
 		Name:        "CREQ RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1623,15 +1623,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1646,7 +1646,7 @@ var details = map[int]Detail{
 		Name:        "Response RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1656,15 +1656,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1679,7 +1679,7 @@ var details = map[int]Detail{
 		Name:        "Response RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1689,15 +1689,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1712,7 +1712,7 @@ var details = map[int]Detail{
 		Name:        "COM RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1722,15 +1722,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1745,7 +1745,7 @@ var details = map[int]Detail{
 		Name:        "COM RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1755,15 +1755,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1778,7 +1778,7 @@ var details = map[int]Detail{
 		Name:        "RSP1 RAM HDR ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1788,15 +1788,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1811,7 +1811,7 @@ var details = map[int]Detail{
 		Name:        "RSP1 RAM DAT ECC DBE Error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1821,15 +1821,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1844,7 +1844,7 @@ var details = map[int]Detail{
 		Name:        "LTSSM Fault Up",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1854,15 +1854,15 @@ var details = map[int]Detail{
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1885,7 +1885,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion Link NA interrupt",
 		Description: "",
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1895,15 +1895,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -1918,7 +1918,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN0 crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1928,15 +1928,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1951,7 +1951,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN0 TD crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1961,15 +1961,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -1984,7 +1984,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack TCEN1 crubmstore DBE",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -1994,15 +1994,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -2017,7 +2017,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "sourcetrack timeout error",
 		Description: defaultPotentialFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2027,15 +2027,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultPotentialFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultPotentialFatalErr.AlwaysFatal,
@@ -2062,7 +2062,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress sequence ID error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2072,15 +2072,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2095,7 +2095,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion Halt",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2105,15 +2105,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2128,7 +2128,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "Minion exterror",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2138,15 +2138,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2161,7 +2161,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2171,15 +2171,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2194,7 +2194,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2204,15 +2204,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2227,7 +2227,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2237,15 +2237,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2260,7 +2260,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2270,15 +2270,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2293,7 +2293,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet burst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2303,15 +2303,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2326,7 +2326,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet sticky error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2336,15 +2336,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2359,7 +2359,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "possible bubbles at ingress",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2369,15 +2369,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2392,7 +2392,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet invalid dst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2402,15 +2402,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2425,7 +2425,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet parity error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2435,15 +2435,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2458,7 +2458,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2468,15 +2468,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2491,7 +2491,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress SRC-VC buffer underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2501,15 +2501,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2524,7 +2524,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit overflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2534,15 +2534,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2557,7 +2557,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "egress DST-VC credit underflow",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2567,15 +2567,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2590,7 +2590,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet burst error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2600,15 +2600,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2623,7 +2623,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress packet sticky error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2633,15 +2633,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2656,7 +2656,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "possible bubbles at ingress",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2666,15 +2666,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2689,7 +2689,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Name:        "ingress credit parity error",
 		Description: defaultAlwaysFatalErr.Description,
 
-		SuggestedActionsByGPUd: &common.SuggestedActions{
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			References: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
@@ -2699,15 +2699,15 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
 
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeRebootSystem,
-				common.RepairActionTypeHardwareInspection,
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
-		EventType: common.EventTypeFatal,
+		EventType: apiv1.EventTypeFatal,
 
 		PotentialFatal: defaultAlwaysFatalErr.PotentialFatal,
 		AlwaysFatal:    defaultAlwaysFatalErr.AlwaysFatal,
@@ -2739,7 +2739,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2759,7 +2759,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2779,7 +2779,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    true,
@@ -2799,7 +2799,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2819,7 +2819,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: true,
 		AlwaysFatal:    false,
@@ -2857,7 +2857,7 @@ _RX_SHORT_ERROR_RATE in https://github.com/NVIDIA/open-gpu-kernel-modules/blob/d
 		CriticalErrorMarkedByGPUd: false,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
-		EventType: common.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 
 		PotentialFatal: false,
 		AlwaysFatal:    false,

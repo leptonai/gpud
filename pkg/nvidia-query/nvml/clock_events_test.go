@@ -14,8 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	nvml_lib_mock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -572,7 +571,7 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 	tests := []struct {
 		name        string
 		clockEvents ClockEvents
-		want        *components.Event
+		want        *apiv1.Event
 	}{
 		{
 			name: "no hardware slowdown reasons",
@@ -589,10 +588,10 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 				UUID:              "GPU-123",
 				HWSlowdownReasons: []string{"reason1", "reason2"},
 			},
-			want: &components.Event{
+			want: &apiv1.Event{
 				Time:    metav1.Time{Time: testTime},
 				Name:    "hw_slowdown",
-				Type:    common.EventTypeWarning,
+				Type:    apiv1.EventTypeWarning,
 				Message: "reason1, reason2",
 				ExtraInfo: map[string]string{
 					"data_source": "nvml",

@@ -12,8 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
@@ -123,17 +122,17 @@ func (evs *ClockEvents) YAML() ([]byte, error) {
 	return yaml.Marshal(evs)
 }
 
-// Event creates a components.Event from ClockEvents if there are hardware slowdown reasons.
+// Event creates a apiv1.Event from ClockEvents if there are hardware slowdown reasons.
 // Returns nil if there are no hardware slowdown reasons.
-func (evs *ClockEvents) Event() *components.Event {
+func (evs *ClockEvents) Event() *apiv1.Event {
 	if len(evs.HWSlowdownReasons) == 0 {
 		return nil
 	}
 
-	return &components.Event{
+	return &apiv1.Event{
 		Time:    evs.Time,
 		Name:    "hw_slowdown",
-		Type:    common.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
 		ExtraInfo: map[string]string{
 			"data_source": "nvml",

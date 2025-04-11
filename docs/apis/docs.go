@@ -199,7 +199,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "components.Event": {
+        "apiv1.Event": {
             "type": "object",
             "properties": {
                 "extra_info": {
@@ -231,7 +231,7 @@ const docTemplate = `{
                 "events": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/components.Event"
+                        "$ref": "#/definitions/apiv1.Event"
                     }
                 },
                 "metrics": {
@@ -243,7 +243,7 @@ const docTemplate = `{
                 "states": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/components.State"
+                        "$ref": "#/definitions/apiv1.State"
                     }
                 }
             }
@@ -252,7 +252,7 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": true
         },
-        "components.State": {
+        "apiv1.State": {
             "type": "object",
             "properties": {
                 "error": {
@@ -304,7 +304,7 @@ const docTemplate = `{
                 "events": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/components.Event"
+                        "$ref": "#/definitions/apiv1.Event"
                     }
                 },
                 "startTime": {
@@ -352,7 +352,7 @@ const docTemplate = `{
                 "states": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/components.State"
+                        "$ref": "#/definitions/apiv1.State"
                     }
                 }
             }

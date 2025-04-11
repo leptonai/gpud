@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
@@ -87,7 +87,7 @@ func TestComponent_States_NoData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
@@ -113,7 +113,7 @@ func TestComponent_States_WithData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "all GPUs were checked", states[0].Reason)
 	assert.NotNil(t, states[0].ExtraInfo)
@@ -135,7 +135,7 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, "error occurred", states[0].Reason)
 	assert.Equal(t, "something went wrong", states[0].Error)
@@ -308,7 +308,7 @@ func TestData_GetStates(t *testing.T) {
 	states, err = healthyData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 
 	// Test with unhealthy data
@@ -320,7 +320,7 @@ func TestData_GetStates(t *testing.T) {
 	states, err = unhealthyData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Equal(t, "test error", states[0].Error)
 }

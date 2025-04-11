@@ -8,6 +8,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/mitchellh/go-homedir"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
@@ -47,9 +50,6 @@ import (
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/version"
-
-	"github.com/mitchellh/go-homedir"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (

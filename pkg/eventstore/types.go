@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 const (
@@ -17,13 +17,13 @@ type Store interface {
 
 type Bucket interface {
 	Name() string
-	Insert(ctx context.Context, ev components.Event) error
+	Insert(ctx context.Context, ev apiv1.Event) error
 	// Find returns nil if the event is not found.
-	Find(ctx context.Context, ev components.Event) (*components.Event, error)
+	Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error)
 	// Get queries the event in the descending order of timestamp (latest event first).
-	Get(ctx context.Context, since time.Time) ([]components.Event, error)
+	Get(ctx context.Context, since time.Time) ([]apiv1.Event, error)
 	// Latest queries the latest event, returns nil if no event found.
-	Latest(ctx context.Context) (*components.Event, error)
+	Latest(ctx context.Context) (*apiv1.Event, error)
 	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
 	Close()
 }

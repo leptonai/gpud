@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/yaml"
 
-	v1 "github.com/leptonai/gpud/api/v1"
-	lep_components "github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	gpudcomponents "github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -120,7 +120,7 @@ const (
 // @Success 200 {object} v1.LeptonStates
 // @Router /v1/states [get]
 func (g *globalHandler) getStates(c *gin.Context) {
-	var states v1.LeptonStates
+	var states apiv1.LeptonStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -132,10 +132,10 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currState := v1.LeptonComponentStates{
+		currState := apiv1.LeptonComponentStates{
 			Component: componentName,
 		}
-		component, err := lep_components.GetComponent(componentName)
+		component, err := gpudcomponents.GetComponent(componentName)
 		if err != nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetStates",
@@ -196,7 +196,7 @@ const (
 // @Success 200 {object} v1.LeptonEvents
 // @Router /v1/events [get]
 func (g *globalHandler) getEvents(c *gin.Context) {
-	var events v1.LeptonEvents
+	var events apiv1.LeptonEvents
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -213,12 +213,12 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currEvent := v1.LeptonComponentEvents{
+		currEvent := apiv1.LeptonComponentEvents{
 			Component: componentName,
 			StartTime: startTime,
 			EndTime:   endTime,
 		}
-		component, err := lep_components.GetComponent(componentName)
+		component, err := gpudcomponents.GetComponent(componentName)
 		if err != nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetEvents",
@@ -278,7 +278,7 @@ const (
 // @Success 200 {object} v1.LeptonInfo
 // @Router /v1/info [get]
 func (g *globalHandler) getInfo(c *gin.Context) {
-	var infos v1.LeptonInfo
+	var infos apiv1.LeptonInfo
 	reqComps, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -315,12 +315,12 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		)
 	}
 
-	componentsToMetrics := make(map[string][]lep_components.Metric)
+	componentsToMetrics := make(map[string][]apiv1.Metric)
 	for _, data := range metricsData {
 		if _, ok := componentsToMetrics[data.Component]; !ok {
-			componentsToMetrics[data.Component] = make([]lep_components.Metric, 0)
+			componentsToMetrics[data.Component] = make([]apiv1.Metric, 0)
 		}
-		d := lep_components.Metric{
+		d := apiv1.Metric{
 			UnixSeconds:         data.UnixMilliseconds,
 			MetricName:          data.Name,
 			MetricSecondaryName: data.Label,
@@ -330,13 +330,13 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 	}
 
 	for _, componentName := range reqComps {
-		currInfo := v1.LeptonComponentInfo{
+		currInfo := apiv1.LeptonComponentInfo{
 			Component: componentName,
 			StartTime: startTime,
 			EndTime:   endTime,
-			Info:      lep_components.Info{},
+			Info:      apiv1.Info{},
 		}
-		component, err := lep_components.GetComponent(componentName)
+		component, err := gpudcomponents.GetComponent(componentName)
 		if err != nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetInfo",

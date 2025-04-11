@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 func TestNew(t *testing.T) {
@@ -127,9 +127,9 @@ func TestStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.wantHealthy, state.Healthy)
 			if tt.wantHealthy {
-				assert.Equal(t, components.StateHealthy, state.Health)
+				assert.Equal(t, apiv1.StateHealthy, state.Health)
 			} else {
-				assert.Equal(t, components.StateUnhealthy, state.Health)
+				assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 			}
 		})
 	}
@@ -220,7 +220,7 @@ func TestGetHealth(t *testing.T) {
 			name:           "with error",
 			data:           &Data{err: assert.AnError, healthy: false},
 			modulesToCheck: []string{"module1"},
-			wantHealth:     components.StateUnhealthy,
+			wantHealth:     apiv1.StateUnhealthy,
 			wantHealthy:    false,
 		},
 		{
@@ -231,7 +231,7 @@ func TestGetHealth(t *testing.T) {
 				healthy:       true,
 			},
 			modulesToCheck: nil,
-			wantHealth:     components.StateHealthy,
+			wantHealth:     apiv1.StateHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -242,7 +242,7 @@ func TestGetHealth(t *testing.T) {
 				healthy:       true,
 			},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     components.StateHealthy,
+			wantHealth:     apiv1.StateHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -253,16 +253,16 @@ func TestGetHealth(t *testing.T) {
 				healthy:       false,
 			},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     components.StateUnhealthy,
+			wantHealth:     apiv1.StateUnhealthy,
 			wantHealthy:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health := components.StateHealthy
+			health := apiv1.StateHealthy
 			if tt.data != nil && !tt.data.healthy {
-				health = components.StateUnhealthy
+				health = apiv1.StateUnhealthy
 			}
 
 			assert.Equal(t, tt.wantHealth, health)
@@ -284,7 +284,7 @@ func TestDataGetStates(t *testing.T) {
 			name:        "nil data",
 			data:        nil,
 			wantHealthy: true,
-			wantHealth:  components.StateHealthy,
+			wantHealth:  apiv1.StateHealthy,
 			wantReason:  "no data yet",
 			wantError:   false,
 		},
@@ -292,7 +292,7 @@ func TestDataGetStates(t *testing.T) {
 			name:        "with error",
 			data:        &Data{err: assert.AnError, healthy: false, reason: "error getting all modules: assert.AnError general error for testing"},
 			wantHealthy: false,
-			wantHealth:  components.StateUnhealthy,
+			wantHealth:  apiv1.StateUnhealthy,
 			wantReason:  "error getting all modules: assert.AnError general error for testing",
 			wantError:   true,
 		},
@@ -305,7 +305,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  components.StateHealthy,
+			wantHealth:  apiv1.StateHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -318,7 +318,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  components.StateHealthy,
+			wantHealth:  apiv1.StateHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -331,7 +331,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        `missing modules: ["module2"]`,
 			},
 			wantHealthy: false,
-			wantHealth:  components.StateUnhealthy,
+			wantHealth:  apiv1.StateUnhealthy,
 			wantReason:  `missing modules: ["module2"]`,
 			wantError:   false,
 		},

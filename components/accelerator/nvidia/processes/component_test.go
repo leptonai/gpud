@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvmlLib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -36,7 +36,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 
 // Override other InstanceV2 methods to return empty values
 func (m *mockNVMLInstance) NVMLExists() bool         { return true }
-func (m *mockNVMLInstance) Library() nvmlLib.Library { return nil }
+func (m *mockNVMLInstance) Library() nvmllib.Library { return nil }
 func (m *mockNVMLInstance) ProductName() string      { return "Test GPU" }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
@@ -153,7 +153,7 @@ func TestCheckOnceSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.True(t, states[0].Healthy)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 }
 
 func TestCheckOnceError(t *testing.T) {
@@ -191,7 +191,7 @@ func TestCheckOnceError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.False(t, states[0].Healthy)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Error, testErr.Error())
 }
 
@@ -208,7 +208,7 @@ func TestStatesWithNilData(t *testing.T) {
 	// Default values for nil data
 	assert.Equal(t, Name, states[0].Name)
 	assert.True(t, states[0].Healthy)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -231,7 +231,7 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.True(t, states[0].Healthy)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 
 	// Test unhealthy data
 	testErr := errors.New("test error")
@@ -245,7 +245,7 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.False(t, states[0].Healthy)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.Equal(t, testErr.Error(), states[0].Error)
 }
 
