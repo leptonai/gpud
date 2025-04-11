@@ -100,22 +100,6 @@ func TestGetComponentErrors(t *testing.T) {
 	}
 }
 
-func TestIsComponentRegistered(t *testing.T) {
-	// Test with nil set
-	assert.False(t, isComponentRegistered(nil, "test"))
-
-	// Test with empty set
-	emptySet := map[string]Component{}
-	assert.False(t, isComponentRegistered(emptySet, "test"))
-
-	// Test with component registered
-	set := map[string]Component{
-		"test": newMockComponent("test"),
-	}
-	assert.True(t, isComponentRegistered(set, "test"))
-	assert.False(t, isComponentRegistered(set, "nonexistent"))
-}
-
 func TestGetComponent(t *testing.T) {
 	// Create test components
 	testComp := newMockComponent("test")
@@ -205,10 +189,6 @@ func TestGlobalFunctions(t *testing.T) {
 	testComp := newMockComponent("test-global")
 	err := RegisterComponent("test-global", testComp)
 	assert.NoError(t, err)
-
-	// Test IsComponentRegistered
-	assert.True(t, IsComponentRegistered("test-global"))
-	assert.False(t, IsComponentRegistered("nonexistent"))
 
 	// Test GetComponent
 	comp, err := GetComponent("test-global")

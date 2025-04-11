@@ -28,20 +28,6 @@ func getAllComponents(existing map[string]Component) map[string]Component {
 	return copied
 }
 
-// IsComponentRegistered checks if a component is registered in the default set.
-func IsComponentRegistered(name string) bool {
-	defaultSetMu.RLock()
-	defer defaultSetMu.RUnlock()
-
-	return isComponentRegistered(defaultSet, name)
-}
-
-// isComponentRegistered checks if a component is registered in the default set.
-func isComponentRegistered(set map[string]Component, name string) bool {
-	_, ok := set[name]
-	return ok
-}
-
 // GetComponent gets a component from the default set.
 // It returns an error if the component is not found.
 func GetComponent(name string) (Component, error) {
