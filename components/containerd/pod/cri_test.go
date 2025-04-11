@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestDialUnix(t *testing.T) {
@@ -145,5 +146,203 @@ func TestCreateClient(t *testing.T) {
 		// The client creation should fail because the context is canceled
 		_, _, err = createClient(ctx, conn)
 		assert.Error(t, err)
+	})
+}
+
+func TestConvertToPodSandboxes(t *testing.T) {
+	t.Run("basic conversion", func(t *testing.T) {
+		// Create mock pod sandbox response
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "test-pod-1",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		// Create mock container response
+		listContainersResp := &runtimeapi.ListContainersResponse{
+			Containers: []*runtimeapi.Container{
+				{
+					Id:           "container-1",
+					PodSandboxId: "pod-1",
+					Metadata: &runtimeapi.ContainerMetadata{
+						Name: "test-container-1",
+					},
+					Image: &runtimeapi.ImageSpec{
+						UserSpecifiedImage: "nginx:latest",
+					},
+					CreatedAt: 1234567890,
+					State:     runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		}
+
+		// Run the function
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+
+		// Verify the result
+		require.Len(t, result, 1)
+		assert.Equal(t, "pod-1", result[0].ID)
+		assert.Equal(t, "test-pod-1", result[0].Name)
+		assert.Equal(t, "default", result[0].Namespace)
+		assert.Equal(t, "SANDBOX_READY", result[0].State)
+		require.Len(t, result[0].Containers, 1)
+		assert.Equal(t, "container-1", result[0].Containers[0].ID)
+		assert.Equal(t, "test-container-1", result[0].Containers[0].Name)
+		assert.Equal(t, "nginx:latest", result[0].Containers[0].Image)
+		assert.Equal(t, int64(1234567890), result[0].Containers[0].CreatedAt)
+		assert.Equal(t, "CONTAINER_RUNNING", result[0].Containers[0].State)
+	})
+
+	t.Run("container with missing pod sandbox", func(t *testing.T) {
+		// Create mock pod sandbox response
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "test-pod-1",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		// Create mock container response with a container referencing a non-existent pod
+		listContainersResp := &runtimeapi.ListContainersResponse{
+			Containers: []*runtimeapi.Container{
+				{
+					Id:           "container-1",
+					PodSandboxId: "pod-1",
+					Metadata: &runtimeapi.ContainerMetadata{
+						Name: "test-container-1",
+					},
+					State: runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+				{
+					Id:           "container-2",
+					PodSandboxId: "non-existent-pod", // This pod doesn't exist
+					Metadata: &runtimeapi.ContainerMetadata{
+						Name: "test-container-2",
+					},
+					State: runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		}
+
+		// Run the function
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+
+		// Verify the result - should only have the valid pod
+		require.Len(t, result, 1)
+		assert.Equal(t, "pod-1", result[0].ID)
+		require.Len(t, result[0].Containers, 1)
+		assert.Equal(t, "container-1", result[0].Containers[0].ID)
+	})
+
+	t.Run("sorting of pods", func(t *testing.T) {
+		// Create mock pod sandbox response with multiple pods in different namespaces
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "b-pod",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+				{
+					Id: "pod-2",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "a-pod",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+				{
+					Id: "pod-3",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "c-pod",
+						Namespace: "another-namespace",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		// Empty container response
+		listContainersResp := &runtimeapi.ListContainersResponse{}
+
+		// Run the function
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+
+		// Verify the sorting: should be sorted first by namespace, then by name
+		require.Len(t, result, 3)
+		assert.Equal(t, "another-namespace", result[0].Namespace)
+		assert.Equal(t, "c-pod", result[0].Name)
+		assert.Equal(t, "default", result[1].Namespace)
+		assert.Equal(t, "a-pod", result[1].Name)
+		assert.Equal(t, "default", result[2].Namespace)
+		assert.Equal(t, "b-pod", result[2].Name)
+	})
+
+	t.Run("empty responses", func(t *testing.T) {
+		// Create empty mock responses
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{}
+		listContainersResp := &runtimeapi.ListContainersResponse{}
+
+		// Run the function
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+
+		// Verify the result
+		assert.Empty(t, result)
+	})
+
+	t.Run("container with nil image", func(t *testing.T) {
+		// Create mock pod sandbox response
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "test-pod-1",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		// Create mock container response with nil image
+		listContainersResp := &runtimeapi.ListContainersResponse{
+			Containers: []*runtimeapi.Container{
+				{
+					Id:           "container-1",
+					PodSandboxId: "pod-1",
+					Metadata: &runtimeapi.ContainerMetadata{
+						Name: "test-container-1",
+					},
+					Image:     nil, // Nil image
+					CreatedAt: 1234567890,
+					State:     runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		}
+
+		// Run the function
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+
+		// Verify the result
+		require.Len(t, result, 1)
+		require.Len(t, result[0].Containers, 1)
+		assert.Equal(t, "", result[0].Containers[0].Image)
 	})
 }

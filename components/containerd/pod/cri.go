@@ -222,6 +222,20 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 		return nil, err
 	}
 
+	listContainersResp, err := client.ListContainers(
+		ctx,
+		&runtimeapi.ListContainersRequest{
+			Filter: &runtimeapi.ContainerFilter{},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToPodSandboxes(podSandboxResp, listContainersResp), nil
+}
+
+func convertToPodSandboxes(podSandboxResp *runtimeapi.ListPodSandboxResponse, listContainersResp *runtimeapi.ListContainersResponse) []PodSandbox {
 	podSandboxes := make(map[string]PodSandbox, len(podSandboxResp.Items))
 	for _, podSandbox := range podSandboxResp.Items {
 		podSandboxes[podSandbox.Id] = PodSandbox{
@@ -234,17 +248,6 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 			Containers: nil,
 		}
 	}
-
-	listContainersResp, err := client.ListContainers(
-		ctx,
-		&runtimeapi.ListContainersRequest{
-			Filter: &runtimeapi.ContainerFilter{},
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	for _, container := range listContainersResp.Containers {
 		podSandboxID := container.PodSandboxId
 		podSandbox, ok := podSandboxes[podSandboxID]
@@ -279,7 +282,7 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 		}
 		return pods[i].Namespace < pods[j].Namespace
 	})
-	return pods, nil
+	return pods
 }
 
 // PodSandbox represents the pod information fetched from the local container runtime.
