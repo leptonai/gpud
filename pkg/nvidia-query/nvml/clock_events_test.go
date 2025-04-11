@@ -15,7 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	nvml_lib_mock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -592,7 +591,7 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 			want: &components.Event{
 				Time:    metav1.Time{Time: testTime},
 				Name:    "hw_slowdown",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "reason1, reason2",
 				ExtraInfo: map[string]string{
 					"data_source": "nvml",

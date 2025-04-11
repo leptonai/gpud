@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/stretchr/testify/assert"
@@ -98,9 +97,9 @@ func TestTableInsertsReads(t *testing.T) {
 		events = append(events, components.Event{
 			Time:    metav1.Time{Time: first.Add(time.Duration(i) * time.Second)},
 			Name:    "kmsg",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: fmt.Sprintf("OOM event %d occurred", i),
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{fmt.Sprintf("oom_reaper: reaped process %d (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0", i)},
 			},
 		})
@@ -146,24 +145,24 @@ func TestGetEventsTimeRange(t *testing.T) {
 		{
 			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name: "kmsg",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(-5 * time.Minute)},
 			Name: "kmsg",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"mid event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime},
 			Name: "kmsg",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"recent event"},
 			},
 		},
@@ -230,24 +229,24 @@ func TestMultipleEventTypes(t *testing.T) {
 		{
 			Time: metav1.Time{Time: baseTime},
 			Name: "kmsg",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"oom event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(1 * time.Second)},
 			Name: "syslog",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"edac event"},
 			},
 		},
 		{
 			Time: metav1.Time{Time: baseTime.Add(2 * time.Second)},
 			Name: "kmsg",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"cgroup event"},
 			},
 		},
@@ -263,9 +262,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	assert.Equal(t, 3, len(results))
 
 	// Verify events are in descending order
-	assert.Equal(t, common.EventTypeWarning, results[0].Type)
-	assert.Equal(t, common.EventTypeWarning, results[1].Type)
-	assert.Equal(t, common.EventTypeWarning, results[2].Type)
+	assert.Equal(t, components.EventTypeWarning, results[0].Type)
+	assert.Equal(t, components.EventTypeWarning, results[1].Type)
+	assert.Equal(t, components.EventTypeWarning, results[2].Type)
 }
 
 func TestPurgePartial(t *testing.T) {
@@ -290,18 +289,18 @@ func TestPurgePartial(t *testing.T) {
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:      "kmsg",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"recent event"},
 			},
 		},
@@ -328,7 +327,7 @@ func TestPurgePartial(t *testing.T) {
 	oldEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "test",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
@@ -357,9 +356,9 @@ func TestFindEvent(t *testing.T) {
 	testEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "kmsg",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"old event"},
 		},
 	}
@@ -403,9 +402,9 @@ func TestFindEventPartialMatch(t *testing.T) {
 	testEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"original details"},
 		},
 	}
@@ -418,7 +417,7 @@ func TestFindEventPartialMatch(t *testing.T) {
 		Name:      testEvent.Name,
 		Type:      testEvent.Type,
 		ExtraInfo: testEvent.ExtraInfo,
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"different details"},
 		},
 	}
@@ -450,18 +449,18 @@ func TestFindEventMultipleMatches(t *testing.T) {
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b", "c": "d"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"first event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "kmsg",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"a": "b"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"second event"},
 			},
 		},
@@ -476,7 +475,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	searchEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"a": "b"},
 	}
 
@@ -516,12 +515,12 @@ func TestEventWithIDs(t *testing.T) {
 	event := components.Event{
 		Time: metav1.Time{Time: baseTime},
 		Name: "nvidia-smi",
-		Type: common.EventTypeWarning,
+		Type: components.EventTypeWarning,
 		ExtraInfo: map[string]string{
 			"xid":      "123",
 			"gpu_uuid": "gpu-123",
 		},
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"GPU error details"},
 		},
 	}
@@ -583,9 +582,9 @@ func TestNullEventIDs(t *testing.T) {
 	event := components.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "kmsg",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{},
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"Event with null ExtraInfo"},
 		},
 	}
@@ -622,18 +621,18 @@ func TestPurgeWithEventIDs(t *testing.T) {
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:      "test",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime},
 			Name:      "test",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"new event"},
 			},
 		},
@@ -661,7 +660,7 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	oldEvent := components.Event{
 		Time:      metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 		Name:      "test",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
@@ -703,8 +702,8 @@ func TestContextCancellation(t *testing.T) {
 	event := components.Event{
 		Time: metav1.Time{Time: time.Now().UTC()},
 		Name: "test",
-		Type: common.EventTypeWarning,
-		SuggestedActions: &common.SuggestedActions{
+		Type: components.EventTypeWarning,
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"Test details"},
 		},
 	}
@@ -746,8 +745,8 @@ func TestConcurrentAccess(t *testing.T) {
 			event := components.Event{
 				Time: metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name: "concurrent",
-				Type: common.EventTypeWarning,
-				SuggestedActions: &common.SuggestedActions{
+				Type: components.EventTypeWarning,
+				SuggestedActions: &components.SuggestedActions{
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
@@ -796,20 +795,20 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 		{
 			Time:      metav1.Time{Time: time.Now().UTC()},
 			Name:      "test;source",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			Message:   "message with special chars: !@#$%^&*()",
 			ExtraInfo: map[string]string{"special chars": "!@#$%^&*()"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"details with special chars"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: time.Now().UTC()},
 			Name:      "unicode_source_🔥",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			Message:   "unicode message: 你好",
 			ExtraInfo: map[string]string{"unicode info": "你好"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"unicode details: 世界！"},
 			},
 		},
@@ -857,8 +856,8 @@ func TestLargeEventDetails(t *testing.T) {
 	event := components.Event{
 		Time: metav1.Time{Time: time.Now().UTC()},
 		Name: "test",
-		Type: common.EventTypeWarning,
-		SuggestedActions: &common.SuggestedActions{
+		Type: components.EventTypeWarning,
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{string(largeDetail)},
 		},
 	}
@@ -903,8 +902,8 @@ func TestTimestampBoundaries(t *testing.T) {
 		event := components.Event{
 			Time: metav1.Time{Time: time.Unix(ts, 0)},
 			Name: "test",
-			Type: common.EventTypeWarning,
-			SuggestedActions: &common.SuggestedActions{
+			Type: components.EventTypeWarning,
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{fmt.Sprintf("timestamp: %d", ts)},
 			},
 		}
@@ -955,9 +954,9 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 			event := components.Event{
 				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name:      "concurrent",
-				Type:      common.EventTypeWarning,
+				Type:      components.EventTypeWarning,
 				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
-				SuggestedActions: &common.SuggestedActions{
+				SuggestedActions: &components.SuggestedActions{
 					Descriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
 				},
 			}
@@ -972,7 +971,7 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 			event := components.Event{
 				Time:      metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
 				Name:      "concurrent",
-				Type:      common.EventTypeWarning,
+				Type:      components.EventTypeWarning,
 				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
 			found, err := bucket.Find(ctx, event)
@@ -1024,25 +1023,25 @@ func TestEventMessage(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: baseTime},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "Test message with normal text",
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "", // Empty message
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(2 * time.Second)},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "Message with special chars: !@#$%^&*()",
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(3 * time.Second)},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "Unicode message: 你好世界",
 		},
 	}
@@ -1062,7 +1061,7 @@ func TestEventMessage(t *testing.T) {
 	searchEvent := components.Event{
 		Time:    metav1.Time{Time: baseTime},
 		Name:    "test",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "Test message with normal text",
 	}
 	found, err := bucket.Find(ctx, searchEvent)
@@ -1074,7 +1073,7 @@ func TestEventMessage(t *testing.T) {
 	emptyMessageEvent := components.Event{
 		Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
 		Name:    "test",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "",
 	}
 	found, err = bucket.Find(ctx, emptyMessageEvent)
@@ -1086,7 +1085,7 @@ func TestEventMessage(t *testing.T) {
 	nonMatchingEvent := components.Event{
 		Time:    metav1.Time{Time: baseTime},
 		Name:    "test",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "Non-matching message",
 	}
 	found, err = bucket.Find(ctx, nonMatchingEvent)
@@ -1126,7 +1125,7 @@ func TestNilSuggestedActions(t *testing.T) {
 	event := components.Event{
 		Time:             metav1.Time{Time: baseTime},
 		Name:             "test",
-		Type:             common.EventTypeWarning,
+		Type:             components.EventTypeWarning,
 		Message:          "Test message",
 		ExtraInfo:        map[string]string{"key": "value"},
 		SuggestedActions: nil, // Explicitly set to nil
@@ -1164,9 +1163,9 @@ func TestInvalidJSONHandling(t *testing.T) {
 	event := components.Event{
 		Time:      metav1.Time{Time: baseTime},
 		Name:      "test",
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		ExtraInfo: map[string]string{"key": "value"},
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{"test action"},
 		},
 	}
@@ -1180,7 +1179,7 @@ func TestInvalidJSONHandling(t *testing.T) {
 		bucket.Name()),
 		baseTime.Add(time.Second).Unix(),
 		"test",
-		common.EventTypeWarning,
+		components.EventTypeWarning,
 		"{invalid_json", // Invalid JSON for ExtraInfo
 		"{invalid_json", // Invalid JSON for SuggestedActions
 	)
@@ -1219,10 +1218,10 @@ func TestLongEventFields(t *testing.T) {
 	event := components.Event{
 		Time:      metav1.Time{Time: time.Now().UTC()},
 		Name:      longString,
-		Type:      common.EventTypeWarning,
+		Type:      components.EventTypeWarning,
 		Message:   longString,
 		ExtraInfo: longMap,
-		SuggestedActions: &common.SuggestedActions{
+		SuggestedActions: &components.SuggestedActions{
 			Descriptions: []string{longString},
 		},
 	}
@@ -1299,12 +1298,12 @@ func TestEventTypeValidation(t *testing.T) {
 	defer bucket.Close()
 
 	// Test all valid event types
-	validTypes := []common.EventType{
-		common.EventTypeWarning,
-		common.EventTypeInfo,
-		common.EventTypeCritical,
-		common.EventTypeFatal,
-		common.EventTypeUnknown,
+	validTypes := []components.EventType{
+		components.EventTypeWarning,
+		components.EventTypeInfo,
+		components.EventTypeCritical,
+		components.EventTypeFatal,
+		components.EventTypeUnknown,
 	}
 
 	baseTime := time.Now().UTC()
@@ -1359,18 +1358,18 @@ func TestRetentionPurge(t *testing.T) {
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-15 * time.Second)},
 			Name:      "test",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "old_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"old event"},
 			},
 		},
 		{
 			Time:      metav1.Time{Time: baseTime.Add(-5 * time.Second)},
 			Name:      "test",
-			Type:      common.EventTypeWarning,
+			Type:      components.EventTypeWarning,
 			ExtraInfo: map[string]string{"id": "new_event"},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"new event"},
 			},
 		},
@@ -1417,36 +1416,36 @@ func TestLatest(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: baseTime.Add(-10 * time.Second)},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "old event",
 			ExtraInfo: map[string]string{
 				"id": "event1",
 			},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"old event action"},
 			},
 		},
 		{
 			Time:    metav1.Time{Time: baseTime},
 			Name:    "test",
-			Type:    common.EventTypeInfo,
+			Type:    components.EventTypeInfo,
 			Message: "latest event",
 			ExtraInfo: map[string]string{
 				"id": "event2",
 			},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"latest event action"},
 			},
 		},
 		{
 			Time:    metav1.Time{Time: baseTime.Add(-5 * time.Second)},
 			Name:    "test",
-			Type:    common.EventTypeCritical,
+			Type:    components.EventTypeCritical,
 			Message: "middle event",
 			ExtraInfo: map[string]string{
 				"id": "event3",
 			},
-			SuggestedActions: &common.SuggestedActions{
+			SuggestedActions: &components.SuggestedActions{
 				Descriptions: []string{"middle event action"},
 			},
 		},
@@ -1466,7 +1465,7 @@ func TestLatest(t *testing.T) {
 	// Verify it's the event with the most recent timestamp
 	assert.Equal(t, baseTime.Unix(), latestEvent.Time.Unix())
 	assert.Equal(t, "latest event", latestEvent.Message)
-	assert.Equal(t, common.EventTypeInfo, latestEvent.Type)
+	assert.Equal(t, components.EventTypeInfo, latestEvent.Type)
 	assert.Equal(t, "event2", latestEvent.ExtraInfo["id"])
 	assert.Equal(t, "latest event action", latestEvent.SuggestedActions.Descriptions[0])
 

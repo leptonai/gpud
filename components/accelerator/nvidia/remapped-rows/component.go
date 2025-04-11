@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -161,7 +160,7 @@ func (c *component) CheckOnce() {
 				components.Event{
 					Time:    metav1.Time{Time: d.ts},
 					Name:    "row_remapping_pending",
-					Type:    common.EventTypeWarning,
+					Type:    components.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected pending row remapping", uuid),
 					ExtraInfo: map[string]string{
 						"gpu_id":   uuid,
@@ -190,7 +189,7 @@ func (c *component) CheckOnce() {
 				components.Event{
 					Time:    metav1.Time{Time: d.ts},
 					Name:    "row_remapping_failed",
-					Type:    common.EventTypeWarning,
+					Type:    components.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected failed row remapping", uuid),
 					ExtraInfo: map[string]string{
 						"gpu_id":   uuid,

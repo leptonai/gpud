@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/log"
@@ -180,7 +179,7 @@ func (c *component) CheckOnce() {
 		ev := components.Event{
 			Time:    metav1.Time{Time: now.UTC()},
 			Name:    "fuse_connections",
-			Type:    common.EventTypeCritical,
+			Type:    components.EventTypeCritical,
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
 			ExtraInfo: map[string]string{
 				"data":     string(ib),

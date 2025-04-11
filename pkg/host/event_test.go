@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,7 @@ func TestRecordEvent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
 		assert.Equal(t, "reboot", events[0].Name)
-		assert.Equal(t, common.EventTypeWarning, events[0].Type)
+		assert.Equal(t, components.EventTypeWarning, events[0].Type)
 		assert.Equal(t, recentTime.Unix(), events[0].Time.Unix())
 	})
 
@@ -142,7 +141,7 @@ func TestGetEvents(t *testing.T) {
 		err = bucket.Insert(ctx, components.Event{
 			Time:    metav1.Time{Time: e.time},
 			Name:    e.name,
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: e.message,
 		})
 		require.NoError(t, err)
@@ -289,13 +288,13 @@ func TestOSEventStore(t *testing.T) {
 			{
 				Time:    metav1.Time{Time: now.Add(-2 * time.Hour)},
 				Name:    "reboot",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "test event 1",
 			},
 			{
 				Time:    metav1.Time{Time: now.Add(-1 * time.Hour)},
 				Name:    "reboot",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "test event 2",
 			},
 		}

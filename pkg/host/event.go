@@ -8,7 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -57,7 +56,7 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 	rebootEvent := components.Event{
 		Time:    metav1.Time{Time: bootTime},
 		Name:    "reboot",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: fmt.Sprintf("system reboot detected %v", bootTime),
 	}
 

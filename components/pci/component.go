@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -171,7 +170,7 @@ func (c *component) CheckOnce() {
 	d.err = c.eventBucket.Insert(cctx, components.Event{
 		Time:    metav1.Time{Time: nowUTC},
 		Name:    "acs_enabled",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", pkghost.VirtualizationEnv().Type, strings.Join(acsEnabledDevices, ", ")),
 	})
 	cancel()

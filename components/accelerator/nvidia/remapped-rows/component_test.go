@@ -16,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -179,13 +178,13 @@ func TestEvents(t *testing.T) {
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 				Name:    "test_event",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "Test event 1",
 			},
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
 				Name:    "test_event",
-				Type:    common.EventTypeInfo,
+				Type:    components.EventTypeInfo,
 				Message: "Test event 2",
 			},
 		},
@@ -327,7 +326,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Verify the pending event
 	require.NotNil(t, pendingEvent, "Expected 'row_remapping_pending' event to be generated")
-	assert.Equal(t, common.EventTypeWarning, pendingEvent.Type)
+	assert.Equal(t, components.EventTypeWarning, pendingEvent.Type)
 	assert.Contains(t, pendingEvent.Message, "GPU2")
 	assert.Contains(t, pendingEvent.Message, "pending row remapping")
 	assert.Equal(t, "GPU2", pendingEvent.ExtraInfo["gpu_id"])
@@ -335,7 +334,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Verify the failed event
 	require.NotNil(t, failedEvent, "Expected 'row_remapping_failed' event to be generated")
-	assert.Equal(t, common.EventTypeWarning, failedEvent.Type)
+	assert.Equal(t, components.EventTypeWarning, failedEvent.Type)
 	assert.Contains(t, failedEvent.Message, "GPU3")
 	assert.Contains(t, failedEvent.Message, "failed row remapping")
 	assert.Equal(t, "GPU3", failedEvent.ExtraInfo["gpu_id"])
@@ -450,13 +449,13 @@ func TestEventsWithDB(t *testing.T) {
 	testEvent1 := components.Event{
 		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 		Name:    "test_event",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "Test event 1",
 	}
 	testEvent2 := components.Event{
 		Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
 		Name:    "another_test_event",
-		Type:    common.EventTypeInfo,
+		Type:    components.EventTypeInfo,
 		Message: "Test event 2",
 	}
 

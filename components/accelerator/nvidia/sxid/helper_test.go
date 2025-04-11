@@ -9,16 +9,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 )
 
-func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
+func createSXidEvent(eventTime time.Time, sxid uint64, eventType components.EventType, suggestedAction components.RepairActionType) components.Event {
 	sxidErr := sxidErrorEventDetail{
 		SXid:       sxid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
-		SuggestedActionsByGPUd: &common.SuggestedActions{
-			RepairActions: []common.RepairActionType{suggestedAction},
+		SuggestedActionsByGPUd: &components.SuggestedActions{
+			RepairActions: []components.RepairActionType{suggestedAction},
 		},
 	}
 	sxidData, _ := json.Marshal(sxidErr)
@@ -43,7 +42,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("critical sxid", func(t *testing.T) {
 		events := []components.Event{
-			createSXidEvent(time.Time{}, 123, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 123, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
@@ -53,7 +52,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("fatal xid", func(t *testing.T) {
 		events := []components.Event{
-			createSXidEvent(time.Time{}, 456, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 456, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
@@ -64,7 +63,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("reboot recover", func(t *testing.T) {
 		events := []components.Event{
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 789, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
@@ -73,22 +72,22 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
 		events := []components.Event{
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 94, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 94, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
-			createSXidEvent(time.Time{}, 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 94, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 31, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, common.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, components.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
 	t.Run("SetHealthy", func(t *testing.T) {
 		events := []components.Event{
 			{Name: "SetHealthy"},
-			createSXidEvent(time.Time{}, 789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 789, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
@@ -100,7 +99,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		events := []components.Event{
 			{
 				Name:      EventNameErrorSXid,
-				Type:      common.EventTypeFatal,
+				Type:      components.EventTypeFatal,
 				ExtraInfo: map[string]string{EventKeyErrorSXidData: "invalid json"},
 			},
 		}
@@ -119,8 +118,8 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
 			SXid:       123,
-			SuggestedActionsByGPUd: &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem},
+			SuggestedActionsByGPUd: &components.SuggestedActions{
+				RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem},
 			},
 			CriticalErrorMarkedByGPUd: true,
 		}

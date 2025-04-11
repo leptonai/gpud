@@ -8,7 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
@@ -27,7 +26,7 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
-	var lastSuggestedAction *common.SuggestedActions
+	var lastSuggestedAction *components.SuggestedActions
 	var lastSXidErr *sxidErrorEventDetail
 	lastHealth := StateHealthy
 	sxidRebootMap := make(map[uint64]int)
@@ -44,9 +43,9 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 
 			currEvent := StateHealthy
 			switch resolvedEvent.Type {
-			case common.EventTypeCritical:
+			case components.EventTypeCritical:
 				currEvent = StateDegraded
-			case common.EventTypeFatal:
+			case components.EventTypeFatal:
 				currEvent = StateUnhealthy
 			}
 			if currEvent < lastHealth {
@@ -55,18 +54,18 @@ func EvolveHealthyState(events []components.Event) (ret components.State) {
 			lastHealth = currEvent
 			lastSXidErr = &currSXidErr
 			if currSXidErr.SuggestedActionsByGPUd != nil && len(currSXidErr.SuggestedActionsByGPUd.RepairActions) > 0 {
-				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == common.RepairActionTypeRebootSystem {
+				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == components.RepairActionTypeRebootSystem {
 					if count, ok := sxidRebootMap[currSXidErr.SXid]; !ok {
 						sxidRebootMap[currSXidErr.SXid] = 0
 					} else if count >= rebootThreshold {
-						currSXidErr.SuggestedActionsByGPUd.RepairActions[0] = common.RepairActionTypeHardwareInspection
+						currSXidErr.SuggestedActionsByGPUd.RepairActions[0] = components.RepairActionTypeHardwareInspection
 					}
 				}
 				lastSXidErr.SuggestedActionsByGPUd.RepairActions = lastSXidErr.SuggestedActionsByGPUd.RepairActions[:1]
 				lastSuggestedAction = currSXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
-			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == common.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == common.RepairActionTypeCheckUserAppAndGPU) {
+			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == components.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == components.RepairActionTypeCheckUserAppAndGPU) {
 				lastHealth = StateHealthy
 				lastSuggestedAction = nil
 				lastSXidErr = nil
@@ -157,7 +156,7 @@ type sxidErrorEventDetail struct {
 	SXid uint64 `json:"sxid"`
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
-	SuggestedActionsByGPUd *common.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+	SuggestedActionsByGPUd *components.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`

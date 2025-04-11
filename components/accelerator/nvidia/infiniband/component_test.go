@@ -13,8 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
-	configcommon "github.com/leptonai/gpud/pkg/config/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
@@ -276,7 +275,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 		rootCtx:     ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
-		toolOverwrites: configcommon.ToolOverwrites{
+		toolOverwrites: nvidia_common.ToolOverwrites{
 			IbstatCommand: "cat " + filepath.Join("testdata", "ibstat.47.0.h100.all.active.1"),
 		},
 	}
@@ -317,7 +316,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	assert.Equal(t, components.StateUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "only 8 ports (>= 400 Gb/s) are active, expect at least 12")
 	assert.NotNil(t, state.SuggestedActions)
-	assert.Equal(t, []common.RepairActionType{common.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
+	assert.Equal(t, []components.RepairActionType{components.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
 }
 
 func TestComponentGetStatesWithThresholds(t *testing.T) {
@@ -434,7 +433,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 				rootCtx:     ctx,
 				cancel:      cancel,
 				eventBucket: bucket,
-				toolOverwrites: configcommon.ToolOverwrites{
+				toolOverwrites: nvidia_common.ToolOverwrites{
 					IbstatCommand: tc.ibstatCommand,
 				},
 			}
@@ -485,7 +484,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 		rootCtx:        ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
-		toolOverwrites: configcommon.ToolOverwrites{},
+		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
 	now := time.Now().UTC()
@@ -559,7 +558,7 @@ func TestGetStates(t *testing.T) {
 		rootCtx:        ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
-		toolOverwrites: configcommon.ToolOverwrites{},
+		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
 	now := time.Now().UTC()
@@ -589,15 +588,15 @@ func TestGetStates(t *testing.T) {
 	testEvent := components.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    "ibstat",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "test message",
 		ExtraInfo: map[string]string{
 			"state_healthy": "false",
 			"state_health":  components.StateUnhealthy,
 		},
-		SuggestedActions: &common.SuggestedActions{
-			RepairActions: []common.RepairActionType{
-				common.RepairActionTypeHardwareInspection,
+		SuggestedActions: &components.SuggestedActions{
+			RepairActions: []components.RepairActionType{
+				components.RepairActionTypeHardwareInspection,
 			},
 			Descriptions: []string{
 				"test action",
@@ -630,7 +629,7 @@ func TestGetStates(t *testing.T) {
 	recentEvent := components.Event{
 		Time:    metav1.Time{Time: now.Add(-5 * time.Second)},
 		Name:    "ibstat",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "recent test message",
 		ExtraInfo: map[string]string{
 			"state_healthy": "false",
@@ -657,7 +656,7 @@ func TestGetStates(t *testing.T) {
 		rootCtx:        canceledCtx,
 		cancel:         func() {}, // Empty cancel func since we already canceled
 		eventBucket:    bucket,
-		toolOverwrites: configcommon.ToolOverwrites{},
+		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
 	_, err = cNew.getStates(canceledCtx, now, infiniband.ExpectedPortStates{
@@ -712,7 +711,7 @@ func TestEvents(t *testing.T) {
 		rootCtx:     ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
-		toolOverwrites: configcommon.ToolOverwrites{
+		toolOverwrites: nvidia_common.ToolOverwrites{
 			IbstatCommand: "cat testdata/ibstat.47.0.h100.all.active.1",
 		},
 	}
@@ -728,7 +727,7 @@ func TestEvents(t *testing.T) {
 	testEvent := components.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    "ibstat",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "test message",
 	}
 	err = c.eventBucket.Insert(ctx, testEvent)
@@ -968,7 +967,7 @@ func TestLogLineProcessor(t *testing.T) {
 			event := components.Event{
 				Time:      metav1.Time{Time: now},
 				Name:      eventName,
-				Type:      common.EventTypeWarning,
+				Type:      components.EventTypeWarning,
 				Message:   eventMessage,
 				ExtraInfo: map[string]string{"log_line": tt.logLine},
 			}
@@ -988,7 +987,7 @@ func TestLogLineProcessor(t *testing.T) {
 	require.Len(t, events, matchingTests)
 
 	for _, event := range events {
-		assert.Equal(t, common.EventTypeWarning, event.Type)
+		assert.Equal(t, components.EventTypeWarning, event.Type)
 		assert.NotEmpty(t, event.Name)
 		assert.NotEmpty(t, event.Message)
 		assert.Contains(t, event.ExtraInfo, "log_line")
@@ -1009,7 +1008,7 @@ func TestNewWithLogLineProcessor(t *testing.T) {
 	defer cancel()
 
 	// Test successful creation
-	comp, err := New(ctx, store, configcommon.ToolOverwrites{})
+	comp, err := New(ctx, store, nvidia_common.ToolOverwrites{})
 	require.NoError(t, err)
 	defer comp.Close()
 
@@ -1045,7 +1044,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	event := components.Event{
 		Time:    metav1.Time{Time: now},
 		Name:    eventName,
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: eventMessage,
 		ExtraInfo: map[string]string{
 			"log_line": logLine,
@@ -1073,7 +1072,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	olderEvent := components.Event{
 		Time:    metav1.Time{Time: now.Add(-1 * time.Minute)},
 		Name:    "port_module_high_temperature",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: "Overheated MLX5 adapter",
 		ExtraInfo: map[string]string{
 			"log_line": "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",

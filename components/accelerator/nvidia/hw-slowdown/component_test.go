@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -309,7 +308,7 @@ func TestComponentStates(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
@@ -394,7 +393,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				event := components.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
+					Type:    components.EventTypeWarning,
 					Message: "HW Slowdown detected",
 					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
@@ -414,7 +413,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				event := components.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
+					Type:    components.EventTypeWarning,
 					Message: "HW Slowdown detected",
 					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
@@ -547,7 +546,7 @@ func TestComponentEvents(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
@@ -556,7 +555,7 @@ func TestComponentEvents(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-1",
@@ -700,7 +699,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		event := components.Event{
 			Time:    metav1.Time{Time: eventTime},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",

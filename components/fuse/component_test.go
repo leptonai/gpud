@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -299,7 +298,7 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 		if event.Name == "fuse_connections" {
 			foundEvent = true
 			// Verify the event details
-			assert.Equal(t, common.EventTypeCritical, event.Type)
+			assert.Equal(t, components.EventTypeCritical, event.Type)
 			assert.Contains(t, event.Message, "congested percent")
 			assert.Contains(t, event.Message, "max background percent")
 

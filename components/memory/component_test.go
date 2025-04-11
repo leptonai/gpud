@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -163,7 +162,7 @@ func TestComponentEvents(t *testing.T) {
 		{
 			Time:    testTime,
 			Name:    Name,
-			Type:    common.EventType("test"),
+			Type:    components.EventType("test"),
 			Message: "Test event",
 		},
 	}

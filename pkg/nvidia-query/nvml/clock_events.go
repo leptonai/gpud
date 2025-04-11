@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/log"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
@@ -133,7 +132,7 @@ func (evs *ClockEvents) Event() *components.Event {
 	return &components.Event{
 		Time:    evs.Time,
 		Name:    "hw_slowdown",
-		Type:    common.EventTypeWarning,
+		Type:    components.EventTypeWarning,
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
 		ExtraInfo: map[string]string{
 			"data_source": "nvml",

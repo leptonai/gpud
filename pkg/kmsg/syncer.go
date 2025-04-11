@@ -7,7 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -71,7 +70,7 @@ func (w *Syncer) sync(ch <-chan Message) {
 				Time:    metav1.Time{Time: kmsg.Timestamp.UTC()},
 				Name:    name,
 				Message: message,
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 			}
 
 			// lookup to prevent duplicate event insertions

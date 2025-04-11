@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
 
 	"github.com/dustin/go-humanize"
@@ -46,14 +45,14 @@ func TestSimulatedEvents(t *testing.T) {
 		ev := components.Event{
 			Time:    metav1.Time{Time: now.Add(time.Duration(i) * time.Minute)},
 			Name:    "test",
-			Type:    common.EventTypeWarning,
+			Type:    components.EventTypeWarning,
 			Message: "Test message with normal text",
 			ExtraInfo: map[string]string{
 				"a": fmt.Sprintf("%d", i),
 			},
-			SuggestedActions: &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{
-					common.RepairActionTypeIgnoreNoActionRequired,
+			SuggestedActions: &components.SuggestedActions{
+				RepairActions: []components.RepairActionType{
+					components.RepairActionTypeIgnoreNoActionRequired,
 				},
 			},
 		}

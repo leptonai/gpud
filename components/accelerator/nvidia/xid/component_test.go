@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -25,8 +24,8 @@ func createTestEvent(timestamp time.Time) components.Event {
 		ExtraInfo: map[string]string{
 			"key": "value",
 		},
-		SuggestedActions: &common.SuggestedActions{
-			RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem},
+		SuggestedActions: &components.SuggestedActions{
+			RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem},
 		},
 	}
 }
@@ -233,22 +232,22 @@ func TestXIDComponent_States(t *testing.T) {
 		{
 			name: "critical xid happened and reboot recovered",
 			events: []components.Event{
-				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
-				createXidEvent(startTime, 31, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
-				createXidEvent(startTime.Add(5*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, components.EventTypeFatal, components.RepairActionTypeRebootSystem),
+				createXidEvent(startTime, 31, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(5*time.Minute), 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(10 * time.Minute)}},
-				createXidEvent(startTime.Add(15*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(15*time.Minute), 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(20 * time.Minute)}},
-				createXidEvent(startTime.Add(25*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(25*time.Minute), 94, components.EventTypeCritical, components.RepairActionTypeRebootSystem),
 			},
 			wantState: []components.State{
 				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
+				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &components.SuggestedActions{RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem}}},
+				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &components.SuggestedActions{RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem}}},
 				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
+				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &components.SuggestedActions{RepairActions: []components.RepairActionType{components.RepairActionTypeRebootSystem}}},
 				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeHardwareInspection}}},
+				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &components.SuggestedActions{RepairActions: []components.RepairActionType{components.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}

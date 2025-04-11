@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -172,7 +171,7 @@ func TestComponent(t *testing.T) {
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "Test reboot event",
 			},
 		},
@@ -213,7 +212,7 @@ func TestComponent(t *testing.T) {
 
 		// Verify our test event
 		assert.Equal(t, "reboot", events[0].Name)
-		assert.Equal(t, common.EventTypeWarning, events[0].Type)
+		assert.Equal(t, components.EventTypeWarning, events[0].Type)
 		assert.Equal(t, "Test reboot event", events[0].Message)
 	})
 
@@ -345,7 +344,7 @@ func TestMockRebootEventStore(t *testing.T) {
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
-				Type:    common.EventTypeWarning,
+				Type:    components.EventTypeWarning,
 				Message: "Test reboot event",
 			},
 		},
@@ -362,7 +361,7 @@ func TestMockRebootEventStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, events, 1)
 	assert.Equal(t, "reboot", events[0].Name)
-	assert.Equal(t, common.EventTypeWarning, events[0].Type)
+	assert.Equal(t, components.EventTypeWarning, events[0].Type)
 	assert.Equal(t, "Test reboot event", events[0].Message)
 }
 

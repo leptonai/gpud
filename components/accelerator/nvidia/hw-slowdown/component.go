@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -226,9 +225,9 @@ func (c *component) CheckOnce() {
 	// hw slowdown events happened and beyond its threshold
 	d.healthy = false
 	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-	d.suggestedActions = &common.SuggestedActions{
-		RepairActions: []common.RepairActionType{
-			common.RepairActionTypeHardwareInspection,
+	d.suggestedActions = &components.SuggestedActions{
+		RepairActions: []components.RepairActionType{
+			components.RepairActionTypeHardwareInspection,
 		},
 		Descriptions: []string{
 			"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
@@ -249,7 +248,7 @@ type Data struct {
 	// tracks the reason of the last check
 	reason string
 	// tracks the suggested actions of the last check
-	suggestedActions *common.SuggestedActions
+	suggestedActions *components.SuggestedActions
 }
 
 func (d *Data) getError() string {

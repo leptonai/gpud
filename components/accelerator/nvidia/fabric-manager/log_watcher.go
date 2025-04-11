@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -56,7 +55,7 @@ func (llp *logLineProcessor) watch() {
 
 			ev := components.Event{
 				Time: metav1.Time{Time: line.ts.UTC()},
-				Type: common.EventTypeWarning,
+				Type: components.EventTypeWarning,
 				ExtraInfo: map[string]string{
 					"log_line": line.content,
 				},

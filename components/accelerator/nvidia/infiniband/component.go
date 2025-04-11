@@ -12,8 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
-	configcommon "github.com/leptonai/gpud/pkg/config/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -31,14 +30,14 @@ type component struct {
 	cancel         context.CancelFunc
 	eventBucket    eventstore.Bucket
 	kmsgSyncer     *kmsg.Syncer
-	toolOverwrites configcommon.ToolOverwrites
+	toolOverwrites nvidia_common.ToolOverwrites
 
 	lastEventMu        sync.Mutex
 	lastEvent          *components.Event
 	lastEventThreshold infiniband.ExpectedPortStates
 }
 
-func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites configcommon.ToolOverwrites) (components.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
@@ -153,7 +152,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	ev := components.Event{
 		Time:    metav1.Time{Time: ts},
 		Name:    "ibstat",
-		Type:    common.EventTypeInfo,
+		Type:    components.EventTypeInfo,
 		Message: "",
 		ExtraInfo: map[string]string{
 			"state_healthy": "true",
@@ -179,7 +178,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	ccancel()
 
 	if err != nil {
-		ev.Type = common.EventTypeWarning
+		ev.Type = components.EventTypeWarning
 		ev.ExtraInfo["state_healthy"] = "false"
 		ev.ExtraInfo["state_health"] = components.StateUnhealthy
 
@@ -198,17 +197,17 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 		ev.Message = reason
 
 		if healthy {
-			ev.Type = common.EventTypeInfo
+			ev.Type = components.EventTypeInfo
 			ev.ExtraInfo["state_healthy"] = "true"
 			ev.ExtraInfo["state_health"] = components.StateHealthy
 		} else {
-			ev.Type = common.EventTypeWarning
+			ev.Type = components.EventTypeWarning
 			ev.ExtraInfo["state_healthy"] = "false"
 			ev.ExtraInfo["state_health"] = components.StateUnhealthy
 
-			ev.SuggestedActions = &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{
-					common.RepairActionTypeHardwareInspection,
+			ev.SuggestedActions = &components.SuggestedActions{
+				RepairActions: []components.RepairActionType{
+					components.RepairActionTypeHardwareInspection,
 				},
 				Descriptions: []string{
 					"potential infiniband switch/hardware issue needs immediate attention",
@@ -223,7 +222,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	c.lastEventThreshold = thresholds
 
 	// we only care about unhealthy events
-	if ev.Type == common.EventTypeInfo {
+	if ev.Type == components.EventTypeInfo {
 		return c.lastEvent, nil
 	}
 
