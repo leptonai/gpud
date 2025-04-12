@@ -9,13 +9,14 @@ import (
 	"sort"
 	"time"
 
-	pkg_file "github.com/leptonai/gpud/pkg/file"
-	"github.com/leptonai/gpud/pkg/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+
+	pkg_file "github.com/leptonai/gpud/pkg/file"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 const (
@@ -200,7 +201,7 @@ func checkContainerdRunning(ctx context.Context) bool {
 	return false
 }
 
-func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+func listAllSandboxes(ctx context.Context, endpoint string) ([]PodSandbox, error) {
 	conn, err := connect(ctx, endpoint)
 	if err != nil {
 		return nil, err
@@ -212,18 +213,34 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 		return nil, err
 	}
 
-	podSandboxResp, err := client.ListPodSandbox(
-		ctx,
-		&runtimeapi.ListPodSandboxRequest{
-			Filter: &runtimeapi.PodSandboxFilter{},
-		},
-	)
+	listPodSandboxResp, err := client.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
+		Filter: &runtimeapi.PodSandboxFilter{},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	podSandboxes := make(map[string]PodSandbox, len(podSandboxResp.Items))
-	for _, podSandbox := range podSandboxResp.Items {
+	listContainersResp, err := client.ListContainers(ctx, &runtimeapi.ListContainersRequest{
+		Filter: &runtimeapi.ContainerFilter{},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToPodSandboxes(listPodSandboxResp, listContainersResp), nil
+}
+
+func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse, listContainersResp *runtimeapi.ListContainersResponse) []PodSandbox {
+	if listPodSandboxResp == nil || listContainersResp == nil {
+		return nil
+	}
+
+	podSandboxes := make(map[string]PodSandbox, len(listPodSandboxResp.Items))
+	for _, podSandbox := range listPodSandboxResp.Items {
+		if podSandbox.Metadata == nil {
+			continue
+		}
+
 		podSandboxes[podSandbox.Id] = PodSandbox{
 			ID:        podSandbox.Id,
 			Name:      podSandbox.Metadata.Name,
@@ -233,18 +250,8 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 			// to be filled in later
 			Containers: nil,
 		}
-	}
 
-	listContainersResp, err := client.ListContainers(
-		ctx,
-		&runtimeapi.ListContainersRequest{
-			Filter: &runtimeapi.ContainerFilter{},
-		},
-	)
-	if err != nil {
-		return nil, err
 	}
-
 	for _, container := range listContainersResp.Containers {
 		podSandboxID := container.PodSandboxId
 		podSandbox, ok := podSandboxes[podSandboxID]
@@ -279,7 +286,7 @@ func listSandboxStatus(ctx context.Context, endpoint string) ([]PodSandbox, erro
 		}
 		return pods[i].Namespace < pods[j].Namespace
 	})
-	return pods, nil
+	return pods
 }
 
 // PodSandbox represents the pod information fetched from the local container runtime.
