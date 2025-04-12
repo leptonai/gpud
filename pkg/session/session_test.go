@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -119,6 +120,10 @@ func TestStop(t *testing.T) {
 
 func TestStartWriterAndReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		switch r.Header.Get("session_type") {
 		case "write":
 			var body Body
@@ -232,7 +237,8 @@ func TestReaderWriterServerError(t *testing.T) {
 	defer localCancel()
 	// start reader
 	readerExit := make(chan any)
-	go s.startReader(localCtx, readerExit)
+	jar, _ := cookiejar.New(nil)
+	go s.startReader(localCtx, readerExit, jar)
 
 	select {
 	case <-readerExit:
@@ -241,7 +247,7 @@ func TestReaderWriterServerError(t *testing.T) {
 	}
 	// start writer
 	writerExit := make(chan any)
-	go s.startWriter(localCtx, writerExit)
+	go s.startWriter(localCtx, writerExit, jar)
 
 	select {
 	case <-writerExit:
@@ -259,7 +265,8 @@ func TestReaderWriterServerError(t *testing.T) {
 }
 
 func TestCreateHTTPClient(t *testing.T) {
-	client := createHTTPClient()
+	jar, _ := cookiejar.New(nil)
+	client := createHTTPClient(jar)
 	if client == nil {
 		t.Fatal("Expected non-nil HTTP client")
 	}

@@ -27,7 +27,7 @@ type GossipErrorResponse struct {
 }
 
 func createGossipURL(endpoint string) string {
-	return fmt.Sprintf("https://%s/api/v1/gossip", endpoint)
+	return fmt.Sprintf("%s/api/v1/gossip", endpoint)
 }
 
 func SendGossip(uid string, endpoint string, components []string) error {

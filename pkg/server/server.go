@@ -648,7 +648,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		var err error
 		s.session, err = session.NewSession(
 			ctx,
-			fmt.Sprintf("https://%s/api/v1/session", endpoint),
+			endpoint,
 			session.WithMachineID(uid),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
@@ -694,7 +694,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			}
 			s.session, err = session.NewSession(
 				ctx,
-				fmt.Sprintf("https://%s/api/v1/session", endpoint),
+				endpoint,
 				session.WithMachineID(uid),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),

@@ -20,7 +20,7 @@ func Login(name string, token string, endpoint string, components string, uid st
 }
 
 func createLoginURL(endpoint string) string {
-	return fmt.Sprintf("https://%s/api/v1/login", endpoint)
+	return fmt.Sprintf("%s/api/v1/login", endpoint)
 }
 
 type LoginRequest struct {
