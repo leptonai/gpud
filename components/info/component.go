@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
@@ -28,7 +29,7 @@ import (
 
 const Name = "info"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -42,7 +43,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(annotations map[string]string, dbRO *sql.DB) apiv1.Component {
+func New(annotations map[string]string, dbRO *sql.DB) components.Component {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &component{
 		ctx:         ctx,

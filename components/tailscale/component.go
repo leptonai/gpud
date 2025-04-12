@@ -9,6 +9,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -16,7 +17,7 @@ import (
 // Name is the ID of the tailscale component.
 const Name = "tailscale"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -29,7 +30,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context) apiv1.Component {
+func New(ctx context.Context) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
 		ctx:                      cctx,

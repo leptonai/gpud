@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -56,7 +57,7 @@ func MockGSPFirmwareModeComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
 	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error),
-) apiv1.Component {
+) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
 	mockInstance := &MockNvmlInstance{

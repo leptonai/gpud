@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -20,7 +21,7 @@ import (
 // Name is the ID of the disk component.
 const Name = "disk"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -36,7 +37,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, mountPoints []string, mountTargets []string) apiv1.Component {
+func New(ctx context.Context, mountPoints []string, mountTargets []string) components.Component {
 	mountPointsToTrackUsage := make(map[string]struct{})
 	for _, mp := range mountPoints {
 		mountPointsToTrackUsage[mp] = struct{}{}

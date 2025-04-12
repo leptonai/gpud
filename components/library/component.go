@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -17,7 +18,7 @@ import (
 // Name is the name of the library component.
 const Name = "library"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	libraries   map[string][]string
@@ -31,7 +32,7 @@ type Config struct {
 	SearchDirs []string
 }
 
-func New(cfg Config) apiv1.Component {
+func New(cfg Config) components.Component {
 	searchDirs := make(map[string]any)
 	for _, dir := range cfg.SearchDirs {
 		searchDirs[dir] = struct{}{}

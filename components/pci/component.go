@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -22,7 +23,7 @@ import (
 // Name is the name of the PCI ID component.
 const Name = "pci"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -37,7 +38,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (apiv1.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

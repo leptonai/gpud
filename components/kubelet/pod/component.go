@@ -9,6 +9,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 )
@@ -20,7 +21,7 @@ const (
 	defaultFailedCountThreshold = 5
 )
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -37,7 +38,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, kubeletReadOnlyPort int) apiv1.Component {
+func New(ctx context.Context, kubeletReadOnlyPort int) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
 		ctx:                      cctx,

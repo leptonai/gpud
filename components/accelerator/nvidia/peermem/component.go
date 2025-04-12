@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -18,7 +19,7 @@ import (
 
 const Name = "accelerator-nvidia-peermem"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -31,7 +32,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (apiv1.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

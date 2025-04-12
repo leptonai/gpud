@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -34,7 +35,7 @@ const (
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
-var _ apiv1.Component = &SXIDComponent{}
+var _ components.Component = &SXIDComponent{}
 
 type SXIDComponent struct {
 	rootCtx          context.Context
@@ -199,7 +200,7 @@ func (c *SXIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Dura
 	}
 }
 
-var _ apiv1.HealthSettable = &SXIDComponent{}
+var _ components.HealthSettable = &SXIDComponent{}
 
 func (c *SXIDComponent) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")

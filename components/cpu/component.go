@@ -13,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/v4/load"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -23,7 +24,7 @@ import (
 // Name is the ID of the CPU component.
 const Name = "cpu"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -46,7 +47,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (apiv1.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

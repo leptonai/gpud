@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	gpudcomponents "github.com/leptonai/gpud/components"
 	gpudconfig "github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
@@ -24,7 +24,7 @@ import (
 
 type globalHandler struct {
 	cfg        *gpudconfig.Config
-	components map[string]apiv1.Component
+	components map[string]components.Component
 
 	componentNamesMu sync.RWMutex
 	componentNames   []string
@@ -32,7 +32,7 @@ type globalHandler struct {
 	metricsStore pkgmetrics.Store
 }
 
-func newGlobalHandler(cfg *gpudconfig.Config, components map[string]apiv1.Component, metricsStore pkgmetrics.Store) *globalHandler {
+func newGlobalHandler(cfg *gpudconfig.Config, components map[string]components.Component, metricsStore pkgmetrics.Store) *globalHandler {
 	var componentNames []string
 	for name := range components {
 		componentNames = append(componentNames, name)

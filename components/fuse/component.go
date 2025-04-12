@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/log"
@@ -26,7 +27,7 @@ const (
 	DefaultMaxBackgroundPercentAgainstThreshold = float64(80)
 )
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -52,7 +53,7 @@ type component struct {
 //
 // MaxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
 // at which we consider the system to be congested.
-func New(ctx context.Context, congestedPercentAgainstThreshold float64, maxBackgroundPercentAgainstThreshold float64, eventStore eventstore.Store) (apiv1.Component, error) {
+func New(ctx context.Context, congestedPercentAgainstThreshold float64, maxBackgroundPercentAgainstThreshold float64, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

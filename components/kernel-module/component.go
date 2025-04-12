@@ -10,13 +10,14 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 // Name is the name of the kernel module component.
 const Name = "kernel-module"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	getAllModulesFunc func() ([]string, error)
@@ -26,7 +27,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(modulesToCheck []string) apiv1.Component {
+func New(modulesToCheck []string) components.Component {
 	return &component{
 		getAllModulesFunc: getAllModules,
 		modulesToCheck:    modulesToCheck,

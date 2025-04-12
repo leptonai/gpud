@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -61,7 +62,7 @@ func MockECCComponent(
 	devicesFunc func() map[string]device.Device,
 	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error),
 	getECCErrorsFunc func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error),
-) apiv1.Component {
+) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
 	mockInstance := &MockNvmlInstance{

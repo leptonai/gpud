@@ -28,7 +28,6 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
@@ -202,7 +201,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	allComponents := make([]apiv1.Component, 0)
+	allComponents := make([]components.Component, 0)
 	if _, ok := config.Components[os.Name]; !ok {
 		allComponents = append(allComponents, os.New(ctx, rebootEventStore))
 	}

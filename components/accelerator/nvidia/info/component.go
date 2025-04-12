@@ -11,6 +11,7 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -19,7 +20,7 @@ import (
 
 const Name = "accelerator-nvidia-info"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -38,7 +39,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) apiv1.Component {
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:    cctx,

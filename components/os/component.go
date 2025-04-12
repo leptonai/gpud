@@ -13,6 +13,7 @@ import (
 	procs "github.com/shirou/gopsutil/v4/process"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -22,7 +23,7 @@ import (
 // Name is the ID of the OS component.
 const Name = "os"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -36,7 +37,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore) apiv1.Component {
+func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:    cctx,

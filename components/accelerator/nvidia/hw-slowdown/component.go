@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -31,7 +32,7 @@ const (
 	DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute = 0.6
 )
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -49,7 +50,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (apiv1.Component, error) {
+func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

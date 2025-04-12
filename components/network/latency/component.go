@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
@@ -27,7 +28,7 @@ const (
 	DefaultGlobalMillisecondThreshold = 7000
 )
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -44,7 +45,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context) apiv1.Component {
+func New(ctx context.Context) components.Component {
 	cctx, ccancel := context.WithCancel(ctx)
 	return &component{
 		ctx:    cctx,

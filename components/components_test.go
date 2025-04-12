@@ -84,7 +84,7 @@ func TestGetComponentErrors(t *testing.T) {
 	}
 
 	// Test component not found error
-	_, err = getComponent(map[string]apiv1.Component{}, "nvidia")
+	_, err = getComponent(map[string]Component{}, "nvidia")
 	if !errors.Is(err, errdefs.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -105,7 +105,7 @@ func TestGetComponentErrors(t *testing.T) {
 func TestGetComponent(t *testing.T) {
 	// Create test components
 	testComp := newMockComponent("test")
-	set := map[string]apiv1.Component{
+	set := map[string]Component{
 		"test": testComp,
 	}
 
@@ -130,7 +130,7 @@ func TestGetComponent(t *testing.T) {
 
 func TestRegisterComponent(t *testing.T) {
 	// Test with nil set
-	nilSet := map[string]apiv1.Component(nil)
+	nilSet := map[string]Component(nil)
 	err := registerComponent(nilSet, newMockComponent("test"))
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errdefs.ErrUnavailable)
@@ -144,7 +144,7 @@ func TestRegisterComponent(t *testing.T) {
 	assert.Equal(t, errdefs.ErrUnavailable, unwrapped)
 
 	// Test with empty set
-	set := map[string]apiv1.Component{}
+	set := map[string]Component{}
 	testComp := newMockComponent("test")
 	err = registerComponent(set, testComp)
 	assert.NoError(t, err)
@@ -166,7 +166,7 @@ func TestRegisterComponent(t *testing.T) {
 
 func TestGetAllComponents(t *testing.T) {
 	// Setup custom map
-	customSet := map[string]apiv1.Component{
+	customSet := map[string]Component{
 		"comp1": newMockComponent("comp1"),
 		"comp2": newMockComponent("comp2"),
 	}
@@ -180,7 +180,7 @@ func TestGetAllComponents(t *testing.T) {
 func TestGlobalFunctions(t *testing.T) {
 	// Clear defaultSet before testing
 	defaultSetMu.Lock()
-	defaultSet = make(map[string]apiv1.Component)
+	defaultSet = make(map[string]Component)
 	defaultSetMu.Unlock()
 
 	// Test GetAllComponents with empty set
@@ -228,6 +228,6 @@ func TestGlobalFunctions(t *testing.T) {
 
 	// Clean up
 	defaultSetMu.Lock()
-	defaultSet = make(map[string]apiv1.Component)
+	defaultSet = make(map[string]Component)
 	defaultSetMu.Unlock()
 }

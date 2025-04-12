@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -23,7 +24,7 @@ const (
 	Name = "accelerator-nvidia-infiniband"
 )
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	rootCtx        context.Context
@@ -37,7 +38,7 @@ type component struct {
 	lastEventThreshold infiniband.ExpectedPortStates
 }
 
-func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (apiv1.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

@@ -6,32 +6,31 @@ import (
 	"maps"
 	"sync"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/errdefs"
 )
 
 var (
 	defaultSetMu sync.RWMutex
-	defaultSet   = make(map[string]apiv1.Component)
+	defaultSet   = make(map[string]Component)
 )
 
 // GetAllComponents returns all the components in the default set.
-func GetAllComponents() map[string]apiv1.Component {
+func GetAllComponents() map[string]Component {
 	defaultSetMu.RLock()
 	defer defaultSetMu.RUnlock()
 	return getAllComponents(defaultSet)
 }
 
 // getAllComponents returns the copy of references to the components in the default set.
-func getAllComponents(existing map[string]apiv1.Component) map[string]apiv1.Component {
-	copied := make(map[string]apiv1.Component)
+func getAllComponents(existing map[string]Component) map[string]Component {
+	copied := make(map[string]Component)
 	maps.Copy(copied, existing)
 	return copied
 }
 
 // GetComponent gets a component from the default set.
 // It returns an error if the component is not found.
-func GetComponent(name string) (apiv1.Component, error) {
+func GetComponent(name string) (Component, error) {
 	defaultSetMu.RLock()
 	defer defaultSetMu.RUnlock()
 
@@ -40,7 +39,7 @@ func GetComponent(name string) (apiv1.Component, error) {
 
 // getComponent gets a component from the default set.
 // It returns an error if the component is not found.
-func getComponent(set map[string]apiv1.Component, name string) (apiv1.Component, error) {
+func getComponent(set map[string]Component, name string) (Component, error) {
 	v, ok := set[name]
 	if !ok {
 		return nil, fmt.Errorf("component %s not found: %w", name, errdefs.ErrNotFound)
@@ -50,7 +49,7 @@ func getComponent(set map[string]apiv1.Component, name string) (apiv1.Component,
 
 // RegisterComponent registers a component in the default set.
 // It returns an error if the component is already registered.
-func RegisterComponent(name string, comp apiv1.Component) error {
+func RegisterComponent(name string, comp Component) error {
 	defaultSetMu.Lock()
 	defer defaultSetMu.Unlock()
 
@@ -59,7 +58,7 @@ func RegisterComponent(name string, comp apiv1.Component) error {
 
 // registerComponent registers a component in the default set.
 // It returns an error if the component is already registered.
-func registerComponent(set map[string]apiv1.Component, comp apiv1.Component) error {
+func registerComponent(set map[string]Component, comp Component) error {
 	if set == nil {
 		return fmt.Errorf("component set not initialized: %w", errdefs.ErrUnavailable)
 	}

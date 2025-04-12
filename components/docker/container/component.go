@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -17,7 +18,7 @@ import (
 // Name is the ID of the Docker container component.
 const Name = "docker-container"
 
-var _ apiv1.Component = &component{}
+var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
@@ -36,7 +37,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, ignoreConnectionErrors bool) apiv1.Component {
+func New(ctx context.Context, ignoreConnectionErrors bool) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
 		ctx:    cctx,

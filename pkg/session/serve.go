@@ -102,7 +102,7 @@ func (s *Session) serve() {
 					log.Logger.Errorw("failed to get component", "error", err)
 					continue
 				}
-				if healthSettable, ok := comp.(apiv1.HealthSettable); ok {
+				if healthSettable, ok := comp.(components.HealthSettable); ok {
 					if err := healthSettable.SetHealthy(); err != nil {
 						log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
 					}
