@@ -15,8 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 
-	v1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/server"
 )
@@ -154,13 +153,13 @@ func TestGetComponents(t *testing.T) {
 
 func TestGetInfo(t *testing.T) {
 	now := time.Now().UTC()
-	testInfo := v1.LeptonInfo{
+	testInfo := apiv1.LeptonInfo{
 		{
 			Component: "component1",
 			StartTime: now,
 			EndTime:   now.Add(time.Hour),
-			Info: components.Info{
-				States: []components.State{
+			Info: apiv1.Info{
+				States: []apiv1.State{
 					{
 						Name:      "test",
 						ExtraInfo: map[string]string{"key": "value"},
@@ -178,7 +177,7 @@ func TestGetInfo(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult v1.LeptonInfo
+		expectedResult apiv1.LeptonInfo
 		useGzip        bool
 	}{
 		{
@@ -274,10 +273,10 @@ func TestGetInfo(t *testing.T) {
 }
 
 func TestGetStates(t *testing.T) {
-	testStates := v1.LeptonStates{
+	testStates := apiv1.LeptonStates{
 		{
 			Component: "component1",
-			States: []components.State{
+			States: []apiv1.State{
 				{
 					Name:      "test",
 					ExtraInfo: map[string]string{"state": "running"},
@@ -294,7 +293,7 @@ func TestGetStates(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult v1.LeptonStates
+		expectedResult apiv1.LeptonStates
 		useGzip        bool
 	}{
 		{

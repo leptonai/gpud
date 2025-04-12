@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	pkghost "github.com/leptonai/gpud/pkg/host"
@@ -41,9 +41,9 @@ type Response struct {
 	// don't use "error" type as it doesn't marshal/unmarshal well
 	Error string `json:"error,omitempty"`
 
-	States  v1.LeptonStates  `json:"states,omitempty"`
-	Events  v1.LeptonEvents  `json:"events,omitempty"`
-	Metrics v1.LeptonMetrics `json:"metrics,omitempty"`
+	States  apiv1.LeptonStates  `json:"states,omitempty"`
+	Events  apiv1.LeptonEvents  `json:"events,omitempty"`
+	Metrics apiv1.LeptonMetrics `json:"metrics,omitempty"`
 }
 
 func (s *Session) serve() {
@@ -217,7 +217,7 @@ func createNeedDeleteFiles(rootPath string) error {
 	})
 }
 
-func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEvents, error) {
+func (s *Session) getEvents(ctx context.Context, payload Request) (apiv1.LeptonEvents, error) {
 	if payload.Method != "events" {
 		return nil, errors.New("mismatch method")
 	}
@@ -233,7 +233,7 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 	if !payload.EndTime.IsZero() {
 		endTime = payload.EndTime
 	}
-	var eventsBuf = make(chan v1.LeptonComponentEvents, len(allComponents))
+	var eventsBuf = make(chan apiv1.LeptonComponentEvents, len(allComponents))
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
 	for _, componentName := range allComponents {
@@ -241,7 +241,7 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 			eventsBuf <- s.getEventsFromComponent(localCtx, componentName, startTime, endTime)
 		}()
 	}
-	var events v1.LeptonEvents
+	var events apiv1.LeptonEvents
 	for currEvent := range eventsBuf {
 		events = append(events, currEvent)
 		if len(events) == len(allComponents) {
@@ -252,7 +252,7 @@ func (s *Session) getEvents(ctx context.Context, payload Request) (v1.LeptonEven
 	return events, nil
 }
 
-func (s *Session) getMetrics(ctx context.Context, payload Request) (v1.LeptonMetrics, error) {
+func (s *Session) getMetrics(ctx context.Context, payload Request) (apiv1.LeptonMetrics, error) {
 	if payload.Method != "metrics" {
 		return nil, errors.New("mismatch method")
 	}
@@ -267,7 +267,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (v1.LeptonMet
 		metricsSince = now.Add(-payload.Since)
 	}
 
-	var metricBuf = make(chan v1.LeptonComponentMetrics, len(allComponents))
+	var metricBuf = make(chan apiv1.LeptonComponentMetrics, len(allComponents))
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
 	for _, componentName := range allComponents {
@@ -275,7 +275,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (v1.LeptonMet
 			metricBuf <- s.getMetricsFromComponent(localCtx, name, metricsSince)
 		}(componentName)
 	}
-	var retMetrics v1.LeptonMetrics
+	var retMetrics apiv1.LeptonMetrics
 	for currMetric := range metricBuf {
 		retMetrics = append(retMetrics, currMetric)
 		if len(retMetrics) == len(allComponents) {
@@ -286,7 +286,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (v1.LeptonMet
 	return retMetrics, nil
 }
 
-func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStates, error) {
+func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.LeptonStates, error) {
 	if payload.Method != "states" {
 		return nil, errors.New("mismatch method")
 	}
@@ -294,7 +294,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 	if len(payload.Components) > 0 {
 		allComponents = payload.Components
 	}
-	var statesBuf = make(chan v1.LeptonComponentStates, len(allComponents))
+	var statesBuf = make(chan apiv1.LeptonComponentStates, len(allComponents))
 	var lastRebootTime *time.Time
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
@@ -303,7 +303,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 			statesBuf <- s.getStatesFromComponent(localCtx, name, lastRebootTime)
 		}(componentName)
 	}
-	var states v1.LeptonStates
+	var states apiv1.LeptonStates
 	for currState := range statesBuf {
 		states = append(states, currState)
 		if len(states) == len(allComponents) {
@@ -314,7 +314,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (v1.LeptonStat
 	return states, nil
 }
 
-func (s *Session) getEventsFromComponent(ctx context.Context, componentName string, startTime, endTime time.Time) v1.LeptonComponentEvents {
+func (s *Session) getEventsFromComponent(ctx context.Context, componentName string, startTime, endTime time.Time) apiv1.LeptonComponentEvents {
 	component, err := components.GetComponent(componentName)
 	if err != nil {
 		log.Logger.Errorw("failed to get component",
@@ -322,13 +322,13 @@ func (s *Session) getEventsFromComponent(ctx context.Context, componentName stri
 			"component", componentName,
 			"error", err,
 		)
-		return v1.LeptonComponentEvents{
+		return apiv1.LeptonComponentEvents{
 			Component: componentName,
 			StartTime: startTime,
 			EndTime:   endTime,
 		}
 	}
-	currEvent := v1.LeptonComponentEvents{
+	currEvent := apiv1.LeptonComponentEvents{
 		Component: componentName,
 		StartTime: startTime,
 		EndTime:   endTime,
@@ -348,18 +348,18 @@ func (s *Session) getEventsFromComponent(ctx context.Context, componentName stri
 	return currEvent
 }
 
-func (s *Session) getMetricsFromComponent(ctx context.Context, componentName string, since time.Time) v1.LeptonComponentMetrics {
+func (s *Session) getMetricsFromComponent(ctx context.Context, componentName string, since time.Time) apiv1.LeptonComponentMetrics {
 	if _, err := components.GetComponent(componentName); err != nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetEvents",
 			"component", componentName,
 			"error", err,
 		)
-		return v1.LeptonComponentMetrics{
+		return apiv1.LeptonComponentMetrics{
 			Component: componentName,
 		}
 	}
-	currMetrics := v1.LeptonComponentMetrics{
+	currMetrics := apiv1.LeptonComponentMetrics{
 		Component: componentName,
 	}
 	metricsData, err := s.metricsStore.Read(ctx, pkgmetrics.WithSince(since), pkgmetrics.WithComponents(componentName))
@@ -373,7 +373,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	}
 
 	for _, data := range metricsData {
-		currMetrics.Metrics = append(currMetrics.Metrics, components.Metric{
+		currMetrics.Metrics = append(currMetrics.Metrics, apiv1.Metric{
 			UnixSeconds:         data.UnixMilliseconds,
 			MetricName:          data.Name,
 			MetricSecondaryName: data.Label,
@@ -383,7 +383,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	return currMetrics
 }
 
-func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) v1.LeptonComponentStates {
+func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) apiv1.LeptonComponentStates {
 	component, err := components.GetComponent(componentName)
 	if err != nil {
 		log.Logger.Errorw("failed to get component",
@@ -391,11 +391,11 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			"component", componentName,
 			"error", err,
 		)
-		return v1.LeptonComponentStates{
+		return apiv1.LeptonComponentStates{
 			Component: componentName,
 		}
 	}
-	currState := v1.LeptonComponentStates{
+	currState := apiv1.LeptonComponentStates{
 		Component: componentName,
 	}
 	log.Logger.Debugw("getting states", "component", componentName)
@@ -421,7 +421,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			}
 			if time.Since(*lastRebootTime) < initializeGracePeriod {
 				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
-				currState.States[i].Health = components.StateInitializing
+				currState.States[i].Health = apiv1.StateInitializing
 				currState.States[i].Healthy = true
 			}
 

@@ -8,16 +8,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func createTestEvent(timestamp time.Time) components.Event {
-	return components.Event{
+func createTestEvent(timestamp time.Time) apiv1.Event {
+	return apiv1.Event{
 		Time:    metav1.Time{Time: timestamp},
 		Name:    "test_event",
 		Type:    "test_type",
@@ -25,8 +24,8 @@ func createTestEvent(timestamp time.Time) components.Event {
 		ExtraInfo: map[string]string{
 			"key": "value",
 		},
-		SuggestedActions: &common.SuggestedActions{
-			RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem},
+		SuggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 		},
 	}
 }
@@ -35,8 +34,8 @@ func TestMergeEvents(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name     string
-		a        []components.Event
-		b        []components.Event
+		a        []apiv1.Event
+		b        []apiv1.Event
 		expected int
 	}{
 		{
@@ -48,14 +47,14 @@ func TestMergeEvents(t *testing.T) {
 		{
 			name: "a empty",
 			a:    nil,
-			b: []components.Event{
+			b: []apiv1.Event{
 				createTestEvent(now),
 			},
 			expected: 1,
 		},
 		{
 			name: "b empty",
-			a: []components.Event{
+			a: []apiv1.Event{
 				createTestEvent(now),
 			},
 			b:        nil,
@@ -63,11 +62,11 @@ func TestMergeEvents(t *testing.T) {
 		},
 		{
 			name: "both non-empty",
-			a: []components.Event{
+			a: []apiv1.Event{
 				createTestEvent(now.Add(-1 * time.Hour)),
 				createTestEvent(now),
 			},
-			b: []components.Event{
+			b: []apiv1.Event{
 				createTestEvent(now.Add(-2 * time.Hour)),
 				createTestEvent(now.Add(-30 * time.Minute)),
 			},
@@ -89,11 +88,11 @@ func TestMergeEvents(t *testing.T) {
 	}
 
 	t.Run("verify sorting", func(t *testing.T) {
-		a := []components.Event{
+		a := []apiv1.Event{
 			createTestEvent(now.Add(2 * time.Hour)),
 			createTestEvent(now.Add(-1 * time.Hour)),
 		}
-		b := []components.Event{
+		b := []apiv1.Event{
 			createTestEvent(now),
 			createTestEvent(now.Add(-2 * time.Hour)),
 		}
@@ -160,7 +159,7 @@ func TestXIDComponent_Events(t *testing.T) {
 		}
 	}()
 
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		createTestEvent(time.Now()),
 	}
 
@@ -211,10 +210,10 @@ func TestXIDComponent_States(t *testing.T) {
 		}
 	}()
 
-	s := components.State{
+	s := apiv1.State{
 		Name:    StateNameErrorXid,
 		Healthy: true,
-		Health:  components.StateHealthy,
+		Health:  apiv1.StateHealthy,
 		Reason:  "XIDComponent is healthy",
 	}
 	component.currState = s
@@ -227,28 +226,28 @@ func TestXIDComponent_States(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		events    []components.Event
-		wantState []components.State
+		events    []apiv1.Event
+		wantState []apiv1.State
 	}{
 		{
 			name: "critical xid happened and reboot recovered",
-			events: []components.Event{
-				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
-				createXidEvent(startTime, 31, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
-				createXidEvent(startTime.Add(5*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+			events: []apiv1.Event{
+				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				createXidEvent(startTime, 31, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(10 * time.Minute)}},
-				createXidEvent(startTime.Add(15*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(20 * time.Minute)}},
-				createXidEvent(startTime.Add(25*time.Minute), 94, common.EventTypeCritical, common.RepairActionTypeRebootSystem),
+				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			},
-			wantState: []components.State{
-				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
-				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem}}},
-				{Healthy: true, Health: components.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: components.StateDegraded, SuggestedActions: &common.SuggestedActions{RepairActions: []common.RepairActionType{common.RepairActionTypeHardwareInspection}}},
+			wantState: []apiv1.State{
+				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
+				{Healthy: false, Health: apiv1.StateDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Healthy: false, Health: apiv1.StateDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
+				{Healthy: false, Health: apiv1.StateDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
+				{Healthy: false, Health: apiv1.StateDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}

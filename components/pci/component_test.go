@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/pci"
@@ -57,7 +57,7 @@ func TestComponentStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
@@ -83,7 +83,7 @@ func TestComponentEvents(t *testing.T) {
 	assert.Empty(t, events)
 
 	// Add a test event and verify it can be retrieved
-	testEvent := components.Event{
+	testEvent := apiv1.Event{
 		Time:    metav1.Time{Time: time.Now().UTC()},
 		Name:    "acs_enabled",
 		Type:    "Warning",
@@ -106,7 +106,7 @@ func TestComponentEvents(t *testing.T) {
 }
 
 // createEvent is a test helper that mimics the behavior of Data.createEvent
-func createEvent(time time.Time, devices []pci.Device) *components.Event {
+func createEvent(time time.Time, devices []pci.Device) *apiv1.Event {
 	// Find devices with ACS enabled
 	uuids := make([]string, 0)
 	for _, dev := range devices {
@@ -118,7 +118,7 @@ func createEvent(time time.Time, devices []pci.Device) *components.Event {
 		return nil
 	}
 
-	return &components.Event{
+	return &apiv1.Event{
 		Time:    metav1.Time{Time: time.UTC()},
 		Name:    "acs_enabled",
 		Type:    "Warning",
@@ -233,7 +233,7 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 
 	// Create an event directly
 	testTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:    metav1.Time{Time: testTime.Add(-48 * time.Hour)}, // Older than 24h
 		Name:    "acs_enabled",
 		Type:    "Warning",
@@ -303,15 +303,15 @@ func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
 		data     *Data
-		validate func(*testing.T, []components.State)
+		validate func(*testing.T, []apiv1.State)
 	}{
 		{
 			name: "nil data",
 			data: nil,
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 				assert.True(t, states[0].Healthy)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
@@ -324,10 +324,10 @@ func TestData_GetStates(t *testing.T) {
 				healthy: false,
 				reason:  "failed to get pci data -- " + assert.AnError.Error(),
 			},
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 				assert.False(t, states[0].Healthy)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
@@ -346,10 +346,10 @@ func TestData_GetStates(t *testing.T) {
 				healthy: true,
 				reason:  "no acs enabled devices found",
 			},
-			validate: func(t *testing.T, states []components.State) {
+			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, components.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 				assert.True(t, states[0].Healthy)
 				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
@@ -388,7 +388,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
@@ -411,7 +411,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 		assert.True(t, states[0].Healthy)
 		assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 	})
@@ -433,7 +433,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, components.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 		assert.False(t, states[0].Healthy)
 		assert.Equal(t, "failed to get pci data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
@@ -649,7 +649,7 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 
 	// Create a recent event (less than 24h old)
 	testTime := time.Now().UTC()
-	event := components.Event{
+	event := apiv1.Event{
 		Time:    metav1.Time{Time: testTime.Add(-1 * time.Hour)}, // Just 1 hour ago
 		Name:    "acs_enabled",
 		Type:    "Warning",
@@ -821,19 +821,19 @@ func (m *mockEventBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	return m.insertErr
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev components.Event) (*components.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return nil, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	if m.latestFunc != nil {
 		m.latestFunc()
 	}

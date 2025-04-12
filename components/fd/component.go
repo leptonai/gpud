@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
@@ -112,14 +113,14 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
 	return lastData.getStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -155,7 +156,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = components.StateUnhealthy
+		d.health = apiv1.StateUnhealthy
 		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
 		return
 	}
@@ -166,7 +167,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = components.StateUnhealthy
+		d.health = apiv1.StateUnhealthy
 		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
 		return
 	}
@@ -180,7 +181,7 @@ func (c *component) CheckOnce() {
 	if uerr != nil {
 		d.err = uerr
 		d.healthy = false
-		d.health = components.StateUnhealthy
+		d.health = apiv1.StateUnhealthy
 		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
 		return
 	}
@@ -190,7 +191,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = components.StateUnhealthy
+		d.health = apiv1.StateUnhealthy
 		d.reason = fmt.Sprintf("error getting limit -- %s", err)
 		return
 	}
@@ -235,11 +236,11 @@ func (c *component) CheckOnce() {
 
 	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
 		d.healthy = false
-		d.health = components.StateDegraded
+		d.health = apiv1.StateDegraded
 		d.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
 		d.healthy = true
-		d.health = components.StateHealthy
+		d.health = apiv1.StateHealthy
 		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
 			d.Usage,
 			d.ThresholdAllocatedFileHandles,
@@ -293,19 +294,19 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates() ([]components.State, error) {
+func (d *Data) getStates() ([]apiv1.State, error) {
 	if d == nil {
-		return []components.State{
+		return []apiv1.State{
 			{
 				Name:    Name,
-				Health:  components.StateHealthy,
+				Health:  apiv1.StateHealthy,
 				Healthy: true,
 				Reason:  "no data yet",
 			},
 		}, nil
 	}
 
-	state := components.State{
+	state := apiv1.State{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
@@ -319,7 +320,7 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []apiv1.State{state}, nil
 }
 
 func calcUsagePct(usage, limit uint64) float64 {

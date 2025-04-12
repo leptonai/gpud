@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	lep_components "github.com/leptonai/gpud/components"
-	lep_config "github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/components"
+	gpudcomponents "github.com/leptonai/gpud/components"
+	gpudconfig "github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 
@@ -22,8 +23,8 @@ import (
 )
 
 type globalHandler struct {
-	cfg        *lep_config.Config
-	components map[string]lep_components.Component
+	cfg        *gpudconfig.Config
+	components map[string]components.Component
 
 	componentNamesMu sync.RWMutex
 	componentNames   []string
@@ -31,7 +32,7 @@ type globalHandler struct {
 	metricsStore pkgmetrics.Store
 }
 
-func newGlobalHandler(cfg *lep_config.Config, components map[string]lep_components.Component, metricsStore pkgmetrics.Store) *globalHandler {
+func newGlobalHandler(cfg *gpudconfig.Config, components map[string]components.Component, metricsStore pkgmetrics.Store) *globalHandler {
 	var componentNames []string
 	for name := range components {
 		componentNames = append(componentNames, name)
@@ -78,7 +79,7 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 
 	var ret []string
 	for _, component := range strings.Split(components, ",") {
-		if _, err := lep_components.GetComponent(component); err != nil {
+		if _, err := gpudcomponents.GetComponent(component); err != nil {
 			return nil, fmt.Errorf("failed to get component: %v (%w)", err, errors.Unwrap(err))
 		}
 		ret = append(ret, component)
@@ -134,7 +135,7 @@ const (
 	URLPathConfigDesc = "Get the configuration of the gpud instance"
 )
 
-func createConfigHandler(cfg *lep_config.Config) func(c *gin.Context) {
+func createConfigHandler(cfg *gpudconfig.Config) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		if c.GetHeader("Content-Type") == "application/yaml" {
 			yb, err := yaml.Marshal(cfg)

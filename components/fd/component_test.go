@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -36,7 +35,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		Limit:                10000,
 		err:                  testError,
 		healthy:              false,
-		health:               components.StateUnhealthy,
+		health:               apiv1.StateUnhealthy,
 	}
 
 	states, err := d.getStates()
@@ -67,30 +66,30 @@ func (m *MockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).([]components.Event), args.Error(1)
+	return args.Get(0).([]apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -142,7 +141,7 @@ func TestComponentStates(t *testing.T) {
 		FDLimitSupported:            true,
 		ts:                          time.Now(),
 		healthy:                     true,
-		health:                      components.StateHealthy,
+		health:                      apiv1.StateHealthy,
 		reason:                      "current file descriptors: 800, threshold: 10000000, used_percent: 0.01",
 	}
 	c.lastData = testData
@@ -160,11 +159,11 @@ func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
 	testTime := metav1.Now()
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		{
 			Time:    testTime,
 			Name:    Name,
-			Type:    common.EventType("test"),
+			Type:    apiv1.EventType("test"),
 			Message: "Test event",
 		},
 	}
@@ -263,7 +262,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	assert.True(t, c.lastData.FileHandlesSupported)
 	assert.True(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, components.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
@@ -290,7 +289,7 @@ func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting file handles")
 }
@@ -324,7 +323,7 @@ func TestComponentCheckOnceWithPIDsError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting running pids")
 }
@@ -363,7 +362,7 @@ func TestComponentCheckOnceWithUsageError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting usage")
 }
@@ -407,7 +406,7 @@ func TestComponentCheckOnceWithLimitError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting limit")
 }
@@ -462,7 +461,7 @@ func TestComponentCheckOnceWithHighFileHandlesAllocation(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
 	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
 }
 
@@ -516,7 +515,7 @@ func TestComponentCheckOnceWithHighRunningPIDs(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
 	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
 }
 
@@ -570,7 +569,7 @@ func TestComponentCheckOnceWithBothHighValues(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, components.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
 	// Should contain both warnings
 	assert.Contains(t, c.lastData.reason, "file handles")
 }
@@ -626,7 +625,7 @@ func TestComponentCheckOnceWhenFileHandlesNotSupported(t *testing.T) {
 	assert.False(t, c.lastData.FileHandlesSupported)
 	assert.True(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, components.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
@@ -680,7 +679,7 @@ func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
 	assert.True(t, c.lastData.FileHandlesSupported)
 	assert.False(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, components.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
 }
 
 func TestComponentClose(t *testing.T) {
@@ -709,9 +708,9 @@ func TestComponentEventBucketOperations(t *testing.T) {
 	mockEventBucket := new(MockEventBucket)
 
 	// Set up expectations for bucket operations
-	mockEvent := components.Event{
+	mockEvent := apiv1.Event{
 		Name:    Name,
-		Type:    common.EventType("test"),
+		Type:    apiv1.EventType("test"),
 		Message: "Test event",
 	}
 	mockEventBucket.On("Insert", mock.Anything, mock.Anything).Return(nil)
@@ -832,7 +831,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateHealthy,
+			expectedHealth:           apiv1.StateHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -846,7 +845,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateDegraded,
+			expectedHealth:           apiv1.StateDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -860,7 +859,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateDegraded,
+			expectedHealth:           apiv1.StateDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -874,7 +873,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateHealthy,
+			expectedHealth:           apiv1.StateHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     false,
 			fdLimitSupported:         true,
@@ -888,7 +887,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateHealthy,
+			expectedHealth:           apiv1.StateHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         false,
@@ -902,7 +901,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000, // Set low to trigger warning
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           components.StateDegraded,
+			expectedHealth:           apiv1.StateDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,

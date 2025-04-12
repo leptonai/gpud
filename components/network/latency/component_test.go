@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 )
@@ -65,7 +65,7 @@ func TestComponentStatesNoData(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 }
 
 func TestComponentStartAndCheckOnce(t *testing.T) {
@@ -105,7 +105,7 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 }
 
@@ -136,7 +136,7 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
 }

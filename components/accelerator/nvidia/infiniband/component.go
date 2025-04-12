@@ -11,9 +11,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
-	configcommon "github.com/leptonai/gpud/pkg/config/common"
+	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -31,14 +31,14 @@ type component struct {
 	cancel         context.CancelFunc
 	eventBucket    eventstore.Bucket
 	kmsgSyncer     *kmsg.Syncer
-	toolOverwrites configcommon.ToolOverwrites
+	toolOverwrites nvidia_common.ToolOverwrites
 
 	lastEventMu        sync.Mutex
-	lastEvent          *components.Event
+	lastEvent          *apiv1.Event
 	lastEventThreshold infiniband.ExpectedPortStates
 }
 
-func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites configcommon.ToolOverwrites) (components.Component, error) {
+func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err
@@ -66,20 +66,20 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	return c.getStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
 }
 
-var noDataEvents = []components.State{
+var noDataEvents = []apiv1.State{
 	{
 		Name:    "ibstat",
-		Health:  components.StateHealthy,
+		Health:  apiv1.StateHealthy,
 		Healthy: true, //TODO: depreciate Healthy field
 		Reason:  msgThresholdNotSetSkipped,
 	},
 }
 
-func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]components.State, error) {
+func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]apiv1.State, error) {
 	// in rare cases, some machines have "ibstat" installed that returns empty output
 	// not failing the ibstat check, thus we need manual check on the thresholds here
 	// before we call the ibstat command
@@ -103,10 +103,10 @@ func (c *component) getStates(ctx context.Context, now time.Time, thresholds inf
 		return noDataEvents, nil
 	}
 
-	return []components.State{convertToState(lastEvent)}, nil
+	return []apiv1.State{convertToState(lastEvent)}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	thresholds := GetDefaultExpectedPortStates()
 	if _, err := c.checkOnceIbstat(time.Now().UTC(), thresholds); err != nil {
 		return nil, err
@@ -126,11 +126,11 @@ func (c *component) Close() error {
 	return nil
 }
 
-func convertToState(ev *components.Event) components.State {
-	state := components.State{
+func convertToState(ev *apiv1.Event) apiv1.State {
+	state := apiv1.State{
 		Name:             ev.Name,
 		Healthy:          true,
-		Health:           components.StateHealthy,
+		Health:           apiv1.StateHealthy,
 		Reason:           ev.Message,
 		SuggestedActions: ev.SuggestedActions,
 	}
@@ -145,19 +145,19 @@ func convertToState(ev *components.Event) components.State {
 // if the last event happened within the last 10 seconds, skip the check and return the cached last event
 // if unhealthy ibstat status is found, it persists the unhealthy event in the database
 // if a unexpected error is found, it returns the error (regardless of the ibstat status)
-func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.ExpectedPortStates) (*components.Event, error) {
+func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.ExpectedPortStates) (*apiv1.Event, error) {
 	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
 		return nil, nil
 	}
 
-	ev := components.Event{
+	ev := apiv1.Event{
 		Time:    metav1.Time{Time: ts},
 		Name:    "ibstat",
-		Type:    common.EventTypeInfo,
+		Type:    apiv1.EventTypeInfo,
 		Message: "",
 		ExtraInfo: map[string]string{
 			"state_healthy": "true",
-			"state_health":  components.StateHealthy,
+			"state_health":  apiv1.StateHealthy,
 		},
 		SuggestedActions: nil,
 	}
@@ -179,9 +179,9 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	ccancel()
 
 	if err != nil {
-		ev.Type = common.EventTypeWarning
+		ev.Type = apiv1.EventTypeWarning
 		ev.ExtraInfo["state_healthy"] = "false"
-		ev.ExtraInfo["state_health"] = components.StateUnhealthy
+		ev.ExtraInfo["state_health"] = apiv1.StateUnhealthy
 
 		if errors.Is(err, infiniband.ErrNoIbstatCommand) {
 			ev.Message = fmt.Sprintf("ibstat threshold set but %v", err)
@@ -198,17 +198,17 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 		ev.Message = reason
 
 		if healthy {
-			ev.Type = common.EventTypeInfo
+			ev.Type = apiv1.EventTypeInfo
 			ev.ExtraInfo["state_healthy"] = "true"
-			ev.ExtraInfo["state_health"] = components.StateHealthy
+			ev.ExtraInfo["state_health"] = apiv1.StateHealthy
 		} else {
-			ev.Type = common.EventTypeWarning
+			ev.Type = apiv1.EventTypeWarning
 			ev.ExtraInfo["state_healthy"] = "false"
-			ev.ExtraInfo["state_health"] = components.StateUnhealthy
+			ev.ExtraInfo["state_health"] = apiv1.StateUnhealthy
 
-			ev.SuggestedActions = &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{
-					common.RepairActionTypeHardwareInspection,
+			ev.SuggestedActions = &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
 				},
 				Descriptions: []string{
 					"potential infiniband switch/hardware issue needs immediate attention",
@@ -223,7 +223,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	c.lastEventThreshold = thresholds
 
 	// we only care about unhealthy events
-	if ev.Type == common.EventTypeInfo {
+	if ev.Type == apiv1.EventTypeInfo {
 		return c.lastEvent, nil
 	}
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -42,8 +43,8 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
-	return []components.State{
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
+	return []apiv1.State{
 		{
 			Healthy: true,
 			Reason:  "no issue",
@@ -51,7 +52,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	if c.eventBucket != nil {
 		return c.eventBucket.Get(ctx, since)
 	}

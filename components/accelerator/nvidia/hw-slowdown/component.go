@@ -11,8 +11,8 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/prometheus/client_golang/prometheus"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -91,14 +91,14 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
 	return lastData.getStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -226,9 +226,9 @@ func (c *component) CheckOnce() {
 	// hw slowdown events happened and beyond its threshold
 	d.healthy = false
 	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-	d.suggestedActions = &common.SuggestedActions{
-		RepairActions: []common.RepairActionType{
-			common.RepairActionTypeHardwareInspection,
+	d.suggestedActions = &apiv1.SuggestedActions{
+		RepairActions: []apiv1.RepairActionType{
+			apiv1.RepairActionTypeHardwareInspection,
 		},
 		Descriptions: []string{
 			"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
@@ -249,7 +249,7 @@ type Data struct {
 	// tracks the reason of the last check
 	reason string
 	// tracks the suggested actions of the last check
-	suggestedActions *common.SuggestedActions
+	suggestedActions *apiv1.SuggestedActions
 }
 
 func (d *Data) getError() string {
@@ -259,30 +259,30 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates() ([]components.State, error) {
+func (d *Data) getStates() ([]apiv1.State, error) {
 	if d == nil {
-		return []components.State{
+		return []apiv1.State{
 			{
 				Name:    Name,
-				Health:  components.StateHealthy,
+				Health:  apiv1.StateHealthy,
 				Healthy: true,
 				Reason:  "no data yet",
 			},
 		}, nil
 	}
 
-	state := components.State{
+	state := apiv1.State{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
 
 		Healthy: d.healthy,
-		Health:  components.StateHealthy,
+		Health:  apiv1.StateHealthy,
 
 		SuggestedActions: d.suggestedActions,
 	}
 	if !d.healthy {
-		state.Health = components.StateUnhealthy
+		state.Health = apiv1.StateUnhealthy
 	}
 
 	b, _ := json.Marshal(d)
@@ -290,5 +290,5 @@ func (d *Data) getStates() ([]components.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []components.State{state}, nil
+	return []apiv1.State{state}, nil
 }

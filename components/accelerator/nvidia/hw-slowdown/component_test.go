@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -305,11 +304,11 @@ func TestComponentStates(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	// Create test events
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
@@ -352,7 +351,7 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, components.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
 	assert.True(t, states[0].Healthy)
 }
 
@@ -391,10 +390,10 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: 0,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := components.Event{
+				event := apiv1.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
+					Type:    apiv1.EventTypeWarning,
 					Message: "HW Slowdown detected",
 					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
@@ -411,10 +410,10 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: -0.6,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := components.Event{
+				event := apiv1.Event{
 					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
 					Name:    "hw_slowdown",
-					Type:    common.EventTypeWarning,
+					Type:    apiv1.EventTypeWarning,
 					Message: "HW Slowdown detected",
 					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
@@ -543,11 +542,11 @@ func TestComponentEvents(t *testing.T) {
 	defer bucket.Close()
 
 	// Insert test events
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
@@ -556,7 +555,7 @@ func TestComponentEvents(t *testing.T) {
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-1",
@@ -697,10 +696,10 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		// Distribute events evenly within the window
 		eventTime := now.Add(-time.Duration(i*(windowMinutes/totalEventsToInsert)) * time.Minute)
 
-		event := components.Event{
+		event := apiv1.Event{
 			Time:    metav1.Time{Time: eventTime},
 			Name:    "hw_slowdown",
-			Type:    common.EventTypeWarning,
+			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
 			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
@@ -718,7 +717,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Contains(t, states[0].Reason, "hw slowdown events frequency per minute")
 	assert.Contains(t, states[0].Reason, "exceeded threshold")

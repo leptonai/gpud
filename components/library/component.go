@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
@@ -53,7 +54,7 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]components.State, error) {
+func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	reasons := []string{}
 	for lib, alternatives := range c.libraries {
 		opts := []file.OpOption{}
@@ -72,7 +73,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
 	if len(reasons) == 0 {
-		return []components.State{
+		return []apiv1.State{
 			{
 				Name:    Name,
 				Healthy: true,
@@ -82,7 +83,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}
 
 	sort.Strings(reasons)
-	return []components.State{
+	return []apiv1.State{
 		{
 			Name:    Name,
 			Healthy: false,
@@ -91,7 +92,7 @@ func (c *component) States(ctx context.Context) ([]components.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return nil, nil
 }
 

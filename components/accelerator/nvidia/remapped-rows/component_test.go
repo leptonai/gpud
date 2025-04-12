@@ -15,8 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -25,7 +24,7 @@ import (
 
 // Mock implementation of eventstore.Bucket
 type mockEventBucket struct {
-	events []components.Event
+	events []apiv1.Event
 	err    error
 }
 
@@ -33,12 +32,12 @@ func (m *mockEventBucket) Name() string {
 	return "mock-event-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -51,14 +50,14 @@ func (m *mockEventBucket) Find(ctx context.Context, event components.Event) (*co
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.events, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -175,17 +174,17 @@ func TestEvents(t *testing.T) {
 
 	// Create mock event bucket with test events
 	eventBucket := &mockEventBucket{
-		events: []components.Event{
+		events: []apiv1.Event{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 				Name:    "test_event",
-				Type:    common.EventTypeWarning,
+				Type:    apiv1.EventTypeWarning,
 				Message: "Test event 1",
 			},
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
 				Name:    "test_event",
-				Type:    common.EventTypeInfo,
+				Type:    apiv1.EventTypeInfo,
 				Message: "Test event 2",
 			},
 		},
@@ -316,7 +315,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	require.Len(t, events, 2, "Expected 2 events to be generated")
 
 	// Find events by name
-	var pendingEvent, failedEvent *components.Event
+	var pendingEvent, failedEvent *apiv1.Event
 	for i := range events {
 		if events[i].Name == "row_remapping_pending" {
 			pendingEvent = &events[i]
@@ -327,7 +326,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Verify the pending event
 	require.NotNil(t, pendingEvent, "Expected 'row_remapping_pending' event to be generated")
-	assert.Equal(t, common.EventTypeWarning, pendingEvent.Type)
+	assert.Equal(t, apiv1.EventTypeWarning, pendingEvent.Type)
 	assert.Contains(t, pendingEvent.Message, "GPU2")
 	assert.Contains(t, pendingEvent.Message, "pending row remapping")
 	assert.Equal(t, "GPU2", pendingEvent.ExtraInfo["gpu_id"])
@@ -335,7 +334,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Verify the failed event
 	require.NotNil(t, failedEvent, "Expected 'row_remapping_failed' event to be generated")
-	assert.Equal(t, common.EventTypeWarning, failedEvent.Type)
+	assert.Equal(t, apiv1.EventTypeWarning, failedEvent.Type)
 	assert.Contains(t, failedEvent.Message, "GPU3")
 	assert.Contains(t, failedEvent.Message, "failed row remapping")
 	assert.Equal(t, "GPU3", failedEvent.ExtraInfo["gpu_id"])
@@ -418,7 +417,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	states, err := c.lastData.getStates()
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, components.StateUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
 	assert.False(t, states[0].Healthy)
 	assert.Contains(t, states[0].Error, expectedErr.Error())
 }
@@ -447,16 +446,16 @@ func TestEventsWithDB(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Insert test events directly into the database
-	testEvent1 := components.Event{
+	testEvent1 := apiv1.Event{
 		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 		Name:    "test_event",
-		Type:    common.EventTypeWarning,
+		Type:    apiv1.EventTypeWarning,
 		Message: "Test event 1",
 	}
-	testEvent2 := components.Event{
+	testEvent2 := apiv1.Event{
 		Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
 		Name:    "another_test_event",
-		Type:    common.EventTypeInfo,
+		Type:    apiv1.EventTypeInfo,
 		Message: "Test event 2",
 	}
 
@@ -502,14 +501,14 @@ func TestComponentStates(t *testing.T) {
 			name:                  "No row remapping support",
 			rowRemappingSupported: false,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        components.StateHealthy,
+			expectedHealth:        apiv1.StateHealthy,
 			expectedHealthy:       true,
 		},
 		{
 			name:                  "Empty remapped rows",
 			rowRemappingSupported: true,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        components.StateHealthy,
+			expectedHealth:        apiv1.StateHealthy,
 			expectedHealthy:       true,
 		},
 		{
@@ -523,7 +522,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending:                 false,
 				},
 			},
-			expectedHealth:  components.StateHealthy,
+			expectedHealth:  apiv1.StateHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -536,7 +535,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingFailed:                  true,
 				},
 			},
-			expectedHealth:           components.StateUnhealthy,
+			expectedHealth:           apiv1.StateUnhealthy,
 			expectedHealthy:          false,
 			expectContainsRMAMessage: true,
 		},
@@ -549,7 +548,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             components.StateUnhealthy,
+			expectedHealth:             apiv1.StateUnhealthy,
 			expectedHealthy:            false,
 			expectContainsResetMessage: true,
 		},
@@ -573,7 +572,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             components.StateUnhealthy,
+			expectedHealth:             apiv1.StateUnhealthy,
 			expectedHealthy:            false,
 			expectContainsRMAMessage:   true,
 			expectContainsResetMessage: true,
@@ -718,7 +717,7 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateUnhealthy, state.Health)
+	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 	assert.False(t, state.Healthy)
 	assert.Contains(t, state.Reason, "failed to get remapped rows data")
 	assert.Equal(t, "test error", state.Error)
@@ -763,7 +762,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 	assert.Equal(t, "no data yet", state.Reason)
 	assert.Empty(t, state.Error)

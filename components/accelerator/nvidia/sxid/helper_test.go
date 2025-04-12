@@ -8,21 +8,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventType, suggestedAction common.RepairActionType) components.Event {
+func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) apiv1.Event {
 	sxidErr := sxidErrorEventDetail{
 		SXid:       sxid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
-		SuggestedActionsByGPUd: &common.SuggestedActions{
-			RepairActions: []common.RepairActionType{suggestedAction},
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{suggestedAction},
 		},
 	}
 	sxidData, _ := json.Marshal(sxidErr)
-	ret := components.Event{
+	ret := apiv1.Event{
 		Name:      EventNameErrorSXid,
 		Type:      eventType,
 		ExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData)},
@@ -35,78 +34,78 @@ func createSXidEvent(eventTime time.Time, sxid uint64, eventType common.EventTyp
 
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
-		state := EvolveHealthyState([]components.Event{})
+		state := EvolveHealthyState([]apiv1.Event{})
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 		assert.Equal(t, "SXIDComponent is healthy", state.Reason)
 	})
 
 	t.Run("critical sxid", func(t *testing.T) {
-		events := []components.Event{
-			createSXidEvent(time.Time{}, 123, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createSXidEvent(time.Time{}, 123, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, components.StateUnhealthy, state.Health)
+		assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 		assert.Equal(t, "SXID 123 detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
-		events := []components.Event{
-			createSXidEvent(time.Time{}, 456, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createSXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, components.StateUnhealthy, state.Health)
+		assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 		assert.Equal(t, "SXID 456 detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("reboot recover", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 	})
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
-		events := []components.Event{
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+		events := []apiv1.Event{
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
-			createSXidEvent(time.Time{}, 94, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
-			createSXidEvent(time.Time{}, 31, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.False(t, state.Healthy)
-		assert.Equal(t, common.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
 	t.Run("SetHealthy", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{Name: "SetHealthy"},
-			createSXidEvent(time.Time{}, 789, common.EventTypeFatal, common.RepairActionTypeRebootSystem),
+			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
 	})
 
 	t.Run("invalid sxid", func(t *testing.T) {
-		events := []components.Event{
+		events := []apiv1.Event{
 			{
 				Name:      EventNameErrorSXid,
-				Type:      common.EventTypeFatal,
+				Type:      apiv1.EventTypeFatal,
 				ExtraInfo: map[string]string{EventKeyErrorSXidData: "invalid json"},
 			},
 		}
 		state := EvolveHealthyState(events)
 		assert.True(t, state.Healthy)
-		assert.Equal(t, components.StateHealthy, state.Health)
+		assert.Equal(t, apiv1.StateHealthy, state.Health)
 	})
 }
 
@@ -119,8 +118,8 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 			DataSource: "test-source",
 			DeviceUUID: "test-uuid",
 			SXid:       123,
-			SuggestedActionsByGPUd: &common.SuggestedActions{
-				RepairActions: []common.RepairActionType{common.RepairActionTypeRebootSystem},
+			SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 			},
 			CriticalErrorMarkedByGPUd: true,
 		}

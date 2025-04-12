@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 // mockComponent creates a component with mock functions for testing
@@ -204,7 +205,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       true,
 			activeError:    nil,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectedStatus: true,
 		},
 		{
@@ -212,7 +213,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: components.StateUnhealthy,
+			expectedHealth: apiv1.StateUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -220,7 +221,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    errors.New("test error"),
-			expectedHealth: components.StateUnhealthy,
+			expectedHealth: apiv1.StateUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -228,7 +229,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    false,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: components.StateHealthy,
+			expectedHealth: apiv1.StateHealthy,
 			expectedStatus: true,
 		},
 	}
@@ -281,7 +282,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:                  "tailscaled service is active/running",
 			},
 			expectedReason:  "tailscaled service is active/running",
-			expectedHealth:  components.StateHealthy,
+			expectedHealth:  apiv1.StateHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -292,7 +293,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check",
-			expectedHealth:  components.StateUnhealthy,
+			expectedHealth:  apiv1.StateUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -303,7 +304,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
-			expectedHealth:  components.StateUnhealthy,
+			expectedHealth:  apiv1.StateUnhealthy,
 			expectedHealthy: false,
 		},
 	}

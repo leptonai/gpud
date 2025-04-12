@@ -11,8 +11,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -54,9 +53,9 @@ func (llp *logLineProcessor) watch() {
 				return
 			}
 
-			ev := components.Event{
+			ev := apiv1.Event{
 				Time: metav1.Time{Time: line.ts.UTC()},
-				Type: common.EventTypeWarning,
+				Type: apiv1.EventTypeWarning,
 				ExtraInfo: map[string]string{
 					"log_line": line.content,
 				},
@@ -71,7 +70,7 @@ func (llp *logLineProcessor) watch() {
 			cctx, ccancel := context.WithTimeout(llp.ctx, 15*time.Second)
 			found, err := llp.eventBucket.Find(
 				cctx,
-				components.Event{
+				apiv1.Event{
 					Time:    ev.Time,
 					Name:    ev.Name,
 					Message: ev.Message,
@@ -99,7 +98,7 @@ func (llp *logLineProcessor) watch() {
 	}
 }
 
-func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	return llp.eventBucket.Get(ctx, since)
 }
 

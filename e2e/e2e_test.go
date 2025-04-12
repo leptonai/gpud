@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	v1 "github.com/leptonai/gpud/api/v1"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	client_v1 "github.com/leptonai/gpud/client/v1"
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	"github.com/leptonai/gpud/pkg/errdefs"
@@ -162,7 +162,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Println("/v1/states RESPONSE BODY:", string(body))
 			GinkgoLogr.Info("/v1/states response", "response", string(body))
 
-			var componentStates []v1.LeptonComponentStates
+			var componentStates []apiv1.LeptonComponentStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -203,7 +203,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			body, err := io.ReadAll(gr)
 			Expect(err).NotTo(HaveOccurred(), "failed to read gzip")
 
-			var componentStates []v1.LeptonComponentStates
+			var componentStates []apiv1.LeptonComponentStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -249,7 +249,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Println("/v1/metrics RESPONSE BODY:", string(body))
 			GinkgoLogr.Info("/v1/metrics response", "response", string(body))
 
-			var metrics v1.LeptonMetrics
+			var metrics apiv1.LeptonMetrics
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -284,7 +284,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			body, err := io.ReadAll(gr)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
 
-			var metrics v1.LeptonMetrics
+			var metrics apiv1.LeptonMetrics
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 		})

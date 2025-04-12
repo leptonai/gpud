@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/common"
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -63,30 +62,30 @@ func (m *MockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event components.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event components.Event) (*components.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]components.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).([]components.Event), args.Error(1)
+	return args.Get(0).([]apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*components.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*components.Event), args.Error(1)
+	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -159,11 +158,11 @@ func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
 	testTime := metav1.Now()
-	testEvents := []components.Event{
+	testEvents := []apiv1.Event{
 		{
 			Time:    testTime,
 			Name:    Name,
-			Type:    common.EventType("test"),
+			Type:    apiv1.EventType("test"),
 			Message: "Test event",
 		},
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -276,7 +277,7 @@ func TestStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", state.Reason)
 	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
@@ -302,7 +303,7 @@ func TestStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateUnhealthy, state.Health)
+	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
 	assert.False(t, state.Healthy)
 	assert.Equal(t, "error getting power for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test power error", state.Error)
@@ -321,7 +322,7 @@ func TestStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, components.StateHealthy, state.Health)
+	assert.Equal(t, apiv1.StateHealthy, state.Health)
 	assert.True(t, state.Healthy)
 	assert.Equal(t, "no data yet", state.Reason)
 }
