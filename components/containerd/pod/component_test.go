@@ -314,6 +314,9 @@ func TestCheckOnceComprehensive(t *testing.T) {
 				checkDependencyInstalledFunc: func() bool {
 					return tt.checkDependencyInstalled
 				},
+				checkSocketExistsFunc: func() bool {
+					return true
+				},
 				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 					return tt.serviceActive, tt.serviceActiveError
 				},
@@ -1950,4 +1953,250 @@ func TestDataWithComplexErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewInitialization tests the initialization logic of the New function.
+func TestNewInitialization(t *testing.T) {
+	ctx := context.Background()
+	compInterface := New(ctx)
+	assert.NotNil(t, compInterface)
+
+	// Type assert to access internal fields for testing
+	comp, ok := compInterface.(*component)
+	assert.True(t, ok)
+
+	// Check that function pointers are initialized
+	assert.NotNil(t, comp.checkDependencyInstalledFunc)
+	assert.NotNil(t, comp.checkServiceActiveFunc)
+	assert.NotNil(t, comp.checkContainerdRunningFunc)
+	assert.NotNil(t, comp.listAllSandboxesFunc) // Covers initialization at lines 49-66
+
+	assert.Equal(t, defaultContainerRuntimeEndpoint, comp.endpoint) // Covers initialization at line 68
+
+	// Close the component
+	err := comp.Close()
+	assert.NoError(t, err)
+}
+
+// TestCheckOnceListSandboxGrpcError tests the gRPC error handling path in CheckOnce.
+func TestCheckOnceListSandboxGrpcError(t *testing.T) {
+	ctx := context.Background()
+	// Create a specific gRPC error for testing (different from Unimplemented)
+	testGrpcError := status.Error(codes.Unavailable, "service temporary unavailable")
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true // Assume installed
+		},
+		checkSocketExistsFunc: func() bool {
+			return true // Assume socket exists
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil // Assume service is active
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return true // Assume containerd is running
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return nil, testGrpcError // Simulate gRPC error
+		},
+		endpoint: "unix:///mock/containerd.sock",
+	}
+
+	comp.CheckOnce()
+
+	// Assertions
+	assert.NotNil(t, comp.lastData)
+	assert.False(t, comp.lastData.healthy) // Should be unhealthy due to the error
+	assert.NotNil(t, comp.lastData.err)
+	fmt.Println("comp.lastData.err", comp.lastData.reason, comp.lastData.err)
+
+	assert.Equal(t, testGrpcError, comp.lastData.err)
+	// Check the specific reason set for gRPC errors (lines 165-167)
+	assert.Contains(t, comp.lastData.reason, "failed gRPC call to the containerd socket")
+	assert.Contains(t, comp.lastData.reason, "service temporary unavailable")
+}
+
+// TestCheckOnceSocketNotExists tests the socket existence check in CheckOnce
+func TestCheckOnceSocketNotExists(t *testing.T) {
+	ctx := context.Background()
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true // Containerd is installed
+		},
+		checkSocketExistsFunc: func() bool {
+			return false // Socket does not exist
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	comp.CheckOnce()
+
+	// Verify results
+	assert.NotNil(t, comp.lastData)
+	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastData.reason)
+	assert.Nil(t, comp.lastData.err)
+}
+
+// TestCheckOnceSocketNotExistsComprehensive provides a more complete test for the socket existence check
+func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with all necessary mock functions
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true // Containerd is installed
+		},
+		checkSocketExistsFunc: func() bool {
+			return false // Socket does not exist
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return false, nil // This shouldn't be called
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return false // This shouldn't be called
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return nil, nil // This shouldn't be called
+		},
+		endpoint: "unix:///nonexistent/socket",
+	}
+
+	comp.CheckOnce()
+
+	// Verify the results
+	assert.NotNil(t, comp.lastData)
+	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastData.reason)
+	assert.Nil(t, comp.lastData.err)
+	assert.Empty(t, comp.lastData.Pods)
+	assert.False(t, comp.lastData.ContainerdServiceActive)
+}
+
+func Test_checkContainerdRunningFunc(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with all necessary mock functions
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return false
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return nil, nil // This shouldn't be called
+		},
+		endpoint: "unix:///nonexistent/socket",
+	}
+
+	comp.CheckOnce()
+
+	// Verify the results
+	assert.NotNil(t, comp.lastData)
+	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, "containerd installed but not running", comp.lastData.reason)
+	assert.Nil(t, comp.lastData.err)
+	assert.Empty(t, comp.lastData.Pods)
+	assert.False(t, comp.lastData.ContainerdServiceActive)
+}
+
+func Test_listAllSandboxesFunc(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with all necessary mock functions
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return []PodSandbox{
+				{
+					ID:        "pod1",
+					Name:      "test-pod",
+					Namespace: "default",
+					State:     "SANDBOX_READY",
+					Containers: []PodSandboxContainerStatus{
+						{
+							ID:    "container1",
+							Name:  "test-container",
+							State: "CONTAINER_RUNNING",
+							Image: "nginx:latest",
+						},
+					},
+				},
+			}, nil
+		},
+		endpoint: "unix:///nonexistent/socket",
+	}
+
+	comp.CheckOnce()
+
+	// Verify the results
+	assert.NotNil(t, comp.lastData)
+	assert.True(t, comp.lastData.healthy)
+	assert.Equal(t, "found 1 pod sandbox(es)", comp.lastData.reason)
+	assert.Nil(t, comp.lastData.err)
+	assert.Equal(t, 1, len(comp.lastData.Pods))
+	assert.True(t, comp.lastData.ContainerdServiceActive)
+}
+
+func Test_listAllSandboxesFunc_with_error(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with all necessary mock functions
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return nil, errors.New("test error")
+		},
+		endpoint: "unix:///nonexistent/socket",
+	}
+
+	comp.CheckOnce()
+
+	// Verify the results
+	assert.NotNil(t, comp.lastData)
+	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, "error listing pod sandbox status: test error", comp.lastData.reason)
+	assert.NotNil(t, comp.lastData.err)
 }

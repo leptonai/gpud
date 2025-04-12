@@ -27,9 +27,10 @@ type component struct {
 	cancel context.CancelFunc
 
 	checkDependencyInstalledFunc func() bool
+	checkSocketExistsFunc        func() bool
 	checkServiceActiveFunc       func(context.Context) (bool, error)
 	checkContainerdRunningFunc   func(context.Context) bool
-	listSandboxStatusFunc        func(context.Context, string) ([]PodSandbox, error)
+	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
 	endpoint string
 
@@ -44,11 +45,13 @@ func New(ctx context.Context) components.Component {
 		cancel: cancel,
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
+		checkSocketExistsFunc:        checkSocketExists,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
 		checkContainerdRunningFunc: checkContainerdRunning,
-		listSandboxStatusFunc:      listSandboxStatus,
+
+		listAllSandboxesFunc: listAllSandboxes,
 
 		endpoint: defaultContainerRuntimeEndpoint,
 	}
@@ -115,16 +118,15 @@ func (c *component) CheckOnce() {
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
-	if !checkSocketExists() {
+	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
 		d.healthy = false
 		d.reason = "containerd installed but socket file does not exist"
 		return
 	}
 
-	running := false
 	if c.checkContainerdRunningFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-		running = c.checkContainerdRunningFunc(cctx)
+		running := c.checkContainerdRunningFunc(cctx)
 		ccancel()
 		if !running {
 			d.healthy = false
@@ -144,9 +146,9 @@ func (c *component) CheckOnce() {
 		}
 	}
 
-	if c.listSandboxStatusFunc != nil {
+	if c.listAllSandboxesFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-		d.Pods, d.err = c.listSandboxStatusFunc(cctx, c.endpoint)
+		d.Pods, d.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
 		if d.err != nil {
 			d.healthy = false
