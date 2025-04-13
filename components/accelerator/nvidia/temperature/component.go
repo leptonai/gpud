@@ -97,7 +97,7 @@ func (c *component) CheckOnce() {
 		c.lastMu.Unlock()
 	}()
 
-	memThresholdExceeded := make([]string, 0)
+	tempThresholdExceeded := make([]string, 0)
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		temp, err := c.getTemperatureFunc(uuid, dev)
@@ -113,7 +113,7 @@ func (c *component) CheckOnce() {
 		// same logic as DCGM "VerifyHBMTemperature" that alerts  "DCGM_FR_TEMP_VIOLATION",
 		// use "DCGM_FI_DEV_MEM_MAX_OP_TEMP" to get the max HBM temperature threshold "NVML_TEMPERATURE_THRESHOLD_MEM_MAX"
 		if temp.ThresholdCelsiusMemMax > 0 && temp.CurrentCelsiusGPUCore > temp.ThresholdCelsiusMemMax {
-			memThresholdExceeded = append(memThresholdExceeded,
+			tempThresholdExceeded = append(tempThresholdExceeded,
 				fmt.Sprintf("%s current temperature is %d °C exceeding the HBM temperature threshold %d °C",
 					uuid,
 					temp.CurrentCelsiusGPUCore,
@@ -136,12 +136,12 @@ func (c *component) CheckOnce() {
 		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(slowdownPct)
 	}
 
-	if len(memThresholdExceeded) == 0 {
+	if len(tempThresholdExceeded) == 0 {
 		d.healthy = true
 		d.reason = fmt.Sprintf("all %d GPU(s) were checked, no temperature issue found", len(devs))
 	} else {
 		d.healthy = false
-		d.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(memThresholdExceeded, ", "))
+		d.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(tempThresholdExceeded, ", "))
 	}
 }
 
