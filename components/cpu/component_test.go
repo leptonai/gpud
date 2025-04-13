@@ -88,8 +88,8 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -105,8 +105,8 @@ func TestDataGetStatesWithError(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testError.Error(), states[0].Error)
 	assert.Equal(t, d.reason, states[0].Reason)
 }
@@ -135,8 +135,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -168,8 +168,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testData.reason, states[0].Reason)
 }
 
@@ -592,13 +592,13 @@ func TestComponentDataExtraInfo(t *testing.T) {
 	// Verify
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.NotNil(t, states[0].ExtraInfo)
-	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
-	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+	assert.NotNil(t, states[0].DeprecatedExtraInfo)
+	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+	assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
 
 	// Verify JSON contains expected data
-	jsonData := states[0].ExtraInfo["data"]
+	jsonData := states[0].DeprecatedExtraInfo["data"]
 	assert.Contains(t, jsonData, testData.Info.Arch)
 	assert.Contains(t, jsonData, testData.Info.CPU)
 	assert.Contains(t, jsonData, testData.Usage.UsedPercent)
@@ -708,10 +708,10 @@ func TestDataMarshallingInStates(t *testing.T) {
 	// Verify no errors in marshaling
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.NotNil(t, states[0].ExtraInfo)
+	assert.NotNil(t, states[0].DeprecatedExtraInfo)
 
 	// JSON data should contain all the unusual values
-	jsonData := states[0].ExtraInfo["data"]
+	jsonData := states[0].DeprecatedExtraInfo["data"]
 	assert.Contains(t, jsonData, "unusual-cpu-name")
 	assert.Contains(t, jsonData, "unusual-family")
 	assert.Contains(t, jsonData, "999999.99")

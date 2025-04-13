@@ -162,7 +162,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Println("/v1/states RESPONSE BODY:", string(body))
 			GinkgoLogr.Info("/v1/states response", "response", string(body))
 
-			var componentStates []apiv1.LeptonComponentStates
+			var componentStates []apiv1.ComponentStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -172,15 +172,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
+					if len(state.DeprecatedExtraInfo) == 0 {
 						continue
 					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
+					if !strings.Contains(state.DeprecatedExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.DeprecatedExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
@@ -203,7 +203,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			body, err := io.ReadAll(gr)
 			Expect(err).NotTo(HaveOccurred(), "failed to read gzip")
 
-			var componentStates []apiv1.LeptonComponentStates
+			var componentStates []apiv1.ComponentStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -213,15 +213,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
+					if len(state.DeprecatedExtraInfo) == 0 {
 						continue
 					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
+					if !strings.Contains(state.DeprecatedExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.DeprecatedExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
@@ -249,7 +249,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Println("/v1/metrics RESPONSE BODY:", string(body))
 			GinkgoLogr.Info("/v1/metrics response", "response", string(body))
 
-			var metrics apiv1.LeptonMetrics
+			var metrics apiv1.GPUdComponentMetrics
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -284,7 +284,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			body, err := io.ReadAll(gr)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
 
-			var metrics apiv1.LeptonMetrics
+			var metrics apiv1.GPUdComponentMetrics
 			err = json.Unmarshal(body, &metrics)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 		})
@@ -319,7 +319,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
 			for _, ss := range states {
 				for _, s := range ss.States {
-					GinkgoLogr.Info(fmt.Sprintf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo))
+					GinkgoLogr.Info(fmt.Sprintf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.DeprecatedHealthy, s.DeprecatedExtraInfo))
 				}
 			}
 		})
@@ -346,10 +346,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 						GinkgoLogr.Info("event", "name", event.Name, "message", event.Message)
 					}
 					for _, metric := range i.Info.Metrics {
-						GinkgoLogr.Info("metric", "name", metric.MetricName, "value", metric.Value)
+						GinkgoLogr.Info("metric", "name", metric.DeprecatedMetricName, "value", metric.Value)
 					}
 					for _, state := range i.Info.States {
-						GinkgoLogr.Info("state", "name", state.Name, "healthy", state.Healthy)
+						GinkgoLogr.Info("state", "name", state.Name, "healthy", state.DeprecatedHealthy)
 					}
 				}
 

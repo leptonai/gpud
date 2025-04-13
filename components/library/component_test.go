@@ -115,7 +115,7 @@ func TestStates(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 			assert.Equal(t, Name, states[0].Name)
-			assert.Equal(t, tt.wantHealthy, states[0].Healthy)
+			assert.Equal(t, tt.wantHealthy, states[0].DeprecatedHealthy)
 			assert.Equal(t, tt.wantReason, states[0].Reason)
 		})
 	}

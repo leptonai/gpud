@@ -115,8 +115,8 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-		assert.True(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -129,8 +129,8 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-		assert.True(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "all good", states[0].Reason)
 	})
 
@@ -144,8 +144,8 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "something wrong", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -233,7 +233,7 @@ func TestCheckOnce(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 
-			assert.Equal(t, tc.expectedHealthy, states[0].Healthy)
+			assert.Equal(t, tc.expectedHealthy, states[0].DeprecatedHealthy)
 			if tc.expectedErrorMessage != "" {
 				assert.Contains(t, states[0].Reason, tc.expectedErrorMessage)
 			}
@@ -303,11 +303,11 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 			assert.Contains(t, event.Message, "max background percent")
 
 			// Check that the connection info is in the event details
-			assert.Contains(t, event.ExtraInfo["encoding"], "json")
+			assert.Contains(t, event.DeprecatedExtraInfo["encoding"], "json")
 
 			// Validate we can parse the data
 			var connData map[string]interface{}
-			err := json.Unmarshal([]byte(event.ExtraInfo["data"]), &connData)
+			err := json.Unmarshal([]byte(event.DeprecatedExtraInfo["data"]), &connData)
 			assert.NoError(t, err)
 		}
 	}
@@ -379,7 +379,7 @@ func TestCheckOnceWithEventBucketError(t *testing.T) {
 	states, err := c.States(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.True(t, states[0].Healthy)
+	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 // TestFindError tests the error handling when Find returns an error
@@ -423,7 +423,7 @@ func TestFindError(t *testing.T) {
 	states, err := c.States(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.False(t, states[0].Healthy)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "error finding event")
 }
 
@@ -459,5 +459,5 @@ func TestThresholdExceeded(t *testing.T) {
 	states, err := c.States(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.True(t, states[0].Healthy)
+	assert.True(t, states[0].DeprecatedHealthy)
 }

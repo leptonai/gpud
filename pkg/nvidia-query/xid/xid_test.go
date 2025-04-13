@@ -206,11 +206,11 @@ func TestDetailsValidation(t *testing.T) {
 			}
 		}
 
-		if d.SuggestedActionsByGPUd != nil && len(d.SuggestedActionsByGPUd.Descriptions) > 0 &&
-			len(d.SuggestedActionsByGPUd.Descriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
+		if d.SuggestedActionsByGPUd != nil && len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) > 0 &&
+			len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
 			t.Errorf("xid %d has %d descriptions and %d repair actions",
 				d.Xid,
-				len(d.SuggestedActionsByGPUd.Descriptions),
+				len(d.SuggestedActionsByGPUd.DeprecatedDescriptions),
 				len(d.SuggestedActionsByGPUd.RepairActions))
 		}
 	}

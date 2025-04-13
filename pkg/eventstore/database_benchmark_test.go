@@ -46,10 +46,10 @@ func TestSimulatedEvents(t *testing.T) {
 			Name:    "test",
 			Type:    apiv1.EventTypeWarning,
 			Message: "Test message with normal text",
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"a": fmt.Sprintf("%d", i),
 			},
-			SuggestedActions: &apiv1.SuggestedActions{
+			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
 				RepairActions: []apiv1.RepairActionType{
 					apiv1.RepairActionTypeIgnoreNoActionRequired,
 				},

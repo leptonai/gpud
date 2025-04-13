@@ -122,11 +122,11 @@ var details = map[int]Detail{
 		Description: "This SXid error can happen only because of an incorrect FM partition configuration and is expected not to occur in the field.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch.",
 			},
 
@@ -554,11 +554,11 @@ var details = map[int]Detail{
 		Description: "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the GPUs and NVSwitches.",
 			},
 
@@ -585,11 +585,11 @@ var details = map[int]Detail{
 		Description: "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the GPUs and NVSwitches.",
 			},
 
@@ -670,11 +670,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -703,11 +703,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -736,11 +736,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -769,11 +769,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -802,11 +802,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -835,11 +835,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -868,11 +868,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -901,11 +901,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -934,11 +934,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -967,11 +967,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1000,11 +1000,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1033,11 +1033,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1066,11 +1066,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1119,11 +1119,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1152,11 +1152,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1185,11 +1185,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1218,11 +1218,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1251,11 +1251,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1284,11 +1284,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1317,11 +1317,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1350,11 +1350,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1383,11 +1383,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1416,11 +1416,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1449,11 +1449,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1482,11 +1482,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1515,11 +1515,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1548,11 +1548,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1581,11 +1581,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1614,11 +1614,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1647,11 +1647,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1680,11 +1680,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1713,11 +1713,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1746,11 +1746,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1779,11 +1779,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1812,11 +1812,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1845,11 +1845,11 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1886,11 +1886,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1919,11 +1919,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1952,11 +1952,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -1985,11 +1985,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2018,11 +2018,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultPotentialFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2063,11 +2063,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2096,11 +2096,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2129,11 +2129,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2162,11 +2162,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2195,11 +2195,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2228,11 +2228,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2261,11 +2261,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2294,11 +2294,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2327,11 +2327,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2360,11 +2360,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2393,11 +2393,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2426,11 +2426,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2459,11 +2459,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2492,11 +2492,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2525,11 +2525,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2558,11 +2558,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2591,11 +2591,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2624,11 +2624,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2657,11 +2657,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},
@@ -2690,11 +2690,11 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: defaultAlwaysFatalErr.Description,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				`"NVIDIA SXid Errors", https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Restart the system to reset the NVSwitch access port.",
 				"If the same SXid is returned, the NVSwitch should be inspected and repaired.",
 			},

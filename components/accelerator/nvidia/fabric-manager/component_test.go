@@ -61,7 +61,7 @@ func TestComponentEvents(t *testing.T) {
 		Name:    "fabricmanager_nvswitch_non_fatal_error",
 		Type:    "Warning",
 		Message: "NVSwitch non-fatal error detected",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"log_line": "[ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61",
 		},
 	}
@@ -69,14 +69,14 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.Name, events[0].Name)
 	assert.Equal(t, expectedEvent.Type, events[0].Type)
 	assert.Equal(t, expectedEvent.Message, events[0].Message)
-	assert.Equal(t, expectedEvent.ExtraInfo["log_line"], events[0].ExtraInfo["log_line"])
+	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
 	states, err := comp.States(ctx)
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
@@ -168,7 +168,7 @@ func TestEventsWithProcessor(t *testing.T) {
 		Name:    "test-error",
 		Message: "This is a test error",
 		Type:    "Warning",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"log_line": "test-error-line",
 		},
 	}
@@ -208,8 +208,8 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
 }
 
@@ -292,8 +292,8 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
 }
 
@@ -323,8 +323,8 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test unhealthy state
@@ -337,8 +337,8 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }

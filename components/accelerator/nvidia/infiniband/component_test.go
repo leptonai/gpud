@@ -290,8 +290,8 @@ func TestComponentStatesWithTestData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, "ibstat", state.Name)
-	assert.True(t, state.Healthy)
-	assert.Equal(t, apiv1.StateHealthy, state.Health)
+	assert.True(t, state.DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
 	assert.Equal(t, msgNoIbIssueFound, state.Reason)
 	assert.Nil(t, state.SuggestedActions)
 
@@ -312,8 +312,8 @@ func TestComponentStatesWithTestData(t *testing.T) {
 
 	state = states[0]
 	assert.Equal(t, "ibstat", state.Name)
-	assert.False(t, state.Healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
+	assert.False(t, state.DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "only 8 ports (>= 400 Gb/s) are active, expect at least 12")
 	assert.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, state.SuggestedActions.RepairActions)
@@ -333,10 +333,10 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastRate:  0,
 			},
 			wantState: apiv1.State{
-				Name:    "ibstat",
-				Health:  apiv1.StateHealthy,
-				Healthy: true,
-				Reason:  msgThresholdNotSetSkipped,
+				Name:              "ibstat",
+				Health:            apiv1.StateTypeHealthy,
+				DeprecatedHealthy: true,
+				Reason:            msgThresholdNotSetSkipped,
 			},
 			wantErr: false,
 		},
@@ -347,10 +347,10 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastRate:  100,
 			},
 			wantState: apiv1.State{
-				Name:    "ibstat",
-				Health:  apiv1.StateUnhealthy,
-				Healthy: false,
-				Reason:  "ibstat threshold set but ibstat not found",
+				Name:              "ibstat",
+				Health:            apiv1.StateTypeUnhealthy,
+				DeprecatedHealthy: false,
+				Reason:            "ibstat threshold set but ibstat not found",
 			},
 			wantErr: false,
 		},
@@ -386,7 +386,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			require.Len(t, states, 1)
 			assert.Equal(t, tt.wantState.Name, states[0].Name)
 			assert.Equal(t, tt.wantState.Health, states[0].Health)
-			assert.Equal(t, tt.wantState.Healthy, states[0].Healthy)
+			assert.Equal(t, tt.wantState.DeprecatedHealthy, states[0].DeprecatedHealthy)
 			assert.Contains(t, states[0].Reason, tt.wantState.Reason)
 		})
 	}
@@ -458,8 +458,8 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 
 			state := states[0]
 			assert.Equal(t, "ibstat", state.Name)
-			assert.Equal(t, apiv1.StateUnhealthy, state.Health)
-			assert.False(t, state.Healthy)
+			assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+			assert.False(t, state.DeprecatedHealthy)
 			assert.Contains(t, state.Reason, tc.wantReason)
 		})
 	}
@@ -568,8 +568,8 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, msgThresholdNotSetSkipped, states[0].Reason)
 
 	// Test case 2: Empty events store with thresholds
@@ -580,8 +580,8 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 
 	// Test case 3: With an event in store
@@ -590,15 +590,15 @@ func TestGetStates(t *testing.T) {
 		Name:    "ibstat",
 		Type:    apiv1.EventTypeWarning,
 		Message: "test message",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"state_healthy": "false",
-			"state_health":  apiv1.StateUnhealthy,
+			"state_health":  string(apiv1.StateTypeUnhealthy),
 		},
-		SuggestedActions: &apiv1.SuggestedActions{
+		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"test action",
 			},
 		},
@@ -618,12 +618,12 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testEvent.Message, states[0].Reason)
 	assert.NotNil(t, states[0].SuggestedActions)
-	assert.Equal(t, testEvent.SuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions)
-	assert.Equal(t, testEvent.SuggestedActions.Descriptions, states[0].SuggestedActions.Descriptions)
+	assert.Equal(t, testEvent.DeprecatedSuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions)
+	assert.Equal(t, testEvent.DeprecatedSuggestedActions.DeprecatedDescriptions, states[0].SuggestedActions.DeprecatedDescriptions)
 
 	// Test case 4: With recent event (within 10 seconds)
 	recentEvent := apiv1.Event{
@@ -631,9 +631,9 @@ func TestGetStates(t *testing.T) {
 		Name:    "ibstat",
 		Type:    apiv1.EventTypeWarning,
 		Message: "recent test message",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"state_healthy": "false",
-			"state_health":  apiv1.StateUnhealthy,
+			"state_health":  string(apiv1.StateTypeUnhealthy),
 		},
 	}
 	c.lastEventMu.Lock()
@@ -674,8 +674,8 @@ func TestGetStates(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, msgNoIbIssueFound, states[0].Reason)
 
 	// Test case 7: With invalid ibstat command
@@ -686,8 +686,8 @@ func TestGetStates(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 }
 
@@ -965,11 +965,11 @@ func TestLogLineProcessor(t *testing.T) {
 		if tt.expectMatch {
 			eventName, eventMessage := Match(tt.logLine)
 			event := apiv1.Event{
-				Time:      metav1.Time{Time: now},
-				Name:      eventName,
-				Type:      apiv1.EventTypeWarning,
-				Message:   eventMessage,
-				ExtraInfo: map[string]string{"log_line": tt.logLine},
+				Time:                metav1.Time{Time: now},
+				Name:                eventName,
+				Type:                apiv1.EventTypeWarning,
+				Message:             eventMessage,
+				DeprecatedExtraInfo: map[string]string{"log_line": tt.logLine},
 			}
 			err := mockStore.Insert(ctx, event)
 			require.NoError(t, err)
@@ -990,7 +990,7 @@ func TestLogLineProcessor(t *testing.T) {
 		assert.Equal(t, apiv1.EventTypeWarning, event.Type)
 		assert.NotEmpty(t, event.Name)
 		assert.NotEmpty(t, event.Message)
-		assert.Contains(t, event.ExtraInfo, "log_line")
+		assert.Contains(t, event.DeprecatedExtraInfo, "log_line")
 	}
 }
 
@@ -1046,7 +1046,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 		Name:    eventName,
 		Type:    apiv1.EventTypeWarning,
 		Message: eventMessage,
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"log_line": logLine,
 		},
 	}
@@ -1074,7 +1074,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 		Name:    "port_module_high_temperature",
 		Type:    apiv1.EventTypeWarning,
 		Message: "Overheated MLX5 adapter",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"log_line": "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
 		},
 	}

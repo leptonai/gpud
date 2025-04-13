@@ -46,8 +46,8 @@ func (c *component) Start() error { return nil }
 func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	return []apiv1.State{
 		{
-			Healthy: true,
-			Reason:  "no issue",
+			DeprecatedHealthy: true,
+			Reason:            "no issue",
 		},
 	}, nil
 }

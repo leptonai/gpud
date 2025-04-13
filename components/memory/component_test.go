@@ -22,8 +22,8 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -38,8 +38,8 @@ func TestDataGetStatesWithError(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, "Unhealthy", states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 }
 
 // MockEventStore implements a mock for eventstore.Store
@@ -131,8 +131,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -149,8 +149,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "using 8 bytes out of total 16 bytes", states[0].Reason)
 }
 

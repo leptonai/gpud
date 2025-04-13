@@ -22,8 +22,8 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -35,14 +35,14 @@ func TestDataGetStatesWithError(t *testing.T) {
 		Limit:                10000,
 		err:                  testError,
 		healthy:              false,
-		health:               apiv1.StateUnhealthy,
+		health:               apiv1.StateTypeUnhealthy,
 	}
 
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, "Unhealthy", states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testError.Error(), states[0].Error)
 }
 
@@ -125,8 +125,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -141,7 +141,7 @@ func TestComponentStates(t *testing.T) {
 		FDLimitSupported:            true,
 		ts:                          time.Now(),
 		healthy:                     true,
-		health:                      apiv1.StateHealthy,
+		health:                      apiv1.StateTypeHealthy,
 		reason:                      "current file descriptors: 800, threshold: 10000000, used_percent: 0.01",
 	}
 	c.lastData = testData
@@ -150,8 +150,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testData.reason, states[0].Reason)
 }
 
@@ -262,7 +262,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	assert.True(t, c.lastData.FileHandlesSupported)
 	assert.True(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
@@ -289,7 +289,7 @@ func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting file handles")
 }
@@ -323,7 +323,7 @@ func TestComponentCheckOnceWithPIDsError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting running pids")
 }
@@ -362,7 +362,7 @@ func TestComponentCheckOnceWithUsageError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting usage")
 }
@@ -406,7 +406,7 @@ func TestComponentCheckOnceWithLimitError(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error getting limit")
 }
@@ -461,7 +461,7 @@ func TestComponentCheckOnceWithHighFileHandlesAllocation(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeDegraded, c.lastData.health)
 	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
 }
 
@@ -515,7 +515,7 @@ func TestComponentCheckOnceWithHighRunningPIDs(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeDegraded, c.lastData.health)
 	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
 }
 
@@ -569,7 +569,7 @@ func TestComponentCheckOnceWithBothHighValues(t *testing.T) {
 	// Verify
 	assert.NotNil(t, c.lastData)
 	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateDegraded, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeDegraded, c.lastData.health)
 	// Should contain both warnings
 	assert.Contains(t, c.lastData.reason, "file handles")
 }
@@ -625,7 +625,7 @@ func TestComponentCheckOnceWhenFileHandlesNotSupported(t *testing.T) {
 	assert.False(t, c.lastData.FileHandlesSupported)
 	assert.True(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
@@ -679,7 +679,7 @@ func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
 	assert.True(t, c.lastData.FileHandlesSupported)
 	assert.False(t, c.lastData.FDLimitSupported)
 	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, apiv1.StateHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentClose(t *testing.T) {
@@ -817,7 +817,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 		limit                    uint64
 		thresholdFileHandles     uint64
 		thresholdPIDs            uint64
-		expectedHealth           string
+		expectedHealth           apiv1.StateType
 		expectedHealthy          bool
 		fileHandlesSupported     bool
 		fdLimitSupported         bool
@@ -831,7 +831,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateHealthy,
+			expectedHealth:           apiv1.StateTypeHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -845,7 +845,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateDegraded,
+			expectedHealth:           apiv1.StateTypeDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -859,7 +859,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateDegraded,
+			expectedHealth:           apiv1.StateTypeDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
@@ -873,7 +873,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateHealthy,
+			expectedHealth:           apiv1.StateTypeHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     false,
 			fdLimitSupported:         true,
@@ -887,7 +887,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateHealthy,
+			expectedHealth:           apiv1.StateTypeHealthy,
 			expectedHealthy:          true,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         false,
@@ -901,7 +901,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			limit:                    10000,
 			thresholdFileHandles:     5000, // Set low to trigger warning
 			thresholdPIDs:            DefaultThresholdRunningPIDs,
-			expectedHealth:           apiv1.StateDegraded,
+			expectedHealth:           apiv1.StateTypeDegraded,
 			expectedHealthy:          false,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,

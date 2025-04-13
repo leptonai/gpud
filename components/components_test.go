@@ -30,7 +30,7 @@ func (m *mockComponent) Start() error {
 }
 
 func (m *mockComponent) States(ctx context.Context) ([]apiv1.State, error) {
-	return []apiv1.State{{Name: m.name, Healthy: true}}, nil
+	return []apiv1.State{{Name: m.name, DeprecatedHealthy: true}}, nil
 }
 
 func (m *mockComponent) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {

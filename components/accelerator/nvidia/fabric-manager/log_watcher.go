@@ -56,7 +56,7 @@ func (llp *logLineProcessor) watch() {
 			ev := apiv1.Event{
 				Time: metav1.Time{Time: line.ts.UTC()},
 				Type: apiv1.EventTypeWarning,
-				ExtraInfo: map[string]string{
+				DeprecatedExtraInfo: map[string]string{
 					"log_line": line.content,
 				},
 			}

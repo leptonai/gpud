@@ -125,11 +125,11 @@ func TestStates(t *testing.T) {
 
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
-			assert.Equal(t, tt.wantHealthy, state.Healthy)
+			assert.Equal(t, tt.wantHealthy, state.DeprecatedHealthy)
 			if tt.wantHealthy {
-				assert.Equal(t, apiv1.StateHealthy, state.Health)
+				assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
 			} else {
-				assert.Equal(t, apiv1.StateUnhealthy, state.Health)
+				assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
 			}
 		})
 	}
@@ -213,14 +213,14 @@ func TestGetHealth(t *testing.T) {
 		name           string
 		data           *Data
 		modulesToCheck []string
-		wantHealth     string
+		wantHealth     apiv1.StateType
 		wantHealthy    bool
 	}{
 		{
 			name:           "with error",
 			data:           &Data{err: assert.AnError, healthy: false},
 			modulesToCheck: []string{"module1"},
-			wantHealth:     apiv1.StateUnhealthy,
+			wantHealth:     apiv1.StateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 		{
@@ -231,7 +231,7 @@ func TestGetHealth(t *testing.T) {
 				healthy:       true,
 			},
 			modulesToCheck: nil,
-			wantHealth:     apiv1.StateHealthy,
+			wantHealth:     apiv1.StateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -242,7 +242,7 @@ func TestGetHealth(t *testing.T) {
 				healthy:       true,
 			},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     apiv1.StateHealthy,
+			wantHealth:     apiv1.StateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -253,16 +253,16 @@ func TestGetHealth(t *testing.T) {
 				healthy:       false,
 			},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     apiv1.StateUnhealthy,
+			wantHealth:     apiv1.StateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health := apiv1.StateHealthy
+			health := apiv1.StateTypeHealthy
 			if tt.data != nil && !tt.data.healthy {
-				health = apiv1.StateUnhealthy
+				health = apiv1.StateTypeUnhealthy
 			}
 
 			assert.Equal(t, tt.wantHealth, health)
@@ -276,7 +276,7 @@ func TestDataGetStates(t *testing.T) {
 		name        string
 		data        *Data
 		wantHealthy bool
-		wantHealth  string
+		wantHealth  apiv1.StateType
 		wantReason  string
 		wantError   bool
 	}{
@@ -284,7 +284,7 @@ func TestDataGetStates(t *testing.T) {
 			name:        "nil data",
 			data:        nil,
 			wantHealthy: true,
-			wantHealth:  apiv1.StateHealthy,
+			wantHealth:  apiv1.StateTypeHealthy,
 			wantReason:  "no data yet",
 			wantError:   false,
 		},
@@ -292,7 +292,7 @@ func TestDataGetStates(t *testing.T) {
 			name:        "with error",
 			data:        &Data{err: assert.AnError, healthy: false, reason: "error getting all modules: assert.AnError general error for testing"},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateUnhealthy,
+			wantHealth:  apiv1.StateTypeUnhealthy,
 			wantReason:  "error getting all modules: assert.AnError general error for testing",
 			wantError:   true,
 		},
@@ -305,7 +305,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateHealthy,
+			wantHealth:  apiv1.StateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -318,7 +318,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateHealthy,
+			wantHealth:  apiv1.StateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -331,7 +331,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:        `missing modules: ["module2"]`,
 			},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateUnhealthy,
+			wantHealth:  apiv1.StateTypeUnhealthy,
 			wantReason:  `missing modules: ["module2"]`,
 			wantError:   false,
 		},
@@ -348,7 +348,7 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.wantReason, state.Reason)
 			assert.Equal(t, tt.wantHealth, state.Health)
-			assert.Equal(t, tt.wantHealthy, state.Healthy)
+			assert.Equal(t, tt.wantHealthy, state.DeprecatedHealthy)
 
 			// Check Error field is set correctly
 			if tt.wantError {
@@ -362,13 +362,13 @@ func TestDataGetStates(t *testing.T) {
 
 			// Check that ExtraInfo exists for non-nil data
 			if tt.data != nil {
-				assert.Contains(t, state.ExtraInfo, "data")
-				assert.Contains(t, state.ExtraInfo, "encoding")
-				assert.Equal(t, "json", state.ExtraInfo["encoding"])
+				assert.Contains(t, state.DeprecatedExtraInfo, "data")
+				assert.Contains(t, state.DeprecatedExtraInfo, "encoding")
+				assert.Equal(t, "json", state.DeprecatedExtraInfo["encoding"])
 
 				// Verify that the JSON encoding works
 				var decodedData map[string]interface{}
-				err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &decodedData)
+				err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &decodedData)
 				assert.NoError(t, err, "Should be able to decode the JSON data")
 
 				if len(tt.data.LoadedModules) > 0 {

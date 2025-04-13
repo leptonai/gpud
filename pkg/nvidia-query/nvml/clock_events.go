@@ -134,7 +134,7 @@ func (evs *ClockEvents) Event() *apiv1.Event {
 		Name:    "hw_slowdown",
 		Type:    apiv1.EventTypeWarning,
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"data_source": "nvml",
 			"gpu_uuid":    evs.UUID,
 		},

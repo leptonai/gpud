@@ -27,7 +27,7 @@ func main() {
 
 		for _, ss := range states {
 			for _, s := range ss.States {
-				log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.Healthy, s.ExtraInfo)
+				log.Logger.Infof("state: %q, healthy: %v, extra info: %q\n", s.Name, s.DeprecatedHealthy, s.DeprecatedExtraInfo)
 			}
 		}
 	}

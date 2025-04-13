@@ -102,8 +102,8 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	states, err := nilData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 
 	// Test with error
 	data := &Data{
@@ -113,8 +113,8 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	states, err = data.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 
 	// Test without error
@@ -124,8 +124,8 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	states, err = data.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestDataGetStatesForReason(t *testing.T) {
@@ -168,8 +168,8 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
 }
@@ -210,12 +210,12 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 	assert.Len(t, states, 1)
 
 	// Check extraInfo contains JSON data
-	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
-	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+	assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
 
 	// Verify the JSON data contains our fields
-	jsonData := states[0].ExtraInfo["data"]
+	jsonData := states[0].DeprecatedExtraInfo["data"]
 	assert.Contains(t, jsonData, "test-version")
 	assert.Contains(t, jsonData, "00:11:22:33:44:55")
 	assert.Contains(t, jsonData, "key")

@@ -197,7 +197,7 @@ func TestStates(t *testing.T) {
 		isInstalled    bool
 		isActive       bool
 		activeError    error
-		expectedHealth string
+		expectedHealth apiv1.StateType
 		expectedStatus bool
 	}{
 		{
@@ -205,7 +205,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       true,
 			activeError:    nil,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectedStatus: true,
 		},
 		{
@@ -213,7 +213,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -221,7 +221,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    errors.New("test error"),
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -229,7 +229,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    false,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectedStatus: true,
 		},
 	}
@@ -251,7 +251,7 @@ func TestStates(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedHealth, state.Health, "Health status should match expected")
-			assert.Equal(t, tc.expectedStatus, state.Healthy, "Healthy boolean should match expected")
+			assert.Equal(t, tc.expectedStatus, state.DeprecatedHealthy, "Healthy boolean should match expected")
 		})
 	}
 }
@@ -271,7 +271,7 @@ func TestDataGetStates(t *testing.T) {
 		name            string
 		data            *Data
 		expectedReason  string
-		expectedHealth  string
+		expectedHealth  apiv1.StateType
 		expectedHealthy bool
 	}{
 		{
@@ -282,7 +282,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:                  "tailscaled service is active/running",
 			},
 			expectedReason:  "tailscaled service is active/running",
-			expectedHealth:  apiv1.StateHealthy,
+			expectedHealth:  apiv1.StateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -293,7 +293,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check",
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -304,7 +304,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 	}
@@ -320,7 +320,7 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name, "State name should match component name")
 			assert.Equal(t, tc.expectedReason, state.Reason, "State reason should match expected")
 			assert.Equal(t, tc.expectedHealth, state.Health, "State health should match expected")
-			assert.Equal(t, tc.expectedHealthy, state.Healthy, "State healthy flag should match expected")
+			assert.Equal(t, tc.expectedHealthy, state.DeprecatedHealthy, "State healthy flag should match expected")
 
 			// Check that Error field is set correctly
 			if tc.data != nil && tc.data.err != nil {

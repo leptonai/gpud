@@ -50,7 +50,7 @@ INSERT OR REPLACE INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?);
 	)
 
 	start := time.Now()
-	_, err := db.ExecContext(ctx, query, metric.UnixSeconds, metric.MetricName, metric.MetricSecondaryName, metric.Value)
+	_, err := db.ExecContext(ctx, query, metric.UnixSeconds, metric.DeprecatedMetricName, metric.DeprecatedMetricSecondaryName, metric.Value)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
@@ -79,8 +79,8 @@ LIMIT 1;
 	)
 
 	metric := apiv1.Metric{
-		MetricName:          name,
-		MetricSecondaryName: secondaryName,
+		DeprecatedMetricName:          name,
+		DeprecatedMetricSecondaryName: secondaryName,
 	}
 
 	start := time.Now()
@@ -114,11 +114,11 @@ LIMIT 1;
 	)
 
 	metric := apiv1.Metric{
-		MetricName: name,
+		DeprecatedMetricName: name,
 	}
 
 	start := time.Now()
-	err := db.QueryRowContext(ctx, query, name).Scan(&metric.UnixSeconds, &metric.MetricSecondaryName, &metric.Value)
+	err := db.QueryRowContext(ctx, query, name).Scan(&metric.UnixSeconds, &metric.DeprecatedMetricSecondaryName, &metric.Value)
 	sqlite.RecordSelect(time.Since(start).Seconds())
 
 	if err != nil {
@@ -169,8 +169,8 @@ ORDER BY %s ASC;`,
 	for queryRows.Next() {
 		var unixSeconds int64
 		metric := apiv1.Metric{
-			MetricName:          name,
-			MetricSecondaryName: secondaryName,
+			DeprecatedMetricName:          name,
+			DeprecatedMetricSecondaryName: secondaryName,
 		}
 		if err := queryRows.Scan(&unixSeconds, &metric.Value); err != nil {
 			return nil, err
@@ -215,9 +215,9 @@ ORDER BY %s ASC;`,
 	rows := make(apiv1.Metrics, 0)
 	for queryRows.Next() {
 		metric := apiv1.Metric{
-			MetricName: name,
+			DeprecatedMetricName: name,
 		}
-		if err := queryRows.Scan(&metric.UnixSeconds, &metric.MetricSecondaryName, &metric.Value); err != nil {
+		if err := queryRows.Scan(&metric.UnixSeconds, &metric.DeprecatedMetricSecondaryName, &metric.Value); err != nil {
 			return nil, err
 		}
 		rows = append(rows, metric)

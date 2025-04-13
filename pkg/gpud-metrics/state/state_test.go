@@ -48,9 +48,9 @@ func TestState(t *testing.T) {
 
 	now := time.Now()
 	metrics := []components.Metric{
-		{UnixSeconds: now.Unix(), MetricName: "test_metric", Value: 10.0},
-		{UnixSeconds: now.Add(-1 * time.Minute).Unix(), MetricName: "test_metric", Value: 20.0},
-		{UnixSeconds: now.Add(-2 * time.Minute).Unix(), MetricName: "test_metric", Value: 30.0},
+		{UnixSeconds: now.Unix(), DeprecatedMetricName: "test_metric", Value: 10.0},
+		{UnixSeconds: now.Add(-1 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", Value: 20.0},
+		{UnixSeconds: now.Add(-2 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", Value: 30.0},
 	}
 
 	for _, m := range metrics {
@@ -128,10 +128,10 @@ func TestStateMoreDataPoints(t *testing.T) {
 		value := rand.Float64() * 100
 
 		metric := components.Metric{
-			UnixSeconds:         timestamp.Unix(),
-			MetricName:          metricName,
-			MetricSecondaryName: "",
-			Value:               value,
+			UnixSeconds:                   timestamp.Unix(),
+			DeprecatedMetricName:          metricName,
+			DeprecatedMetricSecondaryName: "",
+			Value:                         value,
 		}
 		if err := InsertMetric(ctx, db, tableName, metric); err != nil {
 			t.Fatalf("failed to insert metric: %v", err)
@@ -218,11 +218,11 @@ func TestStateMoreDataPoints(t *testing.T) {
 
 	secondaryID := "test_secondary_id"
 	secondaryMetrics := []components.Metric{
-		{UnixSeconds: now.Add(-5 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 10.0},
-		{UnixSeconds: now.Add(-4 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 20.0},
-		{UnixSeconds: now.Add(-3 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 30.0},
-		{UnixSeconds: now.Add(-2 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 40.0},
-		{UnixSeconds: now.Add(-1 * time.Minute).Unix(), MetricName: "test_metric", MetricSecondaryName: secondaryID, Value: 50.0},
+		{UnixSeconds: now.Add(-5 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", DeprecatedMetricSecondaryName: secondaryID, Value: 10.0},
+		{UnixSeconds: now.Add(-4 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", DeprecatedMetricSecondaryName: secondaryID, Value: 20.0},
+		{UnixSeconds: now.Add(-3 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", DeprecatedMetricSecondaryName: secondaryID, Value: 30.0},
+		{UnixSeconds: now.Add(-2 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", DeprecatedMetricSecondaryName: secondaryID, Value: 40.0},
+		{UnixSeconds: now.Add(-1 * time.Minute).Unix(), DeprecatedMetricName: "test_metric", DeprecatedMetricSecondaryName: secondaryID, Value: 50.0},
 	}
 
 	for _, m := range secondaryMetrics {
@@ -272,10 +272,10 @@ func TestAvgSincePanicWithEmptySecondaryName(t *testing.T) {
 	// Insert a metric with an empty secondary name
 	now := time.Now()
 	metric := components.Metric{
-		UnixSeconds:         now.Unix(),
-		MetricName:          "test_panic_metric",
-		MetricSecondaryName: "", // Empty secondary name
-		Value:               42.0,
+		UnixSeconds:                   now.Unix(),
+		DeprecatedMetricName:          "test_panic_metric",
+		DeprecatedMetricSecondaryName: "", // Empty secondary name
+		Value:                         42.0,
 	}
 
 	if err := InsertMetric(ctx, db, tableName, metric); err != nil {

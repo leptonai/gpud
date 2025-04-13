@@ -57,8 +57,8 @@ func TestComponentStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -311,8 +311,8 @@ func TestData_GetStates(t *testing.T) {
 			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-				assert.True(t, states[0].Healthy)
+				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
 		},
@@ -327,12 +327,12 @@ func TestData_GetStates(t *testing.T) {
 			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-				assert.False(t, states[0].Healthy)
+				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+				assert.False(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
 			},
 		},
 		{
@@ -349,12 +349,12 @@ func TestData_GetStates(t *testing.T) {
 			validate: func(t *testing.T, states []apiv1.State) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-				assert.True(t, states[0].Healthy)
+				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
 			},
 		},
 	}
@@ -388,8 +388,8 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-		assert.True(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -411,8 +411,8 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-		assert.True(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 	})
 
@@ -433,8 +433,8 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "failed to get pci data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})

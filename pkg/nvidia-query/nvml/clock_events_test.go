@@ -593,7 +593,7 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 				Name:    "hw_slowdown",
 				Type:    apiv1.EventTypeWarning,
 				Message: "reason1, reason2",
-				ExtraInfo: map[string]string{
+				DeprecatedExtraInfo: map[string]string{
 					"data_source": "nvml",
 					"gpu_uuid":    "GPU-123",
 				},

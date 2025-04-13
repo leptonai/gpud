@@ -264,7 +264,7 @@ func TestCheckOnce(t *testing.T) {
 			states, err := c.States(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(states))
-			assert.Equal(t, tc.expectHealthyState, states[0].Healthy)
+			assert.Equal(t, tc.expectHealthyState, states[0].DeprecatedHealthy)
 		})
 	}
 }
@@ -310,7 +310,7 @@ func TestComponentStates(t *testing.T) {
 			Name:    "hw_slowdown",
 			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
@@ -351,8 +351,8 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestComponentStatesEdgeCases(t *testing.T) {
@@ -395,7 +395,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 					Name:    "hw_slowdown",
 					Type:    apiv1.EventTypeWarning,
 					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
+					DeprecatedExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -415,7 +415,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 					Name:    "hw_slowdown",
 					Type:    apiv1.EventTypeWarning,
 					Message: "HW Slowdown detected",
-					ExtraInfo: map[string]string{
+					DeprecatedExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -460,7 +460,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedStates, len(states))
 			if len(states) > 0 {
-				assert.Equal(t, tc.expectHealthy, states[0].Healthy)
+				assert.Equal(t, tc.expectHealthy, states[0].DeprecatedHealthy)
 			}
 		})
 	}
@@ -548,7 +548,7 @@ func TestComponentEvents(t *testing.T) {
 			Name:    "hw_slowdown",
 			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
@@ -557,7 +557,7 @@ func TestComponentEvents(t *testing.T) {
 			Name:    "hw_slowdown",
 			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-1",
 			},
 		},
@@ -701,7 +701,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 			Name:    "hw_slowdown",
 			Type:    apiv1.EventTypeWarning,
 			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		}
@@ -717,8 +717,8 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "hw slowdown events frequency per minute")
 	assert.Contains(t, states[0].Reason, "exceeded threshold")
 }

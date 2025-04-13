@@ -329,16 +329,16 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	assert.Equal(t, apiv1.EventTypeWarning, pendingEvent.Type)
 	assert.Contains(t, pendingEvent.Message, "GPU2")
 	assert.Contains(t, pendingEvent.Message, "pending row remapping")
-	assert.Equal(t, "GPU2", pendingEvent.ExtraInfo["gpu_id"])
-	assert.Contains(t, pendingEvent.ExtraInfo["data"], "NVIDIA Test GPU")
+	assert.Equal(t, "GPU2", pendingEvent.DeprecatedExtraInfo["gpu_id"])
+	assert.Contains(t, pendingEvent.DeprecatedExtraInfo["data"], "NVIDIA Test GPU")
 
 	// Verify the failed event
 	require.NotNil(t, failedEvent, "Expected 'row_remapping_failed' event to be generated")
 	assert.Equal(t, apiv1.EventTypeWarning, failedEvent.Type)
 	assert.Contains(t, failedEvent.Message, "GPU3")
 	assert.Contains(t, failedEvent.Message, "failed row remapping")
-	assert.Equal(t, "GPU3", failedEvent.ExtraInfo["gpu_id"])
-	assert.Contains(t, failedEvent.ExtraInfo["data"], "NVIDIA Test GPU")
+	assert.Equal(t, "GPU3", failedEvent.DeprecatedExtraInfo["gpu_id"])
+	assert.Contains(t, failedEvent.DeprecatedExtraInfo["data"], "NVIDIA Test GPU")
 
 	// Verify no events for healthy GPU
 	for _, event := range events {
@@ -417,8 +417,8 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	states, err := c.lastData.getStates()
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Error, expectedErr.Error())
 }
 
@@ -492,7 +492,7 @@ func TestComponentStates(t *testing.T) {
 		name                       string
 		rowRemappingSupported      bool
 		remappedRows               []nvml.RemappedRows
-		expectedHealth             string
+		expectedHealth             apiv1.StateType
 		expectedHealthy            bool
 		expectContainsRMAMessage   bool
 		expectContainsResetMessage bool
@@ -501,14 +501,14 @@ func TestComponentStates(t *testing.T) {
 			name:                  "No row remapping support",
 			rowRemappingSupported: false,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        apiv1.StateHealthy,
+			expectedHealth:        apiv1.StateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
 			name:                  "Empty remapped rows",
 			rowRemappingSupported: true,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        apiv1.StateHealthy,
+			expectedHealth:        apiv1.StateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
@@ -522,7 +522,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending:                 false,
 				},
 			},
-			expectedHealth:  apiv1.StateHealthy,
+			expectedHealth:  apiv1.StateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -535,7 +535,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingFailed:                  true,
 				},
 			},
-			expectedHealth:           apiv1.StateUnhealthy,
+			expectedHealth:           apiv1.StateTypeUnhealthy,
 			expectedHealthy:          false,
 			expectContainsRMAMessage: true,
 		},
@@ -548,7 +548,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             apiv1.StateUnhealthy,
+			expectedHealth:             apiv1.StateTypeUnhealthy,
 			expectedHealthy:            false,
 			expectContainsResetMessage: true,
 		},
@@ -572,7 +572,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             apiv1.StateUnhealthy,
+			expectedHealth:             apiv1.StateTypeUnhealthy,
 			expectedHealthy:            false,
 			expectContainsRMAMessage:   true,
 			expectContainsResetMessage: true,
@@ -654,7 +654,7 @@ func TestComponentStates(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.expectedHealth, state.Health)
-			assert.Equal(t, tt.expectedHealthy, state.Healthy)
+			assert.Equal(t, tt.expectedHealthy, state.DeprecatedHealthy)
 
 			if tt.expectContainsRMAMessage {
 				assert.Contains(t, state.Reason, "qualifies for RMA")
@@ -717,8 +717,8 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
-	assert.False(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.False(t, state.DeprecatedHealthy)
 	assert.Contains(t, state.Reason, "failed to get remapped rows data")
 	assert.Equal(t, "test error", state.Error)
 }
@@ -762,8 +762,8 @@ func TestComponentStatesWithNilData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateHealthy, state.Health)
-	assert.True(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "no data yet", state.Reason)
 	assert.Empty(t, state.Error)
 }

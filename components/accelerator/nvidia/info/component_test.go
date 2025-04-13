@@ -87,8 +87,8 @@ func TestComponent_States_NoData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -113,10 +113,10 @@ func TestComponent_States_WithData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "all GPUs were checked", states[0].Reason)
-	assert.NotNil(t, states[0].ExtraInfo)
+	assert.NotNil(t, states[0].DeprecatedExtraInfo)
 }
 
 func TestComponent_States_Unhealthy(t *testing.T) {
@@ -135,8 +135,8 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "error occurred", states[0].Reason)
 	assert.Equal(t, "something went wrong", states[0].Error)
 }
@@ -308,8 +308,8 @@ func TestData_GetStates(t *testing.T) {
 	states, err = healthyData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 
 	// Test with unhealthy data
 	unhealthyData := &Data{
@@ -320,8 +320,8 @@ func TestData_GetStates(t *testing.T) {
 	states, err = unhealthyData.getStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "test error", states[0].Error)
 }
 

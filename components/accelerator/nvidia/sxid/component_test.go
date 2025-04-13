@@ -21,10 +21,10 @@ func createTestEvent(timestamp time.Time) apiv1.Event {
 		Name:    "test_event",
 		Type:    "test_type",
 		Message: "test message",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"key": "value",
 		},
-		SuggestedActions: &apiv1.SuggestedActions{
+		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 		},
 	}
@@ -182,8 +182,8 @@ func TestSXIDComponent_Events(t *testing.T) {
 		assert.Equal(t, testEvents[i].Name, event.Name)
 		assert.Equal(t, testEvents[i].Type, event.Type)
 		assert.Equal(t, testEvents[i].Message, event.Message)
-		assert.Equal(t, testEvents[i].ExtraInfo, event.ExtraInfo)
-		assert.Equal(t, testEvents[i].SuggestedActions, event.SuggestedActions)
+		assert.Equal(t, testEvents[i].DeprecatedExtraInfo, event.DeprecatedExtraInfo)
+		assert.Equal(t, testEvents[i].DeprecatedSuggestedActions, event.DeprecatedSuggestedActions)
 	}
 }
 
@@ -211,10 +211,10 @@ func TestSXIDComponent_States(t *testing.T) {
 	}()
 
 	s := apiv1.State{
-		Name:    StateNameErrorSXid,
-		Healthy: true,
-		Health:  apiv1.StateHealthy,
-		Reason:  "SXIDComponent is healthy",
+		Name:              StateNameErrorSXid,
+		DeprecatedHealthy: true,
+		Health:            apiv1.StateTypeHealthy,
+		Reason:            "SXIDComponent is healthy",
 	}
 	component.currState = s
 	states, err := component.States(ctx)
@@ -241,13 +241,13 @@ func TestSXIDComponent_States(t *testing.T) {
 				createSXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.State{
-				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: apiv1.StateUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Healthy: false, Health: apiv1.StateUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: apiv1.StateUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Healthy: true, Health: apiv1.StateHealthy, SuggestedActions: nil},
-				{Healthy: false, Health: apiv1.StateUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
@@ -267,7 +267,7 @@ func TestSXIDComponent_States(t *testing.T) {
 				t.Log(states[0])
 				assert.NoError(t, err, "index %d", i)
 				assert.Len(t, states, 1, "index %d", i)
-				assert.Equal(t, tt.wantState[i].Healthy, states[0].Healthy, "index %d", i)
+				assert.Equal(t, tt.wantState[i].DeprecatedHealthy, states[0].DeprecatedHealthy, "index %d", i)
 				assert.Equal(t, tt.wantState[i].Health, states[0].Health, "index %d", i)
 				if tt.wantState[i].SuggestedActions == nil {
 					assert.Equal(t, tt.wantState[i].SuggestedActions, states[0].SuggestedActions, "index %d", i)

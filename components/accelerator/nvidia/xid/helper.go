@@ -36,7 +36,7 @@ func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
 		if event.Name == EventNameErrorXid {
 			resolvedEvent := resolveXIDEvent(event)
 			var currXidErr xidErrorEventDetail
-			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
+			if err := json.Unmarshal([]byte(resolvedEvent.DeprecatedExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
@@ -91,50 +91,50 @@ func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
 		}
 	}
 	return apiv1.State{
-		Name:             StateNameErrorXid,
-		Healthy:          lastHealth == StateHealthy,
-		Health:           translateToStateHealth(lastHealth),
-		Reason:           reason,
-		SuggestedActions: lastSuggestedAction,
+		Name:              StateNameErrorXid,
+		DeprecatedHealthy: lastHealth == StateHealthy,
+		Health:            translateToStateHealth(lastHealth),
+		Reason:            reason,
+		SuggestedActions:  lastSuggestedAction,
 	}
 }
 
-func translateToStateHealth(health int) string {
+func translateToStateHealth(health int) apiv1.StateType {
 	switch health {
 	case StateHealthy:
-		return apiv1.StateHealthy
+		return apiv1.StateTypeHealthy
 	case StateDegraded:
-		return apiv1.StateDegraded
+		return apiv1.StateTypeDegraded
 	case StateUnhealthy:
-		return apiv1.StateUnhealthy
+		return apiv1.StateTypeUnhealthy
 	default:
-		return apiv1.StateHealthy
+		return apiv1.StateTypeHealthy
 	}
 }
 
 func resolveXIDEvent(event apiv1.Event) apiv1.Event {
 	ret := event
-	if event.ExtraInfo != nil {
-		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
+	if event.DeprecatedExtraInfo != nil {
+		if currXid, err := strconv.Atoi(event.DeprecatedExtraInfo[EventKeyErrorXidData]); err == nil {
 			detail, ok := xid.GetDetail(currXid)
 			if !ok {
 				return ret
 			}
 			ret.Type = detail.EventType
-			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
-			ret.SuggestedActions = detail.SuggestedActionsByGPUd
+			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.DeprecatedExtraInfo[EventKeyDeviceUUID])
+			ret.DeprecatedSuggestedActions = detail.SuggestedActionsByGPUd
 
 			xidErr := xidErrorEventDetail{
 				Time:                      event.Time,
 				DataSource:                "kmsg",
-				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
+				DeviceUUID:                event.DeprecatedExtraInfo[EventKeyDeviceUUID],
 				Xid:                       uint64(currXid),
 				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
 				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
 			}
 
 			raw, _ := xidErr.JSON()
-			ret.ExtraInfo[EventKeyErrorXidData] = string(raw)
+			ret.DeprecatedExtraInfo[EventKeyErrorXidData] = string(raw)
 		}
 	}
 	return ret

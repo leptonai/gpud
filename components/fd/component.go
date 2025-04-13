@@ -156,7 +156,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = apiv1.StateUnhealthy
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
 		return
 	}
@@ -167,7 +167,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = apiv1.StateUnhealthy
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
 		return
 	}
@@ -181,7 +181,7 @@ func (c *component) CheckOnce() {
 	if uerr != nil {
 		d.err = uerr
 		d.healthy = false
-		d.health = apiv1.StateUnhealthy
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
 		return
 	}
@@ -191,7 +191,7 @@ func (c *component) CheckOnce() {
 	if err != nil {
 		d.err = err
 		d.healthy = false
-		d.health = apiv1.StateUnhealthy
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting limit -- %s", err)
 		return
 	}
@@ -236,11 +236,11 @@ func (c *component) CheckOnce() {
 
 	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
 		d.healthy = false
-		d.health = apiv1.StateDegraded
+		d.health = apiv1.StateTypeDegraded
 		d.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
 		d.healthy = true
-		d.health = apiv1.StateHealthy
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
 			d.Usage,
 			d.ThresholdAllocatedFileHandles,
@@ -282,7 +282,7 @@ type Data struct {
 
 	// tracks the healthy evaluation result of the last check
 	healthy bool
-	health  string
+	health  apiv1.StateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -298,10 +298,10 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 	if d == nil {
 		return []apiv1.State{
 			{
-				Name:    Name,
-				Health:  apiv1.StateHealthy,
-				Healthy: true,
-				Reason:  "no data yet",
+				Name:              Name,
+				Health:            apiv1.StateTypeHealthy,
+				DeprecatedHealthy: true,
+				Reason:            "no data yet",
 			},
 		}, nil
 	}
@@ -311,12 +311,12 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 		Reason: d.reason,
 		Error:  d.getError(),
 
-		Healthy: d.healthy,
-		Health:  d.health,
+		DeprecatedHealthy: d.healthy,
+		Health:            d.health,
 	}
 
 	b, _ := json.Marshal(d)
-	state.ExtraInfo = map[string]string{
+	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",
 	}

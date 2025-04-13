@@ -152,8 +152,8 @@ func TestCheckOnceSuccess(t *testing.T) {
 	states, err := c.States(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.True(t, states[0].Healthy)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 }
 
 func TestCheckOnceError(t *testing.T) {
@@ -190,8 +190,8 @@ func TestCheckOnceError(t *testing.T) {
 	states, err := c.States(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.False(t, states[0].Healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Error, testErr.Error())
 }
 
@@ -207,8 +207,8 @@ func TestStatesWithNilData(t *testing.T) {
 
 	// Default values for nil data
 	assert.Equal(t, Name, states[0].Name)
-	assert.True(t, states[0].Healthy)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -230,8 +230,8 @@ func TestDataGetStates(t *testing.T) {
 	states, err := healthyData.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.True(t, states[0].Healthy)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 
 	// Test unhealthy data
 	testErr := errors.New("test error")
@@ -244,8 +244,8 @@ func TestDataGetStates(t *testing.T) {
 	states, err = unhealthyData.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.False(t, states[0].Healthy)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testErr.Error(), states[0].Error)
 }
 
