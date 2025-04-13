@@ -182,7 +182,7 @@ func (c *component) CheckOnce() {
 			Name:    "fuse_connections",
 			Type:    apiv1.EventTypeCritical,
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
-			ExtraInfo: map[string]string{
+			DeprecatedExtraInfo: map[string]string{
 				"data":     string(ib),
 				"encoding": "json",
 			},
@@ -237,10 +237,10 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 	if d == nil {
 		return []apiv1.State{
 			{
-				Name:    Name,
-				Health:  apiv1.StateHealthy,
-				Healthy: true,
-				Reason:  "no data yet",
+				Name:              Name,
+				Health:            apiv1.StateTypeHealthy,
+				DeprecatedHealthy: true,
+				Reason:            "no data yet",
 			},
 		}, nil
 	}
@@ -250,15 +250,15 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 		Reason: d.reason,
 		Error:  d.getError(),
 
-		Healthy: d.healthy,
-		Health:  apiv1.StateHealthy,
+		DeprecatedHealthy: d.healthy,
+		Health:            apiv1.StateTypeHealthy,
 	}
 	if !d.healthy {
-		state.Health = apiv1.StateUnhealthy
+		state.Health = apiv1.StateTypeUnhealthy
 	}
 
 	b, _ := json.Marshal(d)
-	state.ExtraInfo = map[string]string{
+	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",
 	}

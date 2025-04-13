@@ -102,7 +102,7 @@ func ReadComponents(rd io.Reader, opts ...OpOption) ([]string, error) {
 	return components, nil
 }
 
-func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo, error) {
+func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -145,13 +145,13 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonInfo,
 	return ReadInfo(resp.Body, opts...)
 }
 
-func ReadInfo(rd io.Reader, opts ...OpOption) (v1.LeptonInfo, error) {
+func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	var info v1.LeptonInfo
+	var info v1.GPUdComponentInfos
 	switch op.requestAcceptEncoding {
 	case server.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
@@ -199,7 +199,7 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.LeptonInfo, error) {
 	return info, nil
 }
 
-func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonStates, error) {
+func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -247,13 +247,13 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonSta
 	return ReadStates(resp.Body, opts...)
 }
 
-func ReadStates(rd io.Reader, opts ...OpOption) (v1.LeptonStates, error) {
+func ReadStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	var states v1.LeptonStates
+	var states v1.GPUdComponentStates
 	switch op.requestAcceptEncoding {
 	case server.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
@@ -301,7 +301,7 @@ func ReadStates(rd io.Reader, opts ...OpOption) (v1.LeptonStates, error) {
 	return states, nil
 }
 
-func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonEvents, error) {
+func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentEvents, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -330,13 +330,13 @@ func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonEve
 	return ReadEvents(resp.Body, opts...)
 }
 
-func ReadEvents(rd io.Reader, opts ...OpOption) (v1.LeptonEvents, error) {
+func ReadEvents(rd io.Reader, opts ...OpOption) (v1.GPUdComponentEvents, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	var evs v1.LeptonEvents
+	var evs v1.GPUdComponentEvents
 	switch op.requestAcceptEncoding {
 	case server.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
@@ -384,7 +384,7 @@ func ReadEvents(rd io.Reader, opts ...OpOption) (v1.LeptonEvents, error) {
 	return evs, nil
 }
 
-func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonMetrics, error) {
+func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentMetrics, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -413,13 +413,13 @@ func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.LeptonMe
 	return ReadMetrics(resp.Body, opts...)
 }
 
-func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.LeptonMetrics, error) {
+func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	var metrics v1.LeptonMetrics
+	var metrics v1.GPUdComponentMetrics
 	switch op.requestAcceptEncoding {
 	case server.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)

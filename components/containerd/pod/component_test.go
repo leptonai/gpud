@@ -125,8 +125,8 @@ func TestDataFunctions(t *testing.T) {
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("data with gRPC unimplemented error", func(t *testing.T) {
@@ -139,8 +139,8 @@ func TestDataFunctions(t *testing.T) {
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Contains(t, states[0].Error, "test unimplemented")
 	})
 
@@ -173,8 +173,8 @@ func TestDataFunctions(t *testing.T) {
 		states, err := d.getStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
-		assert.Contains(t, states[0].ExtraInfo, "data")
-		assert.Contains(t, states[0].ExtraInfo, "encoding")
+		assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+		assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 	})
 }
 
@@ -663,8 +663,8 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("permission denied error", func(t *testing.T) {
@@ -678,8 +678,8 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("context canceled error", func(t *testing.T) {
@@ -689,8 +689,8 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("context deadline exceeded error", func(t *testing.T) {
@@ -700,8 +700,8 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("grpc unavailable error", func(t *testing.T) {
@@ -711,8 +711,8 @@ func TestGetHealthFromStates(t *testing.T) {
 
 		states, err := d.getStates()
 		assert.NoError(t, err)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-		assert.False(t, states[0].Healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.False(t, states[0].DeprecatedHealthy)
 	})
 }
 
@@ -730,7 +730,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, "empty data edge case", states[0].Reason)
 	})
 
@@ -747,7 +747,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, "pods with error edge case", states[0].Reason)
 	})
 
@@ -774,11 +774,11 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 		assert.Equal(t, "many pods edge case", states[0].Reason)
 
 		// Check that JSON encoding worked and includes multiple pods
-		jsonData, jsonErr := json.Marshal(states[0].ExtraInfo)
+		jsonData, jsonErr := json.Marshal(states[0].DeprecatedExtraInfo)
 		assert.NoError(t, jsonErr)
 		assert.Contains(t, string(jsonData), "pod-0")
 		assert.Contains(t, string(jsonData), "pod-9")
@@ -1029,7 +1029,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 			assert.Equal(t, "explicit test reason", states[0].Reason)
-			assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+			assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		})
 	}
 }
@@ -1039,13 +1039,13 @@ func TestData_HealthStates(t *testing.T) {
 	tests := []struct {
 		name          string
 		data          *Data
-		expectedState string
+		expectedState apiv1.StateType
 		expectHealthy bool
 	}{
 		{
 			name:          "nil data",
 			data:          nil,
-			expectedState: apiv1.StateHealthy,
+			expectedState: apiv1.StateTypeHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1055,7 +1055,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     nil,
 				healthy: true,
 			},
-			expectedState: apiv1.StateHealthy,
+			expectedState: apiv1.StateTypeHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1068,7 +1068,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     nil,
 				healthy: true,
 			},
-			expectedState: apiv1.StateHealthy,
+			expectedState: apiv1.StateTypeHealthy,
 			expectHealthy: true,
 		},
 		{
@@ -1078,7 +1078,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     errors.New("generic error"),
 				healthy: false,
 			},
-			expectedState: apiv1.StateUnhealthy,
+			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1088,7 +1088,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     status.Error(codes.Unimplemented, "unknown service"),
 				healthy: false,
 			},
-			expectedState: apiv1.StateUnhealthy,
+			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1098,7 +1098,7 @@ func TestData_HealthStates(t *testing.T) {
 				err:     context.Canceled,
 				healthy: false,
 			},
-			expectedState: apiv1.StateUnhealthy,
+			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
 		},
 		{
@@ -1111,7 +1111,7 @@ func TestData_HealthStates(t *testing.T) {
 				},
 				healthy: false,
 			},
-			expectedState: apiv1.StateUnhealthy,
+			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
 		},
 	}
@@ -1126,7 +1126,7 @@ func TestData_HealthStates(t *testing.T) {
 			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedState, states[0].Health)
-			assert.Equal(t, tt.expectHealthy, states[0].Healthy)
+			assert.Equal(t, tt.expectHealthy, states[0].DeprecatedHealthy)
 		})
 	}
 }
@@ -1138,7 +1138,7 @@ func TestData_getStates(t *testing.T) {
 		data           *Data
 		expectedStates int
 		expectedName   string
-		expectedHealth string
+		expectedHealth apiv1.StateType
 		expectError    bool
 	}{
 		{
@@ -1146,7 +1146,7 @@ func TestData_getStates(t *testing.T) {
 			data:           nil,
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectError:    false,
 		},
 		{
@@ -1159,7 +1159,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectError:    false,
 		},
 		{
@@ -1175,7 +1175,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectError:    false,
 		},
 		{
@@ -1188,7 +1188,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 			expectError:    false,
 		},
 		{
@@ -1203,7 +1203,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 			expectError:    false,
 		},
 		{
@@ -1220,7 +1220,7 @@ func TestData_getStates(t *testing.T) {
 			},
 			expectedStates: 1,
 			expectedName:   Name,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 			expectError:    false,
 		},
 	}
@@ -1249,13 +1249,13 @@ func TestData_getStates(t *testing.T) {
 
 			// Check extraInfo for data with pods
 			if tt.data != nil && len(tt.data.Pods) > 0 && err == nil {
-				assert.NotNil(t, states[0].ExtraInfo)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
+				assert.NotNil(t, states[0].DeprecatedExtraInfo)
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 
 				// Verify we can unmarshal the JSON data
 				var decodedData Data
-				err := json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &decodedData)
+				err := json.Unmarshal([]byte(states[0].DeprecatedExtraInfo["data"]), &decodedData)
 				assert.NoError(t, err)
 				assert.Equal(t, len(tt.data.Pods), len(decodedData.Pods))
 			}
@@ -1329,8 +1329,8 @@ func TestData_GetStatesWithNilLastData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error)
 }
@@ -1474,8 +1474,8 @@ func TestDataWithReason(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 
 	// Update reason and healthy
 	d.reason = "unhealthy reason"
@@ -1485,8 +1485,8 @@ func TestDataWithReason(t *testing.T) {
 	states, err = d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
-	assert.False(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.False(t, states[0].DeprecatedHealthy)
 }
 
 // TestDataWithEmptyOrNilValues tests Data with empty or nil values
@@ -1496,7 +1496,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 	states, err := d.getStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 
 	// Empty data with explicit reason
 	d = &Data{
@@ -1779,17 +1779,17 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, "custom test reason", state.Reason)
-	assert.Equal(t, apiv1.StateHealthy, state.Health)
-	assert.True(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.True(t, state.DeprecatedHealthy)
 
 	// Check that ExtraInfo contains the expected data
-	assert.NotNil(t, state.ExtraInfo)
-	assert.Contains(t, state.ExtraInfo, "data")
-	assert.Contains(t, state.ExtraInfo, "encoding")
+	assert.NotNil(t, state.DeprecatedExtraInfo)
+	assert.Contains(t, state.DeprecatedExtraInfo, "data")
+	assert.Contains(t, state.DeprecatedExtraInfo, "encoding")
 
 	// Deserialize the data back and verify it contains the expected fields
 	var parsedData Data
-	err = json.Unmarshal([]byte(state.ExtraInfo["data"]), &parsedData)
+	err = json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, d.ContainerdServiceActive, parsedData.ContainerdServiceActive)
 	assert.Equal(t, 1, len(parsedData.Pods))
@@ -1945,11 +1945,11 @@ func TestDataWithComplexErrors(t *testing.T) {
 			assert.Equal(t, "explicit reason", states[0].Reason)
 
 			// Check the healthy state matches what we set
-			assert.Equal(t, !tt.expectUnhealthy, states[0].Healthy)
+			assert.Equal(t, !tt.expectUnhealthy, states[0].DeprecatedHealthy)
 			if tt.expectUnhealthy {
-				assert.Equal(t, apiv1.StateUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 			} else {
-				assert.Equal(t, apiv1.StateHealthy, states[0].Health)
+				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 			}
 		})
 	}

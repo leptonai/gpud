@@ -84,7 +84,7 @@ func (w *Syncer) sync(ch <-chan Message) {
 				continue
 			}
 
-			event.ExtraInfo = map[string]string{
+			event.DeprecatedExtraInfo = map[string]string{
 				eventKeyLogLine: kmsg.Message,
 			}
 

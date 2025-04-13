@@ -72,10 +72,10 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 
 var noDataEvents = []apiv1.State{
 	{
-		Name:    "ibstat",
-		Health:  apiv1.StateHealthy,
-		Healthy: true, //TODO: depreciate Healthy field
-		Reason:  msgThresholdNotSetSkipped,
+		Name:              "ibstat",
+		Health:            apiv1.StateTypeHealthy,
+		DeprecatedHealthy: true, //TODO: depreciate Healthy field
+		Reason:            msgThresholdNotSetSkipped,
 	},
 }
 
@@ -128,15 +128,15 @@ func (c *component) Close() error {
 
 func convertToState(ev *apiv1.Event) apiv1.State {
 	state := apiv1.State{
-		Name:             ev.Name,
-		Healthy:          true,
-		Health:           apiv1.StateHealthy,
-		Reason:           ev.Message,
-		SuggestedActions: ev.SuggestedActions,
+		Name:              ev.Name,
+		DeprecatedHealthy: true,
+		Health:            apiv1.StateTypeHealthy,
+		Reason:            ev.Message,
+		SuggestedActions:  ev.DeprecatedSuggestedActions,
 	}
-	if len(ev.ExtraInfo) > 0 {
-		state.Healthy = ev.ExtraInfo["state_healthy"] == "true"
-		state.Health = ev.ExtraInfo["state_health"]
+	if len(ev.DeprecatedExtraInfo) > 0 {
+		state.DeprecatedHealthy = ev.DeprecatedExtraInfo["state_healthy"] == "true"
+		state.Health = apiv1.StateType(ev.DeprecatedExtraInfo["state_health"])
 	}
 	return state
 }
@@ -155,11 +155,11 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 		Name:    "ibstat",
 		Type:    apiv1.EventTypeInfo,
 		Message: "",
-		ExtraInfo: map[string]string{
+		DeprecatedExtraInfo: map[string]string{
 			"state_healthy": "true",
-			"state_health":  apiv1.StateHealthy,
+			"state_health":  string(apiv1.StateTypeHealthy),
 		},
-		SuggestedActions: nil,
+		DeprecatedSuggestedActions: nil,
 	}
 
 	c.lastEventMu.Lock()
@@ -180,8 +180,8 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 
 	if err != nil {
 		ev.Type = apiv1.EventTypeWarning
-		ev.ExtraInfo["state_healthy"] = "false"
-		ev.ExtraInfo["state_health"] = apiv1.StateUnhealthy
+		ev.DeprecatedExtraInfo["state_healthy"] = "false"
+		ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeUnhealthy)
 
 		if errors.Is(err, infiniband.ErrNoIbstatCommand) {
 			ev.Message = fmt.Sprintf("ibstat threshold set but %v", err)
@@ -199,18 +199,18 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 
 		if healthy {
 			ev.Type = apiv1.EventTypeInfo
-			ev.ExtraInfo["state_healthy"] = "true"
-			ev.ExtraInfo["state_health"] = apiv1.StateHealthy
+			ev.DeprecatedExtraInfo["state_healthy"] = "true"
+			ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeHealthy)
 		} else {
 			ev.Type = apiv1.EventTypeWarning
-			ev.ExtraInfo["state_healthy"] = "false"
-			ev.ExtraInfo["state_health"] = apiv1.StateUnhealthy
+			ev.DeprecatedExtraInfo["state_healthy"] = "false"
+			ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeUnhealthy)
 
-			ev.SuggestedActions = &apiv1.SuggestedActions{
+			ev.DeprecatedSuggestedActions = &apiv1.SuggestedActions{
 				RepairActions: []apiv1.RepairActionType{
 					apiv1.RepairActionTypeHardwareInspection,
 				},
-				Descriptions: []string{
+				DeprecatedDescriptions: []string{
 					"potential infiniband switch/hardware issue needs immediate attention",
 				},
 			}

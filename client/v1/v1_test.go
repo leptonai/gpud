@@ -153,7 +153,7 @@ func TestGetComponents(t *testing.T) {
 
 func TestGetInfo(t *testing.T) {
 	now := time.Now().UTC()
-	testInfo := apiv1.LeptonInfo{
+	testInfo := apiv1.GPUdComponentInfos{
 		{
 			Component: "component1",
 			StartTime: now,
@@ -161,8 +161,8 @@ func TestGetInfo(t *testing.T) {
 			Info: apiv1.Info{
 				States: []apiv1.State{
 					{
-						Name:      "test",
-						ExtraInfo: map[string]string{"key": "value"},
+						Name:                "test",
+						DeprecatedExtraInfo: map[string]string{"key": "value"},
 					},
 				},
 			},
@@ -177,7 +177,7 @@ func TestGetInfo(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult apiv1.LeptonInfo
+		expectedResult apiv1.GPUdComponentInfos
 		useGzip        bool
 	}{
 		{
@@ -273,13 +273,13 @@ func TestGetInfo(t *testing.T) {
 }
 
 func TestGetStates(t *testing.T) {
-	testStates := apiv1.LeptonStates{
+	testStates := apiv1.GPUdComponentStates{
 		{
 			Component: "component1",
 			States: []apiv1.State{
 				{
-					Name:      "test",
-					ExtraInfo: map[string]string{"state": "running"},
+					Name:                "test",
+					DeprecatedExtraInfo: map[string]string{"state": "running"},
 				},
 			},
 		},
@@ -293,7 +293,7 @@ func TestGetStates(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult apiv1.LeptonStates
+		expectedResult apiv1.GPUdComponentStates
 		useGzip        bool
 	}{
 		{

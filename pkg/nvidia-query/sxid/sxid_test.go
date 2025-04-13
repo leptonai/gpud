@@ -12,11 +12,11 @@ func TestDetailsValidation(t *testing.T) {
 			continue
 		}
 
-		if len(d.SuggestedActionsByGPUd.Descriptions) > 0 &&
-			len(d.SuggestedActionsByGPUd.Descriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
+		if len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) > 0 &&
+			len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
 			t.Errorf("sxid %d has %d descriptions and %d repair actions",
 				d.SXid,
-				len(d.SuggestedActionsByGPUd.Descriptions),
+				len(d.SuggestedActionsByGPUd.DeprecatedDescriptions),
 				len(d.SuggestedActionsByGPUd.RepairActions))
 		}
 	}

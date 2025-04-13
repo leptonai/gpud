@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -223,7 +224,7 @@ func Test_getStates(t *testing.T) {
 		name           string
 		data           Data
 		expectedLen    int
-		expectedHealth string
+		expectedHealth apiv1.StateType
 	}{
 		{
 			name: "no pods",
@@ -232,7 +233,7 @@ func Test_getStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "with pods",
@@ -245,7 +246,7 @@ func Test_getStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "with error - unhealthy",
@@ -255,7 +256,7 @@ func Test_getStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "with connection error - healthy",
@@ -265,7 +266,7 @@ func Test_getStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "with failed count above threshold - unhealthy",
@@ -274,7 +275,7 @@ func Test_getStates(t *testing.T) {
 				healthy: false,
 			},
 			expectedLen:    1,
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 	}
 
@@ -287,10 +288,10 @@ func Test_getStates(t *testing.T) {
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
 			if len(tc.data.Pods) > 0 {
-				require.NotNil(t, states[0].ExtraInfo)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+				require.NotNil(t, states[0].DeprecatedExtraInfo)
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+				assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
 			}
 		})
 	}
@@ -456,7 +457,7 @@ func Test_componentStates(t *testing.T) {
 		name           string
 		data           Data
 		failedCount    int
-		expectedHealth string
+		expectedHealth apiv1.StateType
 	}{
 		{
 			name: "healthy state",
@@ -465,7 +466,7 @@ func Test_componentStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
@@ -475,7 +476,7 @@ func Test_componentStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "connection error - ignored",
@@ -485,7 +486,7 @@ func Test_componentStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "failed count above threshold",
@@ -494,7 +495,7 @@ func Test_componentStates(t *testing.T) {
 				reason:  "test reason",
 			},
 			failedCount:    6,
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 	}
 
@@ -677,7 +678,7 @@ func Test_componentStates_ConnectionErrors(t *testing.T) {
 		name           string
 		data           Data
 		failedCount    int
-		expectedHealth string
+		expectedHealth apiv1.StateType
 	}{
 		{
 			name: "connection error - marked healthy",
@@ -686,7 +687,7 @@ func Test_componentStates_ConnectionErrors(t *testing.T) {
 				healthy: true,
 			},
 			failedCount:    0,
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "connection error - marked unhealthy",
@@ -695,7 +696,7 @@ func Test_componentStates_ConnectionErrors(t *testing.T) {
 				healthy: false,
 			},
 			failedCount:    0,
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 	}
 
@@ -732,7 +733,7 @@ func Test_componentStates_ContextCancellation(t *testing.T) {
 	states, err := c.States(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.Equal(t, "Healthy", states[0].Health)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 }
 
 // Add test for component constructor
@@ -759,8 +760,8 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, "Healthy", states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -768,7 +769,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		expectedHealth string
+		expectedHealth apiv1.StateType
 	}{
 		{
 			name: "standard error returned",
@@ -777,7 +778,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy: false,
 				reason:  "standard error",
 			},
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "empty pods with error",
@@ -787,7 +788,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy: false,
 				reason:  "no pods error",
 			},
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "connection error - healthy",
@@ -797,7 +798,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy:  true,
 				reason:   "connection refused",
 			},
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "connection error - unhealthy",
@@ -807,7 +808,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy:  false,
 				reason:   "connection refused",
 			},
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "no error with pods",
@@ -818,7 +819,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy:  true,
 				reason:   "success",
 			},
-			expectedHealth: "Healthy",
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "kubelet service error",
@@ -829,7 +830,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy:              false,
 				reason:               "kubelet service not active",
 			},
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "failed count above threshold",
@@ -838,7 +839,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 				healthy:  false,
 				reason:   "failed threshold exceeded",
 			},
-			expectedHealth: "Unhealthy",
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 	}
 
@@ -853,13 +854,13 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 			assert.Equal(t, Name, states[0].Name)
 
 			// Verify health status matches expected
-			assert.Equal(t, tc.expectedHealth == "Healthy", states[0].Healthy)
+			assert.Equal(t, tc.expectedHealth == apiv1.StateTypeHealthy, states[0].DeprecatedHealthy)
 
 			// Check for extra info if we have pods
 			if len(tc.data.Pods) > 0 {
-				assert.NotNil(t, states[0].ExtraInfo)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
+				assert.NotNil(t, states[0].DeprecatedExtraInfo)
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 			}
 		})
 	}
@@ -876,7 +877,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	}
 	states, err := deadlineData.getStates()
 	assert.NoError(t, err)
-	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "deadline exceeded")
 
 	// Test with context canceled error
@@ -889,7 +890,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	}
 	states, err = canceledData.getStates()
 	assert.NoError(t, err)
-	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "context canceled")
 
 	// Test with formatted error message
@@ -902,7 +903,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 	}
 	states, err = customData.getStates()
 	assert.NoError(t, err)
-	assert.Equal(t, "Unhealthy", states[0].Health)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error")
 }
 

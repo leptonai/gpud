@@ -304,13 +304,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 9 indicates driver error programming GPU, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -385,13 +385,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 12 indicates a driver error handling GPU exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -421,7 +421,7 @@ var details = map[int]Detail{
 		Description:     `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
 				`"NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -456,7 +456,7 @@ var details = map[int]Detail{
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 13, marked as non-critical in GPUd, indicates GPU memory anomalies affecting code and data segments, arrays being out of their declared ranges, applications having illegal memory access issues, or instruction errors. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html. Since in rare cases it can be caused by the hardware degradation, please report if the issue persists.",
 			},
 
@@ -536,13 +536,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 16 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -595,13 +595,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 18 indicates bus mastering disabled in PCI Config Space, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -632,13 +632,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 19 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -801,13 +801,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 26 indicates framebuffer timeout, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -838,13 +838,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 27 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -875,13 +875,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 28 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -912,13 +912,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 29 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -949,13 +949,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -985,7 +985,7 @@ var details = map[int]Detail{
 		Description:     `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
 				// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
 				`"NVIDIA Xid 31: FIFO: MMU Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-31-fifo-mmu-error (accessed on Nov 3, 2024)`,
@@ -1023,7 +1023,7 @@ var details = map[int]Detail{
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault, with applications having illegal memory access issues. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.",
 				"Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault. In rare cases it can be caused by the hardware degradation. If the issue persists, please report for hardware inspection and repair.",
 			},
@@ -1058,7 +1058,7 @@ var details = map[int]Detail{
 		Description:     "The event is reported by the DMA controller of the PCIE bus that manages communication between the NVIDIA driver and GPU. In most cases, a PCI quality issue occurs.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
 				// Which indicates the PCI quality issues, not the user application issues.
 				`"NVIDIA Xid 32: PBDMA Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-32-pbdma-error (accessed on Nov 3, 2024)`,
@@ -1096,7 +1096,7 @@ var details = map[int]Detail{
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. Reboot the system to check whether the PCI quality issue persists.",
 				"Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. If the issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
 			},
@@ -1129,13 +1129,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 33 indicates internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1166,13 +1166,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 34 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1203,13 +1203,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 35 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1240,13 +1240,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 36 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1298,7 +1298,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 38 as a potential driver firmware error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -1334,7 +1334,7 @@ var details = map[int]Detail{
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. Reboot the system to check whether the firmware issue persists.",
 				"Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. If the firmware issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
 			},
@@ -1433,13 +1433,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 42 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1469,7 +1469,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
 				`"NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1506,7 +1506,7 @@ var details = map[int]Detail{
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 43, marked as non-critical in GPUd, indicates GPU stopped processing, due to a user application encountering a software induced fault. Restart applications and check whether the same Xid is returned. And report if the issue persists.",
 			},
 
@@ -1540,7 +1540,7 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 44 as a potential driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -1576,7 +1576,7 @@ var details = map[int]Detail{
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
 				"Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. If the uncorrectable GPU error persists after rebooting the system, inspect and repair the hardware.",
 			},
@@ -1608,7 +1608,7 @@ var details = map[int]Detail{
 		Description:     "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
 				`"NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1648,7 +1648,7 @@ var details = map[int]Detail{
 				`"screen blacks out and I am given NVRM Nvidia Xid 45, GPU was dead", https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent (accessed on Nov 3, 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 45, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.",
 			},
 
@@ -1686,13 +1686,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 46 indicates GPU stopped processing, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1723,13 +1723,13 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 47 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -1768,7 +1768,7 @@ The error is also reported to your application. In most cases, you need to reset
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
 				`"NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -1808,7 +1808,7 @@ The error is also reported to your application. In most cases, you need to reset
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE), which also reports back to the user application. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
 				"Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE). If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2061,13 +2061,13 @@ The error is also reported to your application. In most cases, you need to reset
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 59 indicates an internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -2098,13 +2098,13 @@ The error is also reported to your application. In most cases, you need to reset
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 60 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -2137,7 +2137,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 61 indicates internal micro-controller warning.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -2174,7 +2174,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 61, marked as critical in GPUd, indicates internal micro-controller breakpoint/warning and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
 			},
 
@@ -2204,7 +2204,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 		Description:     "This event is similar to Xid 61. PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 62 indicates internal micro-controller halt.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -2241,7 +2241,7 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 62, marked as critical in GPUd, indicates internal micro-controller halt and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
 				"Xid 62, marked as critical in GPUd, indicates internal micro-controller halt. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2289,7 +2289,7 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
 				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2333,7 +2333,7 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event for legacy GPUs, row remapping recording event for >=A100/H100. User applications can keep running, but for optimal performance, stop the workloads and reset the GPU or reboot the system. The process of row-remapping requires GPU reset or system reboot to take effect, and to remain permanently effective.",
 				"Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event or row remapping recording event. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2383,7 +2383,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
 				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -2425,7 +2425,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure for legacy GPUs, row remapping recording failure for >=A100/H100. The node should be rebooted immediately since there is a recording failure.",
 				"Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure or row remapping recording failure. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2460,11 +2460,11 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
 		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				//
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
 			},
 
@@ -2538,7 +2538,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Description:     "Video processor exception",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 68 as a potential hardware/driver issue or a user application error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -2575,7 +2575,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 68, marked as non-critical in GPUd, indicates video processor exception. In some cases, Xid 68 indicates deeper GPU driver or hardware issues. Thus, reboot the system.",
 				"Xid 68, marked as non-critical in GPUd, indicates video processor exception. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2614,7 +2614,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 69 as a potential hardware/driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -2650,7 +2650,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop the workloads and reboot the system. And report if the issue persists.",
 				"Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -2800,7 +2800,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
 				// GPU reset or system reboot is needed to clear the error.
 				`"NVIDIA Xid 74: NVLink Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error (accessed on Nov 3, 2024)`,
@@ -2838,7 +2838,7 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 74, marked as critical in GPUd, indicates an NVLink hardware error. It is a critical hardware error that impacts the physical link between the GPUs, and must be repaired. Stop the workloads and reboot the system.",
 				"Xid 74, marked as critical in GPUd, is a critical hardware error that impacts the physical link between the GPUs, must be repaired if the issue persists after rebooting the system.",
 			},
@@ -2937,13 +2937,13 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 78 indicates vGPU start error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
 			},
 
@@ -2981,7 +2981,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
 				`"NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3018,7 +3018,7 @@ This event may also be cause by failing GPU hardware or other driver issues.
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 79, marked as critical in GPUd, indicates GPU has fallen off the bus, with the driver not able to communicate with underlying GPUs. Stop the workloads and reboot the system.",
 				"Xid 79, marked as critical in GPUd, indicates GPU driver is not able to communicate with underlying GPUs. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -3073,13 +3073,13 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 81 indicates VGA subsystem error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
 			},
 
@@ -3334,7 +3334,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 92 as a potential hardware or driver issue.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -3372,7 +3372,7 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 92, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.",
 			},
 
@@ -3445,7 +3445,7 @@ This event is generated if the error suppression mechanism successfully suppress
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
 				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3485,7 +3485,7 @@ This event is generated if the error suppression mechanism successfully suppress
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. User applications can keep running, but the faulty application must be restarted. Stop the workloads and reset the GPU or reboot the system. This ensures retirement or remapping is permanently effective.",
 				"Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -3538,7 +3538,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -3577,7 +3577,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. In addition to the faulty application, other applications are affected. Stop the workloads and reset the GPU or reboot the system to clear this uncontained ECC error. If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.",
 				"Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -3919,13 +3919,13 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
 			},
 
@@ -4131,7 +4131,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
 				// recommending GPU reset or node power cycle if the issue persists.
 				`"Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)`,
@@ -4169,7 +4169,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 119, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.",
 				"Xid 119, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
 			},
@@ -4201,7 +4201,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
 				// recommending GPU reset or node power cycle if the issue persists.
 				`"Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)`,
@@ -4239,7 +4239,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 120, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.",
 				"Xid 120, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
 			},
@@ -4271,7 +4271,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
 				// recommending the GPU reset to retrain the link.
 				`"NVIDIA Xid 121: C2C Link corrected error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-121-c2c-link-corrected-error (accessed on Nov 3, 2024)`,
@@ -4309,7 +4309,7 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact. Stop the workloads and reboot the system to retrain the link when it's convenient.",
 				"Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU. If the same Xid is returned after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -4365,7 +4365,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 123 indicates potential hardware or driver errors.
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
@@ -4401,7 +4401,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. Stop the workloads and reboot the system.",
 				"Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -4697,7 +4697,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     `This event is logged when a fault is reported by the remote MMU, such as when an illegal NVLink peer-to-peer access is made by an applicable unit on the chip. Typically these are application-level bugs, but can also be driver bugs or hardware bugs.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
 				`"NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)`,
 				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
@@ -4734,7 +4734,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 137, marked as non-critical in GPUd, indicates illegal NVLink peer-to-peer access by an applicable unit on the chip, typically application-level bugs, but can also be driver bugs or hardware issues. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.",
 			},
 
@@ -4809,7 +4809,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     `This event may occur when the GPU driver has observed uncorrectable errors in GPU memory, in such a way as to interrupt the GPU driver’s ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU, and if the problem persists, contact your hardware vendor for support.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
 				// recommending GPU reset if the issue persists.
 				`"NVIDIA Xid 140: ECC unrecovered error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error (accessed on Nov 3, 2024)`,
@@ -4847,7 +4847,7 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory, interrupting the GPU driver's ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU or reboot the system.",
 				"Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
 			},
@@ -4923,12 +4923,12 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			References: []string{
+			DeprecatedReferences: []string{
 				// e.g., "Error status 0x... while polling for FSP boot complete"
 				`"GPU_INIT_ERROR in driver", https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c#L84`,
 			},
 
-			Descriptions: []string{
+			DeprecatedDescriptions: []string{
 				"Xid 143, marked as critical in GPUd, indicates GPU initialization failure. GPU hardware should be inspected and repaired.",
 			},
 

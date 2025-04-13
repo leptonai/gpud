@@ -227,10 +227,10 @@ func TestStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateHealthy, state.Health)
-	assert.True(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", state.Reason)
-	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
+	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestStates_WithError(t *testing.T) {
@@ -253,8 +253,8 @@ func TestStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateUnhealthy, state.Health)
-	assert.False(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.False(t, state.DeprecatedHealthy)
 	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test GSP firmware mode error", state.Error)
 }
@@ -272,8 +272,8 @@ func TestStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateHealthy, state.Health)
-	assert.True(t, state.Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 

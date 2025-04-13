@@ -27,10 +27,10 @@ func main() {
 			fmt.Printf("  Event: %s - %s\n", event.Name, event.Message)
 		}
 		for _, metric := range i.Info.Metrics {
-			fmt.Printf("  Metric: %s - Value: %f\n", metric.MetricName, metric.Value)
+			fmt.Printf("  Metric: %s - Value: %f\n", metric.DeprecatedMetricName, metric.Value)
 		}
 		for _, state := range i.Info.States {
-			fmt.Printf("  State: %s - Healthy: %t\n", state.Name, state.Healthy)
+			fmt.Printf("  State: %s - Healthy: %t\n", state.Name, state.DeprecatedHealthy)
 		}
 	}
 }

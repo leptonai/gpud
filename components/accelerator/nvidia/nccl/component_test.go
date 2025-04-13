@@ -93,7 +93,7 @@ func TestComponentStates(t *testing.T) {
 	states, err := comp.States(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, true, states[0].Healthy)
+	assert.Equal(t, true, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no issue", states[0].Reason)
 }
 
@@ -105,11 +105,11 @@ func TestComponentEvents(t *testing.T) {
 	testTime := metav1.Now()
 	testEvents := []apiv1.Event{
 		{
-			Time:      testTime,
-			Name:      "test-nccl-error",
-			Type:      "Warning",
-			Message:   "This is a test NCCL error",
-			ExtraInfo: map[string]string{"log_line": "test-error-line"},
+			Time:                testTime,
+			Name:                "test-nccl-error",
+			Type:                "Warning",
+			Message:             "This is a test NCCL error",
+			DeprecatedExtraInfo: map[string]string{"log_line": "test-error-line"},
 		},
 	}
 

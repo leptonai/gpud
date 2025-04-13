@@ -248,14 +248,14 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev apiv1.Eve
 	start := time.Now()
 	var extraInfoJSON, suggestedActionsJSON []byte
 	var err error
-	if ev.ExtraInfo != nil {
-		extraInfoJSON, err = json.Marshal(ev.ExtraInfo)
+	if ev.DeprecatedExtraInfo != nil {
+		extraInfoJSON, err = json.Marshal(ev.DeprecatedExtraInfo)
 		if err != nil {
 			return fmt.Errorf("failed to marshal extra info: %w", err)
 		}
 	}
-	if ev.SuggestedActions != nil {
-		suggestedActionsJSON, err = json.Marshal(ev.SuggestedActions)
+	if ev.DeprecatedSuggestedActions != nil {
+		suggestedActionsJSON, err = json.Marshal(ev.DeprecatedSuggestedActions)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to marshal suggested actions: %w", err)
@@ -299,7 +299,7 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	if ev.Message != "" {
 		selectStatement += fmt.Sprintf(" AND %s = ?", columnMessage)
 	}
-	if ev.SuggestedActions != nil {
+	if ev.DeprecatedSuggestedActions != nil {
 		selectStatement += fmt.Sprintf(" AND %s = ?", columnSuggestedActions)
 	}
 
@@ -307,8 +307,8 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	if ev.Message != "" {
 		params = append(params, ev.Message)
 	}
-	if ev.SuggestedActions != nil {
-		suggestedActionsJSON, err := json.Marshal(ev.SuggestedActions)
+	if ev.DeprecatedSuggestedActions != nil {
+		suggestedActionsJSON, err := json.Marshal(ev.DeprecatedSuggestedActions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal suggested actions: %w", err)
 		}
@@ -420,11 +420,11 @@ func scanRow(row *sql.Row) (apiv1.Event, error) {
 		event.Message = msg.String
 	}
 
-	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+	if err := unmarshalIfValid(extraInfo, &event.DeprecatedExtraInfo); err != nil {
 		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
 
-	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+	if err := unmarshalIfValid(suggestedActions, &event.DeprecatedSuggestedActions); err != nil {
 		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
@@ -454,11 +454,11 @@ func scanRows(rows *sql.Rows) (apiv1.Event, error) {
 		event.Message = msg.String
 	}
 
-	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
+	if err := unmarshalIfValid(extraInfo, &event.DeprecatedExtraInfo); err != nil {
 		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
 	}
 
-	if err := unmarshalIfValid(suggestedActions, &event.SuggestedActions); err != nil {
+	if err := unmarshalIfValid(suggestedActions, &event.DeprecatedSuggestedActions); err != nil {
 		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
@@ -483,11 +483,11 @@ func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimest
 }
 
 func compareEvent(eventA, eventB apiv1.Event) bool {
-	if len(eventA.ExtraInfo) != len(eventB.ExtraInfo) {
+	if len(eventA.DeprecatedExtraInfo) != len(eventB.DeprecatedExtraInfo) {
 		return false
 	}
-	for key, value := range eventA.ExtraInfo {
-		if val, ok := eventB.ExtraInfo[key]; !ok || val != value {
+	for key, value := range eventA.DeprecatedExtraInfo {
+		if val, ok := eventB.DeprecatedExtraInfo[key]; !ok || val != value {
 			return false
 		}
 	}

@@ -88,7 +88,7 @@ func TestData_GetStates(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 
 	// Verify ExtraInfo contains JSON data
-	dataJSON, ok := states[0].ExtraInfo["data"]
+	dataJSON, ok := states[0].DeprecatedExtraInfo["data"]
 	assert.True(t, ok)
 
 	var parsedData Data
@@ -201,7 +201,7 @@ func TestComponent_States(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
-	dataJSON, ok := states[0].ExtraInfo["data"]
+	dataJSON, ok := states[0].DeprecatedExtraInfo["data"]
 	assert.True(t, ok)
 
 	var parsedData Data

@@ -137,7 +137,7 @@ func TestDataHealthField(t *testing.T) {
 	tests := []struct {
 		name            string
 		data            Data
-		expectedHealth  string
+		expectedHealth  apiv1.StateType
 		expectedHealthy bool
 	}{
 		{
@@ -147,7 +147,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: true,
 				reason:  "healthy",
 			},
-			expectedHealth:  apiv1.StateHealthy,
+			expectedHealth:  apiv1.StateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -157,7 +157,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: true,
 				reason:  "connection error to docker daemon but ignored",
 			},
-			expectedHealth:  apiv1.StateHealthy,
+			expectedHealth:  apiv1.StateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -167,7 +167,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: false,
 				reason:  "connection error to docker daemon",
 			},
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -177,7 +177,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: false,
 				reason:  "error occurred",
 			},
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		// Additional test cases for error scenarios
@@ -188,7 +188,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: false,
 				reason:  "permission denied error",
 			},
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -199,7 +199,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy:             false,
 				reason:              "docker service is not active",
 			},
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -209,7 +209,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: false,
 				reason:  "docker not found error",
 			},
-			expectedHealth:  apiv1.StateUnhealthy,
+			expectedHealth:  apiv1.StateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
@@ -219,7 +219,7 @@ func TestDataHealthField(t *testing.T) {
 				healthy: true,
 				reason:  "connection error ignored",
 			},
-			expectedHealth:  apiv1.StateHealthy,
+			expectedHealth:  apiv1.StateTypeHealthy,
 			expectedHealthy: true,
 		},
 	}
@@ -229,7 +229,7 @@ func TestDataHealthField(t *testing.T) {
 			states, err := tt.data.getStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
-			assert.Equal(t, tt.expectedHealthy, states[0].Healthy)
+			assert.Equal(t, tt.expectedHealthy, states[0].DeprecatedHealthy)
 		})
 	}
 
@@ -237,8 +237,8 @@ func TestDataHealthField(t *testing.T) {
 	var nilData *Data
 	states, err := nilData.getStates()
 	assert.NoError(t, err)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -246,7 +246,7 @@ func TestDataGetStates(t *testing.T) {
 		name           string
 		data           Data
 		stateCount     int
-		expectedHealth string
+		expectedHealth apiv1.StateType
 	}{
 		{
 			name: "No containers",
@@ -258,7 +258,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:              "no container found",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "With containers",
@@ -270,7 +270,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:              "total 1 container(s)",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "With error not ignored",
@@ -282,7 +282,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:              "error listing containers -- test error",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 		{
 			name: "With connection error ignored",
@@ -294,7 +294,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:              "connection error but ignored",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateHealthy,
+			expectedHealth: apiv1.StateTypeHealthy,
 		},
 		{
 			name: "With connection error not ignored",
@@ -306,7 +306,7 @@ func TestDataGetStates(t *testing.T) {
 				reason:              "connection error not ignored",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateUnhealthy,
+			expectedHealth: apiv1.StateTypeUnhealthy,
 		},
 	}
 
@@ -318,14 +318,14 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
-			assert.Equal(t, tt.data.healthy, states[0].Healthy)
+			assert.Equal(t, tt.data.healthy, states[0].DeprecatedHealthy)
 			assert.Equal(t, tt.data.reason, states[0].Reason)
 
 			// For cases with containers, check ExtraInfo
 			if len(tt.data.Containers) > 0 {
-				assert.NotNil(t, states[0].ExtraInfo)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
+				assert.NotNil(t, states[0].DeprecatedExtraInfo)
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
+				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 			}
 		})
 	}
@@ -336,8 +336,8 @@ func TestDataGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.True(t, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -407,8 +407,8 @@ func TestComponentStates(t *testing.T) {
 
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.Equal(t, true, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, true, states[0].DeprecatedHealthy)
 
 	// Test with containers
 	comp.lastData = &Data{
@@ -425,7 +425,7 @@ func TestComponentStates(t *testing.T) {
 	states, err = comp.States(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.NotNil(t, states[0].ExtraInfo)
+	assert.NotNil(t, states[0].DeprecatedExtraInfo)
 
 	// Test with error but ignoreConnectionErrors is true
 	comp.lastData = &Data{
@@ -440,8 +440,8 @@ func TestComponentStates(t *testing.T) {
 	states, err = comp.States(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health)
-	assert.Equal(t, true, states[0].Healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, true, states[0].DeprecatedHealthy)
 }
 
 func TestCheckOnceErrorConditions(t *testing.T) {
@@ -466,7 +466,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	states, err := comp.States(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
-	assert.Equal(t, apiv1.StateHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
 
 	// Create a new component that doesn't ignore connection errors
 	comp2 := New(ctx, false).(*component)
@@ -478,7 +478,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	// Get states and verify error handling with ignoreConnectionErrors=false
 	states, err = comp2.States(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, apiv1.StateUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
+	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
 
 	// Test with client version newer than daemon error
 	mockData = &Data{

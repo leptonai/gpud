@@ -174,7 +174,7 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 			event := apiv1.Event{
 				Time: message.Timestamp,
 				Name: EventNameErrorXid,
-				ExtraInfo: map[string]string{
+				DeprecatedExtraInfo: map[string]string{
 					EventKeyErrorXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
 					EventKeyDeviceUUID:   xidErr.DeviceUUID,
 				},

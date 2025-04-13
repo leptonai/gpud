@@ -6,7 +6,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-func ConvertToLeptonMetrics(ms Metrics) apiv1.LeptonMetrics {
+func ConvertToLeptonMetrics(ms Metrics) apiv1.GPUdComponentMetrics {
 	aggregated := make(map[string][]apiv1.Metric)
 	for _, m := range ms {
 		if m.Component == "" {
@@ -17,19 +17,19 @@ func ConvertToLeptonMetrics(ms Metrics) apiv1.LeptonMetrics {
 		}
 
 		aggregated[m.Component] = append(aggregated[m.Component], apiv1.Metric{
-			UnixSeconds:         m.UnixMilliseconds,
-			MetricName:          m.Name,
-			MetricSecondaryName: m.Label,
-			Value:               m.Value,
+			UnixSeconds:                   m.UnixMilliseconds,
+			DeprecatedMetricName:          m.Name,
+			DeprecatedMetricSecondaryName: m.Label,
+			Value:                         m.Value,
 		})
 	}
 
-	converted := make(apiv1.LeptonMetrics, 0, len(ms))
+	converted := make(apiv1.GPUdComponentMetrics, 0, len(ms))
 	for component, ms := range aggregated {
 		sort.Slice(ms, func(i, j int) bool {
 			return ms[i].UnixSeconds < ms[j].UnixSeconds
 		})
-		converted = append(converted, apiv1.LeptonComponentMetrics{
+		converted = append(converted, apiv1.ComponentMetrics{
 			Component: component,
 			Metrics:   ms,
 		})

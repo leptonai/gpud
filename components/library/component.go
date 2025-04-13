@@ -75,9 +75,9 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	if len(reasons) == 0 {
 		return []apiv1.State{
 			{
-				Name:    Name,
-				Healthy: true,
-				Reason:  "all libraries exist",
+				Name:              Name,
+				DeprecatedHealthy: true,
+				Reason:            "all libraries exist",
 			},
 		}, nil
 	}
@@ -85,9 +85,9 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	sort.Strings(reasons)
 	return []apiv1.State{
 		{
-			Name:    Name,
-			Healthy: false,
-			Reason:  strings.Join(reasons, "; "),
+			Name:              Name,
+			DeprecatedHealthy: false,
+			Reason:            strings.Join(reasons, "; "),
 		},
 	}, nil
 }

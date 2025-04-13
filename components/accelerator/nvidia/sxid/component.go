@@ -173,7 +173,7 @@ func (c *SXIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Dura
 			event := apiv1.Event{
 				Time: message.Timestamp,
 				Name: EventNameErrorSXid,
-				ExtraInfo: map[string]string{
+				DeprecatedExtraInfo: map[string]string{
 					EventKeyErrorSXidData: strconv.FormatInt(int64(sxidErr.SXid), 10),
 					EventKeyDeviceUUID:    sxidErr.DeviceUUID,
 				},

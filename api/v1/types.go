@@ -7,47 +7,120 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type State struct {
-	Name      string            `json:"name,omitempty"`
-	Healthy   bool              `json:"healthy,omitempty"`
-	Health    string            `json:"health,omitempty"`     // Healthy, Degraded, Unhealthy
-	Reason    string            `json:"reason,omitempty"`     // a detailed and processed reason on why the component is not healthy
-	Error     string            `json:"error,omitempty"`      // the unprocessed error returned from the component
-	ExtraInfo map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
-
-	SuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
-}
+type StateType string
 
 const (
-	StateHealthy      = "Healthy"
-	StateUnhealthy    = "Unhealthy"
-	StateInitializing = "Initializing"
-	StateDegraded     = "Degraded"
+	StateTypeHealthy      StateType = "Healthy"
+	StateTypeUnhealthy    StateType = "Unhealthy"
+	StateTypeDegraded     StateType = "Degraded"
+	StateTypeInitializing StateType = "Initializing"
 )
 
-type Event struct {
-	Time             metav1.Time       `json:"time"`
-	Name             string            `json:"name,omitempty"`
-	Type             EventType         `json:"type,omitempty"`
-	Message          string            `json:"message,omitempty"`    // detailed message of the event
-	ExtraInfo        map[string]string `json:"extra_info,omitempty"` // any extra information the component may want to expose
+type State struct {
+	// Component represents which component generated the state.
+	Component string `json:"component,omitempty"`
+
+	// Name is the name of the state.
+	Name string `json:"name,omitempty"`
+
+	// Health represents the health level of the state,
+	// including StateHealthy, StateUnhealthy and StateDegraded.
+	// StateDegraded is similar to Unhealthy which also can trigger alerts
+	// for users or operators, but what StateDegraded means is that the
+	// issue detected does not affect users’ workload.
+	Health StateType `json:"health,omitempty"`
+
+	// Reason represents what happened or detected by GPUd if it isn’t healthy.
+	Reason string `json:"reason,omitempty"`
+
+	// Error represents the detailed error information, which will be shown
+	// as More Information to help analyze why it isn’t healthy.
+	Error string `json:"error,omitempty"`
+
+	// SuggestedActions represents the suggested actions to mitigate the issue.
 	SuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
+
+	// TO BE DEPRECATED
+	DeprecatedHealthy   bool              `json:"healthy,omitempty"`
+	DeprecatedExtraInfo map[string]string `json:"extra_info,omitempty"`
 }
 
+type States []State
+
+type ComponentStates struct {
+	Component string `json:"component"`
+	States    States `json:"states"`
+}
+
+type GPUdComponentStates []ComponentStates
+
+type Event struct {
+	// Component represents which component generated the event.
+	Component string `json:"component,omitempty"`
+
+	// Time represents when the event happened.
+	Time metav1.Time `json:"time"`
+
+	// Name represents the name of the event.
+	Name string `json:"name,omitempty"`
+
+	// Type represents the type of the event.
+	Type EventType `json:"type,omitempty"`
+
+	// Message represents the detailed message of the event.
+	Message string `json:"message,omitempty"`
+
+	// TO BE DEPRECATED
+	DeprecatedExtraInfo        map[string]string `json:"extra_info,omitempty"`
+	DeprecatedSuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
+}
+
+type Events []Event
+
+type ComponentEvents struct {
+	Component string    `json:"component"`
+	StartTime time.Time `json:"startTime"`
+	EndTime   time.Time `json:"endTime"`
+	Events    Events    `json:"events"`
+}
+
+type GPUdComponentEvents []ComponentEvents
+
 type Metric struct {
-	UnixSeconds         int64   `json:"unix_seconds"`
-	MetricName          string  `json:"metric_name"`
-	MetricSecondaryName string  `json:"metric_secondary_name,omitempty"`
-	Value               float64 `json:"value"`
+	UnixSeconds int64 `json:"unix_seconds"`
+
+	Name   string            `json:"name"`
+	Value  float64           `json:"value"`
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// TO BE DEPRECATED
+	DeprecatedMetricName          string `json:"metric_name"`
+	DeprecatedMetricSecondaryName string `json:"metric_secondary_name,omitempty"`
 }
 
 type Metrics []Metric
 
+type ComponentMetrics struct {
+	Component string  `json:"component"`
+	Metrics   Metrics `json:"metrics"`
+}
+
+type GPUdComponentMetrics []ComponentMetrics
+
 type Info struct {
-	States  []State `json:"states"`
-	Events  []Event `json:"events"`
+	States  States  `json:"states"`
+	Events  Events  `json:"events"`
 	Metrics Metrics `json:"metrics"`
 }
+
+type ComponentInfo struct {
+	Component string    `json:"component"`
+	StartTime time.Time `json:"startTime"`
+	EndTime   time.Time `json:"endTime"`
+	Info      Info      `json:"info"`
+}
+
+type GPUdComponentInfos []ComponentInfo
 
 type RepairActionType string
 
@@ -73,14 +146,15 @@ const (
 
 // SuggestedActions represents a set of suggested actions to mitigate an issue.
 type SuggestedActions struct {
-	// References to the descriptions.
-	References []string `json:"references,omitempty"`
-
-	// A list of reasons and descriptions for the suggested actions.
-	Descriptions []string `json:"descriptions"`
+	// Description describes the issue in detail.
+	Description string `json:"description"`
 
 	// A list of repair actions to mitigate the issue.
 	RepairActions []RepairActionType `json:"repair_actions"`
+
+	// TO BE DEPRECATED
+	DeprecatedReferences   []string `json:"references,omitempty"`
+	DeprecatedDescriptions []string `json:"descriptions,omitempty"`
 }
 
 func (sa *SuggestedActions) DescribeActions() string {
@@ -128,33 +202,4 @@ func EventTypeFromString(s string) EventType {
 	default:
 		return EventTypeUnknown
 	}
-}
-
-type LeptonEvents []LeptonComponentEvents
-type LeptonStates []LeptonComponentStates
-type LeptonMetrics []LeptonComponentMetrics
-type LeptonInfo []LeptonComponentInfo
-
-type LeptonComponentEvents struct {
-	Component string    `json:"component"`
-	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
-	Events    []Event   `json:"events"`
-}
-
-type LeptonComponentStates struct {
-	Component string  `json:"component"`
-	States    []State `json:"states"`
-}
-
-type LeptonComponentMetrics struct {
-	Component string  `json:"component"`
-	Metrics   Metrics `json:"metrics"`
-}
-
-type LeptonComponentInfo struct {
-	Component string    `json:"component"`
-	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
-	Info      Info      `json:"info"`
 }

@@ -87,7 +87,7 @@ const (
 // @Success 200 {object} v1.LeptonStates
 // @Router /v1/states [get]
 func (g *globalHandler) getStates(c *gin.Context) {
-	var states apiv1.LeptonStates
+	var states apiv1.GPUdComponentStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -99,7 +99,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currState := apiv1.LeptonComponentStates{
+		currState := apiv1.ComponentStates{
 			Component: componentName,
 		}
 		component, err := gpudcomponents.GetComponent(componentName)
@@ -163,7 +163,7 @@ const (
 // @Success 200 {object} v1.LeptonEvents
 // @Router /v1/events [get]
 func (g *globalHandler) getEvents(c *gin.Context) {
-	var events apiv1.LeptonEvents
+	var events apiv1.GPUdComponentEvents
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -180,7 +180,7 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currEvent := apiv1.LeptonComponentEvents{
+		currEvent := apiv1.ComponentEvents{
 			Component: componentName,
 			StartTime: startTime,
 			EndTime:   endTime,
@@ -245,7 +245,7 @@ const (
 // @Success 200 {object} v1.LeptonInfo
 // @Router /v1/info [get]
 func (g *globalHandler) getInfo(c *gin.Context) {
-	var infos apiv1.LeptonInfo
+	var infos apiv1.GPUdComponentInfos
 	reqComps, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -288,16 +288,16 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			componentsToMetrics[data.Component] = make([]apiv1.Metric, 0)
 		}
 		d := apiv1.Metric{
-			UnixSeconds:         data.UnixMilliseconds,
-			MetricName:          data.Name,
-			MetricSecondaryName: data.Label,
-			Value:               data.Value,
+			UnixSeconds:                   data.UnixMilliseconds,
+			DeprecatedMetricName:          data.Name,
+			DeprecatedMetricSecondaryName: data.Label,
+			Value:                         data.Value,
 		}
 		componentsToMetrics[data.Component] = append(componentsToMetrics[data.Component], d)
 	}
 
 	for _, componentName := range reqComps {
-		currInfo := apiv1.LeptonComponentInfo{
+		currInfo := apiv1.ComponentInfo{
 			Component: componentName,
 			StartTime: startTime,
 			EndTime:   endTime,
