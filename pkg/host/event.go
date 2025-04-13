@@ -16,7 +16,7 @@ const defaultBucketName = "os"
 
 type RebootEventStore interface {
 	RecordReboot(ctx context.Context) error
-	GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error)
+	GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error)
 }
 
 var _ RebootEventStore = &rebootEventStore{}
@@ -37,7 +37,7 @@ func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, s.getLastRebootTime)
 }
 
-func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 
@@ -79,7 +79,7 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 	return bucket.Insert(ctx, rebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) ([]apiv1.Event, error) {
+func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (apiv1.Events, error) {
 	bucket, err := eventStore.Bucket(defaultBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return nil, err

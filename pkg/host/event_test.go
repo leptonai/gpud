@@ -284,7 +284,7 @@ func TestOSEventStore(t *testing.T) {
 		require.NoError(t, err)
 
 		now := time.Now()
-		testEvents := []apiv1.Event{
+		testEvents := apiv1.Events{
 			{
 				Time:    metav1.Time{Time: now.Add(-2 * time.Hour)},
 				Name:    "reboot",

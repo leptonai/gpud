@@ -119,7 +119,7 @@ func TestStates(t *testing.T) {
 	c := New(ctx).(*component)
 
 	// Test with nil data
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -133,7 +133,7 @@ func TestStates(t *testing.T) {
 		healthy: true,
 		reason:  "no bad envs found",
 	}
-	states, err = c.States(ctx)
+	states, err = c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -150,7 +150,7 @@ func TestStates(t *testing.T) {
 		healthy: true,
 		reason:  "CUDA_PROFILE: Enables CUDA profiling.",
 	}
-	states, err = c.States(ctx)
+	states, err = c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -165,7 +165,7 @@ func TestStates(t *testing.T) {
 		healthy: false,
 		reason:  "failed to get bad envs data",
 	}
-	states, err = c.States(ctx)
+	states, err = c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -261,7 +261,7 @@ func TestDataWithMultipleBadEnvs(t *testing.T) {
 	}
 
 	// Check the reason string contains both env vars
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")

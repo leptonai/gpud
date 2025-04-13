@@ -56,7 +56,7 @@ func TestComponentStates(t *testing.T) {
 
 	// Check the states
 	ctx := context.Background()
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 }
@@ -99,7 +99,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 
 	// Test with nil Data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -110,7 +110,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 		err:     assert.AnError,
 		healthy: false,
 	}
-	states, err = data.getStates()
+	states, err = data.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -121,7 +121,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	data = &Data{
 		healthy: true,
 	}
-	states, err = data.getStates()
+	states, err = data.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -133,7 +133,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 
 	// Test with nil Data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "no data yet", states[0].Reason)
@@ -143,7 +143,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 		err:    assert.AnError,
 		reason: "failed to get info data",
 	}
-	states, err = data.getStates()
+	states, err = data.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "failed to get info data", states[0].Reason)
@@ -154,7 +154,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 		Annotations: map[string]string{"test": "value"},
 		reason:      "daemon version: test, mac address: 00:11:22:33:44:55",
 	}
-	states, err = data.getStates()
+	states, err = data.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "daemon version")
@@ -164,7 +164,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -205,7 +205,7 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 		reason:        "test reason",
 	}
 
-	states, err := data.getStates()
+	states, err := data.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 

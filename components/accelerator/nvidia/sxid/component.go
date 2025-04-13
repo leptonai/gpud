@@ -45,7 +45,7 @@ type SXIDComponent struct {
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
 	mu               sync.RWMutex
-	currState        apiv1.State
+	currState        apiv1.HealthState
 }
 
 func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *SXIDComponent {
@@ -102,14 +102,14 @@ func (c *SXIDComponent) Start() error {
 	return nil
 }
 
-func (c *SXIDComponent) States(ctx context.Context) ([]apiv1.State, error) {
+func (c *SXIDComponent) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return []apiv1.State{c.currState}, nil
+	return []apiv1.HealthState{c.currState}, nil
 }
 
-func (c *SXIDComponent) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
-	var ret []apiv1.Event
+func (c *SXIDComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	var ret apiv1.Events
 	events, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
 		return nil, err
@@ -235,12 +235,12 @@ func (c *SXIDComponent) updateCurrentState() error {
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice
-func mergeEvents(a, b []apiv1.Event) []apiv1.Event {
+func mergeEvents(a, b apiv1.Events) apiv1.Events {
 	totalLen := len(a) + len(b)
 	if totalLen == 0 {
 		return nil
 	}
-	result := make([]apiv1.Event, 0, totalLen)
+	result := make(apiv1.Events, 0, totalLen)
 	result = append(result, a...)
 	result = append(result, b...)
 

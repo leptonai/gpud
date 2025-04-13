@@ -149,7 +149,7 @@ func TestCheckOnceSuccess(t *testing.T) {
 	c.CheckOnce()
 
 	// Verify state is updated correctly
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.True(t, states[0].DeprecatedHealthy)
@@ -187,7 +187,7 @@ func TestCheckOnceError(t *testing.T) {
 	c.CheckOnce()
 
 	// Verify state is updated correctly
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.False(t, states[0].DeprecatedHealthy)
@@ -201,7 +201,7 @@ func TestStatesWithNilData(t *testing.T) {
 	comp := New(ctx, mockInstance)
 
 	// At this point, lastData should be nil
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 
@@ -227,7 +227,7 @@ func TestDataGetStates(t *testing.T) {
 		reason:  "all GPUs healthy",
 	}
 
-	states, err := healthyData.getStates()
+	states, err := healthyData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.True(t, states[0].DeprecatedHealthy)
@@ -241,7 +241,7 @@ func TestDataGetStates(t *testing.T) {
 		reason:  "GPU issue detected",
 	}
 
-	states, err = unhealthyData.getStates()
+	states, err = unhealthyData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.False(t, states[0].DeprecatedHealthy)

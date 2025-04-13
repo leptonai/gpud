@@ -43,8 +43,8 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
-	return []apiv1.State{
+func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+	return []apiv1.HealthState{
 		{
 			DeprecatedHealthy: true,
 			Reason:            "no issue",
@@ -52,7 +52,7 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	if c.eventBucket != nil {
 		return c.eventBucket.Get(ctx, since)
 	}

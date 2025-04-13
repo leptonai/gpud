@@ -87,7 +87,7 @@ const (
 // @Success 200 {object} v1.LeptonStates
 // @Router /v1/states [get]
 func (g *globalHandler) getStates(c *gin.Context) {
-	var states apiv1.GPUdComponentStates
+	var states apiv1.GPUdComponentHealthStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -99,7 +99,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currState := apiv1.ComponentStates{
+		currState := apiv1.ComponentHealthStates{
 			Component: componentName,
 		}
 		component, err := gpudcomponents.GetComponent(componentName)
@@ -114,7 +114,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		}
 
 		log.Logger.Debugw("getting states", "component", componentName)
-		state, err := component.States(c)
+		state, err := component.HealthStates(c)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component state",
 				"operation", "GetStates",
@@ -323,7 +323,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		} else if len(events) > 0 {
 			currInfo.Info.Events = events
 		}
-		state, err := component.States(c)
+		state, err := component.HealthStates(c)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component states",
 				"operation", "GetInfo",

@@ -38,14 +38,14 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
+func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getStates()
+	return lastData.getHealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -121,9 +121,9 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getStates() ([]apiv1.State, error) {
+func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 	if d == nil {
-		return []apiv1.State{
+		return []apiv1.HealthState{
 			{
 				Name:              Name,
 				Health:            apiv1.StateTypeHealthy,
@@ -133,7 +133,7 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 		}, nil
 	}
 
-	state := apiv1.State{
+	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
@@ -150,5 +150,5 @@ func (d *Data) getStates() ([]apiv1.State, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.State{state}, nil
+	return []apiv1.HealthState{state}, nil
 }

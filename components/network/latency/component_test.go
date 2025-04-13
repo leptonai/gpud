@@ -61,7 +61,7 @@ func TestComponentStatesNoData(t *testing.T) {
 	t.Parallel()
 
 	c := New(context.Background())
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -101,7 +101,7 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	comp.CheckOnce()
 
 	// Check states
-	states, err := comp.States(context.Background())
+	states, err := comp.HealthStates(context.Background())
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -132,7 +132,7 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	comp.CheckOnce()
 
 	// Check states when there's an error
-	states, err := comp.States(context.Background())
+	states, err := comp.HealthStates(context.Background())
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)

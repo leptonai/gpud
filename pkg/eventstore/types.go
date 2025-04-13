@@ -21,7 +21,7 @@ type Bucket interface {
 	// Find returns nil if the event is not found.
 	Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error)
 	// Get queries the event in the descending order of timestamp (latest event first).
-	Get(ctx context.Context, since time.Time) ([]apiv1.Event, error)
+	Get(ctx context.Context, since time.Time) (apiv1.Events, error)
 	// Latest queries the latest event, returns nil if no event found.
 	Latest(ctx context.Context) (*apiv1.Event, error)
 	Purge(ctx context.Context, beforeTimestamp int64) (int, error)

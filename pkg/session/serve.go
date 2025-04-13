@@ -41,9 +41,9 @@ type Response struct {
 	// don't use "error" type as it doesn't marshal/unmarshal well
 	Error string `json:"error,omitempty"`
 
-	States  apiv1.GPUdComponentStates  `json:"states,omitempty"`
-	Events  apiv1.GPUdComponentEvents  `json:"events,omitempty"`
-	Metrics apiv1.GPUdComponentMetrics `json:"metrics,omitempty"`
+	States  apiv1.GPUdComponentHealthStates `json:"states,omitempty"`
+	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
+	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
 }
 
 func (s *Session) serve() {
@@ -286,7 +286,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (apiv1.GPUdCo
 	return retMetrics, nil
 }
 
-func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.GPUdComponentStates, error) {
+func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.GPUdComponentHealthStates, error) {
 	if payload.Method != "states" {
 		return nil, errors.New("mismatch method")
 	}
@@ -294,7 +294,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.GPUdCom
 	if len(payload.Components) > 0 {
 		allComponents = payload.Components
 	}
-	var statesBuf = make(chan apiv1.ComponentStates, len(allComponents))
+	var statesBuf = make(chan apiv1.ComponentHealthStates, len(allComponents))
 	var lastRebootTime *time.Time
 	localCtx, done := context.WithTimeout(ctx, time.Minute)
 	defer done()
@@ -303,7 +303,7 @@ func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.GPUdCom
 			statesBuf <- s.getStatesFromComponent(localCtx, name, lastRebootTime)
 		}(componentName)
 	}
-	var states apiv1.GPUdComponentStates
+	var states apiv1.GPUdComponentHealthStates
 	for currState := range statesBuf {
 		states = append(states, currState)
 		if len(states) == len(allComponents) {
@@ -383,7 +383,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	return currMetrics
 }
 
-func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) apiv1.ComponentStates {
+func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) apiv1.ComponentHealthStates {
 	component, err := components.GetComponent(componentName)
 	if err != nil {
 		log.Logger.Errorw("failed to get component",
@@ -391,15 +391,15 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			"component", componentName,
 			"error", err,
 		)
-		return apiv1.ComponentStates{
+		return apiv1.ComponentHealthStates{
 			Component: componentName,
 		}
 	}
-	currState := apiv1.ComponentStates{
+	currState := apiv1.ComponentHealthStates{
 		Component: componentName,
 	}
 	log.Logger.Debugw("getting states", "component", componentName)
-	state, err := component.States(ctx)
+	state, err := component.HealthStates(ctx)
 	if err != nil {
 		log.Logger.Errorw("failed to invoke component state",
 			"operation", "GetStates",

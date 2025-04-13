@@ -119,7 +119,7 @@ func TestStates(t *testing.T) {
 
 			c.CheckOnce()
 
-			states, err := c.States(context.Background())
+			states, err := c.HealthStates(context.Background())
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 
@@ -213,7 +213,7 @@ func TestGetHealth(t *testing.T) {
 		name           string
 		data           *Data
 		modulesToCheck []string
-		wantHealth     apiv1.StateType
+		wantHealth     apiv1.HealthStateType
 		wantHealthy    bool
 	}{
 		{
@@ -276,7 +276,7 @@ func TestDataGetStates(t *testing.T) {
 		name        string
 		data        *Data
 		wantHealthy bool
-		wantHealth  apiv1.StateType
+		wantHealth  apiv1.HealthStateType
 		wantReason  string
 		wantError   bool
 	}{
@@ -339,7 +339,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 
 			require.Len(t, states, 1)

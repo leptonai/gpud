@@ -34,8 +34,8 @@ func TestMergeEvents(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name     string
-		a        []apiv1.Event
-		b        []apiv1.Event
+		a        apiv1.Events
+		b        apiv1.Events
 		expected int
 	}{
 		{
@@ -47,14 +47,14 @@ func TestMergeEvents(t *testing.T) {
 		{
 			name: "a empty",
 			a:    nil,
-			b: []apiv1.Event{
+			b: apiv1.Events{
 				createTestEvent(now),
 			},
 			expected: 1,
 		},
 		{
 			name: "b empty",
-			a: []apiv1.Event{
+			a: apiv1.Events{
 				createTestEvent(now),
 			},
 			b:        nil,
@@ -62,11 +62,11 @@ func TestMergeEvents(t *testing.T) {
 		},
 		{
 			name: "both non-empty",
-			a: []apiv1.Event{
+			a: apiv1.Events{
 				createTestEvent(now.Add(-1 * time.Hour)),
 				createTestEvent(now),
 			},
-			b: []apiv1.Event{
+			b: apiv1.Events{
 				createTestEvent(now.Add(-2 * time.Hour)),
 				createTestEvent(now.Add(-30 * time.Minute)),
 			},
@@ -88,11 +88,11 @@ func TestMergeEvents(t *testing.T) {
 	}
 
 	t.Run("verify sorting", func(t *testing.T) {
-		a := []apiv1.Event{
+		a := apiv1.Events{
 			createTestEvent(now.Add(2 * time.Hour)),
 			createTestEvent(now.Add(-1 * time.Hour)),
 		}
-		b := []apiv1.Event{
+		b := apiv1.Events{
 			createTestEvent(now),
 			createTestEvent(now.Add(-2 * time.Hour)),
 		}
@@ -158,7 +158,7 @@ func TestSXIDComponent_Events(t *testing.T) {
 		}
 	}()
 
-	testEvents := []apiv1.Event{
+	testEvents := apiv1.Events{
 		createTestEvent(time.Now()),
 	}
 
@@ -210,14 +210,14 @@ func TestSXIDComponent_States(t *testing.T) {
 		}
 	}()
 
-	s := apiv1.State{
+	s := apiv1.HealthState{
 		Name:              StateNameErrorSXid,
 		DeprecatedHealthy: true,
 		Health:            apiv1.StateTypeHealthy,
 		Reason:            "SXIDComponent is healthy",
 	}
 	component.currState = s
-	states, err := component.States(ctx)
+	states, err := component.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, s, states[0])
@@ -226,12 +226,12 @@ func TestSXIDComponent_States(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		events    []apiv1.Event
-		wantState []apiv1.State
+		events    apiv1.Events
+		wantState []apiv1.HealthState
 	}{
 		{
 			name: "critical sxid happened and reboot recovered",
-			events: []apiv1.Event{
+			events: apiv1.Events{
 				createSXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime, 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
@@ -240,7 +240,7 @@ func TestSXIDComponent_States(t *testing.T) {
 				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(20 * time.Minute)}},
 				createSXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
-			wantState: []apiv1.State{
+			wantState: []apiv1.HealthState{
 				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
 				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{DeprecatedHealthy: false, Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
@@ -263,7 +263,7 @@ func TestSXIDComponent_States(t *testing.T) {
 				}
 				// wait for events to be processed
 				time.Sleep(1 * time.Second)
-				states, err = component.States(ctx)
+				states, err = component.HealthStates(ctx)
 				t.Log(states[0])
 				assert.NoError(t, err, "index %d", i)
 				assert.Len(t, states, 1, "index %d", i)

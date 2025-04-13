@@ -24,7 +24,7 @@ import (
 
 // Mock implementation of eventstore.Bucket
 type mockEventBucket struct {
-	events []apiv1.Event
+	events apiv1.Events
 	err    error
 }
 
@@ -50,7 +50,7 @@ func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.E
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -174,7 +174,7 @@ func TestEvents(t *testing.T) {
 
 	// Create mock event bucket with test events
 	eventBucket := &mockEventBucket{
-		events: []apiv1.Event{
+		events: apiv1.Events{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 				Name:    "test_event",
@@ -414,7 +414,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	assert.Contains(t, c.lastData.err.Error(), expectedErr.Error())
 
 	// Verify the states reflect the error
-	states, err := c.lastData.getStates()
+	states, err := c.lastData.getHealthStates()
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -492,7 +492,7 @@ func TestComponentStates(t *testing.T) {
 		name                       string
 		rowRemappingSupported      bool
 		remappedRows               []nvml.RemappedRows
-		expectedHealth             apiv1.StateType
+		expectedHealth             apiv1.HealthStateType
 		expectedHealthy            bool
 		expectContainsRMAMessage   bool
 		expectContainsResetMessage bool
@@ -647,7 +647,7 @@ func TestComponentStates(t *testing.T) {
 			c.lastMu.Unlock()
 
 			// Get states and check them
-			states, err := comp.States(ctx)
+			states, err := comp.HealthStates(ctx)
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 
@@ -711,7 +711,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	c.lastMu.Unlock()
 
 	// Get states and check they reflect the error
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 
@@ -756,7 +756,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 	// since we're just checking the default behavior when lastData is nil
 
 	// Get states and check default values
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 

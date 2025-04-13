@@ -66,11 +66,11 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
+func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
 	return c.getStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
 }
 
-var noDataEvents = []apiv1.State{
+var noDataEvents = []apiv1.HealthState{
 	{
 		Name:              "ibstat",
 		Health:            apiv1.StateTypeHealthy,
@@ -79,7 +79,7 @@ var noDataEvents = []apiv1.State{
 	},
 }
 
-func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]apiv1.State, error) {
+func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]apiv1.HealthState, error) {
 	// in rare cases, some machines have "ibstat" installed that returns empty output
 	// not failing the ibstat check, thus we need manual check on the thresholds here
 	// before we call the ibstat command
@@ -103,10 +103,10 @@ func (c *component) getStates(ctx context.Context, now time.Time, thresholds inf
 		return noDataEvents, nil
 	}
 
-	return []apiv1.State{convertToState(lastEvent)}, nil
+	return []apiv1.HealthState{convertToState(lastEvent)}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	thresholds := GetDefaultExpectedPortStates()
 	if _, err := c.checkOnceIbstat(time.Now().UTC(), thresholds); err != nil {
 		return nil, err
@@ -126,8 +126,8 @@ func (c *component) Close() error {
 	return nil
 }
 
-func convertToState(ev *apiv1.Event) apiv1.State {
-	state := apiv1.State{
+func convertToState(ev *apiv1.Event) apiv1.HealthState {
+	state := apiv1.HealthState{
 		Name:              ev.Name,
 		DeprecatedHealthy: true,
 		Health:            apiv1.StateTypeHealthy,
@@ -136,7 +136,7 @@ func convertToState(ev *apiv1.Event) apiv1.State {
 	}
 	if len(ev.DeprecatedExtraInfo) > 0 {
 		state.DeprecatedHealthy = ev.DeprecatedExtraInfo["state_healthy"] == "true"
-		state.Health = apiv1.StateType(ev.DeprecatedExtraInfo["state_health"])
+		state.Health = apiv1.HealthStateType(ev.DeprecatedExtraInfo["state_health"])
 	}
 	return state
 }

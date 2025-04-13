@@ -18,7 +18,7 @@ import (
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -38,7 +38,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		health:               apiv1.StateTypeUnhealthy,
 	}
 
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -79,9 +79,9 @@ func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.E
 	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).([]apiv1.Event), args.Error(1)
+	return args.Get(0).(apiv1.Events), args.Error(1)
 }
 
 func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
@@ -121,7 +121,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Test with no data yet
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -146,7 +146,7 @@ func TestComponentStates(t *testing.T) {
 	}
 	c.lastData = testData
 
-	states, err = c.States(context.Background())
+	states, err = c.HealthStates(context.Background())
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -159,7 +159,7 @@ func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
 	testTime := metav1.Now()
-	testEvents := []apiv1.Event{
+	testEvents := apiv1.Events{
 		{
 			Time:    testTime,
 			Name:    Name,
@@ -817,7 +817,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 		limit                    uint64
 		thresholdFileHandles     uint64
 		thresholdPIDs            uint64
-		expectedHealth           apiv1.StateType
+		expectedHealth           apiv1.HealthStateType
 		expectedHealthy          bool
 		fileHandlesSupported     bool
 		fdLimitSupported         bool

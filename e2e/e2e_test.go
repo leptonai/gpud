@@ -162,7 +162,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Println("/v1/states RESPONSE BODY:", string(body))
 			GinkgoLogr.Info("/v1/states response", "response", string(body))
 
-			var componentStates []apiv1.ComponentStates
+			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 
@@ -203,7 +203,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			body, err := io.ReadAll(gr)
 			Expect(err).NotTo(HaveOccurred(), "failed to read gzip")
 
-			var componentStates []apiv1.ComponentStates
+			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 

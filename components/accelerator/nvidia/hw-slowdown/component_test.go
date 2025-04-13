@@ -261,7 +261,7 @@ func TestCheckOnce(t *testing.T) {
 			assert.Equal(t, tc.expectEvents, len(events))
 
 			// Validate component state
-			states, err := c.States(ctx)
+			states, err := c.HealthStates(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(states))
 			assert.Equal(t, tc.expectHealthyState, states[0].DeprecatedHealthy)
@@ -304,7 +304,7 @@ func TestComponentStates(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	// Create test events
-	testEvents := []apiv1.Event{
+	testEvents := apiv1.Events{
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
 			Name:    "hw_slowdown",
@@ -347,7 +347,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Get states
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -451,7 +451,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				eventBucket:      bucket,
 			}
 
-			states, err := c.States(ctx)
+			states, err := c.HealthStates(ctx)
 			if tc.expectError {
 				assert.Error(t, err)
 				return
@@ -542,7 +542,7 @@ func TestComponentEvents(t *testing.T) {
 	defer bucket.Close()
 
 	// Insert test events
-	testEvents := []apiv1.Event{
+	testEvents := apiv1.Events{
 		{
 			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
 			Name:    "hw_slowdown",
@@ -713,7 +713,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	c.CheckOnce()
 
 	// Get the states and verify they reflect the unhealthy condition
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 

@@ -82,7 +82,7 @@ func TestComponent_States_NoData(t *testing.T) {
 	c := New(ctx, mockInstance).(*component)
 	c.lastData = nil
 
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
@@ -108,7 +108,7 @@ func TestComponent_States_WithData(t *testing.T) {
 		},
 	}
 
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
@@ -130,7 +130,7 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 		err:     errors.New("something went wrong"),
 	}
 
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
@@ -294,7 +294,7 @@ func TestCheckOnce_DeviceCountError(t *testing.T) {
 func TestData_GetStates(t *testing.T) {
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -305,7 +305,7 @@ func TestData_GetStates(t *testing.T) {
 		healthy: true,
 		reason:  "all good",
 	}
-	states, err = healthyData.getStates()
+	states, err = healthyData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -317,7 +317,7 @@ func TestData_GetStates(t *testing.T) {
 		reason:  "problems found",
 		err:     errors.New("test error"),
 	}
-	states, err = unhealthyData.getStates()
+	states, err = unhealthyData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)

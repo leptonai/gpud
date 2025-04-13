@@ -159,7 +159,7 @@ func TestGetInfo(t *testing.T) {
 			StartTime: now,
 			EndTime:   now.Add(time.Hour),
 			Info: apiv1.Info{
-				States: []apiv1.State{
+				States: []apiv1.HealthState{
 					{
 						Name:                "test",
 						DeprecatedExtraInfo: map[string]string{"key": "value"},
@@ -273,10 +273,10 @@ func TestGetInfo(t *testing.T) {
 }
 
 func TestGetStates(t *testing.T) {
-	testStates := apiv1.GPUdComponentStates{
+	testStates := apiv1.GPUdComponentHealthStates{
 		{
 			Component: "component1",
-			States: []apiv1.State{
+			States: []apiv1.HealthState{
 				{
 					Name:                "test",
 					DeprecatedExtraInfo: map[string]string{"state": "running"},
@@ -293,7 +293,7 @@ func TestGetStates(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult apiv1.GPUdComponentStates
+		expectedResult apiv1.GPUdComponentHealthStates
 		useGzip        bool
 	}{
 		{

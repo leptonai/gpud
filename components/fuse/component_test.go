@@ -111,7 +111,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("getStates with nil", func(t *testing.T) {
 		var d *Data
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
@@ -125,7 +125,7 @@ func TestDataFunctions(t *testing.T) {
 			healthy: true,
 			reason:  "all good",
 		}
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
@@ -140,7 +140,7 @@ func TestDataFunctions(t *testing.T) {
 			reason:  "something wrong",
 			err:     errors.New("test error"),
 		}
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
@@ -229,7 +229,7 @@ func TestCheckOnce(t *testing.T) {
 			c.CheckOnce()
 
 			// Check component state after CheckOnce
-			states, err := c.States(context.Background())
+			states, err := c.HealthStates(context.Background())
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 
@@ -324,7 +324,7 @@ func (b *eventWrapperBucket) Insert(ctx context.Context, ev apiv1.Event) error {
 	return b.wrapped.Insert(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return b.wrapped.Get(ctx, since)
 }
 
@@ -376,7 +376,7 @@ func TestCheckOnceWithEventBucketError(t *testing.T) {
 	c.CheckOnce()
 
 	// Check if the component reports as healthy (it should, because events are recorded but healthy is still true)
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.True(t, states[0].DeprecatedHealthy)
@@ -420,7 +420,7 @@ func TestFindError(t *testing.T) {
 	c.CheckOnce()
 
 	// Verify component state - Find error should make it unhealthy
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.False(t, states[0].DeprecatedHealthy)
@@ -456,7 +456,7 @@ func TestThresholdExceeded(t *testing.T) {
 	c.CheckOnce()
 
 	// Check if the component reports as healthy (it should, because events are recorded but healthy is still true)
-	states, err := c.States(context.Background())
+	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.True(t, states[0].DeprecatedHealthy)

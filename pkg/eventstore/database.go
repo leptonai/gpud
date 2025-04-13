@@ -180,7 +180,7 @@ func (t *table) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) 
 }
 
 // Get queries the event in the descending order of timestamp (latest event first).
-func (t *table) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (t *table) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return getEvents(ctx, t.dbRO, t.table, since)
 }
 
@@ -340,7 +340,7 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) ([]apiv1.Event, error) {
+func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) (apiv1.Events, error) {
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
 FROM %s
 WHERE %s > ?
@@ -364,7 +364,7 @@ ORDER BY %s DESC`,
 	}
 	defer rows.Close()
 
-	var events []apiv1.Event
+	var events apiv1.Events
 	for rows.Next() {
 		event, err := scanRows(rows)
 		if err != nil {

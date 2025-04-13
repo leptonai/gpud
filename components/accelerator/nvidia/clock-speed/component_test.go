@@ -82,7 +82,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 	}
 
-	states, err := successData.getStates()
+	states, err := successData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -184,7 +184,7 @@ func TestComponent_States(t *testing.T) {
 		ctx: ctx,
 	}
 
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
@@ -197,7 +197,7 @@ func TestComponent_States(t *testing.T) {
 		ClockSpeeds: clockSpeeds,
 	}
 
-	states, err = c.States(ctx)
+	states, err = c.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 

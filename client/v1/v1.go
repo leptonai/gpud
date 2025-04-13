@@ -199,7 +199,7 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	return info, nil
 }
 
-func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentStates, error) {
+func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -247,13 +247,13 @@ func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdCompo
 	return ReadStates(resp.Body, opts...)
 }
 
-func ReadStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentStates, error) {
+func ReadStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
 	}
 
-	var states v1.GPUdComponentStates
+	var states v1.GPUdComponentHealthStates
 	switch op.requestAcceptEncoding {
 	case server.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)

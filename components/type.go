@@ -26,11 +26,11 @@ type Component interface {
 	// Implements component-specific poller start logic.
 	Start() error
 
-	// Returns the current states of the component.
-	States(ctx context.Context) ([]apiv1.State, error)
+	// HealthStates returns the current health states of the component.
+	HealthStates(ctx context.Context) (apiv1.HealthStates, error)
 
-	// Returns all the events from "since".
-	Events(ctx context.Context, since time.Time) ([]apiv1.Event, error)
+	// Events returns all the events from "since".
+	Events(ctx context.Context, since time.Time) (apiv1.Events, error)
 
 	// Called upon server close.
 	// Implements copmonent-specific poller cleanup logic.

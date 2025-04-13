@@ -29,12 +29,12 @@ func (m *mockComponent) Start() error {
 	return nil
 }
 
-func (m *mockComponent) States(ctx context.Context) ([]apiv1.State, error) {
-	return []apiv1.State{{Name: m.name, DeprecatedHealthy: true}}, nil
+func (m *mockComponent) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+	return []apiv1.HealthState{{Name: m.name, DeprecatedHealthy: true}}, nil
 }
 
-func (m *mockComponent) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
-	return []apiv1.Event{}, nil
+func (m *mockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	return apiv1.Events{}, nil
 }
 
 func (m *mockComponent) Close() error {

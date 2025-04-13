@@ -224,7 +224,7 @@ func Test_getStates(t *testing.T) {
 		name           string
 		data           Data
 		expectedLen    int
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "no pods",
@@ -281,7 +281,7 @@ func Test_getStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates()
+			states, err := tc.data.getHealthStates()
 			require.NoError(t, err)
 
 			require.Len(t, states, tc.expectedLen)
@@ -457,7 +457,7 @@ func Test_componentStates(t *testing.T) {
 		name           string
 		data           Data
 		failedCount    int
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "healthy state",
@@ -506,7 +506,7 @@ func Test_componentStates(t *testing.T) {
 				failedCount: tc.failedCount,
 			}
 
-			states, err := c.States(context.Background())
+			states, err := c.HealthStates(context.Background())
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
@@ -678,7 +678,7 @@ func Test_componentStates_ConnectionErrors(t *testing.T) {
 		name           string
 		data           Data
 		failedCount    int
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "connection error - marked healthy",
@@ -707,7 +707,7 @@ func Test_componentStates_ConnectionErrors(t *testing.T) {
 				failedCount: tc.failedCount,
 			}
 
-			states, err := c.States(context.Background())
+			states, err := c.HealthStates(context.Background())
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
@@ -730,7 +730,7 @@ func Test_componentStates_ContextCancellation(t *testing.T) {
 	cancel()
 
 	// Should still return states using cached data
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -756,7 +756,7 @@ func Test_componentConstructor(t *testing.T) {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -769,7 +769,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           Data
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "standard error returned",
@@ -845,7 +845,7 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates()
+			states, err := tc.data.getHealthStates()
 			assert.NoError(t, err)
 
 			// Verify state properties
@@ -875,7 +875,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		healthy:  false,
 		reason:   "deadline exceeded",
 	}
-	states, err := deadlineData.getStates()
+	states, err := deadlineData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "deadline exceeded")
@@ -888,7 +888,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		healthy:  false,
 		reason:   "context canceled",
 	}
-	states, err = canceledData.getStates()
+	states, err = canceledData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "context canceled")
@@ -901,7 +901,7 @@ func TestDataGetStatesWithSpecificErrors(t *testing.T) {
 		healthy:  false,
 		reason:   "custom error",
 	}
-	states, err = customData.getStates()
+	states, err = customData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error")

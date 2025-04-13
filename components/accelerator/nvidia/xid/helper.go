@@ -22,7 +22,7 @@ const (
 
 // EvolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
-func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
+func EvolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
@@ -90,7 +90,7 @@ func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
 			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, lastXidErr.DeviceUUID)
 		}
 	}
-	return apiv1.State{
+	return apiv1.HealthState{
 		Name:              StateNameErrorXid,
 		DeprecatedHealthy: lastHealth == StateHealthy,
 		Health:            translateToStateHealth(lastHealth),
@@ -99,7 +99,7 @@ func EvolveHealthyState(events []apiv1.Event) (ret apiv1.State) {
 	}
 }
 
-func translateToStateHealth(health int) apiv1.StateType {
+func translateToStateHealth(health int) apiv1.HealthStateType {
 	switch health {
 	case StateHealthy:
 		return apiv1.StateTypeHealthy
