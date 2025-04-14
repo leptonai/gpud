@@ -78,7 +78,7 @@ func (s *Session) serve() {
 			response.Metrics = metrics
 
 		case "states":
-			states, err := s.getStates(ctx, payload)
+			states, err := s.getHealthStates(ctx, payload)
 			if err != nil {
 				response.Error = err.Error()
 			}
@@ -286,7 +286,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (apiv1.GPUdCo
 	return retMetrics, nil
 }
 
-func (s *Session) getStates(ctx context.Context, payload Request) (apiv1.GPUdComponentHealthStates, error) {
+func (s *Session) getHealthStates(ctx context.Context, payload Request) (apiv1.GPUdComponentHealthStates, error) {
 	if payload.Method != "states" {
 		return nil, errors.New("mismatch method")
 	}

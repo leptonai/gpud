@@ -315,7 +315,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	Describe("states with client/v1", func() {
 
 		It("get disk states", func() {
-			states, err := client_v1.GetStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
+			states, err := client_v1.GetHealthStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
 			for _, ss := range states {
 				for _, s := range ss.States {
@@ -331,7 +331,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			{client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip()},
 		} {
 			It("get states with options", func() {
-				components, err := client_v1.GetStates(ctx, "https://"+ep, opts...)
+				components, err := client_v1.GetHealthStates(ctx, "https://"+ep, opts...)
 				Expect(err).NotTo(HaveOccurred(), "failed to get states")
 				GinkgoLogr.Info("got components", "components", components)
 
@@ -353,7 +353,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					}
 				}
 
-				_, err = client_v1.GetStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...)
+				_, err = client_v1.GetHealthStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...)
 				Expect(err).To(Equal(errdefs.ErrNotFound), "expected ErrNotFound")
 			})
 		}

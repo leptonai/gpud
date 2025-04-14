@@ -14,7 +14,7 @@ func main() {
 	for _, componentName := range []string{"disk", "accelerator-nvidia-info"} {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		states, err := client_v1.GetStates(ctx, baseURL, client_v1.WithComponent(componentName))
+		states, err := client_v1.GetHealthStates(ctx, baseURL, client_v1.WithComponent(componentName))
 		if err != nil {
 			if errdefs.IsNotFound(err) {
 				log.Logger.Warnw("component not found", "component", componentName)

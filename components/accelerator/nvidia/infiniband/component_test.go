@@ -281,7 +281,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
 		AtLeastRate:  400, // Expected rate for H100 cards
 	})
@@ -303,7 +303,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, lastEvent)
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 12, // More ports than available
 		AtLeastRate:  400,
 	})
@@ -377,7 +377,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			}
 
 			now := time.Now().UTC()
-			states, err := c.getStates(ctx, now, tt.thresholds)
+			states, err := c.getHealthStates(ctx, now, tt.thresholds)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -448,7 +448,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			}
 			require.NotNil(t, lastEvent)
 
-			states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{
+			states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			})
@@ -564,7 +564,7 @@ func TestGetStates(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Test case 1: No thresholds set
-	states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{})
+	states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
@@ -573,7 +573,7 @@ func TestGetStates(t *testing.T) {
 	assert.Equal(t, msgThresholdNotSetSkipped, states[0].Reason)
 
 	// Test case 2: Empty events store with thresholds
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -611,7 +611,7 @@ func TestGetStates(t *testing.T) {
 	c.lastEvent = &testEvent
 	c.lastEventMu.Unlock()
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -640,7 +640,7 @@ func TestGetStates(t *testing.T) {
 	c.lastEvent = &recentEvent
 	c.lastEventMu.Unlock()
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -659,7 +659,7 @@ func TestGetStates(t *testing.T) {
 		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
-	_, err = cNew.getStates(canceledCtx, now, infiniband.ExpectedPortStates{
+	_, err = cNew.getHealthStates(canceledCtx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -668,7 +668,7 @@ func TestGetStates(t *testing.T) {
 
 	// Test case 6: With mock ibstat command
 	c.toolOverwrites.IbstatCommand = "cat testdata/ibstat.47.0.h100.all.active.1"
-	states, err = c.getStates(ctx, now.Add(20*time.Second), infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now.Add(20*time.Second), infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	})
@@ -680,7 +680,7 @@ func TestGetStates(t *testing.T) {
 
 	// Test case 7: With invalid ibstat command
 	c.toolOverwrites.IbstatCommand = "invalid_command"
-	states, err = c.getStates(ctx, now.Add(50*time.Second), infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now.Add(50*time.Second), infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})

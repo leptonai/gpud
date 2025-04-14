@@ -27,7 +27,7 @@ const (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
-	r.GET(URLPathStates, g.getStates)
+	r.GET(URLPathStates, g.getHealthStates)
 	r.GET(URLPathEvents, g.getEvents)
 	r.GET(URLPathInfo, g.getInfo)
 	r.GET(URLPathMetrics, g.getMetrics)
@@ -78,15 +78,15 @@ const (
 	URLPathStatesDesc = "Get the states of all gpud components"
 )
 
-// getStates godoc
+// getHealthStates godoc
 // @Summary Query component States interface in gpud
 // @Description get component States interface by component name
-// @ID getStates
+// @ID getHealthStates
 // @Param   component     query    string     false        "Component Name, leave empty to query all components"
 // @Produce  json
 // @Success 200 {object} v1.LeptonStates
 // @Router /v1/states [get]
-func (g *globalHandler) getStates(c *gin.Context) {
+func (g *globalHandler) getHealthStates(c *gin.Context) {
 	var states apiv1.GPUdComponentHealthStates
 	components, err := g.getReqComponents(c)
 	if err != nil {

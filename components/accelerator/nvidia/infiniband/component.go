@@ -67,7 +67,7 @@ func (c *component) Name() string { return Name }
 func (c *component) Start() error { return nil }
 
 func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
-	return c.getStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
+	return c.getHealthStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
 }
 
 var noDataEvents = []apiv1.HealthState{
@@ -79,7 +79,7 @@ var noDataEvents = []apiv1.HealthState{
 	},
 }
 
-func (c *component) getStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) ([]apiv1.HealthState, error) {
+func (c *component) getHealthStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStates, error) {
 	// in rare cases, some machines have "ibstat" installed that returns empty output
 	// not failing the ibstat check, thus we need manual check on the thresholds here
 	// before we call the ibstat command

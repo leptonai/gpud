@@ -199,7 +199,7 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	return info, nil
 }
 
-func GetStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
+func GetHealthStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err

@@ -353,7 +353,7 @@ func TestGetStates(t *testing.T) {
 				opts = append(opts, WithComponent(comp))
 			}
 
-			result, err := GetStates(context.Background(), srv.URL, opts...)
+			result, err := GetHealthStates(context.Background(), srv.URL, opts...)
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)

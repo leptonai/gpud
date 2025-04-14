@@ -93,7 +93,7 @@ func checkDiskComponent() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
+	states, err := client.GetHealthStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
 		// assume disk component is enabled for all platforms
 		return err
@@ -118,7 +118,7 @@ func checkNvidiaInfoComponent() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	states, err := client.GetStates(ctx, baseURL, client.WithComponent(componentName))
+	states, err := client.GetHealthStates(ctx, baseURL, client.WithComponent(componentName))
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			log.Logger.Warnw("component not found", "component", componentName)
