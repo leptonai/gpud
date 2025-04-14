@@ -30,12 +30,12 @@ func createGossipURL(endpoint string) string {
 	return fmt.Sprintf("https://%s/api/v1/gossip", endpoint)
 }
 
-func Gossip(uid string, endpoint string, components []string) error {
+func SendGossip(uid string, endpoint string, components []string) error {
 	url := createGossipURL(endpoint)
-	return gossip(uid, url, components)
+	return sendGossip(uid, url, components)
 }
 
-func gossip(uid string, url string, components []string) error {
+func sendGossip(uid string, url string, components []string) error {
 	if os.Getenv("GPUD_NO_USAGE_STATS") == "true" {
 		log.Logger.Debug("gossip skipped since GPUD_NO_USAGE_STATS=true specified")
 		return nil
