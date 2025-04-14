@@ -48,7 +48,9 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 		part.Mounted = err == nil
 
 		if err != nil && os.IsNotExist(err) {
-			return nil, err
+			// e.g., deleted pod then "stat /var/lib/kubelet/pods/80017f21-3c73-48" will fail
+			log.Logger.Debugw("skipping partition because mount point does not exist", "error", err, "device", part.Device, "mountPoint", part.MountPoint)
+			continue
 		}
 
 		if part.Mounted {
