@@ -98,7 +98,7 @@ func (llp *logLineProcessor) watch() {
 	}
 }
 
-func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return llp.eventBucket.Get(ctx, since)
 }
 

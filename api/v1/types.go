@@ -7,16 +7,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type StateType string
+type HealthStateType string
 
 const (
-	StateTypeHealthy      StateType = "Healthy"
-	StateTypeUnhealthy    StateType = "Unhealthy"
-	StateTypeDegraded     StateType = "Degraded"
-	StateTypeInitializing StateType = "Initializing"
+	StateTypeHealthy      HealthStateType = "Healthy"
+	StateTypeUnhealthy    HealthStateType = "Unhealthy"
+	StateTypeDegraded     HealthStateType = "Degraded"
+	StateTypeInitializing HealthStateType = "Initializing"
 )
 
-type State struct {
+// HealthState represents the health state of a component.
+// The healthiness of the component is already evaluated at the component level,
+// so the health state here is to provide more details about the healthiness,
+// and other data for the control plane to decide how to alert and remediate the issue.
+type HealthState struct {
 	// Component represents which component generated the state.
 	Component string `json:"component,omitempty"`
 
@@ -28,7 +32,7 @@ type State struct {
 	// StateDegraded is similar to Unhealthy which also can trigger alerts
 	// for users or operators, but what StateDegraded means is that the
 	// issue detected does not affect users’ workload.
-	Health StateType `json:"health,omitempty"`
+	Health HealthStateType `json:"health,omitempty"`
 
 	// Reason represents what happened or detected by GPUd if it isn’t healthy.
 	Reason string `json:"reason,omitempty"`
@@ -45,15 +49,18 @@ type State struct {
 	DeprecatedExtraInfo map[string]string `json:"extra_info,omitempty"`
 }
 
-type States []State
+type HealthStates []HealthState
 
-type ComponentStates struct {
-	Component string `json:"component"`
-	States    States `json:"states"`
+type ComponentHealthStates struct {
+	Component string       `json:"component"`
+	States    HealthStates `json:"states"`
 }
 
-type GPUdComponentStates []ComponentStates
+type GPUdComponentHealthStates []ComponentHealthStates
 
+// Event represents an event that happened in a component at a specific time.
+// A single event itself does not dictate whether the component is healthy or not.
+// The healthiness of the component is evaluated at the component health state level.
 type Event struct {
 	// Component represents which component generated the event.
 	Component string `json:"component,omitempty"`
@@ -108,9 +115,9 @@ type ComponentMetrics struct {
 type GPUdComponentMetrics []ComponentMetrics
 
 type Info struct {
-	States  States  `json:"states"`
-	Events  Events  `json:"events"`
-	Metrics Metrics `json:"metrics"`
+	States  HealthStates `json:"states"`
+	Events  Events       `json:"events"`
+	Metrics Metrics      `json:"metrics"`
 }
 
 type ComponentInfo struct {

@@ -54,7 +54,7 @@ func (c *component) Name() string { return Name }
 
 func (c *component) Start() error { return nil }
 
-func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
+func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
 	reasons := []string{}
 	for lib, alternatives := range c.libraries {
 		opts := []file.OpOption{}
@@ -73,7 +73,7 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
 	if len(reasons) == 0 {
-		return []apiv1.State{
+		return []apiv1.HealthState{
 			{
 				Name:              Name,
 				DeprecatedHealthy: true,
@@ -83,7 +83,7 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	}
 
 	sort.Strings(reasons)
-	return []apiv1.State{
+	return []apiv1.HealthState{
 		{
 			Name:              Name,
 			DeprecatedHealthy: false,
@@ -92,7 +92,7 @@ func (c *component) States(ctx context.Context) ([]apiv1.State, error) {
 	}, nil
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 

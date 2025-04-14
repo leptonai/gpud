@@ -197,7 +197,7 @@ func TestStates(t *testing.T) {
 		isInstalled    bool
 		isActive       bool
 		activeError    error
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 		expectedStatus bool
 	}{
 		{
@@ -243,7 +243,7 @@ func TestStates(t *testing.T) {
 			c.CheckOnce()
 
 			// Get the states
-			states, err := c.States(ctx)
+			states, err := c.HealthStates(ctx)
 
 			assert.NoError(t, err, "States should not return an error")
 			assert.Len(t, states, 1, "States should return exactly one state")
@@ -271,7 +271,7 @@ func TestDataGetStates(t *testing.T) {
 		name            string
 		data            *Data
 		expectedReason  string
-		expectedHealth  apiv1.StateType
+		expectedHealth  apiv1.HealthStateType
 		expectedHealthy bool
 	}{
 		{
@@ -311,7 +311,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getStates()
+			states, err := tc.data.getHealthStates()
 
 			assert.NoError(t, err)
 			assert.Len(t, states, 1, "getStates should return exactly one state")

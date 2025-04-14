@@ -69,7 +69,7 @@ func TestEmptyDataStates(t *testing.T) {
 	defer c.Close()
 
 	// No data set yet
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -89,7 +89,7 @@ func TestDataGetStates(t *testing.T) {
 		reason:  "found 1 ext4 partitions and 1 block devices",
 	}
 
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
@@ -124,7 +124,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		err: errors.New("failed to get disk data"),
 	}
 
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
@@ -147,7 +147,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	}
 	c.lastMu.Unlock()
 
-	states, err := c.States(ctx)
+	states, err := c.HealthStates(ctx)
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
@@ -441,7 +441,7 @@ func TestMountTargetUsages(t *testing.T) {
 func TestNilDataHandling(t *testing.T) {
 	var nilData *Data
 
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)

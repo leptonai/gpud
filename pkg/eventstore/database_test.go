@@ -91,7 +91,7 @@ func TestTableInsertsReads(t *testing.T) {
 
 	first := time.Now().UTC()
 
-	events := []apiv1.Event{}
+	events := apiv1.Events{}
 	eventsN := 10
 	for i := 0; i < eventsN; i++ {
 		events = append(events, apiv1.Event{
@@ -141,7 +141,7 @@ func TestGetEventsTimeRange(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name: "kmsg",
@@ -225,7 +225,7 @@ func TestMultipleEventTypes(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time: metav1.Time{Time: baseTime},
 			Name: "kmsg",
@@ -285,7 +285,7 @@ func TestPurgePartial(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:                "kmsg",
@@ -445,7 +445,7 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:                metav1.Time{Time: baseTime},
 			Name:                "kmsg",
@@ -617,7 +617,7 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
 			Name:                "test",
@@ -791,7 +791,7 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:                metav1.Time{Time: time.Now().UTC()},
 			Name:                "test;source",
@@ -1019,7 +1019,7 @@ func TestEventMessage(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:    metav1.Time{Time: baseTime},
 			Name:    "test",
@@ -1354,7 +1354,7 @@ func TestRetentionPurge(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:                metav1.Time{Time: baseTime.Add(-15 * time.Second)},
 			Name:                "test",
@@ -1412,7 +1412,7 @@ func TestLatest(t *testing.T) {
 
 	// Insert events with different timestamps
 	baseTime := time.Now().UTC()
-	events := []apiv1.Event{
+	events := apiv1.Events{
 		{
 			Time:    metav1.Time{Time: baseTime.Add(-10 * time.Second)},
 			Name:    "test",

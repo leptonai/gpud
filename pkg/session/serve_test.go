@@ -152,7 +152,7 @@ func TestGetMethods(t *testing.T) {
 	assert.Equal(t, "mismatch method", err.Error())
 
 	// Test getStates method with method mismatch
-	states, err := s.getStates(ctx, payload)
+	states, err := s.getHealthStates(ctx, payload)
 	assert.Error(t, err)
 	assert.Nil(t, states)
 	assert.Equal(t, "mismatch method", err.Error())

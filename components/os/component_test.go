@@ -17,14 +17,14 @@ import (
 
 // MockRebootEventStore is a mock implementation of the RebootEventStore interface
 type MockRebootEventStore struct {
-	events []apiv1.Event
+	events apiv1.Events
 }
 
 func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return m.events, nil
 }
 
@@ -69,12 +69,12 @@ func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
 		data     *Data
-		validate func(*testing.T, []apiv1.State)
+		validate func(*testing.T, []apiv1.HealthState)
 	}{
 		{
 			name: "nil data",
 			data: nil,
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -90,7 +90,7 @@ func TestData_GetStates(t *testing.T) {
 				reason:  "failed to get os data -- assert.AnError general error for testing",
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -112,7 +112,7 @@ func TestData_GetStates(t *testing.T) {
 				reason:  fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold),
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -134,7 +134,7 @@ func TestData_GetStates(t *testing.T) {
 				reason:  "os kernel version 5.15.0",
 				ts:      time.Now().UTC(),
 			},
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -149,7 +149,7 @@ func TestData_GetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			tt.validate(t, states)
 		})
@@ -167,7 +167,7 @@ func TestComponent(t *testing.T) {
 
 	// Create a RebootEventStore implementation
 	mockRebootStore := &MockRebootEventStore{
-		events: []apiv1.Event{
+		events: apiv1.Events{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
@@ -192,7 +192,7 @@ func TestComponent(t *testing.T) {
 		defer comp.Close()
 
 		// States should return default state when no data
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -257,7 +257,7 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with no data", func(t *testing.T) {
 		// States should return default state when no data
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -280,7 +280,7 @@ func TestComponent_States(t *testing.T) {
 		}
 		c.lastMu.Unlock()
 
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -301,7 +301,7 @@ func TestComponent_States(t *testing.T) {
 		}
 		c.lastMu.Unlock()
 
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -327,7 +327,7 @@ func TestComponent_States(t *testing.T) {
 		}
 		c.lastMu.Unlock()
 
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -340,7 +340,7 @@ func TestComponent_States(t *testing.T) {
 // TestMockRebootEventStore tests the mock implementation of RebootEventStore
 func TestMockRebootEventStore(t *testing.T) {
 	mock := &MockRebootEventStore{
-		events: []apiv1.Event{
+		events: apiv1.Events{
 			{
 				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
 				Name:    "reboot",
@@ -447,7 +447,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	comp.lastMu.Unlock()
 
 	// Verify error handling through States
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)

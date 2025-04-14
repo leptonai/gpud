@@ -72,7 +72,7 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -201,7 +201,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	comp.CheckOnce()
 
 	// Call States
-	states, err := comp.States(context.Background())
+	states, err := comp.HealthStates(context.Background())
 
 	// Verify results
 	assert.NoError(t, err)
@@ -286,7 +286,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 
 	comp.CheckOnce()
 
-	states, err := comp.States(context.Background())
+	states, err := comp.HealthStates(context.Background())
 
 	assert.NoError(t, err)
 	require.NotNil(t, states)
@@ -319,7 +319,7 @@ func TestDataGetStates(t *testing.T) {
 
 	// Test nil Data
 	var d *Data
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -333,7 +333,7 @@ func TestDataGetStates(t *testing.T) {
 		reason:  "test unhealthy reason",
 		err:     assert.AnError,
 	}
-	states, err = d.getStates()
+	states, err = d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)

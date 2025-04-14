@@ -106,7 +106,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NotNil(t, b)
 
 		// Test states with empty data
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -122,7 +122,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with error - just verify we get an unhealthy state
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -136,7 +136,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with unimplemented error
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -153,7 +153,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with empty pods and error
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, "empty pods with error reason", states[0].Reason)
@@ -170,7 +170,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test getStates with pods
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -194,7 +194,7 @@ func TestComponentStates(t *testing.T) {
 		},
 	}
 
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, states)
 	assert.Equal(t, Name, states[0].Name)
@@ -587,7 +587,7 @@ func TestComponentWithDifferentContexts(t *testing.T) {
 	}
 
 	// Test States with canceled context
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err) // Should still work as it uses stored data
 	assert.NotNil(t, states)
 }
@@ -661,7 +661,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			},
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.False(t, states[0].DeprecatedHealthy)
@@ -676,7 +676,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			},
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.False(t, states[0].DeprecatedHealthy)
@@ -687,7 +687,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			err: context.Canceled,
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.False(t, states[0].DeprecatedHealthy)
@@ -698,7 +698,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			err: context.DeadlineExceeded,
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.False(t, states[0].DeprecatedHealthy)
@@ -709,7 +709,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			err: status.Error(codes.Unavailable, "service unavailable"),
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.False(t, states[0].DeprecatedHealthy)
@@ -726,7 +726,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			healthy: false,
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -743,7 +743,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			healthy: false,
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -770,7 +770,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			healthy: true,
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -795,7 +795,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			Pods: []PodSandbox{badPod},
 		}
 
-		states, err := d.getStates()
+		states, err := d.getHealthStates()
 		// Even with JSON issues, the function should not return an error
 		// It might produce empty or escaped JSON
 		assert.NoError(t, err)
@@ -908,7 +908,7 @@ func TestData_Reason(t *testing.T) {
 			tt.data.reason = tt.explicitReason
 
 			// We verify that getStates doesn't fail and returns the expected reason
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.explicitReason, states[0].Reason)
 
@@ -1026,7 +1026,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 			tt.data.reason = "explicit test reason"
 			tt.data.healthy = false
 
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, "explicit test reason", states[0].Reason)
 			assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -1039,7 +1039,7 @@ func TestData_HealthStates(t *testing.T) {
 	tests := []struct {
 		name          string
 		data          *Data
-		expectedState apiv1.StateType
+		expectedState apiv1.HealthStateType
 		expectHealthy bool
 	}{
 		{
@@ -1123,7 +1123,7 @@ func TestData_HealthStates(t *testing.T) {
 				tt.data.reason = "test reason"
 			}
 
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedState, states[0].Health)
 			assert.Equal(t, tt.expectHealthy, states[0].DeprecatedHealthy)
@@ -1138,7 +1138,7 @@ func TestData_getStates(t *testing.T) {
 		data           *Data
 		expectedStates int
 		expectedName   string
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 		expectError    bool
 	}{
 		{
@@ -1227,7 +1227,7 @@ func TestData_getStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1323,7 +1323,7 @@ func TestData_GetStatesWithNilLastData(t *testing.T) {
 	}
 
 	// Call States method
-	states, err := comp.States(context.Background())
+	states, err := comp.HealthStates(context.Background())
 
 	// Verify results
 	assert.NoError(t, err)
@@ -1362,7 +1362,7 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < iterations; j++ {
-				states, err := comp.States(ctx)
+				states, err := comp.HealthStates(ctx)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, states)
 			}
@@ -1379,7 +1379,7 @@ func TestDataWithCustomReason(t *testing.T) {
 		reason:  "custom reason",
 	}
 
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "custom reason", states[0].Reason)
 }
@@ -1471,7 +1471,7 @@ func TestDataWithReason(t *testing.T) {
 	}
 
 	// Call getStates
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -1482,7 +1482,7 @@ func TestDataWithReason(t *testing.T) {
 	d.healthy = false
 
 	// Call getStates again
-	states, err = d.getStates()
+	states, err = d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -1493,7 +1493,7 @@ func TestDataWithReason(t *testing.T) {
 func TestDataWithEmptyOrNilValues(t *testing.T) {
 	// Nil data
 	var d *Data
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -1502,7 +1502,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 	d = &Data{
 		reason: "explicit reason for empty data",
 	}
-	states, err = d.getStates()
+	states, err = d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "explicit reason for empty data", states[0].Reason)
 
@@ -1511,7 +1511,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 		Pods:   []PodSandbox{},
 		reason: "explicit reason for data with empty pods",
 	}
-	states, err = d.getStates()
+	states, err = d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "explicit reason for data with empty pods", states[0].Reason)
 }
@@ -1771,7 +1771,7 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	}
 
 	// Get the states
-	states, err := d.getStates()
+	states, err := d.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
@@ -1937,7 +1937,7 @@ func TestDataWithComplexErrors(t *testing.T) {
 			}
 
 			// Test the getStates method with this error
-			states, err := d.getStates()
+			states, err := d.getHealthStates()
 			assert.NoError(t, err)
 			assert.Len(t, states, 1)
 

@@ -105,7 +105,7 @@ func TestStates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := mockComponent(tt.mockLibFinder, tt.cfg)
-			states, err := c.States(context.Background())
+			states, err := c.HealthStates(context.Background())
 
 			if tt.wantErr {
 				assert.Error(t, err)

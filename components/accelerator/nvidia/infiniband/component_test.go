@@ -281,7 +281,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
 		AtLeastRate:  400, // Expected rate for H100 cards
 	})
@@ -303,7 +303,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, lastEvent)
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 12, // More ports than available
 		AtLeastRate:  400,
 	})
@@ -323,7 +323,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 	tests := []struct {
 		name       string
 		thresholds infiniband.ExpectedPortStates
-		wantState  apiv1.State
+		wantState  apiv1.HealthState
 		wantErr    bool
 	}{
 		{
@@ -332,7 +332,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastPorts: 0,
 				AtLeastRate:  0,
 			},
-			wantState: apiv1.State{
+			wantState: apiv1.HealthState{
 				Name:              "ibstat",
 				Health:            apiv1.StateTypeHealthy,
 				DeprecatedHealthy: true,
@@ -346,7 +346,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			},
-			wantState: apiv1.State{
+			wantState: apiv1.HealthState{
 				Name:              "ibstat",
 				Health:            apiv1.StateTypeUnhealthy,
 				DeprecatedHealthy: false,
@@ -377,7 +377,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			}
 
 			now := time.Now().UTC()
-			states, err := c.getStates(ctx, now, tt.thresholds)
+			states, err := c.getHealthStates(ctx, now, tt.thresholds)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -448,7 +448,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			}
 			require.NotNil(t, lastEvent)
 
-			states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{
+			states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			})
@@ -564,7 +564,7 @@ func TestGetStates(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Test case 1: No thresholds set
-	states, err := c.getStates(ctx, now, infiniband.ExpectedPortStates{})
+	states, err := c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{})
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
@@ -573,7 +573,7 @@ func TestGetStates(t *testing.T) {
 	assert.Equal(t, msgThresholdNotSetSkipped, states[0].Reason)
 
 	// Test case 2: Empty events store with thresholds
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -611,7 +611,7 @@ func TestGetStates(t *testing.T) {
 	c.lastEvent = &testEvent
 	c.lastEventMu.Unlock()
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -640,7 +640,7 @@ func TestGetStates(t *testing.T) {
 	c.lastEvent = &recentEvent
 	c.lastEventMu.Unlock()
 
-	states, err = c.getStates(ctx, now, infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -659,7 +659,7 @@ func TestGetStates(t *testing.T) {
 		toolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
-	_, err = cNew.getStates(canceledCtx, now, infiniband.ExpectedPortStates{
+	_, err = cNew.getHealthStates(canceledCtx, now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -668,7 +668,7 @@ func TestGetStates(t *testing.T) {
 
 	// Test case 6: With mock ibstat command
 	c.toolOverwrites.IbstatCommand = "cat testdata/ibstat.47.0.h100.all.active.1"
-	states, err = c.getStates(ctx, now.Add(20*time.Second), infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now.Add(20*time.Second), infiniband.ExpectedPortStates{
 		AtLeastPorts: 8,
 		AtLeastRate:  400,
 	})
@@ -680,7 +680,7 @@ func TestGetStates(t *testing.T) {
 
 	// Test case 7: With invalid ibstat command
 	c.toolOverwrites.IbstatCommand = "invalid_command"
-	states, err = c.getStates(ctx, now.Add(50*time.Second), infiniband.ExpectedPortStates{
+	states, err = c.getHealthStates(ctx, now.Add(50*time.Second), infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	})
@@ -778,13 +778,13 @@ func TestClose(t *testing.T) {
 
 // MockEventBucket implements the events_db.Store interface for testing
 type MockEventBucket struct {
-	events []apiv1.Event
+	events apiv1.Events
 	mu     sync.Mutex
 }
 
 func NewMockEventBucket() *MockEventBucket {
 	return &MockEventBucket{
-		events: []apiv1.Event{},
+		events: apiv1.Events{},
 	}
 }
 
@@ -805,7 +805,7 @@ func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	return nil
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -815,7 +815,7 @@ func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Eve
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []apiv1.Event
+	var result apiv1.Events
 	for _, event := range m.events {
 		if !event.Time.Time.Before(since) {
 			result = append(result, event)
@@ -875,7 +875,7 @@ func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var newEvents []apiv1.Event
+	var newEvents apiv1.Events
 	var purgedCount int
 
 	for _, event := range m.events {
@@ -894,11 +894,11 @@ func (m *MockEventBucket) Close() {
 	// No-op for mock
 }
 
-func (m *MockEventBucket) GetEvents() []apiv1.Event {
+func (m *MockEventBucket) GetEvents() apiv1.Events {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]apiv1.Event, len(m.events))
+	result := make(apiv1.Events, len(m.events))
 	copy(result, m.events)
 	return result
 }

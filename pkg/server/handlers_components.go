@@ -27,7 +27,7 @@ const (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
-	r.GET(URLPathStates, g.getStates)
+	r.GET(URLPathStates, g.getHealthStates)
 	r.GET(URLPathEvents, g.getEvents)
 	r.GET(URLPathInfo, g.getInfo)
 	r.GET(URLPathMetrics, g.getMetrics)
@@ -78,16 +78,16 @@ const (
 	URLPathStatesDesc = "Get the states of all gpud components"
 )
 
-// getStates godoc
+// getHealthStates godoc
 // @Summary Query component States interface in gpud
 // @Description get component States interface by component name
-// @ID getStates
+// @ID getHealthStates
 // @Param   component     query    string     false        "Component Name, leave empty to query all components"
 // @Produce  json
 // @Success 200 {object} v1.LeptonStates
 // @Router /v1/states [get]
-func (g *globalHandler) getStates(c *gin.Context) {
-	var states apiv1.GPUdComponentStates
+func (g *globalHandler) getHealthStates(c *gin.Context) {
+	var states apiv1.GPUdComponentHealthStates
 	components, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
@@ -99,7 +99,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		return
 	}
 	for _, componentName := range components {
-		currState := apiv1.ComponentStates{
+		currState := apiv1.ComponentHealthStates{
 			Component: componentName,
 		}
 		component, err := gpudcomponents.GetComponent(componentName)
@@ -114,7 +114,7 @@ func (g *globalHandler) getStates(c *gin.Context) {
 		}
 
 		log.Logger.Debugw("getting states", "component", componentName)
-		state, err := component.States(c)
+		state, err := component.HealthStates(c)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component state",
 				"operation", "GetStates",
@@ -323,7 +323,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		} else if len(events) > 0 {
 			currInfo.Info.Events = events
 		}
-		state, err := component.States(c)
+		state, err := component.HealthStates(c)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component states",
 				"operation", "GetInfo",

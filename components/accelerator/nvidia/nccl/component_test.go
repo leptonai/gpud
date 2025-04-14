@@ -37,9 +37,9 @@ func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.E
 	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).([]apiv1.Event), args.Error(1)
+	return args.Get(0).(apiv1.Events), args.Error(1)
 }
 
 func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
@@ -90,7 +90,7 @@ func TestComponentStates(t *testing.T) {
 	comp := &component{}
 	ctx := context.Background()
 
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, true, states[0].DeprecatedHealthy)
@@ -103,7 +103,7 @@ func TestComponentEvents(t *testing.T) {
 	// Create mock event bucket
 	mockEventBucket := new(MockEventBucket)
 	testTime := metav1.Now()
-	testEvents := []apiv1.Event{
+	testEvents := apiv1.Events{
 		{
 			Time:                testTime,
 			Name:                "test-nccl-error",

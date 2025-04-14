@@ -128,7 +128,7 @@ func TestData_getStates(t *testing.T) {
 
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
@@ -137,7 +137,7 @@ func TestDataHealthField(t *testing.T) {
 	tests := []struct {
 		name            string
 		data            Data
-		expectedHealth  apiv1.StateType
+		expectedHealth  apiv1.HealthStateType
 		expectedHealthy bool
 	}{
 		{
@@ -226,7 +226,7 @@ func TestDataHealthField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
 			assert.Equal(t, tt.expectedHealthy, states[0].DeprecatedHealthy)
@@ -235,7 +235,7 @@ func TestDataHealthField(t *testing.T) {
 
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 	assert.True(t, states[0].DeprecatedHealthy)
@@ -246,7 +246,7 @@ func TestDataGetStates(t *testing.T) {
 		name           string
 		data           Data
 		stateCount     int
-		expectedHealth apiv1.StateType
+		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "No containers",
@@ -312,7 +312,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 
 			assert.Equal(t, tt.stateCount, len(states))
@@ -332,7 +332,7 @@ func TestDataGetStates(t *testing.T) {
 
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getStates()
+	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -402,7 +402,7 @@ func TestComponentStates(t *testing.T) {
 		reason:              "total 0 container(s)",
 	}
 
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 1, len(states))
@@ -422,7 +422,7 @@ func TestComponentStates(t *testing.T) {
 		reason:  "total 1 container(s)",
 	}
 
-	states, err = comp.States(ctx)
+	states, err = comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.NotNil(t, states[0].DeprecatedExtraInfo)
@@ -437,7 +437,7 @@ func TestComponentStates(t *testing.T) {
 		reason:              "connection error to docker daemon -- Cannot connect to the Docker daemon",
 	}
 
-	states, err = comp.States(ctx)
+	states, err = comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -463,7 +463,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	comp.lastMu.Unlock()
 
 	// Get states and verify error handling with ignoreConnectionErrors=true
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
@@ -476,7 +476,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	comp2.lastMu.Unlock()
 
 	// Get states and verify error handling with ignoreConnectionErrors=false
-	states, err = comp2.States(ctx)
+	states, err = comp2.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
 
@@ -497,7 +497,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	comp.lastMu.Unlock()
 
 	// Get states and verify special error message
-	states, err = comp.States(ctx)
+	states, err = comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Contains(t, states[0].Reason, "not supported")

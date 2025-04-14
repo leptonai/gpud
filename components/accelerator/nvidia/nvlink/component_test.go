@@ -235,7 +235,7 @@ func TestStates_WithData(t *testing.T) {
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.States(ctx)
+	states, err := component.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
@@ -261,7 +261,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.States(ctx)
+	states, err := component.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 
@@ -280,7 +280,7 @@ func TestStates_NoData(t *testing.T) {
 	// Don't set any data
 
 	// Get states
-	states, err := component.States(ctx)
+	states, err := component.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 

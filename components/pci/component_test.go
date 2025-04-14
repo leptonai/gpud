@@ -53,7 +53,7 @@ func TestComponentStates(t *testing.T) {
 	defer comp.Close()
 
 	// Get initial state
-	states, err := comp.States(ctx)
+	states, err := comp.HealthStates(ctx)
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -303,12 +303,12 @@ func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
 		data     *Data
-		validate func(*testing.T, []apiv1.State)
+		validate func(*testing.T, []apiv1.HealthState)
 	}{
 		{
 			name: "nil data",
 			data: nil,
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -324,7 +324,7 @@ func TestData_GetStates(t *testing.T) {
 				healthy: false,
 				reason:  "failed to get pci data -- " + assert.AnError.Error(),
 			},
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -346,7 +346,7 @@ func TestData_GetStates(t *testing.T) {
 				healthy: true,
 				reason:  "no acs enabled devices found",
 			},
-			validate: func(t *testing.T, states []apiv1.State) {
+			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -361,7 +361,7 @@ func TestData_GetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getStates()
+			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			tt.validate(t, states)
 		})
@@ -384,7 +384,7 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with no data", func(t *testing.T) {
 		// States should return default state when no data
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -407,7 +407,7 @@ func TestComponent_States(t *testing.T) {
 		}
 		c.lastMu.Unlock()
 
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -429,7 +429,7 @@ func TestComponent_States(t *testing.T) {
 		}
 		c.lastMu.Unlock()
 
-		states, err := comp.States(ctx)
+		states, err := comp.HealthStates(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
@@ -829,7 +829,7 @@ func (m *mockEventBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Even
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) ([]apiv1.Event, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -960,7 +960,7 @@ func TestConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			states, err := comp.States(ctx)
+			states, err := comp.HealthStates(ctx)
 			assert.NoError(t, err)
 			assert.NotEmpty(t, states)
 		}()
