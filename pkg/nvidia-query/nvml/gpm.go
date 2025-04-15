@@ -16,11 +16,13 @@ import (
 // Returns true if GPM is supported by all devices.
 // Returns false if any device does not support GPM.
 func GPMSupported() (bool, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if ret := nvmlLib.NVML().Init(); ret != nvml.SUCCESS {
-		return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+	nvmlLib, err := nvml_lib.New()
+	if err != nil {
+		return false, err
 	}
-	log.Logger.Debugw("successfully initialized NVML")
+	defer func() {
+		_ = nvmlLib.Shutdown()
+	}()
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"

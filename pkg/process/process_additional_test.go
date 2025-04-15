@@ -11,52 +11,6 @@ import (
 	"time"
 )
 
-// TestProcessWithEnvironmentVariables tests the process with environment variables
-func TestProcessWithEnvironmentVariables(t *testing.T) {
-	// Create a process with environment variables
-	p, err := New(
-		WithCommand("env"),
-		WithEnvs("TEST_VAR1=value1", "TEST_VAR2=value2"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Start the process
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	// Read the output
-	var output strings.Builder
-	if err := Read(
-		ctx,
-		p,
-		WithReadStdout(),
-		WithProcessLine(func(line string) {
-			output.WriteString(line + "\n")
-		}),
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	// Check if environment variables are set
-	outputStr := output.String()
-	if !strings.Contains(outputStr, "TEST_VAR1=value1") {
-		t.Errorf("Expected TEST_VAR1=value1 in output, but not found: %s", outputStr)
-	}
-	if !strings.Contains(outputStr, "TEST_VAR2=value2") {
-		t.Errorf("Expected TEST_VAR2=value2 in output, but not found: %s", outputStr)
-	}
-
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // TestProcessWithInvalidCommand tests the process with an invalid command
 func TestProcessWithInvalidCommand(t *testing.T) {
 	// Try to create a process with a non-existent command

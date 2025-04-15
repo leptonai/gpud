@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -15,20 +17,12 @@ const (
 	EnvInjectClockEventsHwSlowdown = "GPUD_NVML_INJECT_CLOCK_EVENTS_HW_SLOWDOWN"
 )
 
-// 0x0000000000000000 is none
-// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
-const (
-	reasonHWSlowdown           uint64 = 0x0000000000000008
-	reasonSwThermalSlowdown    uint64 = 0x0000000000000020
-	reasonHWSlowdownThermal    uint64 = 0x0000000000000040
-	reasonHWSlowdownPowerBrake uint64 = 0x0000000000000080
-)
+var ErrNVMLNotFound = errors.New("NVML not found")
 
-var clockEventsToInjectHwSlowdown = reasonHWSlowdown | reasonSwThermalSlowdown | reasonHWSlowdownThermal | reasonHWSlowdownPowerBrake
-
-func NewDefault() Library {
-	opts := []OpOption{}
-
+// New instantiates a new NVML instance and initializes the NVML library.
+// It returns nil and error, if NVML is not supported.
+// It also injects the mock data if the environment variables are set.
+func New(opts ...OpOption) (Library, error) {
 	if os.Getenv(EnvMockAllSuccess) == "true" {
 		opts = append(opts,
 			WithNVML(nvml_lib_mock.AllSuccessInterface),
@@ -48,11 +42,28 @@ func NewDefault() Library {
 	if os.Getenv(EnvInjectClockEventsHwSlowdown) == "true" {
 		opts = append(opts,
 			WithDeviceGetCurrentClocksEventReasonsForAllDevs(func() (uint64, nvml.Return) {
-				log.Logger.Infow("injecting clock events hw slowdown", "reasons", clockEventsToInjectHwSlowdown)
-				return clockEventsToInjectHwSlowdown, nvml.SUCCESS
+				log.Logger.Infow("injecting clock events hw slowdown")
+				return reasonHWSlowdown | reasonSwThermalSlowdown | reasonHWSlowdownThermal | reasonHWSlowdownPowerBrake, nvml.SUCCESS
 			}),
 		)
 	}
 
-	return New(opts...)
+	lib := createLibrary(opts...)
+	ret := lib.NVML().Init()
+	if ret == nvml.SUCCESS {
+		return lib, nil
+	}
+	if ret == nvml.ERROR_LIBRARY_NOT_FOUND {
+		return nil, ErrNVMLNotFound
+	}
+	return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 }
+
+// 0x0000000000000000 is none
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html
+const (
+	reasonHWSlowdown           uint64 = 0x0000000000000008
+	reasonSwThermalSlowdown    uint64 = 0x0000000000000020
+	reasonHWSlowdownThermal    uint64 = 0x0000000000000040
+	reasonHWSlowdownPowerBrake uint64 = 0x0000000000000080
+)

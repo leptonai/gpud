@@ -2,6 +2,7 @@
 package os
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/host"
 	procs "github.com/shirou/gopsutil/v4/process"
 
@@ -92,39 +95,43 @@ func (c *component) Close() error {
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
-	log.Logger.Infow("checking memory")
-	d := Data{
-		ts: time.Now().UTC(),
-	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastData = &d
-		c.lastMu.Unlock()
-	}()
+	log.Logger.Infow("checking os")
 
-	d.VirtualizationEnvironment = pkghost.VirtualizationEnv()
-	d.SystemManufacturer = pkghost.SystemManufacturer()
-	d.MachineMetadata = MachineMetadata{
-		BootID:        pkghost.BootID(),
-		DmidecodeUUID: pkghost.DmidecodeUUID(),
-		OSMachineID:   pkghost.OSMachineID(),
-	}
-	d.Host = Host{ID: pkghost.HostID()}
-	d.Kernel = Kernel{Arch: pkghost.Arch(), Version: pkghost.KernelVersion()}
-	d.Platform = Platform{Name: pkghost.Platform(), Family: pkghost.PlatformFamily(), Version: pkghost.PlatformVersion()}
+	d := checkHealthState(c.ctx, c.countProcessesByStatusFunc)
+
+	c.lastMu.Lock()
+	c.lastData = d
+	c.lastMu.Unlock()
 
 	if err := c.rebootEventStore.RecordReboot(c.ctx); err != nil {
 		log.Logger.Warnw("error creating reboot event", "error", err)
 	}
+}
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
+func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)) *Data {
+	d := &Data{
+		ts: time.Now().UTC(),
+
+		VirtualizationEnvironment: pkghost.VirtualizationEnv(),
+		SystemManufacturer:        pkghost.SystemManufacturer(),
+		MachineMetadata: MachineMetadata{
+			BootID:        pkghost.BootID(),
+			DmidecodeUUID: pkghost.DmidecodeUUID(),
+			OSMachineID:   pkghost.OSMachineID(),
+		},
+		Host:     Host{ID: pkghost.HostID()},
+		Kernel:   Kernel{Arch: pkghost.Arch(), Version: pkghost.KernelVersion()},
+		Platform: Platform{Name: pkghost.Platform(), Family: pkghost.PlatformFamily(), Version: pkghost.PlatformVersion()},
+	}
+
+	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
 	uptime, err := host.UptimeWithContext(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
 		d.healthy = false
 		d.reason = fmt.Sprintf("error getting uptime: %s", err)
-		return
+		return d
 	}
 
 	d.Uptimes = Uptimes{
@@ -132,14 +139,12 @@ func (c *component) CheckOnce() {
 		BootTimeUnixSeconds: pkghost.BootTimeUnixSeconds(),
 	}
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 10*time.Second)
-	allProcs, err := c.countProcessesByStatusFunc(cctx)
-	ccancel()
+	allProcs, err := countProcessesByStatusFunc(ctx)
 	if err != nil {
 		d.err = err
 		d.healthy = false
 		d.reason = fmt.Sprintf("error getting process count: %s", err)
-		return
+		return d
 	}
 
 	for status, procsWithStatus := range allProcs {
@@ -151,18 +156,28 @@ func (c *component) CheckOnce() {
 	if d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
 		d.healthy = false
 		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, zombieProcessCountThreshold)
-		return
+		return d
 	}
 
 	d.healthy = true
 	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
+	return d
 }
+
+func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(ctx, process.CountProcessesByStatus)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
+var _ components.HealthStateCheckResult = &Data{}
 
 type Data struct {
 	VirtualizationEnvironment   pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
 	SystemManufacturer          string                            `json:"system_manufacturer"`
 	MachineMetadata             MachineMetadata                   `json:"machine_metadata"`
-	MachineRebooted             bool                              `json:"machine_rebooted"`
 	Host                        Host                              `json:"host"`
 	Kernel                      Kernel                            `json:"kernel"`
 	Platform                    Platform                          `json:"platform"`
@@ -206,6 +221,45 @@ type Uptimes struct {
 	BootTimeUnixSeconds uint64 `json:"boot_time_unix_seconds"`
 }
 
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.Append([]string{"VM Type", d.VirtualizationEnvironment.Type})
+	table.Append([]string{"Kernel Arch", d.Kernel.Arch})
+	table.Append([]string{"Kernel Version", d.Kernel.Version})
+	table.Append([]string{"Platform Name", d.Platform.Name})
+	table.Append([]string{"Platform Version", d.Platform.Version})
+
+	boottimeTS := time.Unix(int64(d.Uptimes.BootTimeUnixSeconds), 0)
+	nowUTC := time.Now().UTC()
+	uptimeHumanized := humanize.RelTime(boottimeTS, nowUTC, "ago", "from now")
+	table.Append([]string{"Uptime", uptimeHumanized})
+
+	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", d.ProcessCountZombieProcesses)})
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	if d.healthy {
+		return apiv1.StateTypeHealthy
+	}
+	return apiv1.StateTypeUnhealthy
+}
+
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -231,10 +285,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Error:  d.getError(),
 
 		DeprecatedHealthy: d.healthy,
-		Health:            apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health:            d.HealthState(),
 	}
 
 	b, _ := json.Marshal(d)

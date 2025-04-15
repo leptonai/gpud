@@ -403,6 +403,9 @@ func TestClockEventsSupported(t *testing.T) {
 					}
 					return tt.mockDevices[idx].Device, nvml.SUCCESS
 				},
+				ShutdownFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
 			}
 
 			err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
@@ -686,6 +689,9 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 			InitFunc: func() nvml.Return {
 				return nvml.ERROR_UNKNOWN
 			},
+			ShutdownFunc: func() nvml.Return {
+				return nvml.SUCCESS
+			},
 		}
 
 		// Replace the mock instance
@@ -715,6 +721,9 @@ func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
 			},
 			DeviceGetCountFunc: func() (int, nvml.Return) {
 				return 0, nvml.ERROR_UNKNOWN
+			},
+			ShutdownFunc: func() nvml.Return {
+				return nvml.SUCCESS
 			},
 		}
 

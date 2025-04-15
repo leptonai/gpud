@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLibrary(t *testing.T) {
-	nv := New(
+func Test_createLibrary(t *testing.T) {
+	nv := createLibrary(
 		WithInitReturn(nvml.SUCCESS),
 	)
 	assert.Equal(t, nv.NVML().Init(), nvml.SUCCESS)

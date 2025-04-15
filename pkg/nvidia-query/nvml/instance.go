@@ -7,32 +7,26 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 var _ InstanceV2 = &instanceV2{}
 
 type InstanceV2 interface {
 	NVMLExists() bool
-	Library() nvml_lib.Library
+	Library() nvmllib.Library
 	Devices() map[string]device.Device
 	ProductName() string
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
 	Shutdown() error
 }
 
-var ErrNVMLNotInstalled = fmt.Errorf("nvml not installed")
-
 // NewInstanceV2 creates a new instance of the NVML library.
 // If NVML is not installed, it returns `ErrNVMLNotInstalled`.
 func NewInstanceV2() (InstanceV2, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	installed, err := initAndCheckNVMLSupported(nvmlLib.NVML())
+	nvmlLib, err := nvmllib.New()
 	if err != nil {
 		return nil, err
-	}
-	if !installed {
-		return nil, ErrNVMLNotInstalled
 	}
 
 	log.Logger.Infow("checking if nvml exists from info library")
@@ -97,8 +91,10 @@ func NewInstanceV2() (InstanceV2, error) {
 	}, nil
 }
 
+var _ InstanceV2 = &instanceV2{}
+
 type instanceV2 struct {
-	nvmlLib nvml_lib.Library
+	nvmlLib nvmllib.Library
 
 	nvmlExists    bool
 	nvmlExistsMsg string
@@ -117,7 +113,7 @@ func (inst *instanceV2) NVMLExists() bool {
 	return inst.nvmlExists
 }
 
-func (inst *instanceV2) Library() nvml_lib.Library {
+func (inst *instanceV2) Library() nvmllib.Library {
 	return inst.nvmlLib
 }
 
