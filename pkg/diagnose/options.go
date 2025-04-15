@@ -7,7 +7,6 @@ type Op struct {
 	debug         bool
 	createArchive bool
 
-	netcheck  bool
 	diskcheck bool
 
 	kmsgCheck bool
@@ -54,13 +53,6 @@ func WithDebug(b bool) OpOption {
 func WithCreateArchive(b bool) OpOption {
 	return func(op *Op) {
 		op.createArchive = b
-	}
-}
-
-// WithNetcheck enables network connectivity checks to global edge/derp servers.
-func WithNetcheck(b bool) OpOption {
-	return func(op *Op) {
-		op.netcheck = b
 	}
 }
 

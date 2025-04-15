@@ -34,7 +34,6 @@ var (
 
 	createArchive bool
 
-	netcheck  bool
 	diskcheck bool
 	kmsgCheck bool
 
@@ -472,11 +471,6 @@ cat summary.txt
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
-				},
-				&cli.BoolTFlag{
-					Name:        "netcheck",
-					Usage:       "enable network connectivity checks to global edge/derp servers (default: true)",
-					Destination: &netcheck,
 				},
 				&cli.BoolTFlag{
 					Name:        "diskcheck",

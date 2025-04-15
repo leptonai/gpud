@@ -2,6 +2,7 @@
 package latency
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,14 +15,15 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
-	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	// Name is the ID of the network latency component.
-	Name = "network-latency"
+// Name is the ID of the network latency component.
+const Name = "network-latency"
 
+const (
 	// 1 second
 	MinGlobalMillisecondThreshold = 1000
 	// 7 seconds by default to reach any of the DERP servers.
@@ -34,7 +36,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getEgressLatenciesFunc func(context.Context, ...latency_edge.OpOption) (latency.Latencies, error)
+	getEgressLatenciesFunc func(context.Context, ...latencyedge.OpOption) (latency.Latencies, error)
 
 	// GlobalMillisecondThreshold is the global threshold in milliseconds for the DERP latency.
 	// If all DERP latencies are greater than this threshold, the component will be marked as failed.
@@ -51,7 +53,7 @@ func New(ctx context.Context) components.Component {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		getEgressLatenciesFunc: latency_edge.Measure,
+		getEgressLatenciesFunc: latencyedge.Measure,
 
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
 	}
@@ -99,24 +101,45 @@ func (c *component) Close() error {
 // CheckOnce checks the current pods
 // run this periodically
 func (c *component) CheckOnce() {
-	log.Logger.Infow("checking disk")
-	d := Data{
+	log.Logger.Infow("checking network egress latency")
+
+	d := checkHealthState(
+		c.ctx,
+		c.getEgressLatenciesFunc,
+		c.globalMillisecondThreshold,
+	)
+
+	c.lastMu.Lock()
+	c.lastData = d
+	c.lastMu.Unlock()
+}
+
+func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(
+		ctx,
+		latencyedge.Measure,
+		DefaultGlobalMillisecondThreshold,
+	)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
+func checkHealthState(
+	ctx context.Context,
+	getEgressLatenciesFunc func(context.Context, ...latencyedge.OpOption) (latency.Latencies, error),
+	globalMillisecondThreshold int64,
+) *Data {
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastData = &d
-		c.lastMu.Unlock()
-	}()
 
-	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
-	defer cancel()
-
-	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(ctx)
+	d.EgressLatencies, d.err = getEgressLatenciesFunc(ctx)
 	if d.err != nil {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
-		return
+		return d
 	}
 
 	exceededMsgs := []string{}
@@ -126,19 +149,23 @@ func (c *component) CheckOnce() {
 			pkgmetrics.MetricLabelKey: region,
 		}).Set(float64(lat.LatencyMilliseconds))
 
-		if c.globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > c.globalMillisecondThreshold {
-			exceededMsgs = append(exceededMsgs, fmt.Sprintf("latency to %s edge server is %s (exceeded threshold %dms)", lat.RegionName, lat.Latency, c.globalMillisecondThreshold))
+		if globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > globalMillisecondThreshold {
+			exceededMsgs = append(exceededMsgs, fmt.Sprintf("latency to %s edge server is %s (exceeded threshold %dms)", lat.RegionName, lat.Latency, globalMillisecondThreshold))
 		}
 	}
 
 	if len(exceededMsgs) == 0 {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(d.EgressLatencies))
 	} else {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = strings.Join(exceededMsgs, "; ")
 	}
+
+	return d
 }
+
+var _ components.HealthStateCheckResult = &Data{}
 
 type Data struct {
 	// EgressLatencies is the list of egress latencies to global edge servers.
@@ -150,9 +177,42 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.SetHeader([]string{"Region", "Latency"})
+	for _, lat := range d.EgressLatencies {
+		table.Append([]string{
+			fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider),
+			lat.Latency.Duration.String(),
+		})
+	}
+
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -177,11 +237,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)

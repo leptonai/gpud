@@ -2,7 +2,10 @@ package latency
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -12,7 +15,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
-	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 )
 
 func TestDataGetError(t *testing.T) {
@@ -87,7 +90,7 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	comp := &component{
 		ctx:    ctx,
 		cancel: cancel,
-		getEgressLatenciesFunc: func(_ context.Context, _ ...latency_edge.OpOption) (latency.Latencies, error) {
+		getEgressLatenciesFunc: func(_ context.Context, _ ...latencyedge.OpOption) (latency.Latencies, error) {
 			return mockLatencies, nil
 		},
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
@@ -118,7 +121,7 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	comp := &component{
 		ctx:    ctx,
 		cancel: cancel,
-		getEgressLatenciesFunc: func(_ context.Context, _ ...latency_edge.OpOption) (latency.Latencies, error) {
+		getEgressLatenciesFunc: func(_ context.Context, _ ...latencyedge.OpOption) (latency.Latencies, error) {
 			return nil, errors.New("test error")
 		},
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
@@ -137,4 +140,23 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
+}
+
+func TestCheckHealthState(t *testing.T) {
+	if os.Getenv("TEST_NETWORK_LATENCY") != "true" {
+		t.Skip("skipping network latency check")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rs, err := CheckHealthState(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+
+	fmt.Println(rs.String())
+
+	b, err := json.Marshal(rs)
+	assert.NoError(t, err)
+	fmt.Println(string(b))
 }
