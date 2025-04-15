@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 type Op struct {
@@ -85,7 +86,8 @@ type Session struct {
 	machineID string
 	endpoint  string
 
-	metricsStore pkgmetrics.Store
+	metricsStore  pkgmetrics.Store
+	processRunner process.Runner
 
 	components []string
 
@@ -139,7 +141,8 @@ func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Sessio
 		endpoint:  endpoint,
 		machineID: op.machineID,
 
-		metricsStore: op.metricsStore,
+		metricsStore:  op.metricsStore,
+		processRunner: process.NewExclusiveRunner(),
 
 		components: cps,
 

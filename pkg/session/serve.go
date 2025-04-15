@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ type Request struct {
 	Since         time.Duration     `json:"since"`
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
+	Bootstrap     *BootstrapRequest `json:"bootstrap,omitempty"`
 }
 
 type Response struct {
@@ -44,6 +46,22 @@ type Response struct {
 	States  apiv1.GPUdComponentHealthStates `json:"states,omitempty"`
 	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
+
+	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
+}
+
+type BootstrapRequest struct {
+	// TimeoutInSeconds is the timeout for the bootstrap script.
+	// If not set, the default timeout is 10 seconds.
+	TimeoutInSeconds int `json:"timeout_in_seconds,omitempty"`
+
+	// ScriptBase64 is the base64 encoded script to run.
+	ScriptBase64 string `json:"script_base64,omitempty"`
+}
+
+type BootstrapResponse struct {
+	Output   string `json:"output,omitempty"`
+	ExitCode int32  `json:"exit_code,omitempty"`
 }
 
 func (s *Session) serve() {
@@ -171,6 +189,31 @@ func (s *Session) serve() {
 					default:
 						log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
 					}
+				}
+			}
+
+		case "bootstrap":
+			if payload.Bootstrap != nil {
+				script, err := base64.StdEncoding.DecodeString(payload.Bootstrap.ScriptBase64)
+				if err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				timeout := time.Duration(payload.Bootstrap.TimeoutInSeconds) * time.Second
+				if timeout == 0 {
+					timeout = 10 * time.Second
+				}
+
+				cctx, cancel := context.WithTimeout(ctx, timeout)
+				output, exitCode, err := s.processRunner.RunUntilCompletion(cctx, string(script))
+				cancel()
+				response.Bootstrap = &BootstrapResponse{
+					Output:   string(output),
+					ExitCode: exitCode,
+				}
+				if err != nil {
+					response.Error = err.Error()
 				}
 			}
 		}
