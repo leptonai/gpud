@@ -2,12 +2,14 @@
 package cpu
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/load"
@@ -34,14 +36,11 @@ type component struct {
 	getUsedPctFunc     func(ctx context.Context) (float64, error)
 	getLoadAvgStatFunc func(ctx context.Context) (*load.AvgStat, error)
 
-	setPrevTimeStatFunc func(cpu.TimesStat)
 	getPrevTimeStatFunc func() *cpu.TimesStat
+	setPrevTimeStatFunc func(cpu.TimesStat)
 
 	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
-
-	info  Info
-	cores Cores
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -68,16 +67,11 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		getUsedPctFunc:     getUsedPercentForAllCPUs,
 		getLoadAvgStatFunc: load.AvgWithContext,
 
-		setPrevTimeStatFunc: setPrevTimeStat,
 		getPrevTimeStatFunc: getPrevTimeStat,
+		setPrevTimeStatFunc: setPrevTimeStat,
 
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: eventBucket,
-
-		info: getInfo(),
-		cores: Cores{
-			Logical: pkghost.CPULogicalCores(),
-		},
 	}, nil
 }
 
@@ -137,63 +131,101 @@ var (
 // run this periodically
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking cpu")
-	d := Data{
-		ts:    time.Now().UTC(),
-		Info:  c.info,
-		Cores: c.cores,
-	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastData = &d
-		c.lastMu.Unlock()
-	}()
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	curStat, err := c.getTimeStatFunc(cctx)
-	ccancel()
-	if err != nil {
-		d.err = err
-		d.healthy = false
-		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-		return
-	}
-
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	usedPct, err := c.getUsedPctFunc(cctx)
-	ccancel()
-	if err != nil {
-		d.err = err
-		d.healthy = false
-		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-		return
-	}
-
-	usedPct = calculateCPUUsage(
-		c.getPrevTimeStatFunc(),
-		curStat,
-		usedPct,
+	d := checkHealthState(
+		c.ctx,
+		c.getTimeStatFunc,
+		c.getUsedPctFunc,
+		c.getLoadAvgStatFunc,
+		c.getPrevTimeStatFunc,
+		c.setPrevTimeStatFunc,
 	)
-	if err != nil {
-		d.err = err
-		d.healthy = false
-		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-		return
+
+	c.lastMu.Lock()
+	c.lastData = d
+	c.lastMu.Unlock()
+}
+
+func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(
+		ctx,
+		getTimeStatForAllCPUs,
+		getUsedPercentForAllCPUs,
+		load.AvgWithContext,
+		nil,
+		nil,
+	)
+	if d.err != nil {
+		return nil, d.err
 	}
-	c.setPrevTimeStatFunc(curStat)
+	return d, nil
+}
 
-	d.Usage = Usage{}
-	d.Usage.usedPercent = usedPct
-	d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
-	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
+func checkHealthState(
+	ctx context.Context,
+	getTimeStatFunc func(ctx context.Context) (cpu.TimesStat, error),
+	getUsedPctFunc func(ctx context.Context) (float64, error),
+	getLoadAvgStatFunc func(ctx context.Context) (*load.AvgStat, error),
+	getPrevTimeStatFunc func() *cpu.TimesStat,
+	setPrevTimeStatFunc func(cpu.TimesStat),
+) *Data {
+	d := &Data{
+		ts: time.Now().UTC(),
 
-	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
-	loadAvg, err := c.getLoadAvgStatFunc(cctx)
+		Info: getInfo(),
+		Cores: Cores{
+			Logical: pkghost.CPULogicalCores(),
+		},
+	}
+
+	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
+	curStat, err := getTimeStatFunc(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
+		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return d
+	}
+
+	cctx, ccancel = context.WithTimeout(ctx, 5*time.Second)
+	usedPct, err := getUsedPctFunc(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.health = apiv1.StateTypeUnhealthy
+		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return d
+	}
+
+	if getPrevTimeStatFunc != nil && setPrevTimeStatFunc != nil {
+		usedPct = calculateCPUUsage(
+			getPrevTimeStatFunc(),
+			curStat,
+			usedPct,
+		)
+		if err != nil {
+			d.err = err
+			d.health = apiv1.StateTypeUnhealthy
+			d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+			return d
+		}
+		setPrevTimeStatFunc(curStat)
+
+		d.Usage = Usage{}
+		d.Usage.usedPercent = usedPct
+		d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
+		metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
+	}
+
+	cctx, ccancel = context.WithTimeout(ctx, 5*time.Second)
+	loadAvg, err := getLoadAvgStatFunc(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error calculating load average -- %s", err)
-		return
+		return d
 	}
 	d.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
 	d.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
@@ -203,10 +235,14 @@ func (c *component) CheckOnce() {
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
 		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
+
+	return d
 }
+
+var _ components.HealthStateCheckResult = &Data{}
 
 type Data struct {
 	Info  Info  `json:"info"`
@@ -219,7 +255,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -253,6 +289,38 @@ type Usage struct {
 	LoadAvg15Min string `json:"load_avg_15min"`
 }
 
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.Append([]string{"Arch", d.Info.Arch})
+	table.Append([]string{"CPU", d.Info.CPU})
+	table.Append([]string{"Family", d.Info.Family})
+	table.Append([]string{"Model", d.Info.Model})
+	table.Append([]string{"Model Name", d.Info.ModelName})
+	table.Append([]string{"Avg Load 1-min", d.Usage.LoadAvg1Min})
+	table.Append([]string{"Avg Load 5-min", d.Usage.LoadAvg5Min})
+	table.Append([]string{"Avg Load 15-min", d.Usage.LoadAvg15Min})
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
+}
+
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -275,11 +343,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)

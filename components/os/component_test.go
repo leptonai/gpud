@@ -2,6 +2,7 @@ package os
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -472,12 +473,17 @@ func TestZombieProcessCountThreshold(t *testing.T) {
 	assert.GreaterOrEqual(t, zombieProcessCountThreshold, 1000)
 }
 
-func TestData(t *testing.T) {
+func TestCheckHealthState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	d, err := CheckHealthState(ctx)
+	rs, err := CheckHealthState(ctx)
 	assert.NoError(t, err)
+	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
 
-	fmt.Println(d.String())
+	fmt.Println(rs.String())
+
+	b, err := json.Marshal(rs)
+	assert.NoError(t, err)
+	fmt.Println(string(b))
 }

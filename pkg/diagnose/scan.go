@@ -18,6 +18,7 @@ import (
 	nvidiatemperaturecomponent "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	"github.com/leptonai/gpud/components/cpu"
+	cpucomponent "github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/memory"
 	oscomponent "github.com/leptonai/gpud/components/os"
@@ -48,6 +49,11 @@ func printSummary(result components.HealthStateCheckResult) {
 	fmt.Println(result.String())
 }
 
+var defaultCheckHealthStateFuncs = []func(context.Context) (components.HealthStateCheckResult, error){
+	oscomponent.CheckHealthState,
+	cpucomponent.CheckHealthState,
+}
+
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
 	op := &Op{}
@@ -57,11 +63,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
 
-	osData, err := oscomponent.CheckHealthState(ctx)
-	if err != nil {
-		return err
+	for _, checkFunc := range defaultCheckHealthStateFuncs {
+		rs, err := checkFunc(ctx)
+		if err != nil {
+			return err
+		}
+		printSummary(rs)
 	}
-	printSummary(osData)
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {

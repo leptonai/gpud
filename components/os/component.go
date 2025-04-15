@@ -108,6 +108,14 @@ func (c *component) CheckOnce() {
 	}
 }
 
+func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(ctx, process.CountProcessesByStatus)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
 func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)) *Data {
 	d := &Data{
 		ts: time.Now().UTC(),
@@ -162,14 +170,6 @@ func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx c
 	d.healthy = true
 	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
 	return d
-}
-
-func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
-	d := checkHealthState(ctx, process.CountProcessesByStatus)
-	if d.err != nil {
-		return nil, d.err
-	}
-	return d, nil
 }
 
 var _ components.HealthStateCheckResult = &Data{}
