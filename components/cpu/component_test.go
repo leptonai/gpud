@@ -2,7 +2,9 @@ package cpu
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -95,10 +97,10 @@ func TestDataGetStatesNil(t *testing.T) {
 func TestDataGetStatesWithError(t *testing.T) {
 	testError := errors.New("CPU usage retrieval error")
 	d := &Data{
-		ts:      time.Now(),
-		err:     testError,
-		healthy: false,
-		reason:  "error calculating CPU usage",
+		ts:     time.Now(),
+		err:    testError,
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error calculating CPU usage",
 	}
 
 	states, err := d.getHealthStates()
@@ -155,9 +157,9 @@ func TestComponentStates(t *testing.T) {
 			LoadAvg15Min: "1.10",
 			usedPercent:  25.5,
 		},
-		ts:      time.Now(),
-		healthy: true,
-		reason:  "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
+		ts:     time.Now(),
+		health: apiv1.StateTypeHealthy,
+		reason: "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
 	}
 	c.lastData = testData
 
@@ -266,17 +268,6 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 		getPrevTimeStatFunc: func() *cpu.TimesStat { return mockPrevTimeStat },
 
 		eventBucket: mockEventBucket,
-
-		info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
-		cores: Cores{
-			Logical: 8,
-		},
 	}
 
 	// Test
@@ -288,8 +279,8 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	assert.Equal(t, "1.50", c.lastData.Usage.LoadAvg1Min)
 	assert.Equal(t, "1.25", c.lastData.Usage.LoadAvg5Min)
 	assert.Equal(t, "1.10", c.lastData.Usage.LoadAvg15Min)
-	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz", c.lastData.reason)
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
+	assert.Contains(t, c.lastData.reason, "arch: ")
 }
 
 func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
@@ -314,17 +305,6 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 		getPrevTimeStatFunc: func() *cpu.TimesStat { return nil },
 
 		eventBucket: mockEventBucket,
-
-		info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
-		cores: Cores{
-			Logical: 8,
-		},
 	}
 
 	// Test
@@ -332,7 +312,7 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
 }
@@ -399,17 +379,6 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 		getPrevTimeStatFunc: func() *cpu.TimesStat { return mockPrevTimeStat },
 
 		eventBucket: mockEventBucket,
-
-		info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
-		cores: Cores{
-			Logical: 8,
-		},
 	}
 
 	// Test
@@ -417,7 +386,7 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating load average")
 }
@@ -435,9 +404,6 @@ func TestComponentClose(t *testing.T) {
 		cancel: cancel,
 
 		eventBucket: mockEventBucket,
-
-		info:  Info{},
-		cores: Cores{Logical: 4},
 	}
 
 	// Test Close method
@@ -481,17 +447,6 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 		getPrevTimeStatFunc: func() *cpu.TimesStat { return nil },
 
 		eventBucket: mockEventBucket,
-
-		info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
-		cores: Cores{
-			Logical: 8,
-		},
 	}
 
 	// Test
@@ -499,7 +454,7 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
 }
@@ -523,9 +478,6 @@ func TestComponentStart(t *testing.T) {
 
 		setPrevTimeStatFunc: func(cpu.TimesStat) {},
 		getPrevTimeStatFunc: func() *cpu.TimesStat { return nil },
-
-		info:  Info{},
-		cores: Cores{Logical: 4},
 	}
 
 	// Test Start method
@@ -577,9 +529,9 @@ func TestComponentDataExtraInfo(t *testing.T) {
 			LoadAvg15Min: "1.10",
 			usedPercent:  25.5,
 		},
-		ts:      time.Now(),
-		healthy: true,
-		reason:  "test reason",
+		ts:     time.Now(),
+		health: apiv1.StateTypeHealthy,
+		reason: "test reason",
 	}
 
 	// Get states
@@ -693,9 +645,9 @@ func TestDataMarshallingInStates(t *testing.T) {
 			LoadAvg15Min: "999999.99",
 			usedPercent:  999999.99,
 		},
-		ts:      time.Now(),
-		healthy: true,
-		reason:  "test reason with special characters: +!@#$%^&*()_",
+		ts:     time.Now(),
+		health: apiv1.StateTypeHealthy,
+		reason: "test reason with special characters: +!@#$%^&*()_",
 	}
 
 	// Get states
@@ -712,4 +664,19 @@ func TestDataMarshallingInStates(t *testing.T) {
 	assert.Contains(t, jsonData, "unusual-family")
 	assert.Contains(t, jsonData, "999999.99")
 	assert.Contains(t, jsonData, "999999") // Core count
+}
+
+func TestCheckHealthState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rs, err := CheckHealthState(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+
+	fmt.Println(rs.String())
+
+	b, err := json.Marshal(rs)
+	assert.NoError(t, err)
+	fmt.Println(string(b))
 }

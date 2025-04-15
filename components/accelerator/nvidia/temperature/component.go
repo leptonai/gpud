@@ -98,6 +98,14 @@ func (c *component) CheckOnce() {
 	c.lastMu.Unlock()
 }
 
+func CheckHealthState(nvmlInstance nvidianvml.InstanceV2) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(nvmlInstance, nvidianvml.GetTemperature)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
 func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error)) *Data {
 	d := &Data{
 		ts: time.Now().UTC(),
@@ -151,14 +159,6 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 	}
 
 	return d
-}
-
-func CheckHealthState(nvmlInstance nvidianvml.InstanceV2) (components.HealthStateCheckResult, error) {
-	d := checkHealthState(nvmlInstance, nvidianvml.GetTemperature)
-	if d.err != nil {
-		return nil, d.err
-	}
-	return d, nil
 }
 
 var _ components.HealthStateCheckResult = &Data{}
