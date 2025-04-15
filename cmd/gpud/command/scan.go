@@ -19,6 +19,7 @@ func cmdScan(cliContext *cli.Context) error {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	diagnoseOpts := []diagnose.OpOption{
+		diagnose.WithNetcheck(netcheck),
 		diagnose.WithDiskcheck(diskcheck),
 		diagnose.WithKMsgCheck(kmsgCheck),
 		diagnose.WithIbstatCommand(ibstatCommand),

@@ -48,18 +48,20 @@ func printSummary(result components.HealthStateCheckResult) {
 	fmt.Println(result.String())
 }
 
-var defaultCheckHealthStateFuncs = []func(context.Context) (components.HealthStateCheckResult, error){
-	oscomponent.CheckHealthState,
-	cpucomponent.CheckHealthState,
-	memorycomponent.CheckHealthState,
-	networklatencycomponent.CheckHealthState,
-}
-
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
+	defaultCheckHealthStateFuncs := []func(context.Context) (components.HealthStateCheckResult, error){
+		oscomponent.CheckHealthState,
+		cpucomponent.CheckHealthState,
+		memorycomponent.CheckHealthState,
+	}
+
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
+	}
+	if op.netcheck {
+		defaultCheckHealthStateFuncs = append(defaultCheckHealthStateFuncs, networklatencycomponent.CheckHealthState)
 	}
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
