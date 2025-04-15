@@ -44,8 +44,8 @@ func (n *nvmlInterface) Shutdown() nvml.Return {
 	return n.Interface.Shutdown()
 }
 
-// New creates a new NVML instance and returns nil if NVML is not supported.
-func New(opts ...OpOption) Library {
+// createLibrary creates a new NVML instance and returns nil if NVML is not supported.
+func createLibrary(opts ...OpOption) Library {
 	options := &Op{}
 	options.applyOpts(opts)
 

@@ -10,24 +10,27 @@ import (
 
 	"github.com/dustin/go-humanize"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	nvidiatemperaturecomponent "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/memory"
+	oscomponent "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/fuse"
-	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	"github.com/leptonai/gpud/pkg/process"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 const (
@@ -35,6 +38,15 @@ const (
 	checkMark   = "\033[32m✔\033[0m"
 	warningSign = "\033[31m✘\033[0m"
 )
+
+func printSummary(result components.HealthStateCheckResult) {
+	header := checkMark
+	if result.HealthState() != apiv1.StateTypeHealthy {
+		header = warningSign
+	}
+	fmt.Printf("%s %s\n", header, result.Summary())
+	fmt.Println(result.String())
+}
 
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
@@ -44,43 +56,12 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
-	machineID, err := host.GetMachineID(ctx)
-	if err != nil {
-		log.Logger.Warnw("error reading machine ID", "error", err)
-	} else {
-		fmt.Printf("%s detected machine ID %q\n", checkMark, machineID)
-	}
 
-	bootID, err := host.GetBootID()
+	osData, err := oscomponent.CheckHealthState(ctx)
 	if err != nil {
-		log.Logger.Warnw("error reading boot ID", "error", err)
-	} else {
-		fmt.Printf("%s detected boot ID %q\n", checkMark, bootID)
+		return err
 	}
-
-	virtEnv, err := host.GetSystemdDetectVirt(ctx)
-	if err != nil {
-		log.Logger.Warnw("error detecting virtualization environment", "error", err)
-	} else {
-		fmt.Printf("%s detected virtualization environment %q\n", checkMark, virtEnv.Type)
-	}
-	manufacturer, err := host.GetSystemManufacturer(ctx)
-	if err != nil {
-		log.Logger.Warnw("error detecting system manufacturer", "error", err)
-	} else {
-		fmt.Printf("%s detected system manufacturer %q\n", checkMark, manufacturer)
-	}
-
-	fmt.Printf("%s scanning the process counts\n", inProgress)
-	processCountsByStatus, err := process.CountProcessesByStatus(ctx)
-	if err != nil {
-		log.Logger.Warnw("error counting processes by status", "error", err)
-	} else {
-		fmt.Printf("%s counted processes by status\n", checkMark)
-		for status, count := range processCountsByStatus {
-			fmt.Printf("%s %q %d\n", checkMark, status, len(count))
-		}
-	}
+	printSummary(osData)
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {
@@ -90,6 +71,16 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	if nvidiaInstalled {
 		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
+
+		nvmlInstance, err := nvidianvml.NewInstanceV2()
+		if err != nil {
+			return err
+		}
+		nvidiaTempData, err := nvidiatemperaturecomponent.CheckHealthState(nvmlInstance)
+		if err != nil {
+			return err
+		}
+		printSummary(nvidiaTempData)
 
 		for lib, alternatives := range nvidia_query.DefaultNVIDIALibraries {
 			opts := []file.OpOption{

@@ -17,7 +17,8 @@ func TestNewDefaultNoEnvVars(t *testing.T) {
 	os.Unsetenv(EnvInjectClockEventsHwSlowdown)
 
 	// Create a new library instance
-	lib := NewDefault()
+	lib, err := New(WithInitReturn(nvml.SUCCESS))
+	require.NoError(t, err)
 
 	// Verify the library instance is created with default options
 	assert.NotNil(t, lib)
@@ -35,7 +36,8 @@ func TestNewDefaultMockAllSuccess(t *testing.T) {
 	os.Setenv(EnvMockAllSuccess, "true")
 
 	// Create a new library instance
-	lib := NewDefault()
+	lib, err := New()
+	require.NoError(t, err)
 
 	// Verify the library instance is created with mock interface
 	assert.NotNil(t, lib)
@@ -62,7 +64,8 @@ func TestNewDefaultMultipleEnvVars(t *testing.T) {
 	os.Setenv(EnvInjectClockEventsHwSlowdown, "true")
 
 	// Create a new library instance
-	lib := NewDefault()
+	lib, err := New()
+	require.NoError(t, err)
 
 	// Verify the library instance is created correctly
 	assert.NotNil(t, lib)

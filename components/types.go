@@ -2,6 +2,7 @@ package components
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -42,4 +43,18 @@ type Component interface {
 type HealthSettable interface {
 	// SetHealthy sets the health state to healthy.
 	SetHealthy() error
+}
+
+// HealthStateCheckResult is the data type that represents the result of
+// a component health state check.
+type HealthStateCheckResult interface {
+	// String returns a string representation of the data.
+	// Describes the data in a human-readable format.
+	fmt.Stringer
+
+	// Summary returns a summary of the check result.
+	Summary() string
+
+	// HealthState returns the health state of the check result.
+	HealthState() apiv1.HealthStateType
 }

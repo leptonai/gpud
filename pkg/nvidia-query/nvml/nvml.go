@@ -20,7 +20,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 var _ Instance = &instance{}
@@ -73,8 +73,8 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 		return nil, err
 	}
 
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	nvmlLib, err := nvmllib.New()
+	if err != nil {
 		return nil, err
 	}
 
@@ -375,11 +375,6 @@ func (inst *instance) Get() (*Output, error) {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
 		}
 
-		latestInfo.Temperature, err = GetTemperature(devInfo.UUID, devInfo.device)
-		if err != nil {
-			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
-		}
-
 		latestInfo.Utilization, err = GetUtilization(devInfo.UUID, devInfo.device)
 		if err != nil {
 			joinedErrs = append(joinedErrs, fmt.Errorf("%w (GPU uuid %s)", err, devInfo.UUID))
@@ -415,18 +410,6 @@ func (inst *instance) Get() (*Output, error) {
 		joinedErr = errors.Join(joinedErrs...)
 	}
 	return st, joinedErr
-}
-
-func initAndCheckNVMLSupported(nvmlLib nvml.Interface) (bool, error) {
-	log.Logger.Infow("initializing nvml library")
-	ret := nvmlLib.Init()
-	if ret == nvml.SUCCESS {
-		return true, nil
-	}
-	if ret == nvml.ERROR_LIBRARY_NOT_FOUND {
-		return false, nil
-	}
-	return false, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
 }
 
 type Output struct {
@@ -474,7 +457,6 @@ type DeviceInfo struct {
 	Memory          Memory          `json:"memory"`
 	NVLink          NVLink          `json:"nvlink"`
 	Power           Power           `json:"power"`
-	Temperature     Temperature     `json:"temperature"`
 	Utilization     Utilization     `json:"utilization"`
 	Processes       Processes       `json:"processes"`
 	ECCMode         ECCMode         `json:"ecc_mode"`
@@ -545,8 +527,8 @@ func GetBrand(dev device.Device) (string, error) {
 }
 
 func GetDriverVersion() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	nvmlLib, err := nvmllib.New()
+	if err != nil {
 		return "", err
 	}
 	defer func() {
@@ -597,8 +579,8 @@ func ParseDriverVersion(version string) (major, minor, patch int, err error) {
 }
 
 func GetCUDAVersion() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	nvmlLib, err := nvmllib.New()
+	if err != nil {
 		return "", err
 	}
 	defer func() {
@@ -634,8 +616,8 @@ func ClockEventsSupportedVersion(major int) bool {
 
 // Loads the product name of the NVIDIA GPU device.
 func LoadGPUDeviceName() (string, error) {
-	nvmlLib := nvml_lib.NewDefault()
-	if installed, err := initAndCheckNVMLSupported(nvmlLib.NVML()); !installed || err != nil {
+	nvmlLib, err := nvmllib.New()
+	if err != nil {
 		return "", err
 	}
 	defer func() {

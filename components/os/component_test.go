@@ -481,3 +481,13 @@ func TestZombieProcessCountThreshold(t *testing.T) {
 	// This is primarily to increase the test coverage of the init function
 	assert.GreaterOrEqual(t, zombieProcessCountThreshold, 1000)
 }
+
+func TestData(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	d, err := CheckHealthState(ctx)
+	assert.NoError(t, err)
+
+	fmt.Println(d.String())
+}

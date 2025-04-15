@@ -2,6 +2,7 @@
 package temperature
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -88,25 +90,29 @@ func (c *component) Close() error {
 // run this periodically
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking temperature")
-	d := Data{
+
+	d := checkHealthState(c.nvmlInstance, c.getTemperatureFunc)
+
+	c.lastMu.Lock()
+	c.lastData = d
+	c.lastMu.Unlock()
+}
+
+func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error)) *Data {
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastData = &d
-		c.lastMu.Unlock()
-	}()
 
 	tempThresholdExceeded := make([]string, 0)
-	devs := c.nvmlInstance.Devices()
+	devs := nvmlInstance.Devices()
 	for uuid, dev := range devs {
-		temp, err := c.getTemperatureFunc(uuid, dev)
+		temp, err := getTemperatureFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting temperature for device", "uuid", uuid, "error", err)
 			d.err = err
 			d.healthy = false
 			d.reason = fmt.Sprintf("error getting temperature for device %s", uuid)
-			return
+			return d
 		}
 		d.Temperatures = append(d.Temperatures, temp)
 
@@ -131,7 +137,7 @@ func (c *component) CheckOnce() {
 			d.err = err
 			d.healthy = false
 			d.reason = fmt.Sprintf("error getting used percent for slowdown for device %s", uuid)
-			return
+			return d
 		}
 		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(slowdownPct)
 	}
@@ -143,7 +149,19 @@ func (c *component) CheckOnce() {
 		d.healthy = false
 		d.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(tempThresholdExceeded, ", "))
 	}
+
+	return d
 }
+
+func CheckHealthState(nvmlInstance nvidianvml.InstanceV2) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(nvmlInstance, nvidianvml.GetTemperature)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
+var _ components.HealthStateCheckResult = &Data{}
 
 type Data struct {
 	Temperatures []nvidianvml.Temperature `json:"temperatures,omitempty"`
@@ -157,6 +175,41 @@ type Data struct {
 	healthy bool
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil || len(d.Temperatures) == 0 {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetHeader([]string{"GPU UUID", "Current temp", "HBM temp threshold", "Used %"})
+	for _, temp := range d.Temperatures {
+		table.Append([]string{
+			temp.UUID,
+			fmt.Sprintf("%d °C", temp.CurrentCelsiusGPUCore),
+			fmt.Sprintf("%d °C", temp.ThresholdCelsiusMemMax),
+			fmt.Sprintf("%s %%", temp.UsedPercentMemMax),
+		})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	if d.healthy {
+		return apiv1.StateTypeHealthy
+	}
+	return apiv1.StateTypeUnhealthy
 }
 
 func (d *Data) getError() string {
@@ -184,10 +237,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Error:  d.getError(),
 
 		DeprecatedHealthy: d.healthy,
-		Health:            apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health:            d.HealthState(),
 	}
 
 	b, _ := json.Marshal(d)
