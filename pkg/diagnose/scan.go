@@ -20,6 +20,7 @@ import (
 	cpucomponent "github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	memorycomponent "github.com/leptonai/gpud/components/memory"
+	networklatencycomponent "github.com/leptonai/gpud/components/network/latency"
 	oscomponent "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -27,7 +28,6 @@ import (
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -48,17 +48,20 @@ func printSummary(result components.HealthStateCheckResult) {
 	fmt.Println(result.String())
 }
 
-var defaultCheckHealthStateFuncs = []func(context.Context) (components.HealthStateCheckResult, error){
-	oscomponent.CheckHealthState,
-	cpucomponent.CheckHealthState,
-	memorycomponent.CheckHealthState,
-}
-
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
+	defaultCheckHealthStateFuncs := []func(context.Context) (components.HealthStateCheckResult, error){
+		oscomponent.CheckHealthState,
+		cpucomponent.CheckHealthState,
+		memorycomponent.CheckHealthState,
+	}
+
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
+	}
+	if op.netcheck {
+		defaultCheckHealthStateFuncs = append(defaultCheckHealthStateFuncs, networklatencycomponent.CheckHealthState)
 	}
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
@@ -146,17 +149,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			fmt.Printf("%s scanned kernel messages -- found no issue\n", checkMark)
 		} else {
 			fmt.Printf("%s scanned kernel messages -- found %d issue(s)\n", warningSign, issueCount)
-		}
-	}
-
-	if op.netcheck {
-		fmt.Printf("\n%s checking network connectivity to edge/derp servers\n", inProgress)
-		latencies, err := latency_edge.Measure(ctx, latency_edge.WithVerbose(op.debug))
-		if err != nil {
-			log.Logger.Warnw("error measuring latencies", "error", err)
-		} else {
-			latencies.RenderTable(os.Stdout)
-			fmt.Printf("\n\n%s latency check complete\n\n", checkMark)
 		}
 	}
 
