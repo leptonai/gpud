@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 )
 
@@ -15,7 +16,20 @@ const vmallocInfoFile = "/proc/vmallocinfo"
 // ref. https://github.com/awslabs/amazon-eks-ami/issues/1179
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
 func getCurrentBPFJITBufferBytes() (uint64, error) {
-	return readBPFJITBufferBytes(vmallocInfoFile)
+	if runtime.GOOS != "linux" {
+		return 0, nil
+	}
+
+	b, err := readBPFJITBufferBytes(vmallocInfoFile)
+
+	// if not root, this can fail
+	// e.g.,
+	// "open /proc/vmallocinfo: permission denied"
+	if err != nil && os.Geteuid() != 0 {
+		return 0, nil
+	}
+
+	return b, err
 }
 
 // readBPFJITBufferBytes reads the current BPF JIT buffer size in bytes.
