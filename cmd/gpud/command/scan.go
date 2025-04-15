@@ -7,8 +7,8 @@ import (
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
 
-	"github.com/leptonai/gpud/pkg/diagnose"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/scan"
 )
 
 func cmdScan(cliContext *cli.Context) error {
@@ -18,20 +18,20 @@ func cmdScan(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
-	diagnoseOpts := []diagnose.OpOption{
-		diagnose.WithNetcheck(netcheck),
-		diagnose.WithDiskcheck(diskcheck),
-		diagnose.WithKMsgCheck(kmsgCheck),
-		diagnose.WithIbstatCommand(ibstatCommand),
-		diagnose.WithCheckInfiniband(checkInfiniBand),
+	opts := []scan.OpOption{
+		scan.WithNetcheck(netcheck),
+		scan.WithDiskcheck(diskcheck),
+		scan.WithKMsgCheck(kmsgCheck),
+		scan.WithIbstatCommand(ibstatCommand),
+		scan.WithCheckInfiniband(checkInfiniBand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
-		diagnoseOpts = append(diagnoseOpts, diagnose.WithDebug(true))
+		opts = append(opts, scan.WithDebug(true))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err = diagnose.Scan(ctx, diagnoseOpts...); err != nil {
+	if err = scan.Scan(ctx, opts...); err != nil {
 		return err
 	}
 

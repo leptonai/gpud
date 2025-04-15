@@ -1,11 +1,10 @@
-package diagnose
+package scan
 
 type Op struct {
 	nvidiaSMIQueryCommand string
 	ibstatCommand         string
 
-	debug         bool
-	createArchive bool
+	debug bool
 
 	netcheck  bool
 	diskcheck bool
@@ -48,12 +47,6 @@ func WithIbstatCommand(p string) OpOption {
 func WithDebug(b bool) OpOption {
 	return func(op *Op) {
 		op.debug = b
-	}
-}
-
-func WithCreateArchive(b bool) OpOption {
-	return func(op *Op) {
-		op.createArchive = b
 	}
 }
 

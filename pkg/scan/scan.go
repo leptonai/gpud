@@ -1,4 +1,4 @@
-package diagnose
+package scan
 
 import (
 	"context"
