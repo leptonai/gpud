@@ -47,16 +47,14 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
-		getEgressLatenciesFunc: latencyedge.Measure,
-
+		ctx:                        cctx,
+		cancel:                     ccancel,
+		getEgressLatenciesFunc:     latencyedge.Measure,
 		globalMillisecondThreshold: DefaultGlobalMillisecondThreshold,
-	}
+	}, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -67,8 +65,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -79,11 +76,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -98,44 +95,22 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking network egress latency")
 
-	d := checkHealthState(
-		c.ctx,
-		c.getEgressLatenciesFunc,
-		c.globalMillisecondThreshold,
-	)
-
-	c.lastMu.Lock()
-	c.lastData = d
-	c.lastMu.Unlock()
-}
-
-func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
-	d := checkHealthState(
-		ctx,
-		latencyedge.Measure,
-		DefaultGlobalMillisecondThreshold,
-	)
-	if d.err != nil {
-		return nil, d.err
-	}
-	return d, nil
-}
-
-func checkHealthState(
-	ctx context.Context,
-	getEgressLatenciesFunc func(context.Context, ...latencyedge.OpOption) (latency.Latencies, error),
-	globalMillisecondThreshold int64,
-) *Data {
 	d := &Data{
 		ts: time.Now().UTC(),
 	}
 
-	d.EgressLatencies, d.err = getEgressLatenciesFunc(ctx)
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = d
+		c.lastMu.Unlock()
+	}()
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(cctx)
+	ccancel()
 	if d.err != nil {
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
@@ -149,8 +124,8 @@ func checkHealthState(
 			pkgmetrics.MetricLabelKey: region,
 		}).Set(float64(lat.LatencyMilliseconds))
 
-		if globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > globalMillisecondThreshold {
-			exceededMsgs = append(exceededMsgs, fmt.Sprintf("latency to %s edge server is %s (exceeded threshold %dms)", lat.RegionName, lat.Latency, globalMillisecondThreshold))
+		if c.globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > c.globalMillisecondThreshold {
+			exceededMsgs = append(exceededMsgs, fmt.Sprintf("latency to %s edge server is %s (exceeded threshold %dms)", lat.RegionName, lat.Latency, c.globalMillisecondThreshold))
 		}
 	}
 
@@ -165,7 +140,7 @@ func checkHealthState(
 	return d
 }
 
-var _ components.HealthStateCheckResult = &Data{}
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// EgressLatencies is the list of egress latencies to global edge servers.
@@ -205,6 +180,9 @@ func (d *Data) String() string {
 }
 
 func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
 	return d.reason
 }
 
@@ -222,7 +200,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
 		return []apiv1.HealthState{
 			{
@@ -230,7 +208,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
@@ -245,5 +223,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

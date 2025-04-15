@@ -19,6 +19,7 @@ import (
 	cpucomponent "github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	memorycomponent "github.com/leptonai/gpud/components/memory"
+	networklatencycomponent "github.com/leptonai/gpud/components/network/latency"
 	oscomponent "github.com/leptonai/gpud/components/os"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/disk"
@@ -86,6 +87,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	componentInits := []components.InitFunc{
 		oscomponent.New,
+		networklatencycomponent.New,
 	}
 
 	for _, initFunc := range componentInits {
