@@ -19,7 +19,17 @@ func getCurrentBPFJITBufferBytes() (uint64, error) {
 	if runtime.GOOS != "linux" {
 		return 0, nil
 	}
-	return readBPFJITBufferBytes(vmallocInfoFile)
+
+	b, err := readBPFJITBufferBytes(vmallocInfoFile)
+
+	// if not root, this can fail
+	// e.g.,
+	// "open /proc/vmallocinfo: permission denied"
+	if err != nil && os.Geteuid() != 0 {
+		return 0, nil
+	}
+
+	return b, err
 }
 
 // readBPFJITBufferBytes reads the current BPF JIT buffer size in bytes.

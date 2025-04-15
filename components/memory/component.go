@@ -177,6 +177,7 @@ func checkHealthState(
 	bpfJITBufferBytes, err := getCurrentBPFJITBufferBytesFunc()
 	if err != nil {
 		log.Logger.Errorw("failed to get bpf jit buffer bytes", "error", err)
+
 		d.err = err
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("failed to get bpf jit buffer bytes: %s", err)

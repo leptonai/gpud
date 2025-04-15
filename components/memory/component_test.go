@@ -33,6 +33,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
 		TotalBytes: 16,
 		UsedBytes:  8,
+		health:     apiv1.StateTypeUnhealthy,
 		err:        testError,
 	}
 
