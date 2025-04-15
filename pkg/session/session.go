@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"sync"
 	"time"
 
@@ -172,8 +174,14 @@ func (s *Session) keepAlive() {
 			writerExit := make(chan any)
 			s.closer = &closeOnce{closer: make(chan any)}
 			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
-			go s.startReader(ctx, readerExit)
-			go s.startWriter(ctx, writerExit)
+			jar, _ := cookiejar.New(nil)
+			if err := s.checkServerHealth(ctx, jar); err != nil {
+				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
+				cancel()
+				continue
+			}
+			go s.startReader(ctx, readerExit, jar)
+			go s.startWriter(ctx, writerExit, jar)
 			<-readerExit
 			log.Logger.Debug("session reader: reader exited")
 			cancel()
@@ -184,8 +192,9 @@ func (s *Session) keepAlive() {
 	}
 }
 
-func createHTTPClient() *http.Client {
+func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 	return &http.Client{
+		Jar: jar,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -203,7 +212,7 @@ func createHTTPClient() *http.Client {
 }
 
 func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint+"/api/v1/session", body)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +221,7 @@ func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType 
 	return req, nil
 }
 
-func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
+func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
 	pipeFinishCh := make(chan any)
 	goroutineCloseCh := make(chan any)
 	defer func() {
@@ -230,7 +239,7 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any) {
 		return
 	}
 
-	client := createHTTPClient()
+	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session writer: error making request: %v", err)
@@ -275,7 +284,7 @@ func (s *Session) writeBodyToPipe(writer *io.PipeWriter, body Body) error {
 	return nil
 }
 
-func (s *Session) startReader(ctx context.Context, readerExit chan any) {
+func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
 	goroutineCloseCh := make(chan any)
 	pipeFinishCh := make(chan any)
 	defer func() {
@@ -292,7 +301,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 		return
 	}
 
-	client := createHTTPClient()
+	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session reader: error making request: %v, retrying", err)
@@ -306,6 +315,25 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any) {
 	}
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
+}
+
+func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", s.endpoint+"/healthz", nil)
+	if err != nil {
+		return err
+	}
+
+	client := createHTTPClient(jar)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server health check failed: %s", resp.Status)
+	}
+	return nil
 }
 
 func (s *Session) setLastPackageTimestamp(t time.Time) {

@@ -174,7 +174,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 	}
 	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
-	response, err := http.Post(fmt.Sprintf("https://%s/api/v1/join", endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	response, err := http.Post(fmt.Sprintf("%s/api/v1/join", endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
