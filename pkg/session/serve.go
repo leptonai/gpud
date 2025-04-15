@@ -442,17 +442,10 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 		Component: componentName,
 	}
 	log.Logger.Debugw("getting states", "component", componentName)
-	state, err := component.HealthStates(ctx)
-	if err != nil {
-		log.Logger.Errorw("failed to invoke component state",
-			"operation", "GetStates",
-			"component", componentName,
-			"error", err,
-		)
-	} else {
-		log.Logger.Debugw("successfully got states", "component", componentName)
-		currState.States = state
-	}
+	state := component.LastHealthStates()
+	log.Logger.Debugw("successfully got states", "component", componentName)
+	currState.States = state
+
 	for i, componentState := range currState.States {
 		if componentState.Health != apiv1.StateTypeHealthy {
 			if lastRebootTime == nil {

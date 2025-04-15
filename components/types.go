@@ -27,8 +27,17 @@ type Component interface {
 	// Implements component-specific poller start logic.
 	Start() error
 
-	// HealthStates returns the current health states of the component.
-	HealthStates(ctx context.Context) (apiv1.HealthStates, error)
+	// Check triggers the component check once, and returns the latest health check result.
+	// This is used for one-time checks, such as "gpud scan".
+	// It is up to the component to decide the check timeouts.
+	// Thus, we do not pass the context here.
+	// The CheckResult should embed the timeout errors if any, via Summary and HealthState.
+	Check() CheckResult
+
+	// LastHealthStates reads the latest health states of the component,
+	// cached from its periodic checks.
+	// If no check has been performed, it returns a single health state of apiv1.StateTypeHealthy.
+	LastHealthStates() apiv1.HealthStates
 
 	// Events returns all the events from "since".
 	Events(ctx context.Context, since time.Time) (apiv1.Events, error)
@@ -45,9 +54,9 @@ type HealthSettable interface {
 	SetHealthy() error
 }
 
-// HealthStateCheckResult is the data type that represents the result of
+// CheckResult is the data type that represents the result of
 // a component health state check.
-type HealthStateCheckResult interface {
+type CheckResult interface {
 	// String returns a string representation of the data.
 	// Describes the data in a human-readable format.
 	fmt.Stringer

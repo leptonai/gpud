@@ -29,8 +29,12 @@ func (m *mockComponent) Start() error {
 	return nil
 }
 
-func (m *mockComponent) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
-	return []apiv1.HealthState{{Name: m.name, Health: apiv1.StateTypeHealthy}}, nil
+func (m *mockComponent) Check() CheckResult {
+	return &mockCheckResult{name: m.name}
+}
+
+func (m *mockComponent) LastHealthStates() apiv1.HealthStates {
+	return []apiv1.HealthState{{Name: m.name, Health: apiv1.StateTypeHealthy}}
 }
 
 func (m *mockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -62,6 +66,23 @@ func newMockErrorComponent(name string, closeError error) *mockErrorComponent {
 		mockComponent: mockComponent{name: name, closed: false, started: false},
 		closeError:    closeError,
 	}
+}
+
+// mockCheckResult implements the CheckResult interface for testing
+type mockCheckResult struct {
+	name string
+}
+
+func (m *mockCheckResult) String() string {
+	return "mock check result for " + m.name
+}
+
+func (m *mockCheckResult) Summary() string {
+	return "Mock check result"
+}
+
+func (m *mockCheckResult) HealthState() apiv1.HealthStateType {
+	return apiv1.StateTypeHealthy
 }
 
 func TestGetComponentErrors(t *testing.T) {

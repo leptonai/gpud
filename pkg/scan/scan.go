@@ -15,13 +15,12 @@ import (
 	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	nvidiatemperaturecomponent "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	cpucomponent "github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
 	memorycomponent "github.com/leptonai/gpud/components/memory"
-	networklatencycomponent "github.com/leptonai/gpud/components/network/latency"
 	oscomponent "github.com/leptonai/gpud/components/os"
+	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
@@ -39,7 +38,7 @@ const (
 	warningSign = "\033[31m✘\033[0m"
 )
 
-func printSummary(result components.HealthStateCheckResult) {
+func printSummary(result components.CheckResult) {
 	header := checkMark
 	if result.HealthState() != apiv1.StateTypeHealthy {
 		header = warningSign
@@ -50,29 +49,13 @@ func printSummary(result components.HealthStateCheckResult) {
 
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
-	defaultCheckHealthStateFuncs := []func(context.Context) (components.HealthStateCheckResult, error){
-		oscomponent.CheckHealthState,
-		cpucomponent.CheckHealthState,
-		memorycomponent.CheckHealthState,
-	}
 
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
 	}
-	if op.netcheck {
-		defaultCheckHealthStateFuncs = append(defaultCheckHealthStateFuncs, networklatencycomponent.CheckHealthState)
-	}
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
-
-	for _, checkFunc := range defaultCheckHealthStateFuncs {
-		rs, err := checkFunc(ctx)
-		if err != nil {
-			return err
-		}
-		printSummary(rs)
-	}
 
 	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
 	if err != nil {
@@ -80,18 +63,43 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		return err
 	}
 
+	var nvmlInstance nvidianvml.InstanceV2
 	if nvidiaInstalled {
 		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
+		nvmlInstance, err = nvidianvml.NewInstanceV2()
+		if err != nil {
+			return err
+		}
+	}
 
-		nvmlInstance, err := nvidianvml.NewInstanceV2()
+	gpudInstance := components.GPUdInstance{
+		RootCtx: ctx,
+
+		NVMLInstance: nvmlInstance,
+		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
+			IbstatCommand: op.ibstatCommand,
+		},
+
+		EventStore:       nil,
+		RebootEventStore: nil,
+	}
+
+	componentInits := []components.InitFunc{
+		oscomponent.New,
+	}
+
+	for _, initFunc := range componentInits {
+		c, err := initFunc(gpudInstance)
 		if err != nil {
 			return err
 		}
-		nvidiaTempData, err := nvidiatemperaturecomponent.CheckHealthState(nvmlInstance)
-		if err != nil {
-			return err
-		}
-		printSummary(nvidiaTempData)
+		defer c.Close()
+
+		printSummary(c.Check())
+	}
+
+	if nvidiaInstalled {
+		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
 
 		for lib, alternatives := range nvidia_query.DefaultNVIDIALibraries {
 			opts := []file.OpOption{

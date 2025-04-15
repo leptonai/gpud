@@ -114,17 +114,11 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		}
 
 		log.Logger.Debugw("getting states", "component", componentName)
-		state, err := component.HealthStates(c)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component state",
-				"operation", "GetStates",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			log.Logger.Debugw("successfully got states", "component", componentName)
-			currState.States = state
-		}
+		state := component.LastHealthStates()
+
+		log.Logger.Debugw("successfully got states", "component", componentName)
+		currState.States = state
+
 		states = append(states, currState)
 	}
 
@@ -323,16 +317,9 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		} else if len(events) > 0 {
 			currInfo.Info.Events = events
 		}
-		state, err := component.HealthStates(c)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component states",
-				"operation", "GetInfo",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			currInfo.Info.States = state
-		}
+
+		state := component.LastHealthStates()
+		currInfo.Info.States = state
 
 		currInfo.Info.Metrics = componentsToMetrics[componentName]
 

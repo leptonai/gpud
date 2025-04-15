@@ -273,7 +273,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, c)
 
 		case os.Name:
-			allComponents = append(allComponents, os.New(ctx, rebootEventStore))
+			c, err := os.New(components.GPUdInstance{
+				RootCtx:          ctx,
+				RebootEventStore: rebootEventStore,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		case tailscale.Name:
 			allComponents = append(allComponents, tailscale.New(ctx))

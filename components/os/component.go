@@ -40,16 +40,14 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
+		ctx:                        cctx,
+		cancel:                     ccancel,
 		countProcessesByStatusFunc: process.CountProcessesByStatus,
-
-		rebootEventStore: rebootEventStore,
-	}
+		rebootEventStore:           gpudInstance.RebootEventStore,
+	}, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -59,7 +57,7 @@ func (c *component) Start() error {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -70,11 +68,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -92,31 +90,9 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking os")
 
-	d := checkHealthState(c.ctx, c.countProcessesByStatusFunc)
-
-	c.lastMu.Lock()
-	c.lastData = d
-	c.lastMu.Unlock()
-
-	if err := c.rebootEventStore.RecordReboot(c.ctx); err != nil {
-		log.Logger.Warnw("error creating reboot event", "error", err)
-	}
-}
-
-func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
-	d := checkHealthState(ctx, process.CountProcessesByStatus)
-	if d.err != nil {
-		return nil, d.err
-	}
-	return d, nil
-}
-
-func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)) *Data {
 	d := &Data{
 		ts: time.Now().UTC(),
 
@@ -132,12 +108,18 @@ func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx c
 		Platform: Platform{Name: pkghost.Platform(), Family: pkghost.PlatformFamily(), Version: pkghost.PlatformVersion()},
 	}
 
-	cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = d
+		c.lastMu.Unlock()
+	}()
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	uptime, err := host.UptimeWithContext(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting uptime: %s", err)
 		return d
 	}
@@ -147,10 +129,12 @@ func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx c
 		BootTimeUnixSeconds: pkghost.BootTimeUnixSeconds(),
 	}
 
-	allProcs, err := countProcessesByStatusFunc(ctx)
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+	allProcs, err := c.countProcessesByStatusFunc(cctx)
+	ccancel()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting process count: %s", err)
 		return d
 	}
@@ -162,17 +146,27 @@ func checkHealthState(ctx context.Context, countProcessesByStatusFunc func(ctx c
 		}
 	}
 	if d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, zombieProcessCountThreshold)
 		return d
 	}
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
+
+	// iff reboot event store is available
+	// e.g., "gpud scan" is an one-time operation
+	// in such case, we may not set the db instance
+	if c.rebootEventStore != nil {
+		if err := c.rebootEventStore.RecordReboot(c.ctx); err != nil {
+			log.Logger.Warnw("error creating reboot event", "error", err)
+		}
+	}
+
 	return d
 }
 
-var _ components.HealthStateCheckResult = &Data{}
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	VirtualizationEnvironment   pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
@@ -190,7 +184,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -247,6 +241,9 @@ func (d *Data) String() string {
 }
 
 func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
 	return d.reason
 }
 
@@ -254,10 +251,7 @@ func (d *Data) HealthState() apiv1.HealthStateType {
 	if d == nil {
 		return ""
 	}
-	if d.healthy {
-		return apiv1.StateTypeHealthy
-	}
-	return apiv1.StateTypeUnhealthy
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -267,7 +261,7 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
 		return []apiv1.HealthState{
 			{
@@ -275,7 +269,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
@@ -290,7 +284,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }
 
 var zombieProcessCountThreshold = 1000
