@@ -2,7 +2,9 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -137,7 +139,7 @@ func TestComponentStates(t *testing.T) {
 		TotalBytes: 16,
 		UsedBytes:  8,
 		ts:         time.Now(),
-		healthy:    true,
+		health:     apiv1.StateTypeHealthy,
 		reason:     "using 8 bytes out of total 16 bytes",
 	}
 	c.lastData = testData
@@ -220,7 +222,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	assert.Equal(t, mockVMStat.Available, c.lastData.AvailableBytes)
 	assert.Equal(t, mockVMStat.Used, c.lastData.UsedBytes)
 	assert.Equal(t, uint64(1024*1024), c.lastData.BPFJITBufferBytes)
-	assert.True(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWithVMError(t *testing.T) {
@@ -245,7 +247,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get virtual memory")
 }
@@ -286,7 +288,22 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get bpf jit buffer bytes")
+}
+
+func TestCheckHealthState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rs, err := CheckHealthState(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+
+	fmt.Println(rs.String())
+
+	b, err := json.Marshal(rs)
+	assert.NoError(t, err)
+	fmt.Println(string(b))
 }

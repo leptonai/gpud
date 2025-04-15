@@ -17,10 +17,9 @@ import (
 	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	nvidiatemperaturecomponent "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	"github.com/leptonai/gpud/components/cpu"
 	cpucomponent "github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/memory"
+	memorycomponent "github.com/leptonai/gpud/components/memory"
 	oscomponent "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -52,6 +51,7 @@ func printSummary(result components.HealthStateCheckResult) {
 var defaultCheckHealthStateFuncs = []func(context.Context) (components.HealthStateCheckResult, error){
 	oscomponent.CheckHealthState,
 	cpucomponent.CheckHealthState,
+	memorycomponent.CheckHealthState,
 }
 
 // Runs the scan operations.
@@ -220,10 +220,10 @@ func scanKmsg(ctx context.Context) (int, error) {
 
 		ts = msg.DescribeTimestamp(time.Now().UTC())
 
-		if ev, m := cpu.Match(msg.Message); m != "" {
+		if ev, m := cpucomponent.Match(msg.Message); m != "" {
 			fmt.Printf("[CPU] (%s) %s %s %q\n", ts, ev, m, msg.Message)
 			issueCount++
-		} else if ev, m := memory.Match(msg.Message); m != "" {
+		} else if ev, m := memorycomponent.Match(msg.Message); m != "" {
 			fmt.Printf("[Memory] (%s) %s %s %q\n", ts, ev, m, msg.Message)
 			issueCount++
 		} else if ev, m := fd.Match(msg.Message); m != "" {

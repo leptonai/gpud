@@ -2,13 +2,16 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/mem"
 
@@ -44,7 +47,6 @@ func New(ctx context.Context, eventStore eventstore.Store) (components.Component
 		return nil, err
 	}
 
-	// TODO: deprecate
 	cctx, ccancel := context.WithCancel(ctx)
 	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
 	if err != nil {
@@ -114,25 +116,50 @@ func (c *component) Close() error {
 // run this periodically
 func (c *component) CheckOnce() {
 	log.Logger.Infow("checking memory")
-	d := Data{
+
+	d := checkHealthState(
+		c.ctx,
+		c.getVirtualMemoryFunc,
+		c.getCurrentBPFJITBufferBytesFunc,
+	)
+
+	c.lastMu.Lock()
+	c.lastData = d
+	c.lastMu.Unlock()
+}
+
+func CheckHealthState(ctx context.Context) (components.HealthStateCheckResult, error) {
+	d := checkHealthState(
+		ctx,
+		mem.VirtualMemoryWithContext,
+		getCurrentBPFJITBufferBytes,
+	)
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d, nil
+}
+
+func checkHealthState(
+	ctx context.Context,
+	getVirtualMemoryFunc func(context.Context) (*mem.VirtualMemoryStat, error),
+	getCurrentBPFJITBufferBytesFunc func() (uint64, error),
+) *Data {
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastData = &d
-		c.lastMu.Unlock()
-	}()
 
-	cctx, ccancel := context.WithTimeout(c.ctx, 5*time.Second)
-	vm, err := c.getVirtualMemoryFunc(cctx)
+	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
+	vm, err := getVirtualMemoryFunc(cctx)
 	ccancel()
 	if err != nil {
 		log.Logger.Errorw("failed to get virtual memory", "error", err)
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("failed to get virtual memory: %s", err)
-		return
+		return d
 	}
+
 	d.TotalBytes = vm.Total
 	d.AvailableBytes = vm.Available
 	d.UsedBytes = vm.Used
@@ -147,19 +174,23 @@ func (c *component) CheckOnce() {
 	metricUsedPercent.With(prometheus.Labels{}).Set(vm.UsedPercent)
 	metricFreeBytes.With(prometheus.Labels{}).Set(float64(vm.Free))
 
-	bpfJITBufferBytes, err := c.getCurrentBPFJITBufferBytesFunc()
+	bpfJITBufferBytes, err := getCurrentBPFJITBufferBytesFunc()
 	if err != nil {
 		log.Logger.Errorw("failed to get bpf jit buffer bytes", "error", err)
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("failed to get bpf jit buffer bytes: %s", err)
-		return
+		return d
 	}
 	d.BPFJITBufferBytes = bpfJITBufferBytes
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("using %s out of total %s", humanize.Bytes(d.UsedBytes), humanize.Bytes(d.TotalBytes))
+
+	return d
 }
+
+var _ components.HealthStateCheckResult = &Data{}
 
 type Data struct {
 	TotalBytes     uint64 `json:"total_bytes"`
@@ -184,9 +215,40 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.Append([]string{"Total", humanize.Bytes(d.TotalBytes)})
+	table.Append([]string{"Used", humanize.Bytes(d.UsedBytes)})
+	table.Append([]string{"Used %", d.UsedPercent + " %"})
+	table.Append([]string{"Available", humanize.Bytes(d.AvailableBytes)})
+	if runtime.GOOS == "linux" {
+		table.Append([]string{"BPF JIT Buffer", humanize.Bytes(d.BPFJITBufferBytes)})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -211,11 +273,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)

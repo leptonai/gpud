@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 )
 
@@ -15,6 +16,9 @@ const vmallocInfoFile = "/proc/vmallocinfo"
 // ref. https://github.com/awslabs/amazon-eks-ami/issues/1179
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
 func getCurrentBPFJITBufferBytes() (uint64, error) {
+	if runtime.GOOS != "linux" {
+		return 0, nil
+	}
 	return readBPFJITBufferBytes(vmallocInfoFile)
 }
 
