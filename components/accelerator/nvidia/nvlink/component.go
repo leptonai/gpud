@@ -148,10 +148,9 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 	if d == nil {
 		return []apiv1.HealthState{
 			{
-				Name:              Name,
-				Health:            apiv1.StateTypeHealthy,
-				DeprecatedHealthy: true,
-				Reason:            "no data yet",
+				Name:   Name,
+				Health: apiv1.StateTypeHealthy,
+				Reason: "no data yet",
 			},
 		}, nil
 	}
@@ -161,8 +160,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Reason: d.reason,
 		Error:  d.getError(),
 
-		DeprecatedHealthy: d.healthy,
-		Health:            apiv1.StateTypeHealthy,
+		Health: apiv1.StateTypeHealthy,
 	}
 	if !d.healthy {
 		state.Health = apiv1.StateTypeUnhealthy

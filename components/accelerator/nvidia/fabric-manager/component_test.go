@@ -76,7 +76,6 @@ func TestComponentEvents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
@@ -209,7 +208,6 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
 }
 
@@ -293,7 +291,6 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
 }
 
@@ -324,7 +321,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test unhealthy state
@@ -338,7 +334,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }

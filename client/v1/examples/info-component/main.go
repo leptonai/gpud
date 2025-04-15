@@ -30,7 +30,7 @@ func main() {
 			fmt.Printf("  Metric: %s - Value: %f\n", metric.DeprecatedMetricName, metric.Value)
 		}
 		for _, state := range i.Info.States {
-			fmt.Printf("  State: %s - Healthy: %t\n", state.Name, state.DeprecatedHealthy)
+			fmt.Printf("  State: %s - Health: %s\n", state.Name, state.Health)
 		}
 	}
 }

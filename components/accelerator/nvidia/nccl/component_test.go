@@ -93,7 +93,7 @@ func TestComponentStates(t *testing.T) {
 	states, err := comp.HealthStates(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, states, 1)
-	assert.Equal(t, true, states[0].DeprecatedHealthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no issue", states[0].Reason)
 }
 

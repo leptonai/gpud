@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 )
@@ -115,7 +116,9 @@ func TestStates(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 			assert.Equal(t, Name, states[0].Name)
-			assert.Equal(t, tt.wantHealthy, states[0].DeprecatedHealthy)
+			if tt.wantHealthy {
+				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+			}
 			assert.Equal(t, tt.wantReason, states[0].Reason)
 		})
 	}

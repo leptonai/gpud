@@ -91,11 +91,10 @@ func EvolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 		}
 	}
 	return apiv1.HealthState{
-		Name:              StateNameErrorSXid,
-		DeprecatedHealthy: lastHealth == StateHealthy,
-		Health:            translateToStateHealth(lastHealth),
-		Reason:            reason,
-		SuggestedActions:  lastSuggestedAction,
+		Name:             StateNameErrorSXid,
+		Health:           translateToStateHealth(lastHealth),
+		Reason:           reason,
+		SuggestedActions: lastSuggestedAction,
 	}
 }
 

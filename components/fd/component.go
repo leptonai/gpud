@@ -155,7 +155,6 @@ func (c *component) CheckOnce() {
 	allocatedFileHandles, _, err := c.getFileHandlesFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
 		return
@@ -166,7 +165,6 @@ func (c *component) CheckOnce() {
 	runningPIDs, err := c.countRunningPIDsFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
 		return
@@ -180,7 +178,6 @@ func (c *component) CheckOnce() {
 	usage, uerr := c.getUsageFunc()
 	if uerr != nil {
 		d.err = uerr
-		d.healthy = false
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
 		return
@@ -190,7 +187,6 @@ func (c *component) CheckOnce() {
 	limit, err := c.getLimitFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting limit -- %s", err)
 		return
@@ -235,11 +231,9 @@ func (c *component) CheckOnce() {
 	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
 
 	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
-		d.healthy = false
 		d.health = apiv1.StateTypeDegraded
 		d.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
-		d.healthy = true
 		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
 			d.Usage,
@@ -281,8 +275,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
-	health  apiv1.HealthStateType
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -298,10 +291,9 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 	if d == nil {
 		return []apiv1.HealthState{
 			{
-				Name:              Name,
-				Health:            apiv1.StateTypeHealthy,
-				DeprecatedHealthy: true,
-				Reason:            "no data yet",
+				Name:   Name,
+				Health: apiv1.StateTypeHealthy,
+				Reason: "no data yet",
 			},
 		}, nil
 	}
@@ -311,8 +303,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		Reason: d.reason,
 		Error:  d.getError(),
 
-		DeprecatedHealthy: d.healthy,
-		Health:            d.health,
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)

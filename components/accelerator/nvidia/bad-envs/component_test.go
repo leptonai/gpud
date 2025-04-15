@@ -124,7 +124,6 @@ func TestStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with empty data
@@ -138,7 +137,6 @@ func TestStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no bad envs found", states[0].Reason)
 
 	// Test with bad env data
@@ -155,7 +153,6 @@ func TestStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")
 
 	// Test with error
@@ -170,7 +167,6 @@ func TestStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "failed to get bad envs data")
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }

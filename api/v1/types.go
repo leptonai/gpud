@@ -45,7 +45,6 @@ type HealthState struct {
 	SuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
 
 	// TO BE DEPRECATED
-	DeprecatedHealthy   bool              `json:"healthy,omitempty"`
 	DeprecatedExtraInfo map[string]string `json:"extra_info,omitempty"`
 }
 

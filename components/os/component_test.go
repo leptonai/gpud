@@ -78,7 +78,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
 		},
@@ -94,7 +93,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-				assert.False(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "failed to get os data -- assert.AnError general error for testing", states[0].Reason)
 				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -116,7 +114,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-				assert.False(t, states[0].DeprecatedHealthy)
 				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
@@ -138,7 +135,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -197,7 +193,6 @@ func TestComponent(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("component events", func(t *testing.T) {
@@ -262,7 +257,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -285,7 +279,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 	})
 
@@ -306,7 +299,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "failed to get os data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -332,7 +324,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, expected, states[0].Reason)
 	})
 }
@@ -452,7 +443,6 @@ func TestComponent_UptimeError(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "error getting uptime: uptime error", states[0].Reason)
 	assert.Equal(t, "uptime error", states[0].Error)
 }

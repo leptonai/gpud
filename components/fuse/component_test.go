@@ -116,7 +116,6 @@ func TestDataFunctions(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -130,7 +129,6 @@ func TestDataFunctions(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "all good", states[0].Reason)
 	})
 
@@ -145,7 +143,6 @@ func TestDataFunctions(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "something wrong", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -233,7 +230,9 @@ func TestCheckOnce(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, states, 1)
 
-			assert.Equal(t, tc.expectedHealthy, states[0].DeprecatedHealthy)
+			if tc.expectedHealthy {
+				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+			}
 			if tc.expectedErrorMessage != "" {
 				assert.Contains(t, states[0].Reason, tc.expectedErrorMessage)
 			}
@@ -379,7 +378,6 @@ func TestCheckOnceWithEventBucketError(t *testing.T) {
 	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 // TestFindError tests the error handling when Find returns an error
@@ -423,7 +421,6 @@ func TestFindError(t *testing.T) {
 	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "error finding event")
 }
 
@@ -459,5 +456,4 @@ func TestThresholdExceeded(t *testing.T) {
 	states, err := c.HealthStates(context.Background())
 	require.NoError(t, err)
 	require.Len(t, states, 1)
-	assert.True(t, states[0].DeprecatedHealthy)
 }

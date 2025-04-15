@@ -54,6 +54,7 @@ func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventSt
 		log.Logger.Errorw("failed to create store", "error", err)
 		return nil
 	}
+
 	kmsgWatcher, err := kmsg.NewWatcher()
 	if err != nil {
 		log.Logger.Errorw("failed to create kmsg watcher", "error", err)

@@ -229,7 +229,6 @@ func TestDataHealthField(t *testing.T) {
 			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
-			assert.Equal(t, tt.expectedHealthy, states[0].DeprecatedHealthy)
 		})
 	}
 
@@ -238,7 +237,6 @@ func TestDataHealthField(t *testing.T) {
 	states, err := nilData.getHealthStates()
 	assert.NoError(t, err)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -318,7 +316,6 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
-			assert.Equal(t, tt.data.healthy, states[0].DeprecatedHealthy)
 			assert.Equal(t, tt.data.reason, states[0].Reason)
 
 			// For cases with containers, check ExtraInfo
@@ -337,7 +334,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -408,7 +404,6 @@ func TestComponentStates(t *testing.T) {
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.Equal(t, true, states[0].DeprecatedHealthy)
 
 	// Test with containers
 	comp.lastData = &Data{
@@ -441,7 +436,6 @@ func TestComponentStates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.Equal(t, true, states[0].DeprecatedHealthy)
 }
 
 func TestCheckOnceErrorConditions(t *testing.T) {

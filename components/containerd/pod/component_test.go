@@ -126,7 +126,6 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("data with gRPC unimplemented error", func(t *testing.T) {
@@ -140,7 +139,6 @@ func TestDataFunctions(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Contains(t, states[0].Error, "test unimplemented")
 	})
 
@@ -664,7 +662,6 @@ func TestGetHealthFromStates(t *testing.T) {
 		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("permission denied error", func(t *testing.T) {
@@ -679,7 +676,6 @@ func TestGetHealthFromStates(t *testing.T) {
 		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("context canceled error", func(t *testing.T) {
@@ -690,7 +686,6 @@ func TestGetHealthFromStates(t *testing.T) {
 		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("context deadline exceeded error", func(t *testing.T) {
@@ -701,7 +696,6 @@ func TestGetHealthFromStates(t *testing.T) {
 		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 
 	t.Run("grpc unavailable error", func(t *testing.T) {
@@ -712,7 +706,6 @@ func TestGetHealthFromStates(t *testing.T) {
 		states, err := d.getHealthStates()
 		assert.NoError(t, err)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 	})
 }
 
@@ -1126,7 +1119,6 @@ func TestData_HealthStates(t *testing.T) {
 			states, err := tt.data.getHealthStates()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedState, states[0].Health)
-			assert.Equal(t, tt.expectHealthy, states[0].DeprecatedHealthy)
 		})
 	}
 }
@@ -1330,7 +1322,6 @@ func TestData_GetStatesWithNilLastData(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error)
 }
@@ -1475,7 +1466,6 @@ func TestDataWithReason(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 
 	// Update reason and healthy
 	d.reason = "unhealthy reason"
@@ -1486,7 +1476,6 @@ func TestDataWithReason(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 }
 
 // TestDataWithEmptyOrNilValues tests Data with empty or nil values
@@ -1780,7 +1769,6 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, "custom test reason", state.Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
-	assert.True(t, state.DeprecatedHealthy)
 
 	// Check that ExtraInfo contains the expected data
 	assert.NotNil(t, state.DeprecatedExtraInfo)
@@ -1945,7 +1933,6 @@ func TestDataWithComplexErrors(t *testing.T) {
 			assert.Equal(t, "explicit reason", states[0].Reason)
 
 			// Check the healthy state matches what we set
-			assert.Equal(t, !tt.expectUnhealthy, states[0].DeprecatedHealthy)
 			if tt.expectUnhealthy {
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 			} else {

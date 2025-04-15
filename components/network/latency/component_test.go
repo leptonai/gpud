@@ -106,7 +106,6 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestComponentStartAndCheckOnceWithError(t *testing.T) {
@@ -137,6 +136,5 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
 }
