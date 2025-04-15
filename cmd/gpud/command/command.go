@@ -32,8 +32,6 @@ var (
 
 	retentionPeriod time.Duration
 
-	createArchive bool
-
 	netcheck  bool
 	diskcheck bool
 	kmsgCheck bool
@@ -441,26 +439,6 @@ sudo rm /etc/systemd/system/gpud.service
 		},
 
 		// for diagnose + quick scanning
-		{
-			Name:    "diagnose",
-			Aliases: []string{"d"},
-
-			Usage: "collects diagnose information",
-			UsageText: `# to collect diagnose information
-sudo gpud diagnose
-
-# check the auto-generated summary file
-cat summary.txt
-`,
-			Action: cmdDiagnose,
-			Flags: []cli.Flag{
-				&cli.BoolTFlag{
-					Name:        "create-archive (default: true)",
-					Usage:       "create .tar archive of diagnose information",
-					Destination: &createArchive,
-				},
-			},
-		},
 		{
 			Name:    "scan",
 			Aliases: []string{"check", "s"},
