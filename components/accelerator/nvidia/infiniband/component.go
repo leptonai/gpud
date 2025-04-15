@@ -72,10 +72,9 @@ func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error
 
 var noDataEvents = []apiv1.HealthState{
 	{
-		Name:              "ibstat",
-		Health:            apiv1.StateTypeHealthy,
-		DeprecatedHealthy: true, //TODO: depreciate Healthy field
-		Reason:            msgThresholdNotSetSkipped,
+		Name:   "ibstat",
+		Health: apiv1.StateTypeHealthy,
+		Reason: msgThresholdNotSetSkipped,
 	},
 }
 
@@ -128,14 +127,12 @@ func (c *component) Close() error {
 
 func convertToState(ev *apiv1.Event) apiv1.HealthState {
 	state := apiv1.HealthState{
-		Name:              ev.Name,
-		DeprecatedHealthy: true,
-		Health:            apiv1.StateTypeHealthy,
-		Reason:            ev.Message,
-		SuggestedActions:  ev.DeprecatedSuggestedActions,
+		Name:             ev.Name,
+		Health:           apiv1.StateTypeHealthy,
+		Reason:           ev.Message,
+		SuggestedActions: ev.DeprecatedSuggestedActions,
 	}
 	if len(ev.DeprecatedExtraInfo) > 0 {
-		state.DeprecatedHealthy = ev.DeprecatedExtraInfo["state_healthy"] == "true"
 		state.Health = apiv1.HealthStateType(ev.DeprecatedExtraInfo["state_health"])
 	}
 	return state

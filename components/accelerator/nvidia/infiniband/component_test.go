@@ -290,7 +290,6 @@ func TestComponentStatesWithTestData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, "ibstat", state.Name)
-	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
 	assert.Equal(t, msgNoIbIssueFound, state.Reason)
 	assert.Nil(t, state.SuggestedActions)
@@ -312,7 +311,6 @@ func TestComponentStatesWithTestData(t *testing.T) {
 
 	state = states[0]
 	assert.Equal(t, "ibstat", state.Name)
-	assert.False(t, state.DeprecatedHealthy)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "only 8 ports (>= 400 Gb/s) are active, expect at least 12")
 	assert.NotNil(t, state.SuggestedActions)
@@ -333,10 +331,9 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastRate:  0,
 			},
 			wantState: apiv1.HealthState{
-				Name:              "ibstat",
-				Health:            apiv1.StateTypeHealthy,
-				DeprecatedHealthy: true,
-				Reason:            msgThresholdNotSetSkipped,
+				Name:   "ibstat",
+				Health: apiv1.StateTypeHealthy,
+				Reason: msgThresholdNotSetSkipped,
 			},
 			wantErr: false,
 		},
@@ -347,10 +344,9 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 				AtLeastRate:  100,
 			},
 			wantState: apiv1.HealthState{
-				Name:              "ibstat",
-				Health:            apiv1.StateTypeUnhealthy,
-				DeprecatedHealthy: false,
-				Reason:            "ibstat threshold set but ibstat not found",
+				Name:   "ibstat",
+				Health: apiv1.StateTypeUnhealthy,
+				Reason: "ibstat threshold set but ibstat not found",
 			},
 			wantErr: false,
 		},
@@ -386,7 +382,6 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			require.Len(t, states, 1)
 			assert.Equal(t, tt.wantState.Name, states[0].Name)
 			assert.Equal(t, tt.wantState.Health, states[0].Health)
-			assert.Equal(t, tt.wantState.DeprecatedHealthy, states[0].DeprecatedHealthy)
 			assert.Contains(t, states[0].Reason, tt.wantState.Reason)
 		})
 	}
@@ -459,7 +454,6 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, "ibstat", state.Name)
 			assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
-			assert.False(t, state.DeprecatedHealthy)
 			assert.Contains(t, state.Reason, tc.wantReason)
 		})
 	}
@@ -569,7 +563,6 @@ func TestGetStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, msgThresholdNotSetSkipped, states[0].Reason)
 
 	// Test case 2: Empty events store with thresholds
@@ -581,7 +574,6 @@ func TestGetStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 
 	// Test case 3: With an event in store
@@ -619,7 +611,6 @@ func TestGetStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, "ibstat", states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, testEvent.Message, states[0].Reason)
 	assert.NotNil(t, states[0].SuggestedActions)
 	assert.Equal(t, testEvent.DeprecatedSuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions)
@@ -675,7 +666,6 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, msgNoIbIssueFound, states[0].Reason)
 
 	// Test case 7: With invalid ibstat command
@@ -687,7 +677,6 @@ func TestGetStates(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Reason, "ibstat threshold set but ibstat not found")
 }
 

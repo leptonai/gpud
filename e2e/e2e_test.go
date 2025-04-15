@@ -319,7 +319,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
 			for _, ss := range states {
 				for _, s := range ss.States {
-					GinkgoLogr.Info(fmt.Sprintf("state: %q, healthy: %v, extra info: %q\n", s.Name, s.DeprecatedHealthy, s.DeprecatedExtraInfo))
+					GinkgoLogr.Info(fmt.Sprintf("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.DeprecatedExtraInfo))
 				}
 			}
 		})
@@ -349,7 +349,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 						GinkgoLogr.Info("metric", "name", metric.DeprecatedMetricName, "value", metric.Value)
 					}
 					for _, state := range i.Info.States {
-						GinkgoLogr.Info("state", "name", state.Name, "healthy", state.DeprecatedHealthy)
+						GinkgoLogr.Info("state", "name", state.Name, "health", state.Health)
 					}
 				}
 

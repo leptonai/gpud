@@ -125,7 +125,6 @@ func TestStates(t *testing.T) {
 
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
-			assert.Equal(t, tt.wantHealthy, state.DeprecatedHealthy)
 			if tt.wantHealthy {
 				assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
 			} else {
@@ -348,7 +347,6 @@ func TestDataGetStates(t *testing.T) {
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.wantReason, state.Reason)
 			assert.Equal(t, tt.wantHealth, state.Health)
-			assert.Equal(t, tt.wantHealthy, state.DeprecatedHealthy)
 
 			// Check Error field is set correctly
 			if tt.wantError {

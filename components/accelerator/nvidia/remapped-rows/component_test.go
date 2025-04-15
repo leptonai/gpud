@@ -418,7 +418,6 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].Error, expectedErr.Error())
 }
 
@@ -654,7 +653,6 @@ func TestComponentStates(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.expectedHealth, state.Health)
-			assert.Equal(t, tt.expectedHealthy, state.DeprecatedHealthy)
 
 			if tt.expectContainsRMAMessage {
 				assert.Contains(t, state.Reason, "qualifies for RMA")
@@ -718,7 +716,6 @@ func TestComponentStatesWithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
-	assert.False(t, state.DeprecatedHealthy)
 	assert.Contains(t, state.Reason, "failed to get remapped rows data")
 	assert.Equal(t, "test error", state.Error)
 }
@@ -763,7 +760,6 @@ func TestComponentStatesWithNilData(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
-	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "no data yet", state.Reason)
 	assert.Empty(t, state.Error)
 }

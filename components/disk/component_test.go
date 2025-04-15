@@ -73,7 +73,6 @@ func TestEmptyDataStates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -95,7 +94,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 }
@@ -130,7 +128,6 @@ func TestDataGetStatesWithError(t *testing.T) {
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 }
@@ -153,7 +150,6 @@ func TestComponentStatesWithError(t *testing.T) {
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-	assert.False(t, states[0].DeprecatedHealthy)
 }
 
 func TestCheckOnce(t *testing.T) {
@@ -446,7 +442,6 @@ func TestNilDataHandling(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
-	assert.True(t, states[0].DeprecatedHealthy)
 }
 
 // Test metrics tracking for mount points

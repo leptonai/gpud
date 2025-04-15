@@ -761,7 +761,6 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -852,9 +851,6 @@ func TestDataGetStatesErrorReturn(t *testing.T) {
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 			assert.Equal(t, Name, states[0].Name)
-
-			// Verify health status matches expected
-			assert.Equal(t, tc.expectedHealth == apiv1.StateTypeHealthy, states[0].DeprecatedHealthy)
 
 			// Check for extra info if we have pods
 			if len(tc.data.Pods) > 0 {

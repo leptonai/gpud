@@ -230,7 +230,6 @@ func TestStates_WithData(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
-	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "all 1 GPU(s) were checked, no persistence mode issue found", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -256,7 +255,6 @@ func TestStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
-	assert.False(t, state.DeprecatedHealthy)
 	assert.Equal(t, "error getting persistence mode for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test persistence mode error", state.Error)
 }
@@ -275,7 +273,6 @@ func TestStates_NoData(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
-	assert.True(t, state.DeprecatedHealthy)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 

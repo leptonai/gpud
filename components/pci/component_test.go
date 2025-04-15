@@ -58,7 +58,6 @@ func TestComponentStates(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.True(t, states[0].DeprecatedHealthy)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -312,7 +311,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
 		},
@@ -328,7 +326,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-				assert.False(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -350,7 +347,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-				assert.True(t, states[0].DeprecatedHealthy)
 				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -389,7 +385,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -412,7 +407,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-		assert.True(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 	})
 
@@ -434,7 +428,6 @@ func TestComponent_States(t *testing.T) {
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-		assert.False(t, states[0].DeprecatedHealthy)
 		assert.Equal(t, "failed to get pci data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})

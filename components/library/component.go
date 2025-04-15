@@ -72,22 +72,23 @@ func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error
 		}
 		log.Logger.Debugw("found library", "library", lib, "resolved", resolved)
 	}
+
 	if len(reasons) == 0 {
 		return []apiv1.HealthState{
 			{
-				Name:              Name,
-				DeprecatedHealthy: true,
-				Reason:            "all libraries exist",
+				Name:   Name,
+				Health: apiv1.StateTypeHealthy,
+				Reason: "all libraries exist",
 			},
 		}, nil
 	}
-
 	sort.Strings(reasons)
+
 	return []apiv1.HealthState{
 		{
-			Name:              Name,
-			DeprecatedHealthy: false,
-			Reason:            strings.Join(reasons, "; "),
+			Name:   Name,
+			Health: apiv1.StateTypeUnhealthy,
+			Reason: strings.Join(reasons, "; "),
 		},
 	}, nil
 }

@@ -211,10 +211,9 @@ func TestXIDComponent_States(t *testing.T) {
 	}()
 
 	s := apiv1.HealthState{
-		Name:              StateNameErrorXid,
-		DeprecatedHealthy: true,
-		Health:            apiv1.StateTypeHealthy,
-		Reason:            "XIDComponent is healthy",
+		Name:   StateNameErrorXid,
+		Health: apiv1.StateTypeHealthy,
+		Reason: "XIDComponent is healthy",
 	}
 	component.currState = s
 	states, err := component.HealthStates(ctx)
@@ -241,13 +240,13 @@ func TestXIDComponent_States(t *testing.T) {
 				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
-				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{DeprecatedHealthy: false, Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{DeprecatedHealthy: false, Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{DeprecatedHealthy: false, Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{DeprecatedHealthy: true, Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{DeprecatedHealthy: false, Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
@@ -267,7 +266,6 @@ func TestXIDComponent_States(t *testing.T) {
 				t.Log(states[0])
 				assert.NoError(t, err, "index %d", i)
 				assert.Len(t, states, 1, "index %d", i)
-				assert.Equal(t, tt.wantState[i].DeprecatedHealthy, states[0].DeprecatedHealthy, "index %d", i)
 				assert.Equal(t, tt.wantState[i].Health, states[0].Health, "index %d", i)
 				if tt.wantState[i].SuggestedActions == nil {
 					assert.Equal(t, tt.wantState[i].SuggestedActions, states[0].SuggestedActions, "index %d", i)
