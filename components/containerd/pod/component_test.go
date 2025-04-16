@@ -408,7 +408,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 // Test New function
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	compInterface, err := New(components.GPUdInstance{
+	compInterface, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	require.NoError(t, err)
@@ -1869,7 +1869,7 @@ func TestDataWithComplexErrors(t *testing.T) {
 // TestNewInitialization tests the initialization logic of the New function.
 func TestNewInitialization(t *testing.T) {
 	ctx := context.Background()
-	compInterface, err := New(components.GPUdInstance{
+	compInterface, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	require.NoError(t, err)

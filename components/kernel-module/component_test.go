@@ -15,7 +15,7 @@ import (
 )
 
 func TestComponentName(t *testing.T) {
-	c, err := New(components.GPUdInstance{})
+	c, err := New(&components.GPUdInstance{})
 	require.NoError(t, err)
 	assert.Equal(t, Name, c.Name())
 }
@@ -46,7 +46,7 @@ func TestCheckOnce(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			comp, err := New(components.GPUdInstance{})
+			comp, err := New(&components.GPUdInstance{})
 			require.NoError(t, err)
 			c := comp.(*component)
 
@@ -110,7 +110,7 @@ func TestStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
 			c := comp.(*component)
 
@@ -135,7 +135,7 @@ func TestStates(t *testing.T) {
 }
 
 func TestEvents(t *testing.T) {
-	c, err := New(components.GPUdInstance{})
+	c, err := New(&components.GPUdInstance{})
 	require.NoError(t, err)
 	events, err := c.Events(context.Background(), time.Now())
 	assert.NoError(t, err)
@@ -143,7 +143,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	c, err := New(components.GPUdInstance{})
+	c, err := New(&components.GPUdInstance{})
 	require.NoError(t, err)
 	err = c.Close()
 	assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestGetReason(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.name == "nil data" {
 				// Special case for nil data test
-				comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 				require.NoError(t, err)
 				c := comp.(*component)
 
@@ -214,7 +214,7 @@ func TestGetReason(t *testing.T) {
 			}
 
 			// For all other tests, create component and run Check
-			comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
 			c := comp.(*component)
 
@@ -289,7 +289,7 @@ func TestGetHealth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.name == "nil data" {
 				// Special case for nil data test
-				comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 				require.NoError(t, err)
 				c := comp.(*component)
 
@@ -306,7 +306,7 @@ func TestGetHealth(t *testing.T) {
 			}
 
 			// For all other tests, create component and run Check
-			comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
 			c := comp.(*component)
 
@@ -479,7 +479,7 @@ func TestCheckOnceLogic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			comp, err := New(components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
 			c := comp.(*component)
 
@@ -507,7 +507,7 @@ func TestCheckOnceLogic(t *testing.T) {
 
 // Test that timestamp is properly set
 func TestDataTimestamp(t *testing.T) {
-	comp, err := New(components.GPUdInstance{})
+	comp, err := New(&components.GPUdInstance{})
 	require.NoError(t, err)
 	c := comp.(*component)
 

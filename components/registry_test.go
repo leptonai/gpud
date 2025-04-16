@@ -9,18 +9,18 @@ import (
 )
 
 // Mock function that returns a component without error
-func mockInitFuncSuccess(instance GPUdInstance) (Component, error) {
+func mockInitFuncSuccess(instance *GPUdInstance) (Component, error) {
 	return newMockComponent("test-component"), nil
 }
 
 // Mock function that returns an error
-func mockInitFuncError(instance GPUdInstance) (Component, error) {
+func mockInitFuncError(instance *GPUdInstance) (Component, error) {
 	return nil, fmt.Errorf("mock init error")
 }
 
 func TestHasRegistered(t *testing.T) {
 	// Create a new registry
-	reg := NewRegistry(GPUdInstance{
+	reg := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
 
@@ -42,7 +42,7 @@ func TestHasRegistered(t *testing.T) {
 
 func TestRegisterInitFunc(t *testing.T) {
 	// Create a new registry
-	reg := NewRegistry(GPUdInstance{
+	reg := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
 
@@ -67,7 +67,7 @@ func TestRegisterInitFunc(t *testing.T) {
 
 func TestAll(t *testing.T) {
 	// Create a new registry
-	reg := NewRegistry(GPUdInstance{
+	reg := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
 

@@ -20,7 +20,7 @@ type GPUdInstance struct {
 	// LibraryAndAlternativeNames is a map of library names to their alternative names.
 	LibraryAndAlternativeNames map[string][]string
 	// LibrarySearchDirs is a list of directories to search for libraries.
-	LibrarySearchDirs []string
+	LibrarySearchDirs    []string
 	KernelModulesToCheck []string
 
 	NVMLInstance         nvidianvml.InstanceV2
@@ -54,12 +54,12 @@ var _ Registry = &registry{}
 
 type registry struct {
 	mu           sync.RWMutex
-	gpudInstance GPUdInstance
+	gpudInstance *GPUdInstance
 	components   map[string]Component
 }
 
 // NewRegistry creates a new registry.
-func NewRegistry(gpudInstance GPUdInstance) *registry {
+func NewRegistry(gpudInstance *GPUdInstance) *registry {
 	return &registry{
 		gpudInstance: gpudInstance,
 		components:   make(map[string]Component),

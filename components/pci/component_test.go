@@ -32,7 +32,7 @@ func TestNewComponent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -55,7 +55,7 @@ func TestComponentStates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -84,7 +84,7 @@ func TestComponentEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -213,7 +213,7 @@ func TestCheckOnce_VirtualMachine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -254,7 +254,7 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -412,7 +412,7 @@ func TestComponent_States(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -484,7 +484,7 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -540,7 +540,7 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -619,7 +619,7 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -690,7 +690,7 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -741,7 +741,7 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -809,7 +809,7 @@ func TestNewComponentError(t *testing.T) {
 	}
 
 	// Try to create a component with the mock store
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: mockStore,
 	})
@@ -945,7 +945,7 @@ func TestData_CreateEvent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			comp, err := New(components.GPUdInstance{
+			comp, err := New(&components.GPUdInstance{
 				RootCtx:    ctx,
 				EventStore: store,
 			})
@@ -976,7 +976,7 @@ func TestConcurrentAccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -1021,7 +1021,7 @@ func TestKVMEnvironment(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -1069,7 +1069,7 @@ func TestStartWithBadPeriod(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -1104,7 +1104,7 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})
@@ -1159,7 +1159,7 @@ func TestStartAndClose(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	})

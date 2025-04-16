@@ -15,7 +15,7 @@ import (
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	assert.NotNil(t, c)
@@ -26,7 +26,7 @@ func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	err = c.Start()
@@ -52,7 +52,7 @@ func TestCheck(t *testing.T) {
 	}()
 
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	comp := c.(*component)
@@ -85,7 +85,7 @@ func TestCheck(t *testing.T) {
 
 func TestCustomCheckEnvFunc(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	comp := c.(*component)
@@ -118,7 +118,7 @@ func TestCustomCheckEnvFunc(t *testing.T) {
 
 func TestLastHealthStates(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	comp := c.(*component)
@@ -174,7 +174,7 @@ func TestLastHealthStates(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	events, err := c.Events(ctx, time.Now())
@@ -186,7 +186,7 @@ func TestClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Just in case Close doesn't cancel the context
 
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	comp := c.(*component)
@@ -221,7 +221,7 @@ func TestPeriodicCheck(t *testing.T) {
 	defer cancel()
 
 	// Create a component with a mocked check function
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	assert.NoError(t, err)
 	comp := c.(*component)

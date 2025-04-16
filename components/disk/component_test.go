@@ -16,7 +16,7 @@ import (
 
 // createTestComponent creates a test component with the given mount points and targets
 func createTestComponent(ctx context.Context, mountPoints, mountTargets []string) *component {
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:      ctx,
 		MountPoints:  mountPoints,
 		MountTargets: mountTargets,
@@ -500,7 +500,7 @@ func TestMetricsTracking(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)

@@ -73,7 +73,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		}
 	}
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
 		NVMLInstance: nvmlInstance,
@@ -95,8 +95,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		if err != nil {
 			return err
 		}
-		defer c.Close()
-
 		printSummary(c.Check())
 	}
 

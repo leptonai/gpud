@@ -22,8 +22,8 @@ import (
 )
 
 // MockGPUdInstance creates a minimal GPUdInstance for testing
-func createMockGPUdInstance(ctx context.Context) components.GPUdInstance {
-	return components.GPUdInstance{
+func createMockGPUdInstance(ctx context.Context) *components.GPUdInstance {
+	return &components.GPUdInstance{
 		RootCtx: ctx,
 	}
 }

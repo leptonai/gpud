@@ -327,7 +327,7 @@ func TestDataGetStates(t *testing.T) {
 
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	assert.Equal(t, Name, c.Name())
@@ -335,7 +335,7 @@ func TestComponentName(t *testing.T) {
 
 func TestComponentStart(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	err = c.Start()
@@ -351,7 +351,7 @@ func Test_componentStart(t *testing.T) {
 
 func TestComponentEvents(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	events, err := c.Events(ctx, time.Now().Add(-1*time.Hour))
@@ -361,7 +361,7 @@ func TestComponentEvents(t *testing.T) {
 
 func TestComponentClose(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	err = c.Close()
@@ -370,7 +370,7 @@ func TestComponentClose(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
@@ -385,7 +385,7 @@ func TestNew(t *testing.T) {
 
 func TestComponentStates(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	comp := c.(*component)
@@ -438,7 +438,7 @@ func TestComponentStates(t *testing.T) {
 
 func TestCheckOnceErrorConditions(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{RootCtx: ctx}
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
 	comp := c.(*component)

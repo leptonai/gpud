@@ -40,7 +40,7 @@ func TestDataGetError(t *testing.T) {
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
@@ -51,7 +51,7 @@ func TestComponentName(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestComponentEvents(t *testing.T) {
 func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
@@ -75,7 +75,7 @@ func TestComponentClose(t *testing.T) {
 func TestComponentStatesNoData(t *testing.T) {
 	t.Parallel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestCheckHealthState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)

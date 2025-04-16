@@ -57,7 +57,7 @@ func mockComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 	}
 	c, err := New(gpudInstance)

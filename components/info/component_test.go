@@ -18,7 +18,7 @@ import (
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{"a": "b"},
 	}
@@ -30,7 +30,7 @@ func TestComponentName(t *testing.T) {
 func TestComponentStartAndClose(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{"a": "b"},
 	}
@@ -60,7 +60,7 @@ func TestComponentStates(t *testing.T) {
 	_, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{"test": "value"},
 		DBRO:        dbRO,
@@ -80,7 +80,7 @@ func TestComponentStates(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{},
 	}
@@ -100,7 +100,7 @@ func TestComponentWithDB(t *testing.T) {
 	_, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{},
 		DBRO:        dbRO,
@@ -323,7 +323,7 @@ func TestCheckWithErrors(t *testing.T) {
 	t.Parallel()
 
 	// Test error case for check with nil database
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{},
 	}
@@ -358,7 +358,7 @@ func (m *mockErrorGatherer) Gather() ([]*dto.MetricFamily, error) {
 func TestLastHealthStatesWithNilData(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{},
 	}
@@ -377,7 +377,7 @@ func TestLastHealthStatesWithNilData(t *testing.T) {
 func TestNewWithEmptyAnnotations(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx: context.Background(),
 		// No annotations provided, should initialize to empty map or nil
 	}
@@ -398,7 +398,7 @@ func TestNewWithEmptyAnnotations(t *testing.T) {
 func TestCheckDataFieldInitialization(t *testing.T) {
 	t.Parallel()
 
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx:     context.Background(),
 		Annotations: map[string]string{"test": "value"},
 	}
@@ -423,7 +423,7 @@ func TestCheckWithMoreBranches(t *testing.T) {
 	t.Parallel()
 
 	// Create a minimal component
-	gpudInstance := components.GPUdInstance{
+	gpudInstance := &components.GPUdInstance{
 		RootCtx: context.Background(),
 	}
 	c, err := New(gpudInstance)

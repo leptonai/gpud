@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 
 	// Create the component
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}
@@ -54,7 +54,7 @@ func TestComponentLifecycle(t *testing.T) {
 
 	// Create the component
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}
@@ -79,7 +79,7 @@ func TestEvents(t *testing.T) {
 	t.Run("with valid event bucket", func(t *testing.T) {
 		// Create a component
 		ctx := context.Background()
-		instance := components.GPUdInstance{
+		instance := &components.GPUdInstance{
 			RootCtx:    ctx,
 			EventStore: store,
 		}
@@ -96,7 +96,7 @@ func TestEvents(t *testing.T) {
 	t.Run("with nil events response", func(t *testing.T) {
 		// Create a component
 		ctx := context.Background()
-		instance := components.GPUdInstance{
+		instance := &components.GPUdInstance{
 			RootCtx:    ctx,
 			EventStore: store,
 		}
@@ -234,7 +234,7 @@ func TestCheckOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create component
 			ctx := context.Background()
-			instance := components.GPUdInstance{
+			instance := &components.GPUdInstance{
 				RootCtx:    ctx,
 				EventStore: store,
 			}
@@ -272,7 +272,7 @@ func TestCheckWithEventHandling(t *testing.T) {
 
 	// Create component with thresholds
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}
@@ -388,7 +388,7 @@ func TestCheckWithEventBucketError(t *testing.T) {
 
 	// Create component
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}
@@ -438,7 +438,7 @@ func TestFindError(t *testing.T) {
 
 	// Create component
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}
@@ -487,7 +487,7 @@ func TestThresholdExceeded(t *testing.T) {
 
 	// Create component
 	ctx := context.Background()
-	instance := components.GPUdInstance{
+	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
 		EventStore: store,
 	}

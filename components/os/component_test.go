@@ -186,7 +186,7 @@ func TestComponent(t *testing.T) {
 	}
 
 	t.Run("component creation", func(t *testing.T) {
-		comp, err := New(components.GPUdInstance{
+		comp, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -199,7 +199,7 @@ func TestComponent(t *testing.T) {
 	})
 
 	t.Run("component states with no data", func(t *testing.T) {
-		comp, err := New(components.GPUdInstance{
+		comp, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -214,7 +214,7 @@ func TestComponent(t *testing.T) {
 	})
 
 	t.Run("component events", func(t *testing.T) {
-		comp, err := New(components.GPUdInstance{
+		comp, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -234,7 +234,7 @@ func TestComponent(t *testing.T) {
 	})
 
 	t.Run("component start and check once", func(t *testing.T) {
-		comp, err := New(components.GPUdInstance{
+		comp, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -272,7 +272,7 @@ func TestComponent_States(t *testing.T) {
 	// Create a RebootEventStore implementation
 	mockRebootStore := &MockRebootEventStore{}
 
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
 		RebootEventStore: mockRebootStore,
 	})
@@ -390,7 +390,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 
 	// Test with process count error
 	t.Run("process count error", func(t *testing.T) {
-		c, err := New(components.GPUdInstance{
+		c, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -420,7 +420,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 
 	// Test normal case with no issues
 	t.Run("healthy case", func(t *testing.T) {
-		c, err := New(components.GPUdInstance{
+		c, err := New(&components.GPUdInstance{
 			RootCtx:          ctx,
 			RebootEventStore: mockRebootStore,
 		})
@@ -460,7 +460,7 @@ func TestComponent_UptimeError(t *testing.T) {
 
 	mockRebootStore := &MockRebootEventStore{}
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
 		RebootEventStore: mockRebootStore,
 	})
@@ -498,7 +498,7 @@ func TestComponent_EventsWithNilStore(t *testing.T) {
 	defer cancel()
 
 	// Create a component with nil rebootEventStore
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -647,7 +647,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -685,7 +685,7 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -719,7 +719,7 @@ func TestComponent_CheckWithProcessError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -748,7 +748,7 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -804,7 +804,7 @@ func TestComponent_SystemManufacturer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -847,7 +847,7 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 		},
 	}
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
 		RebootEventStore: mockStore,
 	})
@@ -878,7 +878,7 @@ func TestComponent_StartTicker(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -933,7 +933,7 @@ func TestComponent_CloseContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
@@ -965,7 +965,7 @@ func TestComponent_EventsWithErrorFromStore(t *testing.T) {
 	mockStore := &ErrorRebootEventStore{}
 
 	// Create component with the error-returning store
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
 		RebootEventStore: mockStore,
 	})
@@ -987,7 +987,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 
 	// Since we can't directly monkey-patch host.UptimeWithContext, we'll use a different approach
 	// Create a component with a mocked process counter that returns an error
-	c, err := New(components.GPUdInstance{
+	c, err := New(&components.GPUdInstance{
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)

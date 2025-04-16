@@ -291,7 +291,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	comp, err := New(components.GPUdInstance{
+	comp, err := New(&components.GPUdInstance{
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
