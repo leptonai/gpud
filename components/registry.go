@@ -16,6 +16,8 @@ import (
 type GPUdInstance struct {
 	RootCtx context.Context
 
+	KernelModulesToCheck []string
+
 	NVMLInstance         nvidianvml.InstanceV2
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
