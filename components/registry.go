@@ -27,6 +27,9 @@ type GPUdInstance struct {
 
 	EventStore       eventstore.Store
 	RebootEventStore pkghost.RebootEventStore
+
+	MountPoints  []string
+	MountTargets []string
 }
 
 // InitFunc is the function that initializes a component.
