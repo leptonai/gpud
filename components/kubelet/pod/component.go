@@ -2,11 +2,14 @@
 package pod
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -14,11 +17,12 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 )
 
-const (
-	// Name is the ID of the kubernetes pod component.
-	Name = "kubelet"
+// Name is the ID of the kubernetes pod component.
+const Name = "kubelet"
 
+const (
 	defaultFailedCountThreshold = 5
+	defaultKubeletReadOnlyPort  = 10255
 )
 
 var _ components.Component = &component{}
@@ -38,19 +42,22 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, kubeletReadOnlyPort int) components.Component {
-	cctx, cancel := context.WithCancel(ctx)
-	return &component{
-		ctx:                      cctx,
-		cancel:                   cancel,
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+
 		checkDependencyInstalled: checkKubeletInstalled,
 		checkKubeletRunning: func() bool {
-			return netutil.IsPortOpen(kubeletReadOnlyPort)
+			return netutil.IsPortOpen(defaultKubeletReadOnlyPort)
 		},
-		kubeletReadOnlyPort:  kubeletReadOnlyPort,
+		kubeletReadOnlyPort:  defaultKubeletReadOnlyPort,
 		failedCount:          0,
 		failedCountThreshold: defaultFailedCountThreshold,
 	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -61,8 +68,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -73,11 +79,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -92,31 +98,29 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking kubelet pods")
-	d := Data{
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "kubelet is not installed"
-		return
+		return d
 	}
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "kubelet is installed but not running"
-		return
+		return d
 	}
 
 	// below are the checks in case "kubelet" is installed and running, thus requires activeness checks
@@ -130,16 +134,20 @@ func (c *component) CheckOnce() {
 		c.failedCount = 0
 	}
 
-	d.healthy = d.err == nil
 	if d.err == nil {
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
 	}
 
 	if c.failedCount >= c.failedCountThreshold {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
 	}
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// KubeletServiceActive is true if the kubelet service is active.
@@ -155,9 +163,46 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.Pods) == 0 {
+		return "no pod found"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.SetHeader([]string{"Namespace", "Pod", "Container", "State"})
+	for _, pod := range d.Pods {
+		for _, container := range pod.ContainerStatuses {
+			table.Append([]string{pod.Namespace, pod.Name, container.Name, container.State.String()})
+		}
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -167,30 +212,26 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	if len(d.Pods) == 0 { // no pod found yet
-		return []apiv1.HealthState{state}, nil
+		return apiv1.HealthStates{state}
 	}
 
 	b, _ := json.Marshal(d)
@@ -198,5 +239,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

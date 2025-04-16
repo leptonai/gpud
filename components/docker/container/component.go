@@ -2,12 +2,15 @@
 package container
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -37,11 +40,11 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, ignoreConnectionErrors bool) components.Component {
-	cctx, cancel := context.WithCancel(ctx)
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
-		cancel: cancel,
+		cancel: ccancel,
 
 		checkDependencyInstalledFunc: checkDockerInstalled,
 		checkServiceActiveFunc: func() (bool, error) {
@@ -50,9 +53,9 @@ func New(ctx context.Context, ignoreConnectionErrors bool) components.Component 
 		checkDockerRunningFunc: checkDockerRunning,
 		listContainersFunc:     listContainers,
 
-		ignoreConnectionErrors: ignoreConnectionErrors,
+		ignoreConnectionErrors: true,
 	}
-	return c
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -63,8 +66,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -75,11 +77,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -94,22 +96,22 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking docker containers")
-	d := Data{
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
 	// assume "docker" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-		return
+		d.health = apiv1.StateTypeHealthy
+		d.reason = "docker not installed"
+		return d
 	}
 
 	// below are the checks in case "docker" is installed, thus requires activeness checks
@@ -117,17 +119,17 @@ func (c *component) CheckOnce() {
 	running := c.checkDockerRunningFunc(cctx)
 	ccancel()
 	if !running {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "docker installed but docker is not running"
-		return
+		return d
 	}
 
 	if c.checkServiceActiveFunc != nil {
 		d.DockerServiceActive, d.err = c.checkServiceActiveFunc()
 		if !d.DockerServiceActive || d.err != nil {
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", d.err)
-			return
+			return d
 		}
 	}
 
@@ -136,7 +138,7 @@ func (c *component) CheckOnce() {
 	ccancel()
 
 	if d.err != nil {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing containers -- %s", d.err)
 
 		if isErrDockerClientVersionNewerThanDaemon(d.err) {
@@ -146,14 +148,22 @@ func (c *component) CheckOnce() {
 		// e.g.,
 		// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 		if strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running") {
-			d.healthy = c.ignoreConnectionErrors
+			if c.ignoreConnectionErrors {
+				d.health = apiv1.StateTypeHealthy
+			} else {
+				d.health = apiv1.StateTypeUnhealthy
+			}
 			d.reason = fmt.Sprintf("connection error to docker daemon -- %s", d.err)
 		}
 	} else {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("total %d container(s)", len(d.Containers))
 	}
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// DockerServiceActive is true if the docker service is active.
@@ -168,9 +178,43 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.Containers) == 0 {
+		return "no container found"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"ID", "Name", "Image", "State"})
+	for _, container := range d.Containers {
+		table.Append([]string{container.ID, container.Name, container.Image, container.State})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -180,26 +224,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -207,5 +247,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }
