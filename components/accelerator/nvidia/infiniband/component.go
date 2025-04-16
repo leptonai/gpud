@@ -102,7 +102,7 @@ func (c *component) getHealthStates(ctx context.Context, now time.Time, threshol
 		return noDataEvents, nil
 	}
 
-	return []apiv1.HealthState{convertToState(lastEvent)}, nil
+	return apiv1.HealthStates{convertToState(lastEvent)}, nil
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {

@@ -55,8 +55,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -67,11 +66,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -86,9 +85,7 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking temperature")
 
 	d := checkHealthState(c.nvmlInstance, c.getTemperatureFunc)
@@ -118,7 +115,7 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 		if err != nil {
 			log.Logger.Errorw("error getting temperature for device", "uuid", uuid, "error", err)
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting temperature for device %s", uuid)
 			return d
 		}
@@ -143,7 +140,7 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 		if err != nil {
 			log.Logger.Errorw("error getting used percent for slowdown for device", "uuid", uuid, "error", err)
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting used percent for slowdown for device %s", uuid)
 			return d
 		}
@@ -151,10 +148,10 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 	}
 
 	if len(tempThresholdExceeded) == 0 {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("all %d GPU(s) were checked, no temperature issue found", len(devs))
 	} else {
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(tempThresholdExceeded, ", "))
 	}
 
@@ -172,7 +169,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -219,9 +216,9 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
@@ -242,5 +239,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}, nil
 }

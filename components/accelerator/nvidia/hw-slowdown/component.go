@@ -79,8 +79,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -91,11 +90,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -110,9 +109,7 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking clock events")
 	d := Data{
 		ts: time.Now().UTC(),
@@ -185,7 +182,7 @@ func (c *component) CheckOnce() {
 
 	if c.evaluationWindow == 0 {
 		// no time window to evaluate /state
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "no time window to evaluate states"
 		return
 	}
@@ -202,7 +199,7 @@ func (c *component) CheckOnce() {
 	}
 
 	if len(latestEvents) == 0 {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "no clock events found"
 		return
 	}
@@ -218,13 +215,13 @@ func (c *component) CheckOnce() {
 
 	if freqPerMin < c.threshold {
 		// hw slowdown events happened but within its threshold
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 		return
 	}
 
 	// hw slowdown events happened and beyond its threshold
-	d.healthy = false
+	d.health = apiv1.StateTypeUnhealthy
 	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 	d.suggestedActions = &apiv1.SuggestedActions{
 		RepairActions: []apiv1.RepairActionType{
@@ -245,7 +242,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 	// tracks the suggested actions of the last check
@@ -259,9 +256,9 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
@@ -286,5 +283,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}, nil
 }
