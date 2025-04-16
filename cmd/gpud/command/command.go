@@ -1,6 +1,7 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +24,6 @@ var (
 	logFile  string
 
 	statusWatch bool
-	uid         string
 
 	annotations   string
 	listenAddress string
@@ -54,6 +54,10 @@ const (
 	inProgress  = "\033[33m⌛\033[0m"
 	checkMark   = "\033[32m✔\033[0m"
 	warningSign = "\033[31m✘\033[0m"
+)
+
+var (
+	ErrEmptyToken = errors.New("token is empty")
 )
 
 func App() *cli.App {
@@ -182,11 +186,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "annotations",
 					Usage:       "set the annotations",
 					Destination: &annotations,
-				},
-				cli.StringFlag{
-					Name:        "uid",
-					Usage:       "uid for this machine",
-					Destination: &uid,
 				},
 				&cli.BoolFlag{
 					Name:        "pprof",
@@ -387,11 +386,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
 					Value: "mothership-machine.app.lepton.ai",
-				},
-				cli.StringFlag{
-					Name:        "uid",
-					Usage:       "uid for this machine",
-					Destination: &uid,
 				},
 			},
 			Subcommands: []cli.Command{

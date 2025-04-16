@@ -3,20 +3,31 @@ package command
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/urfave/cli"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	client "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
-	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
+	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/login"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
-
-	"github.com/urfave/cli"
 )
 
 func cmdLogin(cliContext *cli.Context) error {
+	token := cliContext.String("token")
+	if token == "" {
+		fmt.Print("Please visit https://dashboard.lepton.ai/ under Settings/Tokens to fetch your token\nPlease enter your token:")
+		if _, err := fmt.Scanln(&token); err != nil && err.Error() != "unexpected newline" {
+			return fmt.Errorf("failed reading input: %w", err)
+		}
+	}
+	if token == "" {
+		return ErrEmptyToken
+	}
+
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 
@@ -31,45 +42,39 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
-
-	dbRW, err := sqlite.Open(stateFile)
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer dbRW.Close()
-
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer dbRO.Close()
 
-	uid, err := gpud_state.CreateMachineIDIfNotExist(rootCtx, dbRW, dbRO, "")
+	machineID, err := gpudstate.ReadMachineID(rootCtx, dbRO)
 	if err != nil {
-		return fmt.Errorf("failed to get machine uid: %w", err)
+		return err
+	}
+	if machineID != "" {
+		fmt.Printf("machine ID %s already assigned (skipping login)\n", machineID)
+		return nil
 	}
 
-	components, err := gpud_state.GetComponents(rootCtx, dbRO, uid)
-	if err != nil {
-		return fmt.Errorf("failed to get components: %w", err)
-	}
-
-	cliToken := cliContext.String("token")
 	endpoint := cliContext.String("endpoint")
 
-	dbToken, _ := gpud_state.GetLoginInfo(rootCtx, dbRO, uid)
-	token := dbToken
-	if cliToken != "" {
-		token = cliToken
-	} else {
-		fmt.Println("trying token from local store, if you want to override, use --token flag")
+	// machine ID has not been assigned yet
+	// thus request one and blocks until the login request is processed
+	loginResp, err := login.SendRequest(rootCtx, endpoint, apiv1.LoginRequest{Token: token})
+	if err != nil {
+		return err
 	}
+	machineID = loginResp.MachineID
 
-	if token == "" {
-		fmt.Print("Please visit https://dashboard.lepton.ai/ under Settings/Tokens to fetch your token\nPlease enter your token:")
-		if _, err := fmt.Scanln(&token); err != nil && err.Error() != "unexpected newline" {
-			return fmt.Errorf("failed reading input: %w", err)
-		}
+	// consume the login response to persist the machine ID
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, machineID); err != nil {
+		return fmt.Errorf("failed to record machine ID: %w", err)
 	}
 
 	fifoFile, err := config.DefaultFifoFile()
@@ -77,29 +82,14 @@ func cmdLogin(cliContext *cli.Context) error {
 		return fmt.Errorf("failed to get fifo file: %w", err)
 	}
 
-	if token != "" && endpoint != "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			hostname = "UnknownName"
-		}
-		if err := login.Login(hostname, token, endpoint, components, uid); err != nil {
-			return err
-		}
-	} else {
-		fmt.Println("login skipped since token or endpoint not provided...")
-		return nil
-	}
-
 	if err := server.WriteToken(token, fifoFile); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 
-	if token != dbToken {
-		if err = gpud_state.UpdateLoginInfo(rootCtx, dbRW, uid, token); err != nil {
-			fmt.Println("machine logged in but failed to update token:", err)
-		}
+	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, token); err != nil {
+		fmt.Println("machine logged in but failed to update token:", err)
 	}
 
-	fmt.Printf("%s successfully logged into lepton.ai\n", checkMark)
+	fmt.Printf("%s successfully logged in with machine id %s\n", checkMark, loginResp.MachineID)
 	return nil
 }

@@ -8,12 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -38,9 +35,9 @@ CREATE TABLE IF NOT EXISTS %s (
 	return err
 }
 
-// Reads the machine ID from the database.
-// Returns an empty string and sql.ErrNoRows if the machine ID is not found.
-func GetMachineID(ctx context.Context, dbRO *sql.DB) (string, error) {
+// ReadMachineID reads the machine ID from the database.
+// Returns an empty string and no error, if the machine ID is not found.
+func ReadMachineID(ctx context.Context, dbRO *sql.DB) (string, error) {
 	query := fmt.Sprintf(`
 SELECT %s FROM %s
 LIMIT 1;
@@ -51,52 +48,31 @@ LIMIT 1;
 
 	var machineID string
 	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+	}
 	return machineID, err
 }
 
-func CreateMachineIDIfNotExist(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, providedUID string) (string, error) {
-	query := fmt.Sprintf(`
-SELECT %s, %s FROM %s
-LIMIT 1;
-`,
-		ColumnMachineID,
-		ColumnUnixSeconds,
-		TableNameMachineMetadata,
-	)
-
-	var (
-		machineID   string
-		unixSeconds int64
-	)
-
-	start := time.Now()
-	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID, &unixSeconds)
-	sqlite.RecordSelect(time.Since(start).Seconds())
-
-	if err == nil { // reuse existing machine ID
-		return machineID, nil
+// RecordMachineID records the machine ID in the database.
+// Returns no error if the machine ID is already assigned with the same value.
+// Returns an error if the machine ID is already assigned with a different value.
+func RecordMachineID(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, uid string) error {
+	existingID, err := ReadMachineID(ctx, dbRO)
+	if err != nil {
+		return err
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+	if existingID == uid {
+		return nil
 	}
-
-	uid := providedUID
-	if uid == "" {
-		uid, err = host.GetMachineID(ctx)
-		if err != nil {
-			log.Logger.Warnw("failed to get machine ID", "error", err)
-		}
-	}
-	if uid == "" { // fallback to random UUID
-		u, err := uuid.NewUUID()
-		if err != nil {
-			return "", err
-		}
-		uid = u.String()
+	if existingID != "" {
+		return fmt.Errorf("machine ID %s already assigned", existingID)
 	}
 
 	// was never inserted, thus insert the one now
-	query = fmt.Sprintf(`
+	query := fmt.Sprintf(`
 INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 `,
 		TableNameMachineMetadata,
@@ -104,30 +80,26 @@ INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);
 		ColumnUnixSeconds,
 	)
 
-	start = time.Now()
+	start := time.Now()
 	_, err = dbRW.ExecContext(ctx, query, uid, time.Now().Unix())
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
-	if err != nil {
-		return "", err
-	}
-	return uid, nil
+	return err
 }
 
 func GetLoginInfo(ctx context.Context, dbRO *sql.DB, machineID string) (string, error) {
 	query := fmt.Sprintf(`
-SELECT %s FROM %s WHERE %s = '%s'
+SELECT COALESCE(%s, '') FROM %s WHERE %s = ?
 LIMIT 1;
 `,
 		ColumnToken,
 		TableNameMachineMetadata,
 		ColumnMachineID,
-		machineID,
 	)
 
 	start := time.Now()
 	var token string
-	err := dbRO.QueryRowContext(ctx, query).Scan(&token)
+	err := dbRO.QueryRowContext(ctx, query, machineID).Scan(&token)
 	sqlite.RecordSelect(time.Since(start).Seconds())
 
 	return token, err
@@ -135,17 +107,15 @@ LIMIT 1;
 
 func UpdateLoginInfo(ctx context.Context, dbRW *sql.DB, machineID string, token string) error {
 	query := fmt.Sprintf(`
-UPDATE %s SET %s = '%s' WHERE %s = '%s';
+UPDATE %s SET %s = ? WHERE %s = ?;
 `,
 		TableNameMachineMetadata,
 		ColumnToken,
-		token,
 		ColumnMachineID,
-		machineID,
 	)
 
 	start := time.Now()
-	_, err := dbRW.ExecContext(ctx, query)
+	_, err := dbRW.ExecContext(ctx, query, token, machineID)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
@@ -153,18 +123,17 @@ UPDATE %s SET %s = '%s' WHERE %s = '%s';
 
 func GetComponents(ctx context.Context, db *sql.DB, machineID string) (string, error) {
 	query := fmt.Sprintf(`
-SELECT %s FROM %s WHERE %s = '%s'
+SELECT COALESCE(%s, '') FROM %s WHERE %s = ?
 LIMIT 1;
 `,
 		ColumnComponents,
 		TableNameMachineMetadata,
 		ColumnMachineID,
-		machineID,
 	)
 
 	start := time.Now()
 	var components string
-	err := db.QueryRowContext(ctx, query).Scan(&components)
+	err := db.QueryRowContext(ctx, query, machineID).Scan(&components)
 	sqlite.RecordSelect(time.Since(start).Seconds())
 
 	return components, err
@@ -172,17 +141,15 @@ LIMIT 1;
 
 func UpdateComponents(ctx context.Context, db *sql.DB, machineID string, components string) error {
 	query := fmt.Sprintf(`
-UPDATE %s SET %s = '%s' WHERE %s = '%s';
+UPDATE %s SET %s = ? WHERE %s = ?;
 `,
 		TableNameMachineMetadata,
 		ColumnComponents,
-		components,
 		ColumnMachineID,
-		machineID,
 	)
 
 	start := time.Now()
-	_, err := db.ExecContext(ctx, query)
+	_, err := db.ExecContext(ctx, query, components, machineID)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
