@@ -2,6 +2,8 @@ package gpudstate
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testMachineID = "test-machine-id"
+
+// insertTestMachineID is a helper function to insert a machine ID for testing
+func insertTestMachineID(t *testing.T, ctx context.Context, dbRW *sql.DB, machineID string) {
+	t.Helper()
+	_, err := dbRW.ExecContext(ctx,
+		"INSERT OR REPLACE INTO machine_metadata (machine_id, unix_seconds) VALUES (?, ?)",
+		machineID, time.Now().Unix())
+	require.NoError(t, err)
+}
 
 func TestCreateTableMachineMetadata(t *testing.T) {
 	t.Parallel()
@@ -28,7 +41,7 @@ func TestCreateTableMachineMetadata(t *testing.T) {
 	assert.Equal(t, TableNameMachineMetadata, name)
 
 	// Verify columns exist
-	columns := []string{ColumnMachineID, ColumnToken, ColumnComponents}
+	columns := []string{ColumnMachineID, ColumnUnixSeconds, ColumnToken, ColumnComponents}
 	for _, col := range columns {
 		var columnName string
 		err = dbRO.QueryRow("SELECT name FROM pragma_table_info(?) WHERE name=?", TableNameMachineMetadata, col).Scan(&columnName)
@@ -50,24 +63,33 @@ func TestMachineIDOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test getting non-existent machine ID
-	_, err = GetMachineID(ctx, dbRO)
+	id, err := ReadMachineID(ctx, dbRO)
+	assert.NoError(t, err)
+	assert.Empty(t, id)
+
+	// Test recording machine ID
+	err = RecordMachineID(ctx, dbRW, dbRO, testMachineID)
+	require.NoError(t, err)
+
+	// Verify machine ID was recorded
+	id, err = ReadMachineID(ctx, dbRO)
+	assert.NoError(t, err)
+	assert.Equal(t, testMachineID, id)
+
+	// Test attempting to record a different machine ID (should fail)
+	differentID := "different-id"
+	err = RecordMachineID(ctx, dbRW, dbRO, differentID)
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already assigned")
 
-	// Test creating machine ID without UID
-	id1, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, "")
-	require.NoError(t, err)
-	assert.NotEmpty(t, id1)
+	// Verify original machine ID is still in place
+	id, err = ReadMachineID(ctx, dbRO)
+	assert.NoError(t, err)
+	assert.Equal(t, testMachineID, id)
 
-	// Test getting existing machine ID
-	id2, err := GetMachineID(ctx, dbRO)
-	require.NoError(t, err)
-	assert.Equal(t, id1, id2)
-
-	// Test creating machine ID with specific UID
-	specificUID := "test-machine-123"
-	id3, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, specificUID)
-	require.NoError(t, err)
-	assert.Equal(t, id1, id3) // Should return existing ID
+	// Test recording the same machine ID again (should succeed)
+	err = RecordMachineID(ctx, dbRW, dbRO, testMachineID)
+	assert.NoError(t, err)
 }
 
 func TestLoginInfoOperations(t *testing.T) {
@@ -78,27 +100,48 @@ func TestLoginInfoOperations(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	// Create table and machine ID
+	// Create table
 	err := CreateTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
-	machineID, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, "")
-	require.NoError(t, err)
 
-	// Test getting non-existent login info
-	var token string
-	err = dbRO.QueryRowContext(ctx, "SELECT COALESCE(token, '') FROM machine_metadata WHERE machine_id = ?", machineID).Scan(&token)
+	// Insert a machine ID for testing
+	insertTestMachineID(t, ctx, dbRW, testMachineID)
+
+	// Test getting login info for a machine ID with no token yet
+	token, err := GetLoginInfo(ctx, dbRO, testMachineID)
 	assert.NoError(t, err)
+	assert.Empty(t, token)
+
+	// Test getting login info for non-existent machine ID
+	nonExistentID := "non-existent-id"
+	token, err = GetLoginInfo(ctx, dbRO, nonExistentID)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
 	assert.Empty(t, token)
 
 	// Test updating login info
 	testToken := "test-token-123"
-	err = UpdateLoginInfo(ctx, dbRW, machineID, testToken)
+	err = UpdateLoginInfo(ctx, dbRW, testMachineID, testToken)
 	require.NoError(t, err)
 
-	// Test getting updated login info
-	err = dbRO.QueryRowContext(ctx, "SELECT COALESCE(token, '') FROM machine_metadata WHERE machine_id = ?", machineID).Scan(&token)
-	require.NoError(t, err)
+	// Verify login info was updated
+	token, err = GetLoginInfo(ctx, dbRO, testMachineID)
+	assert.NoError(t, err)
 	assert.Equal(t, testToken, token)
+
+	// Test updating login info again with a different token
+	updatedToken := "updated-token-456"
+	err = UpdateLoginInfo(ctx, dbRW, testMachineID, updatedToken)
+	require.NoError(t, err)
+
+	// Verify login info was updated
+	token, err = GetLoginInfo(ctx, dbRO, testMachineID)
+	assert.NoError(t, err)
+	assert.Equal(t, updatedToken, token)
+
+	// Test updating non-existent machine ID (should not error but no row affected)
+	err = UpdateLoginInfo(ctx, dbRW, nonExistentID, testToken)
+	assert.NoError(t, err)
 }
 
 func TestComponentsOperations(t *testing.T) {
@@ -109,50 +152,66 @@ func TestComponentsOperations(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	// Create table and machine ID
+	// Create table
 	err := CreateTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
-	machineID, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, "")
-	require.NoError(t, err)
 
-	// Test getting non-existent components
-	var components string
-	err = dbRO.QueryRowContext(ctx, "SELECT COALESCE(components, '') FROM machine_metadata WHERE machine_id = ?", machineID).Scan(&components)
+	// Insert a machine ID for testing
+	insertTestMachineID(t, ctx, dbRW, testMachineID)
+
+	// Test getting components for a machine ID with no components yet
+	components, err := GetComponents(ctx, dbRO, testMachineID)
 	assert.NoError(t, err)
+	assert.Empty(t, components)
+
+	// Test getting components for non-existent machine ID
+	nonExistentID := "non-existent-id"
+	components, err = GetComponents(ctx, dbRO, nonExistentID)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
 	assert.Empty(t, components)
 
 	// Test updating components
 	testComponents := `{"gpu": {"vendor": "nvidia", "count": 4}}`
-	err = UpdateComponents(ctx, dbRW, machineID, testComponents)
+	err = UpdateComponents(ctx, dbRW, testMachineID, testComponents)
 	require.NoError(t, err)
 
-	// Test getting updated components
-	err = dbRO.QueryRowContext(ctx, "SELECT COALESCE(components, '') FROM machine_metadata WHERE machine_id = ?", machineID).Scan(&components)
-	require.NoError(t, err)
+	// Verify components were updated
+	components, err = GetComponents(ctx, dbRO, testMachineID)
+	assert.NoError(t, err)
 	assert.Equal(t, testComponents, components)
+
+	// Test updating components again with different data
+	updatedComponents := `{"gpu": {"vendor": "amd", "count": 2}}`
+	err = UpdateComponents(ctx, dbRW, testMachineID, updatedComponents)
+	require.NoError(t, err)
+
+	// Verify components were updated
+	components, err = GetComponents(ctx, dbRO, testMachineID)
+	assert.NoError(t, err)
+	assert.Equal(t, updatedComponents, components)
+
+	// Test updating non-existent machine ID (should not error but no row affected)
+	err = UpdateComponents(ctx, dbRW, nonExistentID, testComponents)
+	assert.NoError(t, err)
 }
 
 func TestRecordMetrics(t *testing.T) {
 	t.Parallel()
-
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	dbRW, _, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	// Create table and machine ID
+	// Create table first to ensure we have something to measure
 	err := CreateTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
-	machineID, err := CreateMachineIDIfNotExist(ctx, dbRW, dbRW, "")
-	require.NoError(t, err)
 
-	// Update components
-	testComponents := `{"gpu": {"vendor": "nvidia", "count": 4}}`
-	err = UpdateComponents(ctx, dbRW, machineID, testComponents)
-	require.NoError(t, err)
+	// Insert some data to have a non-empty database
+	insertTestMachineID(t, ctx, dbRW, testMachineID)
 
-	// Record metrics
-	err = RecordMetrics(ctx, dbRO)
+	// Verify recording metrics doesn't error
+	err = RecordMetrics(ctx, dbRW)
 	require.NoError(t, err)
 }

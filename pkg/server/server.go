@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -27,6 +28,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
@@ -67,13 +69,13 @@ import (
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/gossip"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/login"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
@@ -82,6 +84,7 @@ import (
 	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	"github.com/leptonai/gpud/version"
 )
 
 // Server is the gpud main daemon
@@ -483,16 +486,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}
 
-	uid, err := gpud_state.CreateMachineIDIfNotExist(ctx, dbRW, dbRO, cliUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create machine uid: %w", err)
+	uid, err := gpud_state.ReadMachineID(ctx, dbRO)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
 	s.uid = uid
-	if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
-		return nil, fmt.Errorf("failed to update components: %w", err)
+	if s.uid != "" {
+		if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
+			return nil, fmt.Errorf("failed to update components: %w", err)
+		}
 	}
-
-	// TODO: implement configuration file refresh + apply
 
 	router := gin.Default()
 
@@ -565,9 +568,29 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames
 	ghler.componentNamesMu.RUnlock()
-	if err = login.SendGossip(uid, endpoint, currComponents); err != nil {
-		log.Logger.Debugf("failed to gossip: %v", err)
-	}
+
+	go func() {
+		gossipReq := apiv1.GossipRequest{
+			MachineID:     uid,
+			DaemonVersion: version.Version,
+			Components:    currComponents,
+		}
+
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+		for {
+			if _, err = gossip.SendRequest(ctx, endpoint, gossipReq); err != nil {
+				log.Logger.Errorw("failed to gossip", "error", err)
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+
 	return s, nil
 }
 
