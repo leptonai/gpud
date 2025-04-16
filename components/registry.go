@@ -17,6 +17,10 @@ import (
 type GPUdInstance struct {
 	RootCtx context.Context
 
+	// LibraryAndAlternativeNames is a map of library names to their alternative names.
+	LibraryAndAlternativeNames map[string][]string
+	// LibrarySearchDirs is a list of directories to search for libraries.
+	LibrarySearchDirs []string
 	KernelModulesToCheck []string
 
 	NVMLInstance         nvidianvml.InstanceV2
