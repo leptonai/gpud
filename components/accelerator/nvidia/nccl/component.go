@@ -44,7 +44,7 @@ func (c *component) Name() string { return Name }
 func (c *component) Start() error { return nil }
 
 func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
-	return []apiv1.HealthState{
+	return apiv1.HealthStates{
 		{
 			Health: apiv1.StateTypeHealthy,
 			Reason: "no issue",

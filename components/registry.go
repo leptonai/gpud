@@ -2,6 +2,7 @@ package components
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"sync"
@@ -20,12 +21,19 @@ type GPUdInstance struct {
 	LibraryAndAlternativeNames map[string][]string
 	// LibrarySearchDirs is a list of directories to search for libraries.
 	LibrarySearchDirs []string
+	KernelModulesToCheck []string
 
 	NVMLInstance         nvidianvml.InstanceV2
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
+	Annotations map[string]string
+	DBRO        *sql.DB
+
 	EventStore       eventstore.Store
 	RebootEventStore pkghost.RebootEventStore
+
+	MountPoints  []string
+	MountTargets []string
 }
 
 // InitFunc is the function that initializes a component.

@@ -2,6 +2,7 @@
 package info
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/olekukonko/tablewriter"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -64,8 +66,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -76,11 +77,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -95,9 +96,7 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking ecc")
 	d := Data{
 		ts: time.Now().UTC(),
@@ -111,13 +110,13 @@ func (c *component) CheckOnce() {
 	driverVersion, err := c.getDriverVersionFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting driver version: %s", err)
 		return
 	}
 	if driverVersion == "" {
 		d.err = fmt.Errorf("driver version is empty")
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "driver version is empty"
 		return
 	}
@@ -126,13 +125,13 @@ func (c *component) CheckOnce() {
 	cudaVersion, err := c.getCUDAVersionFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting CUDA version: %s", err)
 		return
 	}
 	if cudaVersion == "" {
 		d.err = fmt.Errorf("CUDA version is empty")
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "CUDA version is empty"
 		return
 	}
@@ -141,7 +140,7 @@ func (c *component) CheckOnce() {
 	deviceCount, err := c.getDeviceCountFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting device count: %s", err)
 		return
 	}
@@ -154,7 +153,7 @@ func (c *component) CheckOnce() {
 		mem, err := c.getMemoryFunc(uuid, dev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting memory: %s", err)
 			return
 		}
@@ -164,7 +163,7 @@ func (c *component) CheckOnce() {
 		productName, err := c.getProductNameFunc(dev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting product name: %s", err)
 			return
 		}
@@ -173,7 +172,7 @@ func (c *component) CheckOnce() {
 		architecture, err := c.getArchitectureFunc(dev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting architecture: %s", err)
 			return
 		}
@@ -182,7 +181,7 @@ func (c *component) CheckOnce() {
 		brand, err := c.getBrandFunc(dev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting brand: %s", err)
 			return
 		}
@@ -190,9 +189,11 @@ func (c *component) CheckOnce() {
 		break
 	}
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked", len(devs))
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	Driver  Driver  `json:"driver"`
@@ -207,7 +208,7 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
@@ -240,6 +241,34 @@ type Product struct {
 	Architecture string `json:"architecture"`
 }
 
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
+}
+
 func (d *Data) getError() string {
 	if d == nil || d.err == nil {
 		return ""
@@ -247,9 +276,9 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
@@ -274,5 +303,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}, nil
 }

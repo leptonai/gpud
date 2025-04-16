@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -33,7 +34,12 @@ func TestNew(t *testing.T) {
 	defer cleanup()
 
 	// Create the component
-	comp, err := New(context.Background(), 0, 0, store)
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 
 	// Validate the component was created successfully
 	require.NoError(t, err)
@@ -47,7 +53,12 @@ func TestComponentLifecycle(t *testing.T) {
 	defer cleanup()
 
 	// Create the component
-	comp, err := New(context.Background(), 0, 0, store)
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
 	// Test Start
@@ -67,7 +78,12 @@ func TestEvents(t *testing.T) {
 	// Test with a valid event bucket
 	t.Run("with valid event bucket", func(t *testing.T) {
 		// Create a component
-		comp, err := New(context.Background(), 0, 0, store)
+		ctx := context.Background()
+		instance := components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: store,
+		}
+		comp, err := New(instance)
 		require.NoError(t, err)
 
 		// Test Events - initially there should be no events
@@ -79,7 +95,12 @@ func TestEvents(t *testing.T) {
 	// Test with nil events
 	t.Run("with nil events response", func(t *testing.T) {
 		// Create a component
-		comp, err := New(context.Background(), 0, 0, store)
+		ctx := context.Background()
+		instance := components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: store,
+		}
+		comp, err := New(instance)
 		require.NoError(t, err)
 
 		// Set eventBucket to nil
@@ -111,8 +132,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("getStates with nil", func(t *testing.T) {
 		var d *Data
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -121,11 +141,10 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("getStates with healthy data", func(t *testing.T) {
 		d := &Data{
-			healthy: true,
-			reason:  "all good",
+			health: apiv1.StateTypeHealthy,
+			reason: "all good",
 		}
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -134,12 +153,11 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("getStates with unhealthy data", func(t *testing.T) {
 		d := &Data{
-			healthy: false,
-			reason:  "something wrong",
-			err:     errors.New("test error"),
+			health: apiv1.StateTypeUnhealthy,
+			reason: "something wrong",
+			err:    errors.New("test error"),
 		}
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -214,20 +232,24 @@ func TestCheckOnce(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create component with custom listConnectionsFunc
-			comp, err := New(context.Background(), DefaultCongestedPercentAgainstThreshold, DefaultMaxBackgroundPercentAgainstThreshold, store)
+			// Create component
+			ctx := context.Background()
+			instance := components.GPUdInstance{
+				RootCtx:    ctx,
+				EventStore: store,
+			}
+			comp, err := New(instance)
 			require.NoError(t, err)
 
 			// Set the custom list connections function
 			c := comp.(*component)
 			c.listConnectionsFunc = tc.listConnectionsFunc
 
-			// Run CheckOnce
-			c.CheckOnce()
+			// Run Check
+			_ = c.Check()
 
-			// Check component state after CheckOnce
-			states, err := c.HealthStates(context.Background())
-			require.NoError(t, err)
+			// Check component state after Check
+			states := c.LastHealthStates()
 			require.Len(t, states, 1)
 
 			if tc.expectedHealthy {
@@ -240,8 +262,8 @@ func TestCheckOnce(t *testing.T) {
 	}
 }
 
-// TestCheckOnceWithEventHandling tests how events are created when thresholds are exceeded
-func TestCheckOnceWithEventHandling(t *testing.T) {
+// TestCheckWithEventHandling tests how events are created when thresholds are exceeded
+func TestCheckWithEventHandling(t *testing.T) {
 	t.Skip("Skipping this test as event creation is difficult to test reliably")
 
 	// Create a test event store
@@ -249,10 +271,19 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 	defer cleanup()
 
 	// Create component with thresholds
-	comp, err := New(context.Background(), 70.0, 60.0, store)
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
 	c := comp.(*component)
+
+	// Need to set thresholds directly on the component
+	c.congestedPercentAgainstThreshold = 70.0
+	c.maxBackgroundPercentAgainstThreshold = 60.0
 
 	// Create a custom event bucket with controlled behavior
 	origBucket := c.eventBucket
@@ -284,8 +315,8 @@ func TestCheckOnceWithEventHandling(t *testing.T) {
 		}, nil
 	}
 
-	// Run CheckOnce to trigger event creation
-	c.CheckOnce()
+	// Run Check to trigger event creation
+	c.Check()
 
 	// Verify event creation by checking event bucket
 	events, err := c.Events(context.Background(), time.Now().Add(-time.Hour))
@@ -350,16 +381,35 @@ func (b *eventWrapperBucket) Close() {
 	b.wrapped.Close()
 }
 
-func TestCheckOnceWithEventBucketError(t *testing.T) {
+func TestCheckWithEventBucketError(t *testing.T) {
 	// Create a test event store with a custom event bucket that has error functionality
 	store, cleanup := openTestEventStore(t)
 	defer cleanup()
 
-	// Create component with thresholds
-	comp, err := New(context.Background(), 70.0, 60.0, store)
+	// Create component
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
 	c := comp.(*component)
+	// Need to set threshold directly
+	c.congestedPercentAgainstThreshold = 70.0
+
+	// Create a custom event bucket with controlled behavior
+	origBucket := c.eventBucket
+
+	// Mock find call to return an error
+	c.eventBucket = &eventWrapperBucket{
+		wrapped: origBucket,
+		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+			return nil, nil // Return nil to trigger an insert attempt
+		},
+	}
+
 	// Setup list connections to return thresholds exceeded
 	c.listConnectionsFunc = func() (fuse.ConnectionInfos, error) {
 		return fuse.ConnectionInfos{
@@ -371,13 +421,13 @@ func TestCheckOnceWithEventBucketError(t *testing.T) {
 		}, nil
 	}
 
-	// Run CheckOnce
-	c.CheckOnce()
+	// Run Check
+	c.Check()
 
-	// Check if the component reports as healthy (it should, because events are recorded but healthy is still true)
-	states, err := c.HealthStates(context.Background())
-	require.NoError(t, err)
+	// Check if the component reports as healthy (it should, because events are recorded but health is still true)
+	states := c.LastHealthStates()
 	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 }
 
 // TestFindError tests the error handling when Find returns an error
@@ -386,11 +436,18 @@ func TestFindError(t *testing.T) {
 	store, cleanup := openTestEventStore(t)
 	defer cleanup()
 
-	// Create component with thresholds
-	comp, err := New(context.Background(), 70.0, 60.0, store)
+	// Create component
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
 	c := comp.(*component)
+	// Need to set threshold directly
+	c.congestedPercentAgainstThreshold = 70.0
 
 	// Create a custom event bucket with controlled behavior
 	origBucket := c.eventBucket
@@ -414,12 +471,11 @@ func TestFindError(t *testing.T) {
 		}, nil
 	}
 
-	// Run CheckOnce
-	c.CheckOnce()
+	// Run Check
+	c.Check()
 
 	// Verify component state - Find error should make it unhealthy
-	states, err := c.HealthStates(context.Background())
-	require.NoError(t, err)
+	states := c.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "error finding event")
 }
@@ -429,11 +485,20 @@ func TestThresholdExceeded(t *testing.T) {
 	store, cleanup := openTestEventStore(t)
 	defer cleanup()
 
-	// Create component with threshold values
-	comp, err := New(context.Background(), 70.0, 60.0, store)
+	// Create component
+	ctx := context.Background()
+	instance := components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
 	c := comp.(*component)
+	// Need to set thresholds directly
+	c.congestedPercentAgainstThreshold = 70.0
+	c.maxBackgroundPercentAgainstThreshold = 60.0
+
 	c.listConnectionsFunc = func() (fuse.ConnectionInfos, error) {
 		return fuse.ConnectionInfos{
 			{
@@ -449,11 +514,10 @@ func TestThresholdExceeded(t *testing.T) {
 		}, nil
 	}
 
-	// Run CheckOnce
-	c.CheckOnce()
+	// Run Check
+	c.Check()
 
-	// Check if the component reports as healthy (it should, because events are recorded but healthy is still true)
-	states, err := c.HealthStates(context.Background())
-	require.NoError(t, err)
+	// Check if the component reports as healthy (it should, because events are recorded but health is still true)
+	states := c.LastHealthStates()
 	require.Len(t, states, 1)
 }

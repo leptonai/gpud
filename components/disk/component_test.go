@@ -3,19 +3,31 @@ package disk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 )
 
+// createTestComponent creates a test component with the given mount points and targets
+func createTestComponent(ctx context.Context, mountPoints, mountTargets []string) *component {
+	gpudInstance := components.GPUdInstance{
+		RootCtx:      ctx,
+		MountPoints:  mountPoints,
+		MountTargets: mountTargets,
+	}
+	c, _ := New(gpudInstance)
+	return c.(*component)
+}
+
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 	defer c.Close()
 
 	assert.Equal(t, Name, c.Name())
@@ -26,7 +38,7 @@ func TestNewComponent(t *testing.T) {
 	mountPoints := []string{"/mnt/test1"}
 	mountTargets := []string{"/mnt/test2"}
 
-	c := New(ctx, mountPoints, mountTargets).(*component)
+	c := createTestComponent(ctx, mountPoints, mountTargets)
 	defer c.Close()
 
 	// Check if mount points are correctly added to the tracking map
@@ -38,7 +50,7 @@ func TestComponentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 	defer c.Close()
 
 	err := c.Start()
@@ -47,7 +59,7 @@ func TestComponentStart(t *testing.T) {
 
 func TestComponentClose(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 
 	err := c.Close()
 	assert.NoError(t, err)
@@ -55,7 +67,7 @@ func TestComponentClose(t *testing.T) {
 
 func TestComponentEvents(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 	defer c.Close()
 
 	events, err := c.Events(ctx, time.Now())
@@ -65,12 +77,11 @@ func TestComponentEvents(t *testing.T) {
 
 func TestEmptyDataStates(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 	defer c.Close()
 
 	// No data set yet
-	states, err := c.HealthStates(ctx)
-	require.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 }
@@ -84,12 +95,11 @@ func TestDataGetStates(t *testing.T) {
 			{Name: "sda", Type: "disk"},
 		},
 
-		healthy: true,
-		reason:  "found 1 ext4 partitions and 1 block devices",
+		health: apiv1.StateTypeHealthy,
+		reason: "found 1 ext4 partitions and 1 block devices",
 	}
 
-	states, err := d.getHealthStates()
-	require.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
@@ -119,11 +129,11 @@ func TestDataGetError(t *testing.T) {
 
 func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
-		err: errors.New("failed to get disk data"),
+		err:    errors.New("failed to get disk data"),
+		health: apiv1.StateTypeUnhealthy,
 	}
 
-	states, err := d.getHealthStates()
-	require.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
@@ -134,18 +144,18 @@ func TestDataGetStatesWithError(t *testing.T) {
 
 func TestComponentStatesWithError(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx, []string{}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{}, []string{})
 	defer c.Close()
 
 	// Manually set lastData with an error
 	c.lastMu.Lock()
 	c.lastData = &Data{
-		err: errors.New("failed to get disk data"),
+		err:    errors.New("failed to get disk data"),
+		health: apiv1.StateTypeUnhealthy,
 	}
 	c.lastMu.Unlock()
 
-	states, err := c.HealthStates(ctx)
-	require.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
@@ -171,7 +181,7 @@ func TestCheckOnce(t *testing.T) {
 	}
 
 	t.Run("successful check", func(t *testing.T) {
-		c := New(ctx, []string{"/mnt/data1"}, []string{}).(*component)
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -181,40 +191,40 @@ func TestCheckOnce(t *testing.T) {
 			return disk.Partitions{mockPartition}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Len(t, lastData.BlockDevices, 1)
 		assert.Len(t, lastData.ExtPartitions, 1)
 	})
 
 	t.Run("no block devices", func(t *testing.T) {
-		c := New(ctx, []string{}, []string{}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Equal(t, "no block device found", lastData.reason)
 	})
 
 	t.Run("no ext4 partitions", func(t *testing.T) {
-		c := New(ctx, []string{}, []string{}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -224,14 +234,14 @@ func TestCheckOnce(t *testing.T) {
 			return disk.Partitions{}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Equal(t, "no ext4 partition found", lastData.reason)
 	})
 }
@@ -251,7 +261,7 @@ func TestErrorRetry(t *testing.T) {
 	}
 
 	t.Run("retry on block device error", func(t *testing.T) {
-		c := New(ctx, []string{}, []string{}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{})
 		defer c.Close()
 
 		callCount := 0
@@ -266,20 +276,20 @@ func TestErrorRetry(t *testing.T) {
 			return disk.Partitions{mockPartition}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Equal(t, 2, callCount)
 	})
 
 	t.Run("retry on partition error", func(t *testing.T) {
-		c := New(ctx, []string{}, []string{}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -295,35 +305,35 @@ func TestErrorRetry(t *testing.T) {
 			return disk.Partitions{mockPartition}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Equal(t, 2, callCount)
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
 		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
-		c := New(ctxWithCancel, []string{}, []string{}).(*component)
+		c := createTestComponent(ctxWithCancel, []string{}, []string{})
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			ctxCancel()
 			return nil, assert.AnError
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.False(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health)
 		assert.NotNil(t, lastData.err)
 		assert.Contains(t, lastData.err.Error(), "context canceled")
 	})
@@ -355,7 +365,7 @@ func TestMountTargetUsages(t *testing.T) {
 		// Create a temp dir to use as mount target
 		tempDir := t.TempDir()
 
-		c := New(ctx, []string{}, []string{tempDir}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{tempDir})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -368,14 +378,14 @@ func TestMountTargetUsages(t *testing.T) {
 			return &mockMountOutput, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Contains(t, lastData.MountTargetUsages, tempDir)
 		assert.Equal(t, mockMountOutput, lastData.MountTargetUsages[tempDir])
 	})
@@ -384,7 +394,7 @@ func TestMountTargetUsages(t *testing.T) {
 		// Create a temp dir to use as mount target
 		tempDir := t.TempDir()
 
-		c := New(ctx, []string{}, []string{tempDir}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{tempDir})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -397,21 +407,21 @@ func TestMountTargetUsages(t *testing.T) {
 			return nil, assert.AnError
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Nil(t, lastData.MountTargetUsages)
 	})
 
 	t.Run("non-existent mount target", func(t *testing.T) {
 		nonExistentDir := "/path/that/doesnt/exist"
 
-		c := New(ctx, []string{}, []string{nonExistentDir}).(*component)
+		c := createTestComponent(ctx, []string{}, []string{nonExistentDir})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -421,14 +431,14 @@ func TestMountTargetUsages(t *testing.T) {
 			return disk.Partitions{mockPartition}, nil
 		}
 
-		c.CheckOnce()
+		c.Check()
 
 		c.lastMu.RLock()
 		lastData := c.lastData
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.True(t, lastData.healthy)
+		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 		assert.Nil(t, lastData.MountTargetUsages)
 	})
 }
@@ -437,8 +447,7 @@ func TestMountTargetUsages(t *testing.T) {
 func TestNilDataHandling(t *testing.T) {
 	var nilData *Data
 
-	states, err := nilData.getHealthStates()
-	require.NoError(t, err)
+	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
@@ -459,7 +468,7 @@ func TestMetricsTracking(t *testing.T) {
 		},
 	}
 
-	c := New(ctx, []string{"/mnt/data1"}, []string{}).(*component)
+	c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
 	defer c.Close()
 
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -474,7 +483,7 @@ func TestMetricsTracking(t *testing.T) {
 		return disk.Partitions{mockPartition}, nil
 	}
 
-	c.CheckOnce()
+	c.Check()
 
 	// Check that the component is tracking the mount point correctly
 	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/data1")
@@ -485,7 +494,19 @@ func TestMetricsTracking(t *testing.T) {
 
 	// Ensure data was collected
 	assert.NotNil(t, lastData)
-	assert.True(t, lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
 	assert.Len(t, lastData.ExtPartitions, 1)
 	assert.Equal(t, mockPartition.MountPoint, lastData.ExtPartitions[0].MountPoint)
+}
+
+func TestCheck(t *testing.T) {
+	comp, err := New(components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	assert.NoError(t, err)
+
+	rs := comp.Check()
+	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+
+	fmt.Println(rs.String())
 }

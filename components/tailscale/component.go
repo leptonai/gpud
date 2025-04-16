@@ -2,11 +2,14 @@
 package tailscale
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -30,17 +33,18 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context) components.Component {
-	cctx, cancel := context.WithCancel(ctx)
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                      cctx,
-		cancel:                   cancel,
+		ctx:    cctx,
+		cancel: ccancel,
+
 		checkDependencyInstalled: checkTailscaledInstalled,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("tailscaled")
 		},
 	}
-	return c
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -51,8 +55,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -63,11 +66,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -82,39 +85,42 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking tailscale")
-	d := Data{
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "tailscaled is not installed"
-		return
+		return d
 	}
 
 	// below are the checks in case "tailscaled" is installed, thus requires activeness checks
 	if c.checkServiceActiveFunc != nil {
 		d.TailscaledServiceActive, d.err = c.checkServiceActiveFunc()
 		if !d.TailscaledServiceActive || d.err != nil {
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", d.err)
-			return
+			return d
 		}
 	}
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = "tailscaled service is active/running"
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// TailscaledServiceActive is true if the tailscaled service is active.
@@ -126,9 +132,37 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -138,26 +172,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -165,5 +195,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

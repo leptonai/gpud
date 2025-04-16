@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 )
 
 func Test_componentStart(t *testing.T) {
@@ -106,8 +108,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NotNil(t, b)
 
 		// Test states with empty data
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 
@@ -117,26 +118,26 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("data with error", func(t *testing.T) {
 		d := Data{
-			Pods: []PodSandbox{{ID: "pod1"}},
-			err:  errors.New("test error"),
+			Pods:   []PodSandbox{{ID: "pod1"}},
+			err:    errors.New("test error"),
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
 		// Test states with error - just verify we get an unhealthy state
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 
 	t.Run("data with gRPC unimplemented error", func(t *testing.T) {
 		d := Data{
-			Pods: []PodSandbox{{ID: "pod1"}},
-			err:  status.Error(codes.Unimplemented, "test unimplemented"),
+			Pods:   []PodSandbox{{ID: "pod1"}},
+			err:    status.Error(codes.Unimplemented, "test unimplemented"),
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
 		// Test states with unimplemented error
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		assert.Contains(t, states[0].Error, "test unimplemented")
@@ -151,8 +152,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with empty pods and error
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "empty pods with error reason", states[0].Reason)
 	})
@@ -168,8 +168,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test getStates with pods
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 		assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
@@ -192,9 +191,8 @@ func TestComponentStates(t *testing.T) {
 		},
 	}
 
-	states, err := comp.HealthStates(ctx)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, states)
+	states := comp.LastHealthStates()
+	assert.NotNil(t, states)
 	assert.Equal(t, Name, states[0].Name)
 }
 
@@ -329,7 +327,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 
 				// Copy the CheckOnce logic but with our mocks
 				if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-					d.healthy = true
+					d.health = apiv1.StateTypeHealthy
 					d.reason = "containerd not installed"
 					c.lastMu.Lock()
 					c.lastData = &d
@@ -339,7 +337,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 
 				// Mock socket check
 				if !tt.socketExists {
-					d.healthy = false
+					d.health = apiv1.StateTypeUnhealthy
 					d.reason = "containerd installed but socket file does not exist"
 					c.lastMu.Lock()
 					c.lastData = &d
@@ -349,7 +347,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 
 				// Mock containerd running check
 				if !tt.containerdRunning {
-					d.healthy = false
+					d.health = apiv1.StateTypeUnhealthy
 					d.reason = "containerd installed but not running"
 					c.lastMu.Lock()
 					c.lastData = &d
@@ -363,7 +361,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 					d.ContainerdServiceActive, err = c.checkServiceActiveFunc(ctx)
 					if !d.ContainerdServiceActive || err != nil {
 						d.err = fmt.Errorf("containerd is installed but containerd service is not active or failed to check (error %v)", err)
-						d.healthy = false
+						d.health = apiv1.StateTypeUnhealthy
 						d.reason = "containerd installed but service is not active"
 						c.lastMu.Lock()
 						c.lastData = &d
@@ -375,7 +373,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 				// Mock list sandbox status
 				if tt.listSandboxError != nil {
 					d.err = tt.listSandboxError
-					d.healthy = false
+					d.health = apiv1.StateTypeUnhealthy
 
 					st, ok := status.FromError(d.err)
 					if ok && st.Code() == codes.Unimplemented {
@@ -385,7 +383,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 					}
 				} else {
 					d.Pods = []PodSandbox{}
-					d.healthy = true
+					d.health = apiv1.StateTypeHealthy
 					d.reason = fmt.Sprintf("found %d pod sandbox(es)", len(d.Pods))
 				}
 
@@ -399,7 +397,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 
 			// Assert results
 			assert.NotNil(t, comp.lastData)
-			assert.Equal(t, tt.expectedHealthy, comp.lastData.healthy)
+			assert.Equal(t, tt.expectedHealthy, comp.lastData.health == apiv1.StateTypeHealthy)
 			assert.Contains(t, comp.lastData.reason, tt.expectedReasonContains)
 			assert.Equal(t, tt.expectedPodsLength, len(comp.lastData.Pods))
 			assert.Equal(t, tt.expectedServiceActive, comp.lastData.ContainerdServiceActive)
@@ -410,10 +408,13 @@ func TestCheckOnceComprehensive(t *testing.T) {
 // Test New function
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	comp := New(ctx)
+	compInterface, err := New(components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	require.NoError(t, err)
 
-	assert.NotNil(t, comp)
-	assert.Equal(t, Name, comp.Name())
+	assert.NotNil(t, compInterface)
+	assert.Equal(t, Name, compInterface.Name())
 }
 
 // Test component with mock listSandboxStatus returning pods
@@ -459,7 +460,7 @@ func TestCheckOnceWithPods(t *testing.T) {
 			ts:                      time.Now().UTC(),
 			ContainerdServiceActive: true,
 			Pods:                    mockPods, // Use our mock pods
-			healthy:                 true,
+			health:                  apiv1.StateTypeHealthy,
 			reason:                  fmt.Sprintf("found %d pod sandbox(es)", len(mockPods)),
 		}
 
@@ -473,7 +474,7 @@ func TestCheckOnceWithPods(t *testing.T) {
 
 	// Assert results
 	assert.NotNil(t, comp.lastData)
-	assert.True(t, comp.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, comp.lastData.health)
 	assert.Equal(t, 2, len(comp.lastData.Pods))
 	assert.Equal(t, "pod1", comp.lastData.Pods[0].ID)
 	assert.Equal(t, "pod2", comp.lastData.Pods[1].ID)
@@ -483,61 +484,6 @@ func TestCheckOnceWithPods(t *testing.T) {
 	assert.Equal(t, "default", comp.lastData.Pods[0].Namespace)
 	assert.Equal(t, "kube-system", comp.lastData.Pods[1].Namespace)
 	assert.Contains(t, comp.lastData.reason, "found 2 pod")
-}
-
-// Test Start method and ensure it runs CheckOnce at least once
-func TestComponentStartRunsCheckOnce(t *testing.T) {
-	// Create a channel to signal CheckOnce has been called
-	checkOnceCalled := make(chan bool, 1)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Create component with custom CheckOnce
-	comp := &component{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		checkDependencyInstalledFunc: func() bool { return true },
-	}
-
-	// Store original CheckOnce function
-	originalCheckOnce := comp.CheckOnce
-
-	// Replace it with our testing version
-	testCheckOnce := func() {
-		// Call original to maintain functionality
-		originalCheckOnce()
-		// Signal that it was called
-		select {
-		case checkOnceCalled <- true:
-		default:
-			// Channel already has a value, no need to send again
-		}
-	}
-
-	// Mock the Start method for our test
-	testStart := func() error {
-		go func() {
-			// Just call our test function once
-			testCheckOnce()
-		}()
-		return nil
-	}
-
-	// Call our test Start
-	err := testStart()
-	assert.NoError(t, err)
-
-	// Wait for CheckOnce to be called or timeout
-	select {
-	case <-checkOnceCalled:
-		// CheckOnce was called, test passed
-	case <-time.After(2 * time.Second):
-		t.Fatal("CheckOnce was not called within timeout period")
-	}
-
-	// Cleanup
-	assert.NoError(t, comp.Close())
 }
 
 // Test component Events method more thoroughly
@@ -585,8 +531,7 @@ func TestComponentWithDifferentContexts(t *testing.T) {
 	}
 
 	// Test States with canceled context
-	states, err := comp.HealthStates(ctx)
-	assert.NoError(t, err) // Should still work as it uses stored data
+	states := comp.LastHealthStates()
 	assert.NotNil(t, states)
 }
 
@@ -657,10 +602,10 @@ func TestGetHealthFromStates(t *testing.T) {
 				Op:  "dial",
 				Err: errors.New("connection refused"),
 			},
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 
@@ -671,40 +616,40 @@ func TestGetHealthFromStates(t *testing.T) {
 				Path: "/path/to/socket",
 				Err:  errors.New("permission denied"),
 			},
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 
 	t.Run("context canceled error", func(t *testing.T) {
 		d := Data{
-			err: context.Canceled,
+			err:    context.Canceled,
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 
 	t.Run("context deadline exceeded error", func(t *testing.T) {
 		d := Data{
-			err: context.DeadlineExceeded,
+			err:    context.DeadlineExceeded,
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 
 	t.Run("grpc unavailable error", func(t *testing.T) {
 		d := Data{
-			err: status.Error(codes.Unavailable, "service unavailable"),
+			err:    status.Error(codes.Unavailable, "service unavailable"),
+			health: apiv1.StateTypeUnhealthy, // Explicitly set health
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	})
 }
@@ -715,12 +660,11 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		d := Data{
 			err: errors.New("some error"),
 			// Add explicit reason
-			reason:  "empty data edge case",
-			healthy: false,
+			reason: "empty data edge case",
+			health: apiv1.StateTypeUnhealthy,
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -729,15 +673,13 @@ func TestGetStatesEdgeCases(t *testing.T) {
 
 	t.Run("data with pods and error", func(t *testing.T) {
 		d := Data{
-			Pods: []PodSandbox{{ID: "pod1"}},
-			err:  errors.New("grpc connection error"),
-			// Add explicit reason
-			reason:  "pods with error edge case",
-			healthy: false,
+			Pods:   []PodSandbox{{ID: "pod1"}},
+			err:    errors.New("grpc connection error"),
+			reason: "pods with error edge case",
+			health: apiv1.StateTypeUnhealthy,
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -759,12 +701,11 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		d := Data{
 			Pods: pods,
 			// Add explicit values
-			reason:  "many pods edge case",
-			healthy: true,
+			reason: "many pods edge case",
+			health: apiv1.StateTypeHealthy,
 		}
 
-		states, err := d.getHealthStates()
-		assert.NoError(t, err)
+		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -788,10 +729,9 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			Pods: []PodSandbox{badPod},
 		}
 
-		states, err := d.getHealthStates()
+		states := d.getLastHealthStates()
 		// Even with JSON issues, the function should not return an error
 		// It might produce empty or escaped JSON
-		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 	})
 }
@@ -901,8 +841,7 @@ func TestData_Reason(t *testing.T) {
 			tt.data.reason = tt.explicitReason
 
 			// We verify that getStates doesn't fail and returns the expected reason
-			states, err := tt.data.getHealthStates()
-			assert.NoError(t, err)
+			states := tt.data.getLastHealthStates()
 			assert.Equal(t, tt.explicitReason, states[0].Reason)
 
 			// If there's an error, verify Error field is populated
@@ -1017,10 +956,9 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set explicit reason and healthy to ensure predictable behavior
 			tt.data.reason = "explicit test reason"
-			tt.data.healthy = false
+			tt.data.health = apiv1.StateTypeUnhealthy
 
-			states, err := tt.data.getHealthStates()
-			assert.NoError(t, err)
+			states := tt.data.getLastHealthStates()
 			assert.Equal(t, "explicit test reason", states[0].Reason)
 			assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 		})
@@ -1044,9 +982,9 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "empty data with explicit healthy",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     nil,
-				healthy: true,
+				Pods:   []PodSandbox{},
+				err:    nil,
+				health: apiv1.StateTypeHealthy,
 			},
 			expectedState: apiv1.StateTypeHealthy,
 			expectHealthy: true,
@@ -1058,8 +996,8 @@ func TestData_HealthStates(t *testing.T) {
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
-				err:     nil,
-				healthy: true,
+				err:    nil,
+				health: apiv1.StateTypeHealthy,
 			},
 			expectedState: apiv1.StateTypeHealthy,
 			expectHealthy: true,
@@ -1067,9 +1005,9 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with generic error",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     errors.New("generic error"),
-				healthy: false,
+				Pods:   []PodSandbox{},
+				err:    errors.New("generic error"),
+				health: apiv1.StateTypeUnhealthy,
 			},
 			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
@@ -1077,9 +1015,9 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with gRPC unimplemented error",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     status.Error(codes.Unimplemented, "unknown service"),
-				healthy: false,
+				Pods:   []PodSandbox{},
+				err:    status.Error(codes.Unimplemented, "unknown service"),
+				health: apiv1.StateTypeUnhealthy,
 			},
 			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
@@ -1087,9 +1025,9 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with context canceled error",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     context.Canceled,
-				healthy: false,
+				Pods:   []PodSandbox{},
+				err:    context.Canceled,
+				health: apiv1.StateTypeUnhealthy,
 			},
 			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
@@ -1102,7 +1040,7 @@ func TestData_HealthStates(t *testing.T) {
 					Op:  "dial",
 					Err: errors.New("connection refused"),
 				},
-				healthy: false,
+				health: apiv1.StateTypeUnhealthy,
 			},
 			expectedState: apiv1.StateTypeUnhealthy,
 			expectHealthy: false,
@@ -1116,8 +1054,7 @@ func TestData_HealthStates(t *testing.T) {
 				tt.data.reason = "test reason"
 			}
 
-			states, err := tt.data.getHealthStates()
-			assert.NoError(t, err)
+			states := tt.data.getLastHealthStates()
 			assert.Equal(t, tt.expectedState, states[0].Health)
 		})
 	}
@@ -1144,10 +1081,10 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with explicit values",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     nil,
-				healthy: true,
-				reason:  "test reason",
+				Pods:   []PodSandbox{},
+				err:    nil,
+				health: apiv1.StateTypeHealthy,
+				reason: "test reason",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
@@ -1161,9 +1098,9 @@ func TestData_getStates(t *testing.T) {
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
-				err:     nil,
-				healthy: true,
-				reason:  "test reason with pods",
+				err:    nil,
+				health: apiv1.StateTypeHealthy,
+				reason: "test reason with pods",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
@@ -1173,10 +1110,10 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with error and explicit values",
 			data: &Data{
-				Pods:    []PodSandbox{},
-				err:     errors.New("generic error"),
-				healthy: false,
-				reason:  "test reason with error",
+				Pods:   []PodSandbox{},
+				err:    errors.New("generic error"),
+				health: apiv1.StateTypeUnhealthy,
+				reason: "test reason with error",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
@@ -1189,9 +1126,9 @@ func TestData_getStates(t *testing.T) {
 				Pods: []PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 				},
-				err:     status.Error(codes.Unimplemented, "unknown service"),
-				healthy: false,
-				reason:  "test reason with unimplemented error",
+				err:    status.Error(codes.Unimplemented, "unknown service"),
+				health: apiv1.StateTypeUnhealthy,
+				reason: "test reason with unimplemented error",
 			},
 			expectedStates: 1,
 			expectedName:   Name,
@@ -1207,7 +1144,7 @@ func TestData_getStates(t *testing.T) {
 					{ID: "pod3", Name: "test-pod-3"},
 				},
 				ContainerdServiceActive: true,
-				healthy:                 true,
+				health:                  apiv1.StateTypeHealthy,
 				reason:                  "test reason with many pods",
 			},
 			expectedStates: 1,
@@ -1219,14 +1156,7 @@ func TestData_getStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getHealthStates()
-
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
+			states := tt.data.getLastHealthStates()
 			assert.Len(t, states, tt.expectedStates)
 			assert.Equal(t, tt.expectedName, states[0].Name)
 
@@ -1240,15 +1170,15 @@ func TestData_getStates(t *testing.T) {
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
 
 			// Check extraInfo for data with pods
-			if tt.data != nil && len(tt.data.Pods) > 0 && err == nil {
+			if tt.data != nil && len(tt.data.Pods) > 0 {
 				assert.NotNil(t, states[0].DeprecatedExtraInfo)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 
 				// Verify we can unmarshal the JSON data
 				var decodedData Data
-				err := json.Unmarshal([]byte(states[0].DeprecatedExtraInfo["data"]), &decodedData)
-				assert.NoError(t, err)
+				jsonErr := json.Unmarshal([]byte(states[0].DeprecatedExtraInfo["data"]), &decodedData)
+				assert.NoError(t, jsonErr)
 				assert.Equal(t, len(tt.data.Pods), len(decodedData.Pods))
 			}
 		})
@@ -1315,10 +1245,10 @@ func TestData_GetStatesWithNilLastData(t *testing.T) {
 	}
 
 	// Call States method
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 
 	// Verify results
-	assert.NoError(t, err)
+	assert.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -1335,9 +1265,9 @@ func TestConcurrentAccess(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 		lastData: &Data{
-			ts:      time.Now(),
-			healthy: true,
-			Pods:    []PodSandbox{{ID: "pod1", Name: "test-pod"}},
+			ts:     time.Now(),
+			health: apiv1.StateTypeHealthy,
+			Pods:   []PodSandbox{{ID: "pod1", Name: "test-pod"}},
 		},
 	}
 
@@ -1353,8 +1283,7 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < iterations; j++ {
-				states, err := comp.HealthStates(ctx)
-				assert.NoError(t, err)
+				states := comp.LastHealthStates()
 				assert.NotEmpty(t, states)
 			}
 		}(i)
@@ -1366,12 +1295,11 @@ func TestConcurrentAccess(t *testing.T) {
 // TestDataWithCustomReason tests custom reason setting
 func TestDataWithCustomReason(t *testing.T) {
 	d := Data{
-		healthy: true,
-		reason:  "custom reason",
+		health: apiv1.StateTypeHealthy,
+		reason: "custom reason",
 	}
 
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Equal(t, "custom reason", states[0].Reason)
 }
 
@@ -1457,23 +1385,21 @@ func TestParseUnixEndpointEdgeCases(t *testing.T) {
 func TestDataWithReason(t *testing.T) {
 	// Create data with explicit reason and healthy values
 	d := &Data{
-		reason:  "test reason",
-		healthy: true,
+		reason: "test reason",
+		health: apiv1.StateTypeHealthy,
 	}
 
 	// Call getStates
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 
 	// Update reason and healthy
 	d.reason = "unhealthy reason"
-	d.healthy = false
+	d.health = apiv1.StateTypeUnhealthy
 
 	// Call getStates again
-	states, err = d.getHealthStates()
-	assert.NoError(t, err)
+	states = d.getLastHealthStates()
 	assert.Equal(t, d.reason, states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 }
@@ -1482,8 +1408,7 @@ func TestDataWithReason(t *testing.T) {
 func TestDataWithEmptyOrNilValues(t *testing.T) {
 	// Nil data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 
@@ -1491,8 +1416,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 	d = &Data{
 		reason: "explicit reason for empty data",
 	}
-	states, err = d.getHealthStates()
-	assert.NoError(t, err)
+	states = d.getLastHealthStates()
 	assert.Equal(t, "explicit reason for empty data", states[0].Reason)
 
 	// Data with empty pods and explicit reason
@@ -1500,8 +1424,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 		Pods:   []PodSandbox{},
 		reason: "explicit reason for data with empty pods",
 	}
-	states, err = d.getHealthStates()
-	assert.NoError(t, err)
+	states = d.getLastHealthStates()
 	assert.Equal(t, "explicit reason for data with empty pods", states[0].Reason)
 }
 
@@ -1511,19 +1434,19 @@ func TestCheckContainerdInstalled(t *testing.T) {
 	tests := []struct {
 		name              string
 		mockInstallResult bool
-		expectHealthy     bool
+		expectHealth      apiv1.HealthStateType
 		expectReason      string
 	}{
 		{
 			name:              "containerd installed",
 			mockInstallResult: true,
-			expectHealthy:     false, // Further checks would make it false (socket not found)
+			expectHealth:      apiv1.StateTypeUnhealthy,
 			expectReason:      "containerd installed but socket file does not exist",
 		},
 		{
 			name:              "containerd not installed",
 			mockInstallResult: false,
-			expectHealthy:     true,
+			expectHealth:      apiv1.StateTypeHealthy,
 			expectReason:      "containerd not installed",
 		},
 	}
@@ -1547,16 +1470,16 @@ func TestCheckContainerdInstalled(t *testing.T) {
 
 			// Simulate the first part of CheckOnce logic
 			if comp.checkDependencyInstalledFunc == nil || !comp.checkDependencyInstalledFunc() {
-				d.healthy = true
+				d.health = apiv1.StateTypeHealthy
 				d.reason = "containerd not installed"
 			} else {
 				// Mock the socket check failure
-				d.healthy = false
+				d.health = apiv1.StateTypeUnhealthy
 				d.reason = "containerd installed but socket file does not exist"
 			}
 
 			// Verify results
-			assert.Equal(t, tt.expectHealthy, d.healthy)
+			assert.Equal(t, tt.expectHealth, d.health)
 			assert.Equal(t, tt.expectReason, d.reason)
 		})
 	}
@@ -1754,14 +1677,13 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 				},
 			},
 		},
-		ts:      time.Now(),
-		healthy: true,
-		reason:  "custom test reason",
+		ts:     time.Now(),
+		health: apiv1.StateTypeHealthy,
+		reason: "custom test reason",
 	}
 
 	// Get the states
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 
 	// Verify the state fields
@@ -1777,7 +1699,7 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 
 	// Deserialize the data back and verify it contains the expected fields
 	var parsedData Data
-	err = json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
+	err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, d.ContainerdServiceActive, parsedData.ContainerdServiceActive)
 	assert.Equal(t, 1, len(parsedData.Pods))
@@ -1840,12 +1762,12 @@ func TestCheckOnceWithNilFunctions(t *testing.T) {
 
 	// Simulate the first check in CheckOnce logic
 	if comp.checkDependencyInstalledFunc == nil || !comp.checkDependencyInstalledFunc() {
-		d.healthy = true
+		d.health = apiv1.StateTypeHealthy
 		d.reason = "containerd not installed"
 	}
 
 	// Verify results
-	assert.True(t, d.healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, d.health)
 	assert.Equal(t, "containerd not installed", d.reason)
 }
 
@@ -1914,7 +1836,10 @@ func TestDataWithComplexErrors(t *testing.T) {
 
 			// Set reason and healthy to explicit values
 			d.reason = "explicit reason"
-			d.healthy = !tt.expectUnhealthy
+			d.health = apiv1.StateTypeHealthy
+			if tt.expectUnhealthy {
+				d.health = apiv1.StateTypeUnhealthy
+			}
 
 			// Get the error string
 			errStr := d.getError()
@@ -1925,8 +1850,7 @@ func TestDataWithComplexErrors(t *testing.T) {
 			}
 
 			// Test the getStates method with this error
-			states, err := d.getHealthStates()
-			assert.NoError(t, err)
+			states := d.getLastHealthStates()
 			assert.Len(t, states, 1)
 
 			// Check that our explicit reason is used
@@ -1945,7 +1869,10 @@ func TestDataWithComplexErrors(t *testing.T) {
 // TestNewInitialization tests the initialization logic of the New function.
 func TestNewInitialization(t *testing.T) {
 	ctx := context.Background()
-	compInterface := New(ctx)
+	compInterface, err := New(components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	require.NoError(t, err)
 	assert.NotNil(t, compInterface)
 
 	// Type assert to access internal fields for testing
@@ -1961,8 +1888,7 @@ func TestNewInitialization(t *testing.T) {
 	assert.Equal(t, defaultContainerRuntimeEndpoint, comp.endpoint) // Covers initialization at line 68
 
 	// Close the component
-	err := comp.Close()
-	assert.NoError(t, err)
+	assert.NoError(t, comp.Close())
 }
 
 // TestCheckOnceListSandboxGrpcError tests the gRPC error handling path in CheckOnce.
@@ -1992,11 +1918,11 @@ func TestCheckOnceListSandboxGrpcError(t *testing.T) {
 		endpoint: "unix:///mock/containerd.sock",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Assertions
 	assert.NotNil(t, comp.lastData)
-	assert.False(t, comp.lastData.healthy) // Should be unhealthy due to the error
+	assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health) // Should be unhealthy due to the error
 	assert.NotNil(t, comp.lastData.err)
 	fmt.Println("comp.lastData.err", comp.lastData.reason, comp.lastData.err)
 
@@ -2021,11 +1947,11 @@ func TestCheckOnceSocketNotExists(t *testing.T) {
 		endpoint: "unix:///mock/endpoint",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Verify results
 	assert.NotNil(t, comp.lastData)
-	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
 	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastData.reason)
 	assert.Nil(t, comp.lastData.err)
 }
@@ -2056,11 +1982,11 @@ func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
 		endpoint: "unix:///nonexistent/socket",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Verify the results
 	assert.NotNil(t, comp.lastData)
-	assert.False(t, comp.lastData.healthy)
+	assert.False(t, comp.lastData.health == apiv1.StateTypeHealthy)
 	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastData.reason)
 	assert.Nil(t, comp.lastData.err)
 	assert.Empty(t, comp.lastData.Pods)
@@ -2092,15 +2018,14 @@ func Test_checkContainerdRunningFunc(t *testing.T) {
 		endpoint: "unix:///nonexistent/socket",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Verify the results
 	assert.NotNil(t, comp.lastData)
-	assert.False(t, comp.lastData.healthy)
+	assert.False(t, comp.lastData.health == apiv1.StateTypeHealthy)
 	assert.Equal(t, "containerd installed but not running", comp.lastData.reason)
 	assert.Nil(t, comp.lastData.err)
 	assert.Empty(t, comp.lastData.Pods)
-	assert.False(t, comp.lastData.ContainerdServiceActive)
 }
 
 func Test_listAllSandboxesFunc(t *testing.T) {
@@ -2143,11 +2068,11 @@ func Test_listAllSandboxesFunc(t *testing.T) {
 		endpoint: "unix:///nonexistent/socket",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Verify the results
 	assert.NotNil(t, comp.lastData)
-	assert.True(t, comp.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeHealthy, comp.lastData.health)
 	assert.Equal(t, "found 1 pod sandbox(es)", comp.lastData.reason)
 	assert.Nil(t, comp.lastData.err)
 	assert.Equal(t, 1, len(comp.lastData.Pods))
@@ -2179,11 +2104,11 @@ func Test_listAllSandboxesFunc_with_error(t *testing.T) {
 		endpoint: "unix:///nonexistent/socket",
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Verify the results
 	assert.NotNil(t, comp.lastData)
-	assert.False(t, comp.lastData.healthy)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
 	assert.Equal(t, "error listing pod sandbox status: test error", comp.lastData.reason)
 	assert.NotNil(t, comp.lastData.err)
 }

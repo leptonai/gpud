@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -14,14 +13,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -37,8 +36,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		err:        testError,
 	}
 
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 }
@@ -128,8 +126,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Test with no data yet
-	states, err := c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -145,8 +142,7 @@ func TestComponentStates(t *testing.T) {
 	}
 	c.lastData = testData
 
-	states, err = c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -215,7 +211,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -244,7 +240,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -285,7 +281,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -294,17 +290,14 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	assert.Contains(t, c.lastData.reason, "failed to get bpf jit buffer bytes")
 }
 
-func TestCheckHealthState(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	rs, err := CheckHealthState(ctx)
+func TestCheck(t *testing.T) {
+	comp, err := New(components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
 	assert.NoError(t, err)
+
+	rs := comp.Check()
 	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
-
-	b, err := json.Marshal(rs)
-	assert.NoError(t, err)
-	fmt.Println(string(b))
 }
