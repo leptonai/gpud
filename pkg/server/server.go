@@ -383,7 +383,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort))
 
 		case network_latency.Name:
-			allComponents = append(allComponents, network_latency.New(ctx))
+			c, err := network_latency.New(components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
+			}
+			allComponents = append(allComponents, c)
 
 		default:
 			return nil, fmt.Errorf("unknown component %s", k)
