@@ -22,12 +22,12 @@ import (
 
 func TestEvaluate(t *testing.T) {
 	tests := []struct {
-		name        string
-		output      *infiniband.IbstatOutput
-		config      infiniband.ExpectedPortStates
-		wantReason  string
-		wantHealthy bool
-		wantErr     bool
+		name       string
+		output     *infiniband.IbstatOutput
+		config     infiniband.ExpectedPortStates
+		wantReason string
+		wanthealth apiv1.HealthStateType
+		wantErr    bool
 	}{
 		{
 			name:   "thresholds not set",
@@ -206,11 +206,11 @@ func TestEvaluateWithTestData(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		config      infiniband.ExpectedPortStates
-		wantReason  string
-		wantHealthy bool
-		wantErr     bool
+		name       string
+		config     infiniband.ExpectedPortStates
+		wantReason string
+		wanthealth apiv1.HealthStateType
+		wantErr    bool
 	}{
 		{
 			name: "healthy state - all H100 ports active at 400Gb/s",

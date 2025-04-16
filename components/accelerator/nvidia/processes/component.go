@@ -2,6 +2,7 @@
 package processes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -52,8 +54,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -64,11 +65,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -83,9 +84,7 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking processes")
 	d := Data{
 		ts: time.Now().UTC(),
@@ -101,7 +100,7 @@ func (c *component) CheckOnce() {
 		procs, err := c.getProcessesFunc(uuid, dev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
 			return
 		}
@@ -111,9 +110,11 @@ func (c *component) CheckOnce() {
 		metricRunningProcesses.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(len(procs.RunningProcesses)))
 	}
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	Processes []nvidianvml.Processes `json:"processes,omitempty"`
@@ -124,9 +125,37 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -136,9 +165,9 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
@@ -163,5 +192,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}, nil
 }

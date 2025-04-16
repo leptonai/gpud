@@ -105,7 +105,7 @@ func (c *SXIDComponent) Start() error {
 func (c *SXIDComponent) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return []apiv1.HealthState{c.currState}, nil
+	return apiv1.HealthStates{c.currState}, nil
 }
 
 func (c *SXIDComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
