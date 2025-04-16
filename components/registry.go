@@ -2,6 +2,7 @@ package components
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"sync"
@@ -20,6 +21,9 @@ type GPUdInstance struct {
 
 	NVMLInstance         nvidianvml.InstanceV2
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
+
+	Annotations map[string]string
+	DBRO        *sql.DB
 
 	EventStore       eventstore.Store
 	RebootEventStore pkghost.RebootEventStore
