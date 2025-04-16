@@ -24,5 +24,5 @@ func GetUID(ctx context.Context) (string, error) {
 	}
 	defer dbRO.Close()
 
-	return gpud_state.GetMachineID(ctx, dbRO)
+	return gpud_state.ReadMachineID(ctx, dbRO)
 }

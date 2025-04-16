@@ -16,8 +16,10 @@ import (
 
 	"github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	lepServer "github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
@@ -96,6 +98,23 @@ func cmdRun(cliContext *cli.Context) error {
 		return err
 	}
 	m.Start(rootCtx)
+
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+	uid, err := gpudstate.ReadMachineID(rootCtx, dbRO)
+	if err != nil {
+		return fmt.Errorf("failed to read machine ID: %w", err)
+	}
+	if uid == "" {
+		log.Logger.Warnw("machine ID not found, running in local mode not connected to any control plane")
+	}
 
 	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
 	if err != nil {

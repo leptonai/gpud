@@ -244,14 +244,6 @@ func setupDefaultDir() (string, error) {
 	return d, nil
 }
 
-func DefaultConfigFile() (string, error) {
-	dir, err := setupDefaultDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "gpud.yaml"), nil
-}
-
 func DefaultStateFile() (string, error) {
 	dir, err := setupDefaultDir()
 	if err != nil {
