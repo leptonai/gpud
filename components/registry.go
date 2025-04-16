@@ -37,7 +37,7 @@ type GPUdInstance struct {
 }
 
 // InitFunc is the function that initializes a component.
-type InitFunc func(GPUdInstance) (Component, error)
+type InitFunc func(*GPUdInstance) (Component, error)
 
 // Registry is the interface for the registry of components.
 type Registry interface {
