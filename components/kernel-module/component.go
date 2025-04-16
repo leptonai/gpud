@@ -32,7 +32,7 @@ type component struct {
 	lastData *Data
 }
 
-func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	c := &component{
 		ctx:    cctx,
