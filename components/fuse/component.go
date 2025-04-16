@@ -2,13 +2,16 @@
 package fuse
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -20,10 +23,15 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
+// Name is the name of the component.
 const Name = "fuse"
 
 const (
-	DefaultCongestedPercentAgainstThreshold     = float64(90)
+	// DefaultCongestedPercentAgainstThreshold is the percentage of the FUSE connections waiting
+	// at which we consider the system to be congested.
+	DefaultCongestedPercentAgainstThreshold = float64(90)
+	// DefaultMaxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
+	// at which we consider the system to be congested.
 	DefaultMaxBackgroundPercentAgainstThreshold = float64(80)
 )
 
@@ -48,35 +56,25 @@ type component struct {
 	lastData *Data
 }
 
-// CongestedPercentAgainstThreshold is the percentage of the FUSE connections waiting
-// at which we consider the system to be congested.
-//
-// MaxBackgroundPercentAgainstThreshold is the percentage of the FUSE connections waiting
-// at which we consider the system to be congested.
-func New(ctx context.Context, congestedPercentAgainstThreshold float64, maxBackgroundPercentAgainstThreshold float64, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
-
-	if congestedPercentAgainstThreshold == 0 {
-		congestedPercentAgainstThreshold = DefaultCongestedPercentAgainstThreshold
-	}
-	if maxBackgroundPercentAgainstThreshold == 0 {
-		maxBackgroundPercentAgainstThreshold = DefaultMaxBackgroundPercentAgainstThreshold
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
+func New(gpudInstance components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
-		congestedPercentAgainstThreshold:     congestedPercentAgainstThreshold,
-		maxBackgroundPercentAgainstThreshold: maxBackgroundPercentAgainstThreshold,
+		congestedPercentAgainstThreshold:     DefaultCongestedPercentAgainstThreshold,
+		maxBackgroundPercentAgainstThreshold: DefaultMaxBackgroundPercentAgainstThreshold,
 
 		listConnectionsFunc: fuse.ListConnections,
+	}
 
-		eventBucket: eventBucket,
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
 	}
 
 	return c, nil
@@ -90,8 +88,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
-
+			_ = c.Check()
 			select {
 			case <-c.ctx.Done():
 				return
@@ -102,11 +99,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -128,25 +125,24 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking fuse")
-	d := Data{
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
 	infos, err := c.listConnectionsFunc()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing fuse connections %v", err)
-		return
+		return d
 	}
 
 	now := time.Now().UTC()
@@ -157,6 +153,7 @@ func (c *component) CheckOnce() {
 		if _, ok := foundDev[info.DeviceName]; ok {
 			continue
 		}
+		foundDev[info.DeviceName] = info
 
 		metricConnsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.CongestedPercent)
 		metricConnsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.MaxBackgroundPercent)
@@ -169,6 +166,10 @@ func (c *component) CheckOnce() {
 			msgs = append(msgs, fmt.Sprintf("max background percent %.2f%% exceeds threshold %.2f%%", info.MaxBackgroundPercent, c.maxBackgroundPercentAgainstThreshold))
 		}
 		if len(msgs) == 0 {
+			continue
+		}
+
+		if c.eventBucket == nil {
 			continue
 		}
 
@@ -191,25 +192,25 @@ func (c *component) CheckOnce() {
 		found, err := c.eventBucket.Find(c.ctx, ev)
 		if err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error finding event %v", err)
-			return
+			return d
 		}
 		if found == nil {
 			continue
 		}
 		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error inserting event %v", err)
-			return
+			return d
 		}
-
-		foundDev[info.DeviceName] = info
 	}
 
-	d.healthy = true
+	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("found %d fuse connection(s)", len(d.ConnectionInfos))
+
+	return d
 }
 
 type Data struct {
@@ -221,9 +222,43 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.ConnectionInfos) == 0 {
+		return "no FUSE connection found"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"Device", "FS Type", "Congested % %"})
+	for _, info := range d.ConnectionInfos {
+		table.Append([]string{info.DeviceName, info.Fstype, fmt.Sprintf("%.2f %%", info.CongestedPercent), fmt.Sprintf("%.2f %%", info.MaxBackgroundPercent)})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -233,26 +268,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -260,5 +291,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }
