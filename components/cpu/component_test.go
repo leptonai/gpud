@@ -86,8 +86,7 @@ func (m *MockKmsgSyncer) Close() error {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -103,8 +102,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		reason: "error calculating CPU usage",
 	}
 
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testError.Error(), states[0].Error)
@@ -131,8 +129,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Test with no data yet
-	states, err := c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -161,10 +158,11 @@ func TestComponentStates(t *testing.T) {
 		health: apiv1.StateTypeHealthy,
 		reason: "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
 	}
+	c.lastMu.Lock()
 	c.lastData = testData
+	c.lastMu.Unlock()
 
-	states, err = c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -271,7 +269,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -308,7 +306,7 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -382,7 +380,7 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -450,7 +448,7 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -535,10 +533,9 @@ func TestComponentDataExtraInfo(t *testing.T) {
 	}
 
 	// Get states
-	states, err := testData.getHealthStates()
+	states := testData.getLastHealthStates()
 
 	// Verify
-	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.NotNil(t, states[0].DeprecatedExtraInfo)
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -651,10 +648,9 @@ func TestDataMarshallingInStates(t *testing.T) {
 	}
 
 	// Get states
-	states, err := testData.getHealthStates()
+	states := testData.getLastHealthStates()
 
 	// Verify no errors in marshaling
-	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.NotNil(t, states[0].DeprecatedExtraInfo)
 
@@ -670,8 +666,42 @@ func TestCheckHealthState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	rs, err := CheckHealthState(ctx)
-	assert.NoError(t, err)
+	// Create a properly initialized test component to check health state
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		getTimeStatFunc: func(ctx context.Context) (cpu.TimesStat, error) {
+			return cpu.TimesStat{
+				CPU:    "cpu-total",
+				User:   1000,
+				System: 500,
+				Idle:   8000,
+			}, nil
+		},
+		getUsedPctFunc: func(ctx context.Context) (float64, error) {
+			return 25.5, nil
+		},
+		getLoadAvgStatFunc: func(ctx context.Context) (*load.AvgStat, error) {
+			return &load.AvgStat{
+				Load1:  1.5,
+				Load5:  1.25,
+				Load15: 1.1,
+			}, nil
+		},
+		setPrevTimeStatFunc: func(cpu.TimesStat) {},
+		getPrevTimeStatFunc: func() *cpu.TimesStat {
+			return &cpu.TimesStat{
+				CPU:    "cpu-total",
+				User:   900,
+				System: 450,
+				Idle:   7500,
+			}
+		},
+	}
+
+	// Use the Check method directly which returns CheckResult
+	rs := c.Check()
+	assert.NotNil(t, rs)
 	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
