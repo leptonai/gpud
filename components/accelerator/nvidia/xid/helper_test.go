@@ -73,7 +73,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
-			createXidEvent(time.Time{}, 31, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 		}
 		state := evolveHealthyState(events)
 		assert.Equal(t, apiv1.StateTypeDegraded, state.Health)

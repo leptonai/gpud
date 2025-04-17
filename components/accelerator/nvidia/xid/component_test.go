@@ -2,9 +2,11 @@ package xid
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -13,8 +15,24 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
+	nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
+
+func TestComponentNameSimple(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.Equal(t, Name, comp.Name())
+}
 
 func createTestEvent(timestamp time.Time) apiv1.Event {
 	return apiv1.Event{
@@ -334,4 +352,583 @@ func TestXIDComponent_States(t *testing.T) {
 			time.Sleep(1 * time.Second)
 		})
 	}
+}
+
+func TestNewWithDifferentConfigurations(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	t.Run("with nil event store", func(t *testing.T) {
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			EventStore:   nil,
+			NVMLInstance: nil,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		// Check that the component initialized correctly with nil event store
+		c := comp.(*component)
+		assert.Nil(t, c.eventBucket)
+		assert.Nil(t, c.kmsgWatcher)
+	})
+
+	t.Run("with event store", func(t *testing.T) {
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+		assert.NoError(t, err)
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: store,
+		}
+
+		// We expect this to complete successfully even on non-Linux platforms
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+	})
+}
+
+func TestCheck(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	t.Run("with no NVML instance", func(t *testing.T) {
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: nil,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		result := comp.Check()
+		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Contains(t, result.Summary(), "NVIDIA NVML is not loaded")
+	})
+
+	t.Run("with no kmsg reader", func(t *testing.T) {
+		// Using a properly implemented mock
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = nil
+
+		result := comp.Check()
+		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Contains(t, result.Summary(), "kmsg reader is not set")
+	})
+
+	t.Run("with kmsg reader error", func(t *testing.T) {
+		// Using a properly implemented mock
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return nil, assert.AnError
+		}
+
+		result := comp.Check()
+		assert.Equal(t, apiv1.StateTypeUnhealthy, result.HealthState())
+		assert.Contains(t, result.Summary(), "failed to read kmsg")
+	})
+
+	t.Run("with XID errors", func(t *testing.T) {
+		// Using a properly implemented mock
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Contains(t, result.Summary(), "matched")
+		data := result.(*Data)
+		assert.Len(t, data.FoundErrors, 1)
+		assert.Equal(t, 31, data.FoundErrors[0].Xid)
+	})
+}
+
+func TestClose(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	// Test that Close cleans up resources properly
+	err = comp.Close()
+	assert.NoError(t, err)
+
+	// Verify component context is canceled
+	c := comp.(*component)
+	select {
+	case <-c.ctx.Done():
+		// Expected, context should be canceled
+	default:
+		t.Error("context should be canceled after Close")
+	}
+}
+
+func TestUpdateCurrentState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Test initial state (should be healthy since no events)
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+	initialStates := comp.LastHealthStates()
+	assert.Len(t, initialStates, 1)
+	assert.Equal(t, apiv1.StateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
+
+	warningTime := time.Now().Add(-5 * time.Minute)
+	xid94Event := apiv1.Event{
+		Time: metav1.Time{Time: warningTime},
+		Name: EventNameErrorXid,
+		Type: apiv1.EventTypeWarning,
+		DeprecatedExtraInfo: map[string]string{
+			EventKeyErrorXidData: "94",
+			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
+		},
+	}
+
+	// First, process the event through resolveXIDEvent to ensure correct format
+	xid94Event = resolveXIDEvent(xid94Event)
+
+	err = c.eventBucket.Insert(ctx, xid94Event)
+	assert.NoError(t, err)
+
+	// Update state based on the warning event
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Check that the state was updated to degraded
+	warningStates := comp.LastHealthStates()
+	assert.Len(t, warningStates, 1)
+	assert.Equal(t, apiv1.StateTypeDegraded, warningStates[0].Health, "State should be degraded after warning event")
+	assert.NotNil(t, warningStates[0].SuggestedActions, "Should have suggested actions")
+	assert.Contains(t, warningStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+
+	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
+	fatalTime := time.Now().Add(-4 * time.Minute)
+	xid79Event := apiv1.Event{
+		Time: metav1.Time{Time: fatalTime},
+		Name: EventNameErrorXid,
+		Type: apiv1.EventTypeFatal,
+		DeprecatedExtraInfo: map[string]string{
+			EventKeyErrorXidData: "79",
+			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
+		},
+	}
+
+	// Process the event through resolveXIDEvent
+	xid79Event = resolveXIDEvent(xid79Event)
+
+	err = c.eventBucket.Insert(ctx, xid79Event)
+	assert.NoError(t, err)
+
+	// Update state based on the fatal event
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Check that the state is unhealthy and recommends reboot
+	fatalStates := comp.LastHealthStates()
+	assert.Len(t, fatalStates, 1)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after fatal event")
+	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
+	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+
+	// Insert a reboot event (which should reset the state to healthy)
+	rebootTime := time.Now().Add(-2 * time.Minute)
+	rebootEvent := apiv1.Event{
+		Time: metav1.Time{Time: rebootTime},
+		Name: "reboot",
+	}
+	err = c.eventBucket.Insert(ctx, rebootEvent)
+	assert.NoError(t, err)
+
+	// Update state after reboot
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Check that the state is now healthy
+	rebootStates := comp.LastHealthStates()
+	assert.Len(t, rebootStates, 1)
+	assert.Equal(t, apiv1.StateTypeHealthy, rebootStates[0].Health, "State should be healthy after reboot")
+	assert.Nil(t, rebootStates[0].SuggestedActions, "Should not have suggested actions")
+
+	// Insert a SetHealthy event
+	healthyTime := time.Now().Add(-1 * time.Minute)
+	healthyEvent := apiv1.Event{
+		Time: metav1.Time{Time: healthyTime},
+		Name: "SetHealthy",
+	}
+	err = c.eventBucket.Insert(ctx, healthyEvent)
+	assert.NoError(t, err)
+
+	// Update state after SetHealthy
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Check that the state is still healthy
+	healthyStates := comp.LastHealthStates()
+	assert.Len(t, healthyStates, 1)
+	assert.Equal(t, apiv1.StateTypeHealthy, healthyStates[0].Health, "State should remain healthy after SetHealthy")
+	assert.Nil(t, healthyStates[0].SuggestedActions, "Should not have suggested actions")
+
+	// Test with nil rebootEventStore
+	c.rebootEventStore = nil
+	err = c.updateCurrentState()
+	assert.NoError(t, err, "Should not error with nil rebootEventStore")
+
+	// Test with nil eventBucket
+	c.rebootEventStore = rebootEventStore
+	eventBucket := c.eventBucket
+	c.eventBucket = nil
+	err = c.updateCurrentState()
+	assert.NoError(t, err, "Should not error with nil eventBucket")
+
+	// Restore for cleanup
+	c.eventBucket = eventBucket
+}
+
+// Helper function to create a mock NVML instance for testing
+func createMockNVMLInstance() *mockNVMLInstance {
+	return &mockNVMLInstance{
+		devices: make(map[string]device.Device),
+	}
+}
+
+// Mock NVML implementation for testing
+type mockNVMLInstance struct {
+	devices map[string]device.Device
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return true
+}
+
+func (m *mockNVMLInstance) Library() nvmllib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return m.devices
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return "Test GPU"
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {
+	return nvml.MemoryErrorManagementCapabilities{
+		ErrorContainment:     false,
+		DynamicPageOfflining: false,
+		RowRemapping:         false,
+		Message:              "",
+	}
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+func TestDataString(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "no errors",
+			data: &Data{
+				FoundErrors: []FoundError{},
+				ts:          time.Now(),
+				health:      apiv1.StateTypeHealthy,
+				reason:      "no errors found",
+			},
+			expected: "no xid error found",
+		},
+		{
+			name: "with found errors",
+			data: &Data{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Timestamp: metav1.NewTime(time.Now()),
+							Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
+						},
+						XidError: XidError{
+							Xid:        31,
+							DeviceUUID: "GPU-12345678",
+							Detail: &xid.Detail{
+								Name:                      "GPU_HANG",
+								CriticalErrorMarkedByGPUd: true,
+								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+								},
+							},
+						},
+					},
+				},
+				ts:     time.Now(),
+				health: apiv1.StateTypeDegraded,
+				reason: "found 1 error",
+			},
+			expected: "", // We'll just check that it's not empty since the table format is hard to predict exactly
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.String()
+
+			if tt.expected == "" && tt.data != nil && len(tt.data.FoundErrors) > 0 {
+				// For cases with errors, just check that the output contains expected data
+				assert.NotEmpty(t, result)
+				assert.Contains(t, result, "XID")
+				assert.Contains(t, result, tt.data.FoundErrors[0].DeviceUUID)
+				assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Name)
+			} else {
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestStart(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	// Test Start with no kmsgWatcher
+	err = comp.Start()
+	assert.NoError(t, err)
+}
+
+func TestResolveXIDEvent(t *testing.T) {
+	// Create a test event
+	now := time.Now()
+	testEvent := apiv1.Event{
+		Time: metav1.Time{Time: now},
+		Name: EventNameErrorXid,
+		Type: apiv1.EventTypeWarning,
+		DeprecatedExtraInfo: map[string]string{
+			EventKeyErrorXidData: "31", // GPU_HANG or similar error
+			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
+		},
+	}
+
+	// Resolve the event
+	resolvedEvent := resolveXIDEvent(testEvent)
+
+	// Check that the event was properly resolved
+	assert.Equal(t, EventNameErrorXid, resolvedEvent.Name)
+	assert.NotEmpty(t, resolvedEvent.Message)
+	assert.Contains(t, resolvedEvent.Message, "31")
+	assert.Contains(t, resolvedEvent.Message, "GPU-12345678-1234-5678-1234-567812345678")
+	assert.NotNil(t, resolvedEvent.DeprecatedExtraInfo)
+
+	// Verify the event contains JSON data that can be parsed
+	jsonData := resolvedEvent.DeprecatedExtraInfo[EventKeyErrorXidData]
+	assert.NotEmpty(t, jsonData)
+
+	// Try with invalid XID
+	invalidEvent := apiv1.Event{
+		Time: metav1.Time{Time: now},
+		Name: EventNameErrorXid,
+		DeprecatedExtraInfo: map[string]string{
+			EventKeyErrorXidData: "99999", // Invalid XID
+			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
+		},
+	}
+
+	resolvedInvalidEvent := resolveXIDEvent(invalidEvent)
+	assert.Equal(t, invalidEvent, resolvedInvalidEvent)
+}
+
+func TestDataSummary(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	summary := nilData.Summary()
+	assert.Empty(t, summary)
+
+	// Test data with reason
+	data := &Data{
+		reason: "test reason",
+		health: apiv1.StateTypeHealthy,
+	}
+	summary = data.Summary()
+	assert.Equal(t, "test reason", summary)
+}
+
+func TestHandleEventChannel(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Set up a fast ticker for testing
+	fastTicker := time.NewTicker(100 * time.Millisecond)
+	defer fastTicker.Stop()
+
+	// Set up a test kmsg channel
+	kmsgCh := make(chan kmsg.Message, 10)
+
+	// Create a context with a short timeout for the test
+	testCtx, testCancel := context.WithTimeout(ctx, 1*time.Second)
+	defer testCancel()
+
+	// Create a wait group to wait for the go routine to finish
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Start the component in a goroutine with our test channels
+	go func() {
+		defer wg.Done()
+		// Call start with our test channel and fast ticker period
+		c.start(kmsgCh, 100*time.Millisecond)
+	}()
+
+	// Send a test XID kmsg
+	kmsgCh <- kmsg.Message{
+		Timestamp: metav1.NewTime(time.Now()),
+		Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
+	}
+
+	// Wait a bit to allow processing
+	time.Sleep(300 * time.Millisecond)
+
+	// Check that the event was processed by getting events
+	events, err := comp.Events(testCtx, time.Now().Add(-1*time.Minute))
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(events), 1)
+
+	// Send a test event directly to the extraEventCh
+	c.extraEventCh <- &apiv1.Event{
+		Time: metav1.Time{Time: time.Now()},
+		Name: "SetHealthy",
+	}
+
+	// Wait a bit to allow processing
+	time.Sleep(300 * time.Millisecond)
+
+	// Cancel the context to stop the goroutine
+	testCancel()
+
+	// Wait for the goroutine to finish
+	wg.Wait()
 }
