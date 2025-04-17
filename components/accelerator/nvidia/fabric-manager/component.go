@@ -3,10 +3,10 @@
 package fabricmanager
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
-	"github.com/olekukonko/tablewriter"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"
@@ -36,34 +35,35 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-
-	var llp *logLineProcessor
-	if checkFMExists() {
-		w, err := newWatcher(defaultWatchCommands)
-		if err != nil {
-			ccancel()
-			return nil, err
-		}
-		llp = newLogLineProcessor(cctx, w, Match, eventBucket)
-	}
-
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
+	}
 
-		eventBucket:      eventBucket,
-		logLineProcessor: llp,
-	}, nil
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
+	if checkFMExists() && c.eventBucket != nil {
+		w, err := newWatcher(defaultWatchCommands)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		c.logLineProcessor = newLogLineProcessor(cctx, w, Match, c.eventBucket)
+	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -191,13 +191,11 @@ func (d *Data) String() string {
 		return ""
 	}
 
-	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	if d.FabricManagerActive {
+		return "fabric manager is active"
+	}
 
-	table.Render()
-
-	return buf.String()
+	return "fabric manager is not active"
 }
 
 func (d *Data) Summary() string {

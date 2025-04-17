@@ -19,6 +19,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
+// Name is the name of the component.
 const Name = "accelerator-nvidia-info"
 
 var _ components.Component = &component{}

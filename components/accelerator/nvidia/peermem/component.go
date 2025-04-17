@@ -27,14 +27,16 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	kmsgSyncer  *kmsg.Syncer
 	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+
 	eventBucket, err := eventStore.Bucket(Name)
 	if err != nil {
 		return nil, err

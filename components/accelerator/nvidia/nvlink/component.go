@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -36,14 +35,15 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:           cctx,
 		cancel:        ccancel,
-		nvmlInstance:  nvmlInstance,
+		nvmlInstance:  gpudInstance.NVMLInstance,
 		getNVLinkFunc: nvidianvml.GetNVLink,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }

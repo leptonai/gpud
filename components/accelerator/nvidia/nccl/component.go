@@ -4,6 +4,7 @@ package nccl
 
 import (
 	"context"
+	"runtime"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -18,25 +19,36 @@ const Name = "accelerator-nvidia-nccl"
 var _ components.Component = &component{}
 
 type component struct {
-	kmsgSyncer  *kmsg.Syncer
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
 	}
 
-	kmsgSyncer, err := kmsg.NewSyncer(ctx, Match, eventBucket)
-	if err != nil {
-		return nil, err
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
 	}
 
-	return &component{
-		kmsgSyncer:  kmsgSyncer,
-		eventBucket: eventBucket,
-	}, nil
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }

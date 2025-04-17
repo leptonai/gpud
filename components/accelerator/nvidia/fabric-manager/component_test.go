@@ -48,7 +48,7 @@ func TestComponentEvents(t *testing.T) {
 	}
 	defer comp.Close()
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	time.Sleep(5 * time.Second)
 
@@ -72,8 +72,7 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
-	states, err := comp.HealthStates(ctx)
-	require.NoError(t, err)
+	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
@@ -197,13 +196,12 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		checkFMActiveFunc: func() bool { return false },
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Call States
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 
 	// Verify results
-	assert.NoError(t, err)
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -282,11 +280,10 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 		checkFMActiveFunc: func() bool { return false },
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 
-	assert.NoError(t, err)
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -311,13 +308,12 @@ func TestDataGetError(t *testing.T) {
 	assert.Equal(t, testErr.Error(), d.getError())
 }
 
-func TestDataGetStates(t *testing.T) {
+func TestDataGetLastHealthStates(t *testing.T) {
 	t.Parallel()
 
 	// Test nil Data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -325,12 +321,11 @@ func TestDataGetStates(t *testing.T) {
 
 	// Test unhealthy state
 	d = &Data{
-		healthy: false,
-		reason:  "test unhealthy reason",
-		err:     assert.AnError,
+		health: apiv1.StateTypeUnhealthy,
+		reason: "test unhealthy reason",
+		err:    assert.AnError,
 	}
-	states, err = d.getHealthStates()
-	assert.NoError(t, err)
+	states = d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)

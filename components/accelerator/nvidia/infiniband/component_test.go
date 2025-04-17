@@ -272,7 +272,7 @@ func TestComponentStatesWithTestData(t *testing.T) {
 	defer bucket.Close()
 
 	c := &component{
-		rootCtx:     ctx,
+		ctx:         ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{
@@ -367,7 +367,7 @@ func TestComponentGetStatesWithThresholds(t *testing.T) {
 			defer bucket.Close()
 
 			c := &component{
-				rootCtx:     ctx,
+				ctx:         ctx,
 				cancel:      cancel,
 				eventBucket: bucket,
 			}
@@ -425,7 +425,7 @@ func TestComponentStatesNoIbstatCommand(t *testing.T) {
 			defer bucket.Close()
 
 			c := &component{
-				rootCtx:     ctx,
+				ctx:         ctx,
 				cancel:      cancel,
 				eventBucket: bucket,
 				toolOverwrites: nvidia_common.ToolOverwrites{
@@ -475,7 +475,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 	defer bucket.Close()
 
 	c := &component{
-		rootCtx:        ctx,
+		ctx:            ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
@@ -524,7 +524,7 @@ func TestCheckIbstatOnce(t *testing.T) {
 	// Test case 6: Test with canceled context
 	canceledCtx, cancelFunc := context.WithCancel(context.Background())
 	cancelFunc()
-	c.rootCtx = canceledCtx
+	c.ctx = canceledCtx
 	lastEvent, err = c.checkOnceIbstat(now, infiniband.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
@@ -549,7 +549,7 @@ func TestGetStates(t *testing.T) {
 	defer bucket.Close()
 
 	c := &component{
-		rootCtx:        ctx,
+		ctx:            ctx,
 		cancel:         cancel,
 		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
@@ -644,7 +644,7 @@ func TestGetStates(t *testing.T) {
 	cancelFunc() // Cancel context immediately
 
 	cNew := &component{
-		rootCtx:        canceledCtx,
+		ctx:            canceledCtx,
 		cancel:         func() {}, // Empty cancel func since we already canceled
 		eventBucket:    bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{},
@@ -697,7 +697,7 @@ func TestEvents(t *testing.T) {
 	defer bucket.Close()
 
 	c := &component{
-		rootCtx:     ctx,
+		ctx:         ctx,
 		cancel:      cancel,
 		eventBucket: bucket,
 		toolOverwrites: nvidia_common.ToolOverwrites{
@@ -755,7 +755,7 @@ func TestClose(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := &component{
-		rootCtx:     ctx,
+		ctx:         ctx,
 		cancel:      func() {},
 		kmsgSyncer:  kmsgSyncer,
 		eventBucket: bucket,
@@ -1017,7 +1017,7 @@ func TestIntegrationWithLogLineProcessor(t *testing.T) {
 	defer cancel()
 
 	comp := &component{
-		rootCtx:     ctx,
+		ctx:         ctx,
 		cancel:      cancel,
 		eventBucket: mockEventBucket,
 	}

@@ -77,9 +77,17 @@ func TestNew(t *testing.T) {
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
-	c := New(ctx, mockInstance)
+
+	// Create a GPUdInstance for the New function
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	c, err := New(gpudInstance)
 
 	assert.NotNil(t, c, "New should return a non-nil component")
+	assert.NoError(t, err, "New should not return an error")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
 	// Type assertion to access internal fields

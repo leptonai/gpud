@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -27,10 +28,12 @@ const (
 var _ components.Component = &component{}
 
 type component struct {
-	rootCtx        context.Context
-	cancel         context.CancelFunc
-	eventBucket    eventstore.Bucket
-	kmsgSyncer     *kmsg.Syncer
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
+
 	toolOverwrites nvidia_common.ToolOverwrites
 
 	lastEventMu        sync.Mutex
@@ -38,25 +41,30 @@ type component struct {
 	lastEventThreshold infiniband.ExpectedPortStates
 }
 
-func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
+// func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
 
-	cctx, ccancel := context.WithCancel(ctx)
-	kmsgSyncer, err := kmsg.NewSyncer(cctx, Match, eventBucket)
-	if err != nil {
-		ccancel()
-		return nil, err
-	}
-
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		rootCtx:        cctx,
-		cancel:         ccancel,
-		eventBucket:    eventBucket,
-		kmsgSyncer:     kmsgSyncer,
-		toolOverwrites: toolOverwrites,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
+	}
+
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
 	}
 
 	return c, nil
@@ -174,7 +182,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 		return c.lastEvent, nil
 	}
 
-	cctx, ccancel := context.WithTimeout(c.rootCtx, 15*time.Second)
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	o, err := infiniband.GetIbstatOutput(cctx, []string{c.toolOverwrites.IbstatCommand})
 	ccancel()
 
@@ -228,7 +236,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	}
 
 	// lookup to prevent duplicate event insertions
-	cctx, ccancel = context.WithTimeout(c.rootCtx, 15*time.Second)
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
 	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
@@ -239,7 +247,7 @@ func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.Expected
 	}
 
 	// insert event
-	cctx, ccancel = context.WithTimeout(c.rootCtx, 15*time.Second)
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
 	err = c.eventBucket.Insert(cctx, ev)
 	ccancel()
 	if err != nil {

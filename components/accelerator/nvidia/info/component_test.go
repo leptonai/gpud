@@ -11,9 +11,14 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
+
+// Ensure we have access to the New function - it should be in the same package
+var _ = New
 
 // MockNVMLInstanceV2 implements nvml.InstanceV2 for testing
 type MockNVMLInstanceV2 struct {
@@ -50,12 +55,32 @@ func (m *MockNVMLInstanceV2) Shutdown() error {
 	return args.Error(0)
 }
 
+func createMockGPUdInstance(ctx context.Context, nvmlInstance nvml.InstanceV2) *components.GPUdInstance {
+	return &components.GPUdInstance{
+		RootCtx:                    ctx,
+		LibraryAndAlternativeNames: make(map[string][]string),
+		LibrarySearchDirs:          []string{},
+		KernelModulesToCheck:       []string{},
+		NVMLInstance:               nvmlInstance,
+		NVIDIAToolOverwrites:       common.ToolOverwrites{},
+		Annotations:                make(map[string]string),
+		DBRO:                       nil,
+		EventStore:                 nil,
+		RebootEventStore:           nil,
+		MountPoints:                []string{},
+		MountTargets:               []string{},
+	}
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	comp := New(ctx, mockInstance)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
+	comp, err := New(gpudInstance)
+
+	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 	assert.Equal(t, Name, comp.Name())
 }
@@ -64,10 +89,13 @@ func TestComponent_Start(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	comp := New(ctx, mockInstance)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
 
 	// Execute start
-	err := comp.Start()
+	err = comp.Start()
 	assert.NoError(t, err)
 
 	// Clean up
@@ -79,12 +107,16 @@ func TestComponent_States_NoData(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 	c.lastData = nil
 
-	states, err := c.HealthStates(context.Background())
+	states := c.LastHealthStates()
 
-	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -95,21 +127,25 @@ func TestComponent_States_WithData(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 	c.lastData = &Data{
-		healthy: true,
-		reason:  "all GPUs were checked",
 		Driver: Driver{
 			Version: "123.45",
 		},
 		CUDA: CUDA{
 			Version: "11.2",
 		},
+		health: apiv1.StateTypeHealthy,
+		reason: "all GPUs were checked",
 	}
 
-	states, err := c.HealthStates(context.Background())
+	states := c.LastHealthStates()
 
-	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -121,16 +157,20 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 	c.lastData = &Data{
-		healthy: false,
-		reason:  "error occurred",
-		err:     errors.New("something went wrong"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error occurred",
+		err:    errors.New("something went wrong"),
 	}
 
-	states, err := c.HealthStates(context.Background())
+	states := c.LastHealthStates()
 
-	assert.NoError(t, err)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
@@ -142,9 +182,12 @@ func TestComponent_Events(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
-	events, err := c.Events(context.Background(), time.Now())
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	events, err := comp.Events(context.Background(), time.Now())
 
 	assert.NoError(t, err)
 	assert.Nil(t, events)
@@ -155,7 +198,12 @@ func TestCheckOnce_Success(t *testing.T) {
 	mockInstance := new(MockNVMLInstanceV2)
 	mockInstance.On("Devices").Return(make(map[string]device.Device))
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	// Mock the functions
 	c.getDriverVersionFunc = func() (string, error) {
@@ -171,58 +219,76 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	// Call the function
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
 	// Verify the results
-	assert.NotNil(t, c.lastData)
-	assert.True(t, c.lastData.healthy)
-	assert.Equal(t, "530.82.01", c.lastData.Driver.Version)
-	assert.Equal(t, "12.7", c.lastData.CUDA.Version)
-	assert.Equal(t, 1, c.lastData.GPU.DeviceCount)
-	assert.Equal(t, 0, c.lastData.GPU.Attached) // No devices in our mock
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeHealthy, d.health)
+	assert.Equal(t, "530.82.01", d.Driver.Version)
+	assert.Equal(t, "12.7", d.CUDA.Version)
+	assert.Equal(t, 1, d.GPU.DeviceCount)
+	assert.Equal(t, 0, d.GPU.Attached) // No devices in our mock
 }
 
 func TestCheckOnce_DriverVersionError(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	c.getDriverVersionFunc = func() (string, error) {
 		return "", errors.New("driver error")
 	}
 
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, "error getting driver version: driver error", c.lastData.reason)
-	assert.Error(t, c.lastData.err)
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting driver version: driver error", d.reason)
+	assert.Error(t, d.err)
 }
 
 func TestCheckOnce_EmptyDriverVersion(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	c.getDriverVersionFunc = func() (string, error) {
 		return "", nil
 	}
 
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, "driver version is empty", c.lastData.reason)
-	assert.Error(t, c.lastData.err)
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "driver version is empty", d.reason)
+	assert.Error(t, d.err)
 }
 
 func TestCheckOnce_CUDAVersionError(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	c.getDriverVersionFunc = func() (string, error) {
 		return "530.82.01", nil
@@ -232,19 +298,25 @@ func TestCheckOnce_CUDAVersionError(t *testing.T) {
 		return "", errors.New("cuda error")
 	}
 
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, "error getting CUDA version: cuda error", c.lastData.reason)
-	assert.Error(t, c.lastData.err)
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting CUDA version: cuda error", d.reason)
+	assert.Error(t, d.err)
 }
 
 func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	c.getDriverVersionFunc = func() (string, error) {
 		return "530.82.01", nil
@@ -254,19 +326,25 @@ func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
 		return "", nil
 	}
 
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, "CUDA version is empty", c.lastData.reason)
-	assert.Error(t, c.lastData.err)
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "CUDA version is empty", d.reason)
+	assert.Error(t, d.err)
 }
 
 func TestCheckOnce_DeviceCountError(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(MockNVMLInstanceV2)
 
-	c := New(ctx, mockInstance).(*component)
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
 
 	c.getDriverVersionFunc = func() (string, error) {
 		return "530.82.01", nil
@@ -280,41 +358,39 @@ func TestCheckOnce_DeviceCountError(t *testing.T) {
 		return 0, errors.New("device count error")
 	}
 
-	c.CheckOnce()
+	result := c.Check()
+	d := result.(*Data)
 
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.healthy)
-	assert.Equal(t, "error getting device count: device count error", c.lastData.reason)
-	assert.Error(t, c.lastData.err)
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting device count: device count error", d.reason)
+	assert.Error(t, d.err)
 }
 
-func TestData_GetStates(t *testing.T) {
+func TestData_GetHealthStates(t *testing.T) {
 	// Test with nil data
 	var nilData *Data
-	states, err := nilData.getHealthStates()
-	assert.NoError(t, err)
+	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with healthy data
 	healthyData := &Data{
-		healthy: true,
-		reason:  "all good",
+		health: apiv1.StateTypeHealthy,
+		reason: "all good",
 	}
-	states, err = healthyData.getHealthStates()
-	assert.NoError(t, err)
+	states = healthyData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
 
 	// Test with unhealthy data
 	unhealthyData := &Data{
-		healthy: false,
-		reason:  "problems found",
-		err:     errors.New("test error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "problems found",
+		err:    errors.New("test error"),
 	}
-	states, err = unhealthyData.getHealthStates()
-	assert.NoError(t, err)
+	states = unhealthyData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test error", states[0].Error)
