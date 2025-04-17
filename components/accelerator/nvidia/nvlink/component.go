@@ -160,7 +160,10 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"UUID", "NVLink Enabled", "NVLink Supported"})
+	for _, nvlink := range d.NVLinks {
+		table.Append([]string{nvlink.UUID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
+	}
 	table.Render()
 
 	return buf.String()

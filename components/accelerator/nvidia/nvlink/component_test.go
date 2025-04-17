@@ -135,7 +135,7 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
-	component.CheckOnce()
+	_ = component.Check()
 
 	// Verify the data was collected
 	component.lastMu.RLock()
@@ -143,7 +143,7 @@ func TestCheckOnce_Success(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", lastData.reason)
 	assert.Len(t, lastData.NVLinks, 1)
 	assert.Equal(t, nvLink, lastData.NVLinks[0])
@@ -174,7 +174,7 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
-	component.CheckOnce()
+	_ = component.Check()
 
 	// Verify error handling
 	component.lastMu.RLock()
@@ -182,7 +182,7 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", lastData.reason)
 }
@@ -195,7 +195,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, nil).(*component)
-	component.CheckOnce()
+	_ = component.Check()
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
@@ -203,7 +203,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastData.reason)
 	assert.Empty(t, lastData.NVLinks)
 }
@@ -229,14 +229,13 @@ func TestStates_WithData(t *testing.T) {
 				States: []nvidianvml.NVLinkState{nvLinkState, nvLinkState},
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no nvlink issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no nvlink issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -253,15 +252,14 @@ func TestStates_WithError(t *testing.T) {
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test NVLink error"),
-		healthy: false,
-		reason:  "error getting nvlink for device gpu-uuid-123",
+		err:    errors.New("test NVLink error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting nvlink for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -278,8 +276,7 @@ func TestStates_NoData(t *testing.T) {
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -358,8 +355,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},
