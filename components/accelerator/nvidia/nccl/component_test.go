@@ -220,7 +220,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.NotNil(t, result)
 		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
-		assert.Contains(t, result.Summary(), "matched 0 events")
+		assert.Contains(t, result.Summary(), "matched 0 kmsg(s)")
 	})
 
 	t.Run("with matching messages", func(t *testing.T) {
@@ -250,12 +250,12 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.NotNil(t, result)
 		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
-		assert.Contains(t, result.Summary(), "matched 1 events")
+		assert.Contains(t, result.Summary(), "matched 1 kmsg(s)")
 
 		data, ok := result.(*Data)
 		assert.True(t, ok)
-		assert.Len(t, data.MatchedEvents, 1)
-		assert.Equal(t, "segfault at 123 in libnccl.so.2", data.MatchedEvents[0].Message)
+		assert.Len(t, data.MatchedKmsgs, 1)
+		assert.Equal(t, "segfault at 123 in libnccl.so.2", data.MatchedKmsgs[0].Message)
 	})
 }
 
@@ -275,22 +275,22 @@ func TestDataMethods(t *testing.T) {
 			health: apiv1.StateTypeHealthy,
 			reason: "test reason",
 		}
-		assert.Equal(t, "matched 0 events", d.String())
+		assert.Equal(t, "matched 0 kmsg(s)", d.String())
 		assert.Equal(t, "test reason", d.Summary())
 		assert.Equal(t, apiv1.StateTypeHealthy, d.HealthState())
 	})
 
-	t.Run("data with matched events", func(t *testing.T) {
+	t.Run("data with matched kmsg(s)", func(t *testing.T) {
 		d := &Data{
-			MatchedEvents: []kmsg.Message{
+			MatchedKmsgs: []kmsg.Message{
 				{Message: "test message 1"},
 				{Message: "test message 2"},
 			},
 			health: apiv1.StateTypeUnhealthy,
-			reason: "matched events",
+			reason: "matched kmsg(s)",
 		}
-		assert.Equal(t, "matched 2 events", d.String())
-		assert.Equal(t, "matched events", d.Summary())
+		assert.Equal(t, "matched 2 kmsg(s)", d.String())
+		assert.Equal(t, "matched kmsg(s)", d.Summary())
 		assert.Equal(t, apiv1.StateTypeUnhealthy, d.HealthState())
 	})
 }

@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
@@ -124,13 +125,25 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
-	comp := New(ctx, rebootEventStore, store)
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
 	assert.NotNil(t, comp)
-	err = comp.SetHealthy()
+
+	// Cast to HealthSettable interface
+	healthSettable, ok := comp.(components.HealthSettable)
+	assert.True(t, ok, "component should implement HealthSettable interface")
+	err = healthSettable.SetHealthy()
 	assert.NoError(t, err)
 
+	c := comp.(*component)
 	select {
-	case event := <-comp.extraEventCh:
+	case event := <-c.extraEventCh:
 		assert.Equal(t, "SetHealthy", event.Name)
 	default:
 		t.Error("expected event in channel but got none")
@@ -150,11 +163,30 @@ func TestXIDComponent_Events(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
-	component := New(ctx, rebootEventStore, store)
-	assert.NotNil(t, component)
-	go component.start(make(chan kmsg.Message, 1), 1*time.Second)
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Setup a test channel for events to avoid using kmsg
+	eventCh := make(chan kmsg.Message, 1)
+	go c.start(eventCh, 1*time.Second)
+
 	defer func() {
-		if err := component.Close(); err != nil {
+		if err := comp.Close(); err != nil {
 			t.Error("failed to close component")
 		}
 	}()
@@ -166,7 +198,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	// insert test events
 	for _, event := range testEvents {
 		select {
-		case component.extraEventCh <- &event:
+		case c.extraEventCh <- &event:
 		default:
 			t.Error("failed to insert event into channel")
 		}
@@ -175,7 +207,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	// wait for events to be processed
 	time.Sleep(5 * time.Second)
 
-	events, err := component.Events(ctx, time.Now().Add(-1*time.Hour))
+	events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Len(t, events, len(testEvents))
 	for i, event := range events {
@@ -201,11 +233,30 @@ func TestXIDComponent_States(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
-	component := New(ctx, rebootEventStore, store)
-	assert.NotNil(t, component)
-	go component.start(make(<-chan kmsg.Message, 1), 100*time.Millisecond)
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Setup a test channel for events to avoid using kmsg
+	eventCh := make(chan kmsg.Message, 1)
+	go c.start(eventCh, 100*time.Millisecond)
+
 	defer func() {
-		if err := component.Close(); err != nil {
+		if err := comp.Close(); err != nil {
 			t.Error("failed to close component")
 		}
 	}()
@@ -215,9 +266,8 @@ func TestXIDComponent_States(t *testing.T) {
 		Health: apiv1.StateTypeHealthy,
 		Reason: "XIDComponent is healthy",
 	}
-	component.currState = s
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	c.currState = s
+	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, s, states[0])
 
@@ -256,15 +306,14 @@ func TestXIDComponent_States(t *testing.T) {
 			// insert test events
 			for i, event := range tt.events {
 				select {
-				case component.extraEventCh <- &event:
+				case c.extraEventCh <- &event:
 				default:
 					t.Error("failed to insert event into channel")
 				}
 				// wait for events to be processed
 				time.Sleep(1 * time.Second)
-				states, err = component.HealthStates(ctx)
+				states = comp.LastHealthStates()
 				t.Log(states[0])
-				assert.NoError(t, err, "index %d", i)
 				assert.Len(t, states, 1, "index %d", i)
 				assert.Equal(t, tt.wantState[i].Health, states[0].Health, "index %d", i)
 				if tt.wantState[i].SuggestedActions == nil {
@@ -274,8 +323,13 @@ func TestXIDComponent_States(t *testing.T) {
 					assert.Equal(t, tt.wantState[i].SuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions, "index %d", i)
 				}
 			}
-			err = component.SetHealthy()
+
+			// Cast to HealthSettable interface
+			healthSettable, ok := comp.(components.HealthSettable)
+			assert.True(t, ok, "component should implement HealthSettable interface")
+			err = healthSettable.SetHealthy()
 			assert.NoError(t, err)
+
 			// wait for events to be processed
 			time.Sleep(1 * time.Second)
 		})

@@ -139,10 +139,10 @@ func (c *component) Check() components.CheckResult {
 		if ev == "" {
 			continue
 		}
-		d.MatchedEvents = append(d.MatchedEvents, kmsg)
+		d.MatchedKmsgs = append(d.MatchedKmsgs, kmsg)
 	}
 
-	d.reason = fmt.Sprintf("matched %d events", len(d.MatchedEvents))
+	d.reason = fmt.Sprintf("matched %d kmsg(s)", len(d.MatchedKmsgs))
 	d.health = apiv1.StateTypeHealthy
 
 	return d
@@ -151,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &Data{}
 
 type Data struct {
-	MatchedEvents []kmsg.Message `json:"matched_events"`
+	MatchedKmsgs []kmsg.Message `json:"matched_kmsgs"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -168,7 +168,7 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
-	return fmt.Sprintf("matched %d events", len(d.MatchedEvents))
+	return fmt.Sprintf("matched %d kmsg(s)", len(d.MatchedKmsgs))
 }
 
 func (d *Data) Summary() string {

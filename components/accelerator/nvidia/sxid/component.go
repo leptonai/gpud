@@ -5,12 +5,12 @@ package sxid
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,7 +53,11 @@ type component struct {
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
 
+	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
 	extraEventCh chan *apiv1.Event
+
+	lastMu   sync.RWMutex
+	lastData *Data
 
 	mu        sync.RWMutex
 	currState apiv1.HealthState
@@ -83,6 +87,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			ccancel()
 			return nil, err
 		}
+
+		c.readAllKmsg = kmsg.ReadAll
 	}
 
 	return c, nil
@@ -96,10 +102,12 @@ func (c *component) Start() error {
 		if err == nil {
 			break
 		}
+
 		if errors.Is(err, context.Canceled) {
 			log.Logger.Infow("context canceled, exiting")
 			return nil
 		}
+
 		log.Logger.Errorw("failed to fetch current events", "error", err)
 		select {
 		case <-c.ctx.Done():
@@ -119,10 +127,10 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return apiv1.HealthStates{c.currState}, nil
+	return apiv1.HealthStates{c.currState}
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -148,14 +156,22 @@ func (c *component) Close() error {
 	c.cancel()
 
 	if c.kmsgWatcher != nil {
-		_ = c.kmsgWatcher.Close()
+		cerr := c.kmsgWatcher.Close()
+		if cerr != nil {
+			log.Logger.Errorw("failed to close kmsg watcher", "error", cerr)
+		}
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
 	}
 
 	return nil
 }
 
+// Check checks the current SXID errors (e.g., "gpud scan")
+// by reading all kmsg logs.
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking nvidia gpu nccl")
+	log.Logger.Infow("checking nvidia gpu sxid")
 
 	d := &Data{
 		ts: time.Now().UTC(),
@@ -172,12 +188,43 @@ func (c *component) Check() components.CheckResult {
 		return d
 	}
 
+	if c.readAllKmsg == nil {
+		d.reason = "kmsg reader is not set"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+	kmsgs, err := c.readAllKmsg(cctx)
+	ccancel()
+	if err != nil {
+		d.err = err
+		d.reason = fmt.Sprintf("failed to read kmsg: %v", err)
+		d.health = apiv1.StateTypeUnhealthy
+		return d
+	}
+
+	for _, kmsg := range kmsgs {
+		sxidErr := Match(kmsg.Message)
+		if sxidErr == nil {
+			continue
+		}
+		d.FoundErrors = append(d.FoundErrors, FoundError{
+			Kmsg:      kmsg,
+			SXidError: *sxidErr,
+		})
+	}
+
+	d.reason = fmt.Sprintf("matched %d sxid errors from %d kmsg(s)", len(d.FoundErrors), len(kmsgs))
+	d.health = apiv1.StateTypeHealthy
+
 	return d
 }
 
 var _ components.CheckResult = &Data{}
 
 type Data struct {
+	FoundErrors []FoundError `json:"found_errors"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -190,18 +237,55 @@ type Data struct {
 	reason string
 }
 
+// FoundError represents a found SXID error and its corresponding kmsg.
+type FoundError struct {
+	Kmsg kmsg.Message
+	SXidError
+}
+
 func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
 
-	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	if len(d.FoundErrors) == 0 {
+		return "no sxid error found"
+	}
 
-	table.Render()
+	header := []string{"Time", "SXID", "DeviceUUID", "Name", "Critical", "Action(s)"}
+	outputs := make([]string, 0, len(d.FoundErrors))
+	for _, foundErr := range d.FoundErrors {
+		action := "unknown"
+		if foundErr.Detail != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
+			actions := make([]string, 0, len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions))
+			for _, action := range foundErr.Detail.SuggestedActionsByGPUd.RepairActions {
+				actions = append(actions, string(action))
+			}
+			action = strings.Join(actions, ", ")
+		}
 
-	return buf.String()
+		critical := false
+		if foundErr.Detail != nil {
+			critical = foundErr.Detail.CriticalErrorMarkedByGPUd
+		}
+
+		buf := bytes.NewBuffer(nil)
+		table := tablewriter.NewWriter(buf)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader(header)
+		table.Append([]string{
+			foundErr.Kmsg.Timestamp.Format(time.RFC3339),
+			fmt.Sprintf("%d", foundErr.SXid),
+			foundErr.DeviceUUID,
+			foundErr.Detail.Name,
+			strconv.FormatBool(critical),
+			action,
+		})
+		table.Render()
+		outputs = append(outputs, buf.String())
+	}
+
+	return strings.Join(outputs, "\n\n")
 }
 
 func (d *Data) Summary() string {
@@ -218,39 +302,6 @@ func (d *Data) HealthState() apiv1.HealthStateType {
 	return d.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
-		return ""
-	}
-	return d.err.Error()
-}
-
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
-		return apiv1.HealthStates{
-			{
-				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
-				Reason: "no data yet",
-			},
-		}
-	}
-
-	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
-	}
-
-	b, _ := json.Marshal(d)
-	state.DeprecatedExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
-	return apiv1.HealthStates{state}
-}
-
 func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
@@ -258,11 +309,13 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 		select {
 		case <-c.ctx.Done():
 			return
+
 		case <-ticker.C:
 			if err := c.updateCurrentState(); err != nil {
 				log.Logger.Debugw("failed to fetch current events", "error", err)
 				continue
 			}
+
 		case newEvent := <-c.extraEventCh:
 			if newEvent == nil {
 				continue
@@ -275,6 +328,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				log.Logger.Errorw("failed to update current state", "error", err)
 				continue
 			}
+
 		case message := <-kmsgCh:
 			sxidErr := Match(message.Message)
 			if sxidErr == nil {
@@ -334,23 +388,31 @@ func (c *component) SetHealthy() error {
 }
 
 func (c *component) updateCurrentState() error {
+	if c.rebootEventStore == nil || c.eventBucket == nil {
+		return nil
+	}
+
 	var rebootErr string
 	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
 	}
+
 	localEvents, err := c.eventBucket.Get(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}
+
 	events := mergeEvents(rebootEvents, localEvents)
+
 	c.mu.Lock()
-	c.currState = EvolveHealthyState(events)
+	c.currState = evolveHealthyState(events)
 	if rebootErr != "" {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}
 	c.mu.Unlock()
+
 	return nil
 }
 
