@@ -79,7 +79,7 @@ func NewInstance(ctx context.Context, opts ...OpOption) (Instance, error) {
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	driverVersion, err := GetSystemDriverVersion(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
 	}
@@ -535,10 +535,10 @@ func GetDriverVersion() (string, error) {
 		_ = nvmlLib.Shutdown()
 	}()
 
-	return getDriverVersion(nvmlLib.NVML())
+	return GetSystemDriverVersion(nvmlLib.NVML())
 }
 
-func getDriverVersion(nvmlLib nvml.Interface) (string, error) {
+func GetSystemDriverVersion(nvmlLib nvml.Interface) (string, error) {
 	ver, ret := nvmlLib.SystemGetDriverVersion()
 	if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("failed to get driver version: %v", nvml.ErrorString(ret))

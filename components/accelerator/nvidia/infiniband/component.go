@@ -140,7 +140,12 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+	if c.nvmlInstance == nil {
+		d.reason = "NVIDIA NVML instance is nil"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
 		d.reason = "NVIDIA NVML is not loaded"
 		d.health = apiv1.StateTypeHealthy
 		return d

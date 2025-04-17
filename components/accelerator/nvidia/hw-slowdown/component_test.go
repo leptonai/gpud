@@ -244,6 +244,18 @@ func TestCheckOnce(t *testing.T) {
 					}
 					return nvidianvml.ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
 				},
+				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+					return true, nil
+				},
+				getSystemDriverVersionFunc: func() (string, error) {
+					return "535.104.05", nil
+				},
+				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+					return 535, 104, 5, nil
+				},
+				checkClockEventsSupportedFunc: func(major int) bool {
+					return major >= 535
+				},
 			}
 
 			// Run the check
@@ -345,6 +357,18 @@ func TestComponentStates(t *testing.T) {
 				Supported:            true,
 			}, nil
 		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
+		},
 	}
 
 	// Get states
@@ -444,10 +468,56 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			err = tc.setupStore(bucket, ctx)
 			assert.NoError(t, err)
 
+			// Create mock NVML instance
+			mockDevice := testutil.NewMockDevice(
+				&mock.Device{
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "gpu-0", nvml.SUCCESS
+					},
+				},
+				"test-arch", "test-brand", "test-cuda", "test-pci",
+			)
+
+			mockDevices := map[string]device.Device{
+				"gpu-0": mockDevice,
+			}
+
+			mockNVML := createMockNVMLInstance(mockDevices)
+
 			c := &component{
+				ctx:              ctx,
+				cancel:           cancel,
 				evaluationWindow: tc.window,
 				threshold:        tc.thresholdPerMinute,
 				eventBucket:      bucket,
+				nvmlInstance:     mockNVML,
+				lastData: &Data{
+					ts:     time.Now().UTC(),
+					health: apiv1.StateTypeHealthy,
+					reason: "Initial state",
+				},
+				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+					return nvidianvml.ClockEvents{
+						UUID:                 uuid,
+						Time:                 metav1.Time{Time: time.Now()},
+						HWSlowdown:           false,
+						HWSlowdownThermal:    false,
+						HWSlowdownPowerBrake: false,
+						Supported:            true,
+					}, nil
+				},
+				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+					return true, nil
+				},
+				getSystemDriverVersionFunc: func() (string, error) {
+					return "535.104.05", nil
+				},
+				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+					return 535, 104, 5, nil
+				},
+				checkClockEventsSupportedFunc: func(major int) bool {
+					return major >= 535
+				},
 			}
 
 			states := c.LastHealthStates()
@@ -467,14 +537,56 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
+
 	// Create mock NVML instance
 	mockNVML := createMockNVMLInstance(map[string]device.Device{})
 
 	c := &component{
-		nvmlInstance: mockNVML,
+		ctx:              ctx,
+		cancel:           cancel,
+		nvmlInstance:     mockNVML,
+		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		eventBucket:      bucket,
+		lastData: &Data{
+			ts:     time.Now().UTC(),
+			health: apiv1.StateTypeHealthy,
+			reason: "Initial state",
+		},
 		// Initialize required functions to avoid nil pointer dereference
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{}, nil
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: time.Now()},
+				HWSlowdown:           false,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+			}, nil
+		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
 		},
 	}
 
@@ -487,6 +599,16 @@ func TestComponentStart(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Set up test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucket, err := store.Bucket("test_events")
+	assert.NoError(t, err)
+	defer bucket.Close()
 
 	// Create mock devices
 	mockDevice := testutil.NewMockDevice(
@@ -506,16 +628,43 @@ func TestComponentStart(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:          ctx,
-		cancel:       cancel,
-		nvmlInstance: mockNVML,
+		ctx:              ctx,
+		cancel:           cancel,
+		nvmlInstance:     mockNVML,
+		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		eventBucket:      bucket,
+		lastData: &Data{
+			ts:     time.Now().UTC(),
+			health: apiv1.StateTypeHealthy,
+			reason: "Initial state",
+		},
 		// Initialize mock functions to avoid nil pointer dereference if Start() is called
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{}, nil
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: time.Now()},
+				HWSlowdown:           false,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+			}, nil
+		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
 		},
 	}
 
-	err := c.Start()
+	err = c.Start()
 	assert.NoError(t, err)
 
 	// Let the goroutine run for a short time
@@ -600,6 +749,18 @@ func TestComponentEvents(t *testing.T) {
 				Supported:            true,
 			}, nil
 		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
+		},
 	}
 
 	// Filter by time to get events within the last 3 hours
@@ -672,6 +833,18 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 				Supported:            true,
 				HWSlowdownReasons:    []string{"GPU slowdown detected"},
 			}, nil
+		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
 		},
 	}
 

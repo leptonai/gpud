@@ -40,8 +40,12 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance       nvidianvml.InstanceV2
-	getClockEventsFunc func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+	nvmlInstance                  nvidianvml.InstanceV2
+	getClockEventsSupportedFunc   func(dev device.Device) (bool, error)
+	getClockEventsFunc            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+	getSystemDriverVersionFunc    func() (string, error)
+	parseDriverVersionFunc        func(driverVersion string) (int, int, int, error)
+	checkClockEventsSupportedFunc func(major int) bool
 
 	eventBucket eventstore.Bucket
 
@@ -55,13 +59,23 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                cctx,
-		cancel:             ccancel,
-		nvmlInstance:       gpudInstance.NVMLInstance,
-		getClockEventsFunc: nvidianvml.GetClockEvents,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		nvmlInstance:                gpudInstance.NVMLInstance,
+		getClockEventsSupportedFunc: nvidianvml.ClockEventsSupportedByDevice,
+		getClockEventsFunc:          nvidianvml.GetClockEvents,
 
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+	}
+
+	if gpudInstance.NVMLInstance != nil && gpudInstance.NVMLInstance.NVMLExists() {
+		c.getSystemDriverVersionFunc = func() (string, error) {
+			return nvidianvml.GetSystemDriverVersion(gpudInstance.NVMLInstance.Library().NVML())
+		}
+		c.parseDriverVersionFunc = nvidianvml.ParseDriverVersion
+		c.checkClockEventsSupportedFunc = nvidianvml.ClockEventsSupportedVersion
 	}
 
 	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
@@ -130,14 +144,53 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+	if c.nvmlInstance == nil {
+		d.reason = "NVIDIA NVML instance is nil"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
 		d.reason = "NVIDIA NVML is not loaded"
 		d.health = apiv1.StateTypeHealthy
 		return d
 	}
 
+	if c.getSystemDriverVersionFunc != nil {
+		driverVersion, err := c.getSystemDriverVersionFunc()
+		if err != nil {
+			d.reason = fmt.Sprintf("error getting driver version: %s", err)
+			d.health = apiv1.StateTypeUnhealthy
+			return d
+		}
+		major, _, _, err := c.parseDriverVersionFunc(driverVersion)
+		if err != nil {
+			d.reason = fmt.Sprintf("error parsing driver version: %s", err)
+			d.health = apiv1.StateTypeUnhealthy
+			return d
+		}
+		if !c.checkClockEventsSupportedFunc(major) {
+			d.reason = fmt.Sprintf("clock events not supported for driver version %s", driverVersion)
+			d.health = apiv1.StateTypeHealthy
+			return d
+		}
+	}
+
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
+		supported, err := c.getClockEventsSupportedFunc(dev)
+		if err != nil {
+			d.err = err
+			d.health = apiv1.StateTypeUnhealthy
+			d.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
+			return d
+		}
+
+		if !supported {
+			d.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
+			d.health = apiv1.StateTypeHealthy
+			return d
+		}
+
 		clockEvents, err := c.getClockEventsFunc(uuid, dev)
 		if err != nil {
 			d.err = err

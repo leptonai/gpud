@@ -17,16 +17,54 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 // Name is the name of the library component.
 const Name = "library"
+
+var (
+	defaultNVIDIALibraries = map[string][]string{
+		// core library for NVML
+		// typically symlinked to "libnvidia-ml.so.1" or "libnvidia-ml.so.535.183.06" (or other driver versions)
+		// some latest drivers do not have this symlink, only "libnvidia-ml.so.1"
+		"libnvidia-ml.so": {
+			// core library for NVML
+			// typically symlinked to "libnvidia-ml.so.565.57.01" (or other driver versions)
+			// some latest drivers do not have this "libnvidia-ml.so" symlink, only "libnvidia-ml.so.1"
+			"libnvidia-ml.so.1",
+		},
+
+		// core library for CUDA support
+		// typically symlinked to "libcuda.so.1" or "libcuda.so.535.183.06"
+		"libcuda.so": {
+			"libcuda.so.1",
+		},
+	}
+
+	defaultNVIDIALibrariesSearchDirs = []string{
+		// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
+		"/",
+		"/usr/lib64",
+		"/usr/lib/x86_64-linux-gnu",
+		"/usr/lib/aarch64-linux-gnu",
+		"/usr/lib/x86_64-linux-gnu/nvidia/current",
+		"/usr/lib/aarch64-linux-gnu/nvidia/current",
+		"/lib64",
+		"/lib/x86_64-linux-gnu",
+		"/lib/aarch64-linux-gnu",
+		"/lib/x86_64-linux-gnu/nvidia/current",
+		"/lib/aarch64-linux-gnu/nvidia/current",
+	}
+)
 
 var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	nvmlInstance nvidianvml.InstanceV2
 
 	libraries   map[string][]string
 	searchOpts  []file.OpOption
@@ -39,15 +77,20 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		findLibrary: file.FindLibrary,
+		ctx:          cctx,
+		cancel:       ccancel,
+		nvmlInstance: gpudInstance.NVMLInstance,
+		findLibrary:  file.FindLibrary,
 	}
 
 	searchDirs := make(map[string]any)
-	for _, dir := range gpudInstance.LibrarySearchDirs {
-		searchDirs[dir] = struct{}{}
+	if c.nvmlInstance != nil && c.nvmlInstance.NVMLExists() {
+		c.libraries = defaultNVIDIALibraries
+		for _, dir := range defaultNVIDIALibrariesSearchDirs {
+			searchDirs[dir] = struct{}{}
+		}
 	}
+
 	searchOpts := []file.OpOption{}
 	for dir := range searchDirs {
 		searchOpts = append(searchOpts, file.WithSearchDirs(dir))

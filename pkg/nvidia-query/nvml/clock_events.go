@@ -13,46 +13,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
-
-// Returns true if clock events is supported by all devices.
-// Returns false if any device does not support clock events.
-// ref. undefined symbol: nvmlDeviceGetCurrentClocksEventReasons for older nvidia drivers
-func ClockEventsSupported() (bool, error) {
-	nvmlLib, err := nvml_lib.New()
-	if err != nil {
-		return false, err
-	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
-	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
-	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
-	if err != nil {
-		return false, err
-	}
-
-	// in rare cases, this evaluates the whole system to false
-	// as a result, masking clock events
-	// we must monitor clock events when a single device supports clock events
-	// (probably some undocumented behavior in NVML)
-
-	for _, dev := range devices {
-		supported, err := ClockEventsSupportedByDevice(dev)
-		if err != nil {
-			return false, err
-		}
-		if supported {
-			return true, nil
-		}
-	}
-
-	// no device supports clock events
-	return false, nil
-}
 
 // Returns true if clock events is supported by this device.
 func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {

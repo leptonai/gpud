@@ -40,7 +40,7 @@ func NewInstanceV2() (InstanceV2, error) {
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	driverVersion, err := GetSystemDriverVersion(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
 	}

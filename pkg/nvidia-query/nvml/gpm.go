@@ -10,38 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/log"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
-
-// Returns true if GPM is supported by all devices.
-// Returns false if any device does not support GPM.
-func GPMSupported() (bool, error) {
-	nvmlLib, err := nvml_lib.New()
-	if err != nil {
-		return false, err
-	}
-	defer func() {
-		_ = nvmlLib.Shutdown()
-	}()
-
-	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
-	// "error getting device handle for index '6': Unknown Error"
-	devices, err := nvmlLib.Device().GetDevices()
-	if err != nil {
-		return false, err
-	}
-
-	for _, dev := range devices {
-		supported, err := GPMSupportedByDevice(dev)
-		if err != nil {
-			return false, err
-		}
-		if !supported {
-			return false, nil
-		}
-	}
-	return true, nil
-}
 
 func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmFunctions.html#group__nvmlGpmFunctions_1gdfd08d875be65f0532201913da9b8890
