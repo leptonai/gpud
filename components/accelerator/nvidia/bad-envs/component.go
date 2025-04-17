@@ -46,7 +46,6 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return os.Getenv(key) == "1"
 		},
 	}
-
 	return c, nil
 }
 
