@@ -40,6 +40,7 @@ type component struct {
 	kmsgSyncer  *kmsg.Syncer
 
 	getIbstatOutputFunc func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error)
+	getThresholdsFunc   func() infiniband.ExpectedPortStates
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -57,6 +58,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance:        gpudInstance.NVMLInstance,
 		toolOverwrites:      gpudInstance.NVIDIAToolOverwrites,
 		getIbstatOutputFunc: infiniband.GetIbstatOutput,
+		getThresholdsFunc:   GetDefaultExpectedPortStates,
 	}
 
 	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
@@ -97,50 +99,14 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
-	return c.getHealthStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
-}
-
-var noDataEvents = apiv1.HealthStates{
-	{
-		Name:   "ibstat",
-		Health: apiv1.StateTypeHealthy,
-		Reason: msgThresholdNotSetSkipped,
-	},
-}
-
-func (c *component) getHealthStates(ctx context.Context, now time.Time, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStates, error) {
-	// in rare cases, some machines have "ibstat" installed that returns empty output
-	// not failing the ibstat check, thus we need manual check on the thresholds here
-	// before we call the ibstat command
-	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
-		return noDataEvents, nil
-	}
-
-	lastEvent, err := c.checkOnceIbstat(now.UTC(), thresholds)
-	if err != nil {
-		return nil, err
-	}
-	if lastEvent == nil {
-		cctx, ccancel := context.WithTimeout(ctx, 15*time.Second)
-		lastEvent, err = c.eventBucket.Latest(cctx)
-		ccancel()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if lastEvent == nil {
-		return noDataEvents, nil
-	}
-
-	return apiv1.HealthStates{convertToState(lastEvent)}, nil
+func (c *component) LastHealthStates() apiv1.HealthStates {
+	c.lastMu.RLock()
+	lastData := c.lastData
+	c.lastMu.RUnlock()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	thresholds := GetDefaultExpectedPortStates()
-	if _, err := c.checkOnceIbstat(time.Now().UTC(), thresholds); err != nil {
-		return nil, err
-	}
 	if c.eventBucket == nil {
 		return nil, nil
 	}
@@ -152,6 +118,9 @@ func (c *component) Close() error {
 
 	c.cancel()
 
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
 	}
@@ -160,7 +129,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking nvidia gpu nccl")
+	log.Logger.Infow("checking nvidia gpu infiniband")
 
 	d := &Data{
 		ts: time.Now().UTC(),
@@ -176,13 +145,123 @@ func (c *component) Check() components.CheckResult {
 		d.health = apiv1.StateTypeHealthy
 		return d
 	}
+	if c.getIbstatOutputFunc == nil {
+		d.reason = "ibstat checker not found"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	d.IbstatOutput, d.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
+	ccancel()
+	if d.err != nil {
+		if errors.Is(d.err, infiniband.ErrNoIbstatCommand) {
+			d.reason = "ibstat command not found"
+			d.health = apiv1.StateTypeHealthy
+		} else {
+			d.reason = fmt.Sprintf("ibstat command failed: %v", d.err)
+			d.health = apiv1.StateTypeUnhealthy
+		}
+		return d
+	}
+
+	if d.IbstatOutput == nil {
+		d.reason = reasonMissingIbstatOutput
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	// no event bucket, no need for timeseries data checks
+	// (e.g., "gpud scan" one-off checks)
+	if c.eventBucket == nil {
+		d.reason = reasonMissingEventBucket
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	thresholds := c.getThresholdsFunc()
+	d.reason, d.health = evaluateIbstatOutputAgainstThresholds(d.IbstatOutput, thresholds)
+
+	// we only care about unhealthy events, no need to persist healthy events
+	if d.health == apiv1.StateTypeHealthy {
+		return d
+	}
+
+	// now that event store/bucket is set
+	// now that ibstat output has some issues with its thresholds (unhealthy state)
+	// we persist such unhealthy state event
+	ev := apiv1.Event{
+		Time:    metav1.Time{Time: d.ts},
+		Name:    "ibstat",
+		Type:    apiv1.EventTypeWarning,
+		Message: d.reason,
+
+		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
+			},
+			DeprecatedDescriptions: []string{
+				"potential infiniband switch/hardware issue needs immediate attention",
+			},
+		},
+	}
+
+	// lookup to prevent duplicate event insertions
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+	found, err := c.eventBucket.Find(cctx, ev)
+	ccancel()
+	if err != nil {
+		d.reason = fmt.Sprintf("failed to find ibstat event: %v", err)
+		d.health = apiv1.StateTypeUnhealthy
+		return d
+	}
+
+	// already exists, no need to insert
+	if found != nil {
+		return d
+	}
+
+	// insert event
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+	err = c.eventBucket.Insert(cctx, ev)
+	ccancel()
+	if err != nil {
+		d.reason = fmt.Sprintf("failed to insert ibstat event: %v", err)
+		d.health = apiv1.StateTypeUnhealthy
+		return d
+	}
 
 	return d
+}
+
+var (
+	reasonMissingIbstatOutput    = "missing ibstat output (skipped evaluation)"
+	reasonMissingEventBucket     = "missing event storage (skipped evaluation)"
+	reasonThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
+	reasonNoIbIssueFound         = "no infiniband issue found (in ibstat)"
+)
+
+// Returns the output evaluation reason and its health state.
+// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
+func evaluateIbstatOutputAgainstThresholds(o *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
+	// nothing specified for this machine, gpud MUST skip the ib check
+	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
+		return reasonThresholdNotSetSkipped, apiv1.StateTypeHealthy
+	}
+
+	atLeastPorts := thresholds.AtLeastPorts
+	atLeastRate := thresholds.AtLeastRate
+	if err := o.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
+		return err.Error(), apiv1.StateTypeUnhealthy
+	}
+
+	return reasonNoIbIssueFound, apiv1.StateTypeHealthy
 }
 
 var _ components.CheckResult = &Data{}
 
 type Data struct {
+	IbstatOutput *infiniband.IbstatOutput `json:"ibstat_output"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -199,11 +278,22 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
+	if d.IbstatOutput == nil {
+		return "no data"
+	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"Port Name", "Port1 State", "Port1 Physical State", "Port1 Rate"})
+	for _, card := range d.IbstatOutput.Parsed {
+		table.Append([]string{
+			card.Name,
+			card.Port1.State,
+			card.Port1.PhysicalState,
+			fmt.Sprintf("%d", card.Port1.Rate),
+		})
+	}
 	table.Render()
 
 	return buf.String()
@@ -254,147 +344,4 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"encoding": "json",
 	}
 	return apiv1.HealthStates{state}
-}
-
-func convertToState(ev *apiv1.Event) apiv1.HealthState {
-	state := apiv1.HealthState{
-		Name:             ev.Name,
-		Health:           apiv1.StateTypeHealthy,
-		Reason:           ev.Message,
-		SuggestedActions: ev.DeprecatedSuggestedActions,
-	}
-	if len(ev.DeprecatedExtraInfo) > 0 {
-		state.Health = apiv1.HealthStateType(ev.DeprecatedExtraInfo["state_health"])
-	}
-	return state
-}
-
-// check "ibstat" once, and return the last event
-// if the last event happened within the last 10 seconds, skip the check and return the cached last event
-// if unhealthy ibstat status is found, it persists the unhealthy event in the database
-// if a unexpected error is found, it returns the error (regardless of the ibstat status)
-func (c *component) checkOnceIbstat(ts time.Time, thresholds infiniband.ExpectedPortStates) (*apiv1.Event, error) {
-	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
-		return nil, nil
-	}
-
-	ev := apiv1.Event{
-		Time:    metav1.Time{Time: ts},
-		Name:    "ibstat",
-		Type:    apiv1.EventTypeInfo,
-		Message: "",
-		DeprecatedExtraInfo: map[string]string{
-			"state_healthy": "true",
-			"state_health":  string(apiv1.StateTypeHealthy),
-		},
-		DeprecatedSuggestedActions: nil,
-	}
-
-	c.lastEventMu.Lock()
-	defer c.lastEventMu.Unlock()
-
-	// last event already happened within the last 10 seconds, skip the check
-	// and no need further check, no need further state persistence
-	if c.lastEventThreshold.AtLeastPorts == thresholds.AtLeastPorts &&
-		c.lastEventThreshold.AtLeastRate == thresholds.AtLeastRate &&
-		c.lastEvent != nil &&
-		ts.UTC().Sub(c.lastEvent.Time.Time) < 10*time.Second {
-		return c.lastEvent, nil
-	}
-
-	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	o, err := c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
-	ccancel()
-
-	if err != nil {
-		ev.Type = apiv1.EventTypeWarning
-		ev.DeprecatedExtraInfo["state_healthy"] = "false"
-		ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeUnhealthy)
-
-		if errors.Is(err, infiniband.ErrNoIbstatCommand) {
-			ev.Message = fmt.Sprintf("ibstat threshold set but %v", err)
-		} else {
-			ev.Message = fmt.Sprintf("ibstat command failed: %v", err)
-		}
-		log.Logger.Warnw("ibstat command failed", "reason", ev.Message)
-	} else {
-		reason, healthy, err := evaluate(o, thresholds)
-		if err != nil {
-			log.Logger.Warnw("ibstat evaluate error", "error", err)
-			return nil, err
-		}
-		ev.Message = reason
-
-		if healthy {
-			ev.Type = apiv1.EventTypeInfo
-			ev.DeprecatedExtraInfo["state_healthy"] = "true"
-			ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeHealthy)
-		} else {
-			ev.Type = apiv1.EventTypeWarning
-			ev.DeprecatedExtraInfo["state_healthy"] = "false"
-			ev.DeprecatedExtraInfo["state_health"] = string(apiv1.StateTypeUnhealthy)
-
-			ev.DeprecatedSuggestedActions = &apiv1.SuggestedActions{
-				RepairActions: []apiv1.RepairActionType{
-					apiv1.RepairActionTypeHardwareInspection,
-				},
-				DeprecatedDescriptions: []string{
-					"potential infiniband switch/hardware issue needs immediate attention",
-				},
-			}
-
-			log.Logger.Warnw("ibstat issue found", "reason", reason, "output", o.Raw)
-		}
-	}
-
-	c.lastEvent = &ev
-	c.lastEventThreshold = thresholds
-
-	// we only care about unhealthy events
-	if ev.Type == apiv1.EventTypeInfo {
-		return c.lastEvent, nil
-	}
-
-	// lookup to prevent duplicate event insertions
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	found, err := c.eventBucket.Find(cctx, ev)
-	ccancel()
-	if err != nil {
-		return nil, err
-	}
-	if found != nil {
-		return c.lastEvent, nil
-	}
-
-	// insert event
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	err = c.eventBucket.Insert(cctx, ev)
-	ccancel()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.lastEvent, nil
-}
-
-var (
-	msgThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
-	msgNoIbIssueFound         = "no infiniband issue found (in ibstat)"
-)
-
-// Returns the output evaluation reason and its healthy-ness.
-// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluate(o *infiniband.IbstatOutput, cfg infiniband.ExpectedPortStates) (string, bool, error) {
-	// nothing specified for this machine, gpud MUST skip the ib check
-	if cfg.AtLeastPorts <= 0 && cfg.AtLeastRate <= 0 {
-		return msgThresholdNotSetSkipped, true, nil
-	}
-
-	atLeastPorts := cfg.AtLeastPorts
-	atLeastRate := cfg.AtLeastRate
-	if err := o.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return err.Error(), false, nil
-	}
-
-	return msgNoIbIssueFound, true, nil
 }

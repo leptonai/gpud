@@ -1,6 +1,10 @@
 package infiniband
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestHasPCIPowerInsufficient(t *testing.T) {
 	tests := []struct {
@@ -147,4 +151,101 @@ func TestEdgeCases(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestLogLineProcessor tests the Match function with sample log lines
+func TestLogLineProcessor(t *testing.T) {
+	t.Parallel()
+
+	// Test direct matching of log lines
+	tests := []struct {
+		name         string
+		logLine      string
+		expectMatch  bool
+		expectedName string
+		expectedMsg  string
+	}{
+		{
+			name:         "PCI power insufficient",
+			logLine:      "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W).",
+			expectMatch:  true,
+			expectedName: "pci_power_insufficient",
+			expectedMsg:  "Insufficient power on MLX5 PCIe slot",
+		},
+		{
+			name:         "Port module high temperature",
+			logLine:      "mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
+			expectMatch:  true,
+			expectedName: "port_module_high_temperature",
+			expectedMsg:  "Overheated MLX5 adapter",
+		},
+		{
+			name:         "No match",
+			logLine:      "Some unrelated log line",
+			expectMatch:  false,
+			expectedName: "",
+			expectedMsg:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, msg := Match(tt.logLine)
+			if tt.expectMatch {
+				assert.Equal(t, tt.expectedName, name)
+				assert.Equal(t, tt.expectedMsg, msg)
+			} else {
+				assert.Empty(t, name)
+				assert.Empty(t, msg)
+			}
+		})
+	}
+}
+
+// Add more test variations for Match function
+func TestLogLineProcessorWithMoreExamples(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		logLine      string
+		expectMatch  bool
+		expectedName string
+		expectedMsg  string
+	}{
+		{
+			name:         "PCI power insufficient with different format",
+			logLine:      "mlx5_core: mlx5_pcie_event: Detected insufficient power on the PCIe slot (15W).",
+			expectMatch:  true,
+			expectedName: "pci_power_insufficient",
+			expectedMsg:  "Insufficient power on MLX5 PCIe slot",
+		},
+		{
+			name:         "Non-matching InfiniBand line",
+			logLine:      "mlx5_core: some other info that doesn't match patterns",
+			expectMatch:  false,
+			expectedName: "",
+			expectedMsg:  "",
+		},
+		{
+			name:         "Completely unrelated log",
+			logLine:      "kernel: CPU temperature threshold exceeded",
+			expectMatch:  false,
+			expectedName: "",
+			expectedMsg:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, msg := Match(tt.logLine)
+			if tt.expectMatch {
+				assert.Equal(t, tt.expectedName, name)
+				assert.Equal(t, tt.expectedMsg, msg)
+			} else {
+				assert.Empty(t, name)
+				assert.Empty(t, msg)
+			}
+		})
+	}
 }
