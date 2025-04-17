@@ -3,10 +3,10 @@
 package peermem
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,8 +15,8 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
-	"github.com/olekukonko/tablewriter"
 )
 
 const Name = "accelerator-nvidia-peermem"
@@ -27,8 +27,12 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	nvmlInstance nvidianvml.InstanceV2
+
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
+
+	checkLsmodPeermemModuleFunc func(ctx context.Context) (*querypeermem.LsmodPeermemModuleOutput, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -36,24 +40,31 @@ type component struct {
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
 
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
+		nvmlInstance: gpudInstance.NVMLInstance,
+
+		checkLsmodPeermemModuleFunc: querypeermem.CheckLsmodPeermemModule,
 	}
 
-	kmsgSyncer, err := kmsg.NewSyncer(ctx, Match, eventBucket)
-	if err != nil {
-		return nil, err
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
 	}
 
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		kmsgSyncer:  kmsgSyncer,
-		eventBucket: eventBucket,
-	}, nil
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -123,7 +134,7 @@ func (c *component) Check() components.CheckResult {
 
 	var err error
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	d.PeerMemModuleOutput, err = querypeermem.CheckLsmodPeermemModule(cctx)
+	d.PeerMemModuleOutput, err = c.checkLsmodPeermemModuleFunc(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
@@ -166,13 +177,7 @@ func (d *Data) String() string {
 		return "no data"
 	}
 
-	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
-	table.Render()
-
-	return buf.String()
+	return fmt.Sprintf("ibcore using peermem module: %t", d.PeerMemModuleOutput.IbcoreUsingPeermemModule)
 }
 
 func (d *Data) Summary() string {
