@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -20,8 +21,10 @@ import (
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
+// Name is the name of the XID component.
 const Name = "accelerator-nvidia-error-xid"
 
 const (
@@ -35,47 +38,56 @@ const (
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
-var _ components.Component = &XIDComponent{}
+var _ components.Component = &component{}
 
-type XIDComponent struct {
-	rootCtx          context.Context
-	cancel           context.CancelFunc
-	extraEventCh     chan *apiv1.Event
+type component struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	nvmlInstance nvidianvml.InstanceV2
+
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
-	mu               sync.RWMutex
-	currState        apiv1.HealthState
+
+	extraEventCh chan *apiv1.Event
+
+	mu        sync.RWMutex
+	currState apiv1.HealthState
 }
 
-func New(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *XIDComponent {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		log.Logger.Errorw("failed to create store", "error", err)
-		return nil
-	}
-
-	kmsgWatcher, err := kmsg.NewWatcher()
-	if err != nil {
-		log.Logger.Errorw("failed to create kmsg watcher", "error", err)
-		return nil
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-	extraEventCh := make(chan *apiv1.Event, 256)
-	return &XIDComponent{
-		rootCtx:          cctx,
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:              cctx,
 		cancel:           ccancel,
-		extraEventCh:     extraEventCh,
-		rebootEventStore: rebootEventStore,
-		eventBucket:      eventBucket,
-		kmsgWatcher:      kmsgWatcher,
+		nvmlInstance:     gpudInstance.NVMLInstance,
+		rebootEventStore: gpudInstance.RebootEventStore,
+
+		extraEventCh: make(chan *apiv1.Event, 256),
 	}
+
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		c.kmsgWatcher, err = kmsg.NewWatcher()
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
+	return c, nil
 }
 
-func (c *XIDComponent) Name() string { return Name }
+func (c *component) Name() string { return Name }
 
-func (c *XIDComponent) Start() error {
+func (c *component) Start() error {
 	for {
 		err := c.updateCurrentState()
 		if err == nil {
@@ -87,28 +99,30 @@ func (c *XIDComponent) Start() error {
 		}
 		log.Logger.Errorw("failed to fetch current events", "error", err)
 		select {
-		case <-c.rootCtx.Done():
+		case <-c.ctx.Done():
 			return nil
 		case <-time.After(1 * time.Second):
 		}
 	}
 
-	kmsgCh, err := c.kmsgWatcher.Watch()
-	if err != nil {
-		return err
+	if c.kmsgWatcher != nil {
+		kmsgCh, err := c.kmsgWatcher.Watch()
+		if err != nil {
+			return err
+		}
+		go c.start(kmsgCh, DefaultStateUpdatePeriod)
 	}
-	go c.start(kmsgCh, DefaultStateUpdatePeriod)
 
 	return nil
 }
 
-func (c *XIDComponent) HealthStates(_ context.Context) (apiv1.HealthStates, error) {
+func (c *component) HealthStates(_ context.Context) (apiv1.HealthStates, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return apiv1.HealthStates{c.currState}, nil
 }
 
-func (c *XIDComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	var ret apiv1.Events
 	events, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
@@ -120,23 +134,24 @@ func (c *XIDComponent) Events(ctx context.Context, since time.Time) (apiv1.Event
 	return ret, nil
 }
 
-func (c *XIDComponent) Close() error {
-	log.Logger.Debugw("closing XIDComponent")
-	// safe to call stop multiple times
+func (c *component) Close() error {
+	log.Logger.Debugw("closing component")
+
 	c.cancel()
 
 	if c.kmsgWatcher != nil {
 		_ = c.kmsgWatcher.Close()
 	}
+
 	return nil
 }
 
-func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
+func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {
 	ticker := time.NewTicker(updatePeriod)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-c.rootCtx.Done():
+		case <-c.ctx.Done():
 			return
 
 		case <-ticker.C:
@@ -149,7 +164,7 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 			if newEvent == nil {
 				continue
 			}
-			if err := c.eventBucket.Insert(c.rootCtx, *newEvent); err != nil {
+			if err := c.eventBucket.Insert(c.ctx, *newEvent); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
 			}
@@ -180,7 +195,7 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 					EventKeyDeviceUUID:   xidErr.DeviceUUID,
 				},
 			}
-			sameEvent, err := c.eventBucket.Find(c.rootCtx, event)
+			sameEvent, err := c.eventBucket.Find(c.ctx, event)
 			if err != nil {
 				logger.Errorw("failed to check event existence", "error", err)
 				continue
@@ -189,7 +204,7 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 				logger.Infow("find the same event, skip inserting it")
 				continue
 			}
-			if err = c.eventBucket.Insert(c.rootCtx, event); err != nil {
+			if err = c.eventBucket.Insert(c.ctx, event); err != nil {
 				logger.Errorw("failed to create event", "error", err)
 				continue
 			}
@@ -202,9 +217,9 @@ func (c *XIDComponent) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Durat
 	}
 }
 
-var _ components.HealthSettable = &XIDComponent{}
+var _ components.HealthSettable = &component{}
 
-func (c *XIDComponent) SetHealthy() error {
+func (c *component) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")
 	newEvent := &apiv1.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
 	select {
@@ -215,14 +230,14 @@ func (c *XIDComponent) SetHealthy() error {
 	return nil
 }
 
-func (c *XIDComponent) updateCurrentState() error {
+func (c *component) updateCurrentState() error {
 	var rebootErr string
-	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
 	}
-	localEvents, err := c.eventBucket.Get(c.rootCtx, time.Now().Add(-DefaultRetentionPeriod))
+	localEvents, err := c.eventBucket.Get(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}

@@ -19,11 +19,10 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-const (
-	Name = "accelerator-nvidia-infiniband"
-)
+const Name = "accelerator-nvidia-infiniband"
 
 var _ components.Component = &component{}
 
@@ -31,24 +30,23 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	nvmlInstance   nvidianvml.InstanceV2
+	toolOverwrites nvidia_common.ToolOverwrites
+
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
-
-	toolOverwrites nvidia_common.ToolOverwrites
 
 	lastEventMu        sync.Mutex
 	lastEvent          *apiv1.Event
 	lastEventThreshold infiniband.ExpectedPortStates
 }
 
-// func New(ctx context.Context, eventStore eventstore.Store, toolOverwrites nvidia_common.ToolOverwrites) (components.Component, error) {
-
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   gpudInstance.NVMLInstance,
 		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
 	}
 

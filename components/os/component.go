@@ -32,9 +32,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)
-
 	rebootEventStore pkghost.RebootEventStore
+
+	countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -45,8 +45,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	return &component{
 		ctx:                        cctx,
 		cancel:                     ccancel,
-		countProcessesByStatusFunc: process.CountProcessesByStatus,
 		rebootEventStore:           gpudInstance.RebootEventStore,
+		countProcessesByStatusFunc: process.CountProcessesByStatus,
 	}, nil
 }
 

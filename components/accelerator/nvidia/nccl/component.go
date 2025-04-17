@@ -29,6 +29,7 @@ type component struct {
 
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
+
 	readAllKmsg func(context.Context) ([]kmsg.Message, error)
 
 	lastMu   sync.RWMutex
