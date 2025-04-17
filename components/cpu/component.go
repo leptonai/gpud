@@ -88,6 +88,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -306,7 +307,7 @@ func (d *Data) getError() string {
 
 func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
 				Health: apiv1.StateTypeHealthy,

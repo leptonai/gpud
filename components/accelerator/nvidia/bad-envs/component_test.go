@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 func TestNew(t *testing.T) {
@@ -57,8 +60,9 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Set nvmlExists to true for testing
-	comp.nvmlExists = true
+	// Create a mock NVML instance that returns true for NVMLExists
+	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	comp.nvmlInstance = mockNVMLInstance
 
 	// Test with no bad env vars set
 	result := comp.Check()
@@ -83,6 +87,35 @@ func TestCheck(t *testing.T) {
 	assert.Contains(t, result.(*Data).FoundBadEnvsForCUDA, secondBadEnvVar)
 }
 
+// mockNVMLInstance is a mock implementation of nvidianvml.InstanceV2
+type mockNVMLInstance struct {
+	exists bool
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return m.exists
+}
+
+func (m *mockNVMLInstance) Library() nvmllib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return nil
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
 func TestCustomCheckEnvFunc(t *testing.T) {
 	ctx := context.Background()
 	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
@@ -90,8 +123,9 @@ func TestCustomCheckEnvFunc(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Set nvmlExists to true for testing
-	comp.nvmlExists = true
+	// Create a mock NVML instance that returns true for NVMLExists
+	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	comp.nvmlInstance = mockNVMLInstance
 
 	// Set custom environment check function that always returns true
 	comp.checkEnvFunc = func(key string) bool {
@@ -226,8 +260,9 @@ func TestPeriodicCheck(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Set nvmlExists to true for testing
-	comp.nvmlExists = true
+	// Create a mock NVML instance that returns true for NVMLExists
+	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	comp.nvmlInstance = mockNVMLInstance
 
 	// Create a flag to track if the check function was called
 	called := false

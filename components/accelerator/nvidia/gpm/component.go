@@ -27,42 +27,40 @@ const (
 	sampleDuration = 5 * time.Second
 )
 
-var (
-	_ components.Component = &component{}
+var _ components.Component = &component{}
 
-	defaultGPMMetricIDs = []gonvml.GpmMetricId{
-		// By default, it tracks the SM occupancy metrics, with nvml.GPM_METRIC_SM_OCCUPANCY,
-		// nvml.GPM_METRIC_INTEGER_UTIL, nvml.GPM_METRIC_ANY_TENSOR_UTIL,
-		// nvml.GPM_METRIC_DFMA_TENSOR_UTIL, nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
-		// nvml.GPM_METRIC_IMMA_TENSOR_UTIL, nvml.GPM_METRIC_FP64_UTIL,
-		// nvml.GPM_METRIC_FP32_UTIL, nvml.GPM_METRIC_FP16_UTIL,
-		//
-		// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10641-L10643
-		// NVML_GPM_METRIC_SM_OCCUPANCY is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
-		// NVML_GPM_METRIC_INTEGER_UTIL is the percentage of time the GPU's SMs were doing integer operations (0.0 - 100.0).
-		// NVML_GPM_METRIC_ANY_TENSOR_UTIL is the percentage of time the GPU's SMs were doing ANY tensor operations (0.0 - 100.0).
-		//
-		// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10644-L10646
-		// NVML_GPM_METRIC_DFMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing DFMA tensor operations (0.0 - 100.0).
-		// NVML_GPM_METRIC_HMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing HMMA tensor operations (0.0 - 100.0).
-		// NVML_GPM_METRIC_IMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing IMMA tensor operations (0.0 - 100.0).
-		//
-		// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10648-L10650
-		// NVML_GPM_METRIC_FP64_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP64 math (0.0 - 100.0).
-		// NVML_GPM_METRIC_FP32_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP32 math (0.0 - 100.0).
-		// NVML_GPM_METRIC_FP16_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP16 math (0.0 - 100.0).
-		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
-		gonvml.GPM_METRIC_SM_OCCUPANCY,
-		gonvml.GPM_METRIC_INTEGER_UTIL,
-		gonvml.GPM_METRIC_ANY_TENSOR_UTIL,
-		gonvml.GPM_METRIC_DFMA_TENSOR_UTIL,
-		gonvml.GPM_METRIC_HMMA_TENSOR_UTIL,
-		gonvml.GPM_METRIC_IMMA_TENSOR_UTIL,
-		gonvml.GPM_METRIC_FP64_UTIL,
-		gonvml.GPM_METRIC_FP32_UTIL,
-		gonvml.GPM_METRIC_FP16_UTIL,
-	}
-)
+var defaultGPMMetricIDs = []gonvml.GpmMetricId{
+	// By default, it tracks the SM occupancy metrics, with nvml.GPM_METRIC_SM_OCCUPANCY,
+	// nvml.GPM_METRIC_INTEGER_UTIL, nvml.GPM_METRIC_ANY_TENSOR_UTIL,
+	// nvml.GPM_METRIC_DFMA_TENSOR_UTIL, nvml.GPM_METRIC_HMMA_TENSOR_UTIL,
+	// nvml.GPM_METRIC_IMMA_TENSOR_UTIL, nvml.GPM_METRIC_FP64_UTIL,
+	// nvml.GPM_METRIC_FP32_UTIL, nvml.GPM_METRIC_FP16_UTIL,
+	//
+	// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10641-L10643
+	// NVML_GPM_METRIC_SM_OCCUPANCY is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).
+	// NVML_GPM_METRIC_INTEGER_UTIL is the percentage of time the GPU's SMs were doing integer operations (0.0 - 100.0).
+	// NVML_GPM_METRIC_ANY_TENSOR_UTIL is the percentage of time the GPU's SMs were doing ANY tensor operations (0.0 - 100.0).
+	//
+	// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10644-L10646
+	// NVML_GPM_METRIC_DFMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing DFMA tensor operations (0.0 - 100.0).
+	// NVML_GPM_METRIC_HMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing HMMA tensor operations (0.0 - 100.0).
+	// NVML_GPM_METRIC_IMMA_TENSOR_UTIL is the percentage of time the GPU's SMs were doing IMMA tensor operations (0.0 - 100.0).
+	//
+	// ref. https://github.com/NVIDIA/go-nvml/blob/150a069935f8d725c37354faa051e3723e6444c0/gen/nvml/nvml.h#L10648-L10650
+	// NVML_GPM_METRIC_FP64_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP64 math (0.0 - 100.0).
+	// NVML_GPM_METRIC_FP32_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP32 math (0.0 - 100.0).
+	// NVML_GPM_METRIC_FP16_UTIL is the percentage of time the GPU's SMs were doing non-tensor FP16 math (0.0 - 100.0).
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmStructs.html#group__nvmlGpmStructs_1g168f5f2704ec9871110d22aa1879aec0
+	gonvml.GPM_METRIC_SM_OCCUPANCY,
+	gonvml.GPM_METRIC_INTEGER_UTIL,
+	gonvml.GPM_METRIC_ANY_TENSOR_UTIL,
+	gonvml.GPM_METRIC_DFMA_TENSOR_UTIL,
+	gonvml.GPM_METRIC_HMMA_TENSOR_UTIL,
+	gonvml.GPM_METRIC_IMMA_TENSOR_UTIL,
+	gonvml.GPM_METRIC_FP64_UTIL,
+	gonvml.GPM_METRIC_FP32_UTIL,
+	gonvml.GPM_METRIC_FP16_UTIL,
+}
 
 type component struct {
 	ctx    context.Context
@@ -76,12 +74,12 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:                 cctx,
 		cancel:              ccancel,
-		nvmlInstance:        nvmlInstance,
+		nvmlInstance:        gpudInstance.NVMLInstance,
 		getGPMSupportedFunc: nvidianvml.GPMSupportedByDevice,
 		getGPMMetricsFunc: func(ctx2 context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error) {
 			return nvidianvml.GetGPMMetrics(
@@ -92,6 +90,7 @@ func New(ctx context.Context, nvmlInstance nvml.InstanceV2) components.Component
 			)
 		},
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -103,6 +102,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -133,15 +133,22 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking clock speed")
-	d := Data{
+	log.Logger.Infow("checking nvidia gpm metric")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+		d.reason = "NVIDIA NVML is not loaded"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
 
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
@@ -150,14 +157,14 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting GPM supported for device %s", uuid)
-			return
+			return d
 		}
 
 		if !supported {
 			d.GPMSupported = false
 			d.health = apiv1.StateTypeHealthy
 			d.reason = "GPM not supported"
-			return
+			return d
 		}
 
 		metrics, err := c.getGPMMetricsFunc(c.ctx, dev)
@@ -165,7 +172,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting GPM metrics for device %s", uuid)
-			return
+			return d
 		}
 
 		now := metav1.Time{Time: time.Now().UTC()}
@@ -183,6 +190,8 @@ func (c *component) Check() components.CheckResult {
 
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no GPM issue found", len(devs))
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -206,11 +215,20 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
+	if len(d.GPMMetrics) == 0 {
+		return "no data"
+	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
+	table.SetHeader([]string{"GPU UUID", "Metric", "Value"})
+	for _, metric := range d.GPMMetrics {
+		for metricID, metricValue := range metric.Metrics {
+			table.Append([]string{metric.UUID, fmt.Sprintf("%v", metricID), fmt.Sprintf("%f", metricValue)})
+		}
+	}
 	table.Render()
 
 	return buf.String()
@@ -245,18 +263,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -264,5 +278,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

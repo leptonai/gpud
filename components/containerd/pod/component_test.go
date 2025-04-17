@@ -1756,7 +1756,8 @@ func TestCheckOnceWithNilFunctions(t *testing.T) {
 	}
 
 	// Test the CheckOnce method with nil function
-	d := Data{
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 

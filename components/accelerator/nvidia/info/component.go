@@ -28,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstanceV2       nvml.InstanceV2
+	nvmlInstance         nvml.InstanceV2
 	getDriverVersionFunc func() (string, error)
 	getCUDAVersionFunc   func() (string, error)
 	getDeviceCountFunc   func() (int, error)
@@ -41,13 +41,12 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
-		nvmlInstanceV2:       nvmlInstanceV2,
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:                  cctx,
+		cancel:               ccancel,
+		nvmlInstance:         gpudInstance.NVMLInstance,
 		getDriverVersionFunc: nvidianvml.GetDriverVersion,
 		getCUDAVersionFunc:   nvidianvml.GetCUDAVersion,
 		getDeviceCountFunc:   nvidiaquery.CountAllDevicesFromDevDir,
@@ -56,6 +55,7 @@ func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Compone
 		getArchitectureFunc:  nvidianvml.GetArchitecture,
 		getBrandFunc:         nvidianvml.GetBrand,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -67,6 +67,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -97,13 +98,14 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking ecc")
-	d := Data{
+	log.Logger.Infow("checking nvidia gpu info")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
@@ -112,13 +114,13 @@ func (c *component) Check() components.CheckResult {
 		d.err = err
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting driver version: %s", err)
-		return
+		return d
 	}
 	if driverVersion == "" {
 		d.err = fmt.Errorf("driver version is empty")
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "driver version is empty"
-		return
+		return d
 	}
 	d.Driver.Version = driverVersion
 
@@ -127,13 +129,13 @@ func (c *component) Check() components.CheckResult {
 		d.err = err
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting CUDA version: %s", err)
-		return
+		return d
 	}
 	if cudaVersion == "" {
 		d.err = fmt.Errorf("CUDA version is empty")
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "CUDA version is empty"
-		return
+		return d
 	}
 	d.CUDA.Version = cudaVersion
 
@@ -142,11 +144,11 @@ func (c *component) Check() components.CheckResult {
 		d.err = err
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting device count: %s", err)
-		return
+		return d
 	}
 	d.GPU.DeviceCount = deviceCount
 
-	devs := c.nvmlInstanceV2.Devices()
+	devs := c.nvmlInstance.Devices()
 	d.GPU.Attached = len(devs)
 
 	for uuid, dev := range devs {
@@ -155,7 +157,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting memory: %s", err)
-			return
+			return d
 		}
 		d.Memory.TotalBytes = mem.TotalBytes
 		d.Memory.TotalHumanized = mem.TotalHumanized
@@ -165,7 +167,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting product name: %s", err)
-			return
+			return d
 		}
 		d.Product.Name = productName
 
@@ -174,7 +176,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting architecture: %s", err)
-			return
+			return d
 		}
 		d.Product.Architecture = architecture
 
@@ -183,7 +185,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting brand: %s", err)
-			return
+			return d
 		}
 		d.Product.Brand = brand
 		break
@@ -191,6 +193,8 @@ func (c *component) Check() components.CheckResult {
 
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked", len(devs))
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -284,18 +288,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -303,5 +303,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

@@ -109,6 +109,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return

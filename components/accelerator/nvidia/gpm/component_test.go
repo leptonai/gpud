@@ -76,11 +76,19 @@ func MockGPMComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
+
+	// Create a mock GPUdInstance
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
-	c := New(ctx, mockInstance)
 
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -101,7 +109,7 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
-func TestCheckOnce_GPMNotSupported(t *testing.T) {
+func TestCheck_GPMNotSupported(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -129,7 +137,7 @@ func TestCheckOnce_GPMNotSupported(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify data
 	component.lastMu.RLock()
@@ -138,11 +146,11 @@ func TestCheckOnce_GPMNotSupported(t *testing.T) {
 
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.False(t, lastData.GPMSupported, "GPM should not be supported")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "GPM not supported", lastData.reason)
 }
 
-func TestCheckOnce_GPMSupported(t *testing.T) {
+func TestCheck_GPMSupported(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -177,7 +185,7 @@ func TestCheckOnce_GPMSupported(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify data
 	component.lastMu.RLock()
@@ -185,7 +193,7 @@ func TestCheckOnce_GPMSupported(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Len(t, lastData.GPMMetrics, 1)
 	assert.Equal(t, uuid, lastData.GPMMetrics[0].UUID)
 	assert.Equal(t, expectedMetrics, lastData.GPMMetrics[0].Metrics)
@@ -193,7 +201,7 @@ func TestCheckOnce_GPMSupported(t *testing.T) {
 	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", lastData.reason)
 }
 
-func TestCheckOnce_GPMSupportError(t *testing.T) {
+func TestCheck_GPMSupportError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -222,7 +230,7 @@ func TestCheckOnce_GPMSupportError(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify error handling
 	component.lastMu.RLock()
@@ -230,12 +238,12 @@ func TestCheckOnce_GPMSupportError(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastData.reason)
 }
 
-func TestCheckOnce_GPMMetricsError(t *testing.T) {
+func TestCheck_GPMMetricsError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -264,7 +272,7 @@ func TestCheckOnce_GPMMetricsError(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify error handling
 	component.lastMu.RLock()
@@ -272,12 +280,12 @@ func TestCheckOnce_GPMMetricsError(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastData.reason)
 }
 
-func TestCheckOnce_NoDevices(t *testing.T) {
+func TestCheck_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -285,7 +293,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
@@ -293,7 +301,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no GPM issue found", lastData.reason)
 	assert.Empty(t, lastData.GPMMetrics)
 }
@@ -316,14 +324,13 @@ func TestStates_WithData(t *testing.T) {
 				Time:           metav1.Time{Time: time.Now().UTC()},
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no GPM issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no GPM issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -340,15 +347,14 @@ func TestStates_WithError(t *testing.T) {
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test GPM error"),
-		healthy: false,
-		reason:  "error getting GPM metrics for device gpu-uuid-123",
+		err:    errors.New("test GPM error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting GPM metrics for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -365,8 +371,7 @@ func TestStates_NoData(t *testing.T) {
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -388,7 +393,7 @@ func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Use a channel to detect when CheckOnce is called
+	// Use a channel to detect when Check is called
 	checkCalled := make(chan bool, 1)
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -407,12 +412,12 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Wait for CheckOnce to be called
+	// Wait for Check to be called
 	select {
 	case <-checkCalled:
-		// Success - CheckOnce was called
+		// Success - Check was called
 	case <-time.After(200 * time.Millisecond):
-		t.Fatal("CheckOnce was not called within expected time")
+		t.Fatal("Check was not called within expected time")
 	}
 }
 
@@ -453,8 +458,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},

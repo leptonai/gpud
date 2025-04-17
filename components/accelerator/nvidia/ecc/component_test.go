@@ -72,7 +72,7 @@ func MockECCComponent(
 	return &component{
 		ctx:                   cctx,
 		cancel:                cancel,
-		nvmlInstanceV2:        mockInstance,
+		nvmlInstance:          mockInstance,
 		getECCModeEnabledFunc: getECCModeEnabledFunc,
 		getECCErrorsFunc:      getECCErrorsFunc,
 	}
@@ -83,8 +83,15 @@ func TestNew(t *testing.T) {
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
-	c := New(ctx, mockInstance)
 
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	c, err := New(gpudInstance)
+
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -94,7 +101,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstanceV2, "nvmlInstanceV2 should be set")
+	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getECCModeEnabledFunc, "getECCModeEnabledFunc should be set")
 	assert.NotNil(t, tc.getECCErrorsFunc, "getECCErrorsFunc should be set")
 }
@@ -105,7 +112,7 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
-func TestCheckOnce_Success(t *testing.T) {
+func TestCheck_Success(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -157,23 +164,22 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify the data was collected
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no ECC issue found", lastData.reason)
-	assert.Len(t, lastData.ECCModes, 1)
-	assert.Len(t, lastData.ECCErrors, 1)
-	assert.Equal(t, eccMode, lastData.ECCModes[0])
-	assert.Equal(t, eccErrors, lastData.ECCErrors[0])
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no ECC issue found", data.reason)
+	assert.Len(t, data.ECCModes, 1)
+	assert.Len(t, data.ECCErrors, 1)
+	assert.Equal(t, eccMode, data.ECCModes[0])
+	assert.Equal(t, eccErrors, data.ECCErrors[0])
 }
 
-func TestCheckOnce_ECCModeError(t *testing.T) {
+func TestCheck_ECCModeError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -202,20 +208,19 @@ func TestCheckOnce_ECCModeError(t *testing.T) {
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting ECC mode for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, data.err)
+	assert.Equal(t, "error getting ECC mode for device gpu-uuid-123", data.reason)
 }
 
-func TestCheckOnce_ECCErrorsError(t *testing.T) {
+func TestCheck_ECCErrorsError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -251,20 +256,19 @@ func TestCheckOnce_ECCErrorsError(t *testing.T) {
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting ECC errors for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, data.err)
+	assert.Equal(t, "error getting ECC errors for device gpu-uuid-123", data.reason)
 }
 
-func TestCheckOnce_NoDevices(t *testing.T) {
+func TestCheck_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -272,21 +276,20 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, nil, nil).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify handling of no devices
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no ECC issue found", lastData.reason)
-	assert.Empty(t, lastData.ECCModes)
-	assert.Empty(t, lastData.ECCErrors)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no ECC issue found", data.reason)
+	assert.Empty(t, data.ECCModes)
+	assert.Empty(t, data.ECCErrors)
 }
 
-func TestStates_WithData(t *testing.T) {
+func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
 	component := MockECCComponent(ctx, nil, nil, nil).(*component)
 
@@ -313,14 +316,13 @@ func TestStates_WithData(t *testing.T) {
 				Supported: true,
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no ECC issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no ECC issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -330,22 +332,21 @@ func TestStates_WithData(t *testing.T) {
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
 
-func TestStates_WithError(t *testing.T) {
+func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
 	component := MockECCComponent(ctx, nil, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test ECC error"),
-		healthy: false,
-		reason:  "error getting ECC mode for device gpu-uuid-123",
+		err:    errors.New("test ECC error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting ECC mode for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -355,15 +356,14 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, "test ECC error", state.Error)
 }
 
-func TestStates_NoData(t *testing.T) {
+func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
 	component := MockECCComponent(ctx, nil, nil, nil).(*component)
 
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -398,11 +398,11 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
+	// Give the goroutine time to execute Check at least once
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Verify Check was called
+	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "Check should have been called at least once")
 }
 
 func TestClose(t *testing.T) {
@@ -442,8 +442,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstanceV2      nvml.InstanceV2
+	nvmlInstance        nvml.InstanceV2
 	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
 
 	eventBucket eventstore.Bucket
@@ -41,22 +42,25 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:                 cctx,
+		cancel:              ccancel,
+		nvmlInstance:        gpudInstance.NVMLInstance,
+		getRemappedRowsFunc: nvml.GetRemappedRows,
 	}
 
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
 
-		nvmlInstanceV2:      nvmlInstanceV2,
-		getRemappedRowsFunc: nvml.GetRemappedRows,
-
-		eventBucket: eventBucket,
-	}, nil
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -68,6 +72,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -102,29 +107,35 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking remapped rows")
-	d := Data{
-		ProductName:                       c.nvmlInstanceV2.ProductName(),
-		MemoryErrorManagementCapabilities: c.nvmlInstanceV2.GetMemoryErrorManagementCapabilities(),
-		RemappedRows:                      nil,
+	log.Logger.Infow("checking nvidia gpu remapped rows")
 
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+		d.reason = "NVIDIA NVML is not loaded"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	d.ProductName = c.nvmlInstance.ProductName()
+	d.MemoryErrorManagementCapabilities = c.nvmlInstance.GetMemoryErrorManagementCapabilities()
 
 	if !d.MemoryErrorManagementCapabilities.RowRemapping {
 		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("%q does not support row remapping", d.ProductName)
-		return
+		return d
 	}
 
 	issues := make([]string, 0)
 
-	devs := c.nvmlInstanceV2.Devices()
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
@@ -224,6 +235,8 @@ func (c *component) Check() components.CheckResult {
 		d.health = apiv1.StateTypeHealthy
 		d.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(devs))
 	}
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -250,6 +263,9 @@ type Data struct {
 func (d *Data) String() string {
 	if d == nil {
 		return ""
+	}
+	if len(d.RemappedRows) == 0 {
+		return "no data"
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -290,18 +306,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -309,5 +321,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

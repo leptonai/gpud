@@ -29,7 +29,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstanceV2        nvml.InstanceV2
+	nvmlInstance          nvml.InstanceV2
 	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error)
 	getECCErrorsFunc      func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error)
 
@@ -37,16 +37,16 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
-		nvmlInstanceV2:        nvmlInstanceV2,
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:                   cctx,
+		cancel:                ccancel,
+		nvmlInstance:          gpudInstance.NVMLInstance,
 		getECCModeEnabledFunc: nvidianvml.GetECCModeEnabled,
 		getECCErrorsFunc:      nvidianvml.GetECCErrors,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -58,6 +58,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -88,17 +89,24 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking ecc")
-	d := Data{
+	log.Logger.Infow("checking nvidia gpu ecc")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
-	devs := c.nvmlInstanceV2.Devices()
+	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+		d.reason = "NVIDIA NVML is not loaded"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
+
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		eccMode, err := c.getECCModeEnabledFunc(uuid, dev)
 		if err != nil {
@@ -106,7 +114,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting ECC mode for device %s", uuid)
-			return
+			return d
 		}
 		d.ECCModes = append(d.ECCModes, eccMode)
 
@@ -116,7 +124,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting ECC errors for device %s", uuid)
-			return
+			return d
 		}
 		d.ECCErrors = append(d.ECCErrors, eccErrors)
 
@@ -128,6 +136,8 @@ func (c *component) Check() components.CheckResult {
 
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no ECC issue found", len(devs))
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -151,14 +161,39 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
+	if len(d.ECCModes) == 0 {
+		return "no data"
+	}
 
-	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	buf1 := bytes.NewBuffer(nil)
+	table1 := tablewriter.NewWriter(buf1)
+	table1.SetAlignment(tablewriter.ALIGN_CENTER)
+	table1.SetHeader([]string{"GPU UUID", "Enabled Current", "Enabled Pending", "Supported"})
+	for _, eccMode := range d.ECCModes {
+		table1.Append([]string{
+			eccMode.UUID,
+			fmt.Sprintf("%t", eccMode.EnabledCurrent),
+			fmt.Sprintf("%t", eccMode.EnabledPending),
+			fmt.Sprintf("%t", eccMode.Supported),
+		})
+	}
+	table1.Render()
 
-	table.Render()
+	buf2 := bytes.NewBuffer(nil)
+	table2 := tablewriter.NewWriter(buf2)
+	table2.SetHeader([]string{"GPU UUID", "Aggregate Total Corrected", "Aggregate Total Uncorrected", "Volatile Total Corrected", "Volatile Total Uncorrected"})
+	for _, eccErrors := range d.ECCErrors {
+		table2.Append([]string{
+			eccErrors.UUID,
+			fmt.Sprintf("%d", eccErrors.Aggregate.Total.Corrected),
+			fmt.Sprintf("%d", eccErrors.Aggregate.Total.Uncorrected),
+			fmt.Sprintf("%d", eccErrors.Volatile.Total.Corrected),
+			fmt.Sprintf("%d", eccErrors.Volatile.Total.Uncorrected),
+		})
+	}
+	table2.Render()
 
-	return buf.String()
+	return buf1.String() + "\n" + buf2.String()
 }
 
 func (d *Data) Summary() string {
@@ -190,18 +225,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -209,5 +240,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

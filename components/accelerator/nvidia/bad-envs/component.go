@@ -59,6 +59,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -105,7 +106,8 @@ var BAD_CUDA_ENV_KEYS = map[string]string{
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking nvidia bad envs")
+	log.Logger.Infow("checking nvidia gpu bad env variables")
+
 	d := &Data{
 		ts: time.Now().UTC(),
 	}
@@ -116,7 +118,7 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
-		d.reason = "NVML is not installed"
+		d.reason = "NVIDIA NVML is not loaded"
 		d.health = apiv1.StateTypeHealthy
 		return d
 	}

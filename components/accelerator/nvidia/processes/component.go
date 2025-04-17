@@ -36,14 +36,15 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:              cctx,
 		cancel:           ccancel,
-		nvmlInstance:     nvmlInstance,
+		nvmlInstance:     gpudInstance.NVMLInstance,
 		getProcessesFunc: nvidianvml.GetProcesses,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -55,6 +56,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -85,15 +87,22 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking processes")
-	d := Data{
+	log.Logger.Infow("checking nvidia gpu processes")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+		d.reason = "NVIDIA NVML is not loaded"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
 
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
@@ -102,7 +111,7 @@ func (c *component) Check() components.CheckResult {
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
-			return
+			return d
 		}
 
 		d.Processes = append(d.Processes, procs)
@@ -112,6 +121,8 @@ func (c *component) Check() components.CheckResult {
 
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -133,6 +144,9 @@ type Data struct {
 func (d *Data) String() string {
 	if d == nil {
 		return ""
+	}
+	if len(d.Processes) == 0 {
+		return "no data"
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -173,18 +187,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -192,5 +202,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

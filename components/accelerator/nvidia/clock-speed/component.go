@@ -35,14 +35,15 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvidianvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:               cctx,
 		cancel:            ccancel,
-		nvmlInstance:      nvmlInstance,
+		nvmlInstance:      gpudInstance.NVMLInstance,
 		getClockSpeedFunc: nvidianvml.GetClockSpeed,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -54,6 +55,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -84,25 +86,33 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking clock speed")
-	d := Data{
+	log.Logger.Infow("checking nvidia gpu clock speed")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
+		d.reason = "NVIDIA NVML is not loaded"
+		d.health = apiv1.StateTypeHealthy
+		return d
+	}
 
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		clockSpeed, err := c.getClockSpeedFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting clock speed for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting clock speed for device %s", uuid)
-			return
+			return d
 		}
 		d.ClockSpeeds = append(d.ClockSpeeds, clockSpeed)
 
@@ -112,6 +122,8 @@ func (c *component) Check() components.CheckResult {
 
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no clock speed issue found", len(devs))
+
+	return d
 }
 
 var _ components.CheckResult = &Data{}
@@ -134,10 +146,24 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
+	if len(d.ClockSpeeds) == 0 {
+		return "no data"
+	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	table.SetHeader([]string{"GPU UUID", "Graphics MHz", "Memory MHz", "Graphics Supported", "Memory Supported"})
+	for _, clockSpeed := range d.ClockSpeeds {
+		table.Append([]string{
+			clockSpeed.UUID,
+			fmt.Sprintf("%d MHz", clockSpeed.GraphicsMHz),
+			fmt.Sprintf("%d MHz", clockSpeed.MemoryMHz),
+			fmt.Sprintf("%t", clockSpeed.ClockGraphicsSupported),
+			fmt.Sprintf("%t", clockSpeed.ClockMemorySupported),
+		})
+	}
 
 	table.Render()
 
@@ -173,18 +199,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -192,5 +214,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

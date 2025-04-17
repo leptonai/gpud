@@ -75,6 +75,7 @@ func (c *component) Start() error {
 
 		for {
 			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -115,13 +116,14 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking power")
-	d := Data{
+	log.Logger.Infow("checking nvidia fabric manager")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
@@ -129,7 +131,7 @@ func (c *component) Check() components.CheckResult {
 		d.FabricManagerActive = false
 		d.health = apiv1.StateTypeHealthy
 		d.reason = "nv-fabricmanager executable not found"
-		return
+		return d
 	}
 
 	active := c.checkFMActiveFunc()
@@ -137,12 +139,14 @@ func (c *component) Check() components.CheckResult {
 		d.FabricManagerActive = false
 		d.health = apiv1.StateTypeUnhealthy
 		d.reason = "nv-fabricmanager found but fabric manager service is not active"
-		return
+		return d
 	}
 
 	d.FabricManagerActive = true
 	d.health = apiv1.StateTypeHealthy
 	d.reason = "fabric manager found and active"
+
+	return d
 }
 
 // checkFMExists returns true if the fabric manager executable is found in the system.
@@ -225,18 +229,14 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 				Health: apiv1.StateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -244,5 +244,5 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return apiv1.HealthStates{state}, nil
+	return apiv1.HealthStates{state}
 }

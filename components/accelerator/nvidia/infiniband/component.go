@@ -70,7 +70,7 @@ func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error
 	return c.getHealthStates(ctx, time.Now().UTC(), GetDefaultExpectedPortStates())
 }
 
-var noDataEvents = []apiv1.HealthState{
+var noDataEvents = apiv1.HealthStates{
 	{
 		Name:   "ibstat",
 		Health: apiv1.StateTypeHealthy,

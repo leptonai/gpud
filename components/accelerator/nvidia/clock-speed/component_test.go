@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -82,8 +83,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 	}
 
-	states, err := successData.getHealthStates()
-	assert.NoError(t, err)
+	states := successData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 
@@ -92,7 +92,7 @@ func TestData_GetStates(t *testing.T) {
 	assert.True(t, ok)
 
 	var parsedData Data
-	err = json.Unmarshal([]byte(dataJSON), &parsedData)
+	err := json.Unmarshal([]byte(dataJSON), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, successData.ClockSpeeds, parsedData.ClockSpeeds)
 }
@@ -137,7 +137,12 @@ func TestNew(t *testing.T) {
 		devices: mockDevices,
 	}
 
-	comp := New(ctx, mockInstance)
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
@@ -184,8 +189,7 @@ func TestComponent_States(t *testing.T) {
 		ctx: ctx,
 	}
 
-	states, err := c.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	// Test with valid data
@@ -197,15 +201,14 @@ func TestComponent_States(t *testing.T) {
 		ClockSpeeds: clockSpeeds,
 	}
 
-	states, err = c.HealthStates(ctx)
-	assert.NoError(t, err)
+	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	dataJSON, ok := states[0].DeprecatedExtraInfo["data"]
 	assert.True(t, ok)
 
 	var parsedData Data
-	err = json.Unmarshal([]byte(dataJSON), &parsedData)
+	err := json.Unmarshal([]byte(dataJSON), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, clockSpeeds, parsedData.ClockSpeeds)
 }
@@ -237,7 +240,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 		},
 	}
 
-	c.CheckOnce()
+	c.Check()
 
 	// Verify that lastData was updated
 	require.NotNil(t, c.lastData)
@@ -259,7 +262,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 		},
 	}
 
-	c.CheckOnce()
+	c.Check()
 
 	// Verify that lastData contains the error
 	require.NotNil(t, c.lastData)
