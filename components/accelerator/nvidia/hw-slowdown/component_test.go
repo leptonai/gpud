@@ -20,7 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-// Mock implementation of nvml.InstanceV2
+// Mock implementation of nvidianvml.InstanceV2
 type mockNVMLInstance struct {
 	devices     map[string]device.Device
 	productName string
@@ -58,7 +58,7 @@ func createMockNVMLInstance(devices map[string]device.Device) *mockNVMLInstance 
 	}
 }
 
-// TestCheckOnce tests the CheckOnce method using mock device functions
+// TestCheckOnce tests the Check method using mock device functions
 func TestCheckOnce(t *testing.T) {
 	t.Parallel()
 
@@ -231,12 +231,12 @@ func TestCheckOnce(t *testing.T) {
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				eventBucket:      bucket,
-				nvmlInstanceV2:   mockNVML,
+				nvmlInstance:     mockNVML,
 				// Initialize lastData to avoid nil pointer dereference
 				lastData: &Data{
-					ts:      time.Now().UTC(),
-					healthy: true,
-					reason:  "Initial state",
+					ts:     time.Now().UTC(),
+					health: apiv1.StateTypeHealthy,
+					reason: "Initial state",
 				},
 				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 					if events, ok := tc.mockClockEvents[uuid]; ok {
@@ -247,7 +247,7 @@ func TestCheckOnce(t *testing.T) {
 			}
 
 			// Run the check
-			c.CheckOnce()
+			c.Check()
 
 			// Verify the component's state
 			assert.NotNil(t, c.lastData)
@@ -261,8 +261,7 @@ func TestCheckOnce(t *testing.T) {
 			assert.Equal(t, tc.expectEvents, len(events))
 
 			// Validate component state
-			states, err := c.HealthStates(ctx)
-			assert.NoError(t, err)
+			states := c.LastHealthStates()
 			assert.Equal(t, 1, len(states))
 			if tc.expectHealthyState {
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -330,11 +329,11 @@ func TestComponentStates(t *testing.T) {
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
 		eventBucket:      bucket,
-		nvmlInstanceV2:   mockNVML,
+		nvmlInstance:     mockNVML,
 		lastData: &Data{
-			ts:      time.Now(),
-			healthy: true,
-			reason:  "Initial state",
+			ts:     time.Now(),
+			health: apiv1.StateTypeHealthy,
+			reason: "Initial state",
 		},
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
@@ -349,8 +348,7 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Get states
-	states, err := c.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -452,13 +450,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				eventBucket:      bucket,
 			}
 
-			states, err := c.HealthStates(ctx)
+			states := c.LastHealthStates()
 			if tc.expectError {
 				assert.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedStates, len(states))
 			if len(states) > 0 && tc.expectHealthy {
 				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
@@ -474,7 +471,7 @@ func TestComponentName(t *testing.T) {
 	mockNVML := createMockNVMLInstance(map[string]device.Device{})
 
 	c := &component{
-		nvmlInstanceV2: mockNVML,
+		nvmlInstance: mockNVML,
 		// Initialize required functions to avoid nil pointer dereference
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{}, nil
@@ -509,9 +506,9 @@ func TestComponentStart(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:            ctx,
-		cancel:         cancel,
-		nvmlInstanceV2: mockNVML,
+		ctx:          ctx,
+		cancel:       cancel,
+		nvmlInstance: mockNVML,
 		// Initialize mock functions to avoid nil pointer dereference if Start() is called
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{}, nil
@@ -592,7 +589,7 @@ func TestComponentEvents(t *testing.T) {
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
 		eventBucket:      bucket,
-		nvmlInstanceV2:   mockNVML,
+		nvmlInstance:     mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -664,7 +661,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		evaluationWindow: window,
 		threshold:        thresholdFrequency,
 		eventBucket:      bucket,
-		nvmlInstanceV2:   mockNVML,
+		nvmlInstance:     mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -678,13 +675,13 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		},
 	}
 
-	// Run CheckOnce - it should update lastData
-	c.CheckOnce()
+	// Run Check - it should update lastData
+	c.Check()
 
 	// Verify lastData was updated
 	c.lastMu.RLock()
 	assert.NotNil(t, c.lastData)
-	assert.True(t, c.lastData.healthy, "Component should be healthy with no events")
+	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health, "Component should be healthy with no events")
 	c.lastMu.RUnlock()
 
 	// Generate a high frequency of events that should trigger unhealthy state
@@ -710,12 +707,11 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	// Run CheckOnce again to process the new events
-	c.CheckOnce()
+	// Run Check again to process the new events
+	c.Check()
 
 	// Get the states and verify they reflect the unhealthy condition
-	states, err := c.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)

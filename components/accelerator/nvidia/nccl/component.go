@@ -53,10 +53,10 @@ func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.eventBucket != nil {
-		return c.eventBucket.Get(ctx, since)
+	if c.eventBucket == nil {
+		return nil, nil
 	}
-	return nil, nil
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Close() error {

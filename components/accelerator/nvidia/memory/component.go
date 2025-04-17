@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -29,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance  nvml.InstanceV2
+	nvmlInstance  nvidianvml.InstanceV2
 	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error)
 
 	lastMu   sync.RWMutex
@@ -109,6 +108,7 @@ func (c *component) Check() components.CheckResult {
 		mem, err := c.getMemoryFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting memory for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting memory for device %s", uuid)
@@ -124,6 +124,7 @@ func (c *component) Check() components.CheckResult {
 		usedPct, err := mem.GetUsedPercent()
 		if err != nil {
 			log.Logger.Errorw("error getting used percent for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting used percent for device %s", uuid)
@@ -165,7 +166,17 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"GPU UUID", "Total", "Reserved", "Used", "Free", "Used %"})
+	for _, mem := range d.Memories {
+		table.Append([]string{
+			mem.UUID,
+			fmt.Sprintf("%d", mem.TotalBytes),
+			fmt.Sprintf("%d", mem.ReservedBytes),
+			fmt.Sprintf("%d", mem.UsedBytes),
+			fmt.Sprintf("%d", mem.FreeBytes),
+			mem.UsedPercent,
+		})
+	}
 	table.Render()
 
 	return buf.String()

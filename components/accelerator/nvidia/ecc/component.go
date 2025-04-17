@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -29,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance          nvml.InstanceV2
+	nvmlInstance          nvidianvml.InstanceV2
 	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error)
 	getECCErrorsFunc      func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error)
 
@@ -111,6 +110,7 @@ func (c *component) Check() components.CheckResult {
 		eccMode, err := c.getECCModeEnabledFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting ECC mode for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting ECC mode for device %s", uuid)
@@ -121,6 +121,7 @@ func (c *component) Check() components.CheckResult {
 		eccErrors, err := c.getECCErrorsFunc(uuid, dev, eccMode.EnabledCurrent)
 		if err != nil {
 			log.Logger.Errorw("error getting ECC errors for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting ECC errors for device %s", uuid)

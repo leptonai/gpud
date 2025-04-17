@@ -81,8 +81,15 @@ func TestNew(t *testing.T) {
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
-	c := New(ctx, mockInstance)
 
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	c, err := New(gpudInstance)
+
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -102,7 +109,7 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
-func TestCheckOnce_Success(t *testing.T) {
+func TestCheck_Success(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -131,21 +138,20 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify the data was collected
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no persistence mode issue found", lastData.reason)
-	assert.Len(t, lastData.PersistenceModes, 1)
-	assert.Equal(t, persistenceMode, lastData.PersistenceModes[0])
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no persistence mode issue found", data.reason)
+	assert.Len(t, data.PersistenceModes, 1)
+	assert.Equal(t, persistenceMode, data.PersistenceModes[0])
 }
 
-func TestCheckOnce_PersistenceModeError(t *testing.T) {
+func TestCheck_PersistenceModeError(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -170,20 +176,19 @@ func TestCheckOnce_PersistenceModeError(t *testing.T) {
 	}
 
 	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting persistence mode for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, data.err)
+	assert.Equal(t, "error getting persistence mode for device gpu-uuid-123", data.reason)
 }
 
-func TestCheckOnce_NoDevices(t *testing.T) {
+func TestCheck_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -191,20 +196,19 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockPersistenceModeComponent(ctx, getDevicesFunc, nil).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify handling of no devices
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no persistence mode issue found", lastData.reason)
-	assert.Empty(t, lastData.PersistenceModes)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no persistence mode issue found", data.reason)
+	assert.Empty(t, data.PersistenceModes)
 }
 
-func TestStates_WithData(t *testing.T) {
+func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
 	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
 
@@ -217,14 +221,13 @@ func TestStates_WithData(t *testing.T) {
 				Enabled: true,
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no persistence mode issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no persistence mode issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -234,22 +237,21 @@ func TestStates_WithData(t *testing.T) {
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
 
-func TestStates_WithError(t *testing.T) {
+func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
 	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test persistence mode error"),
-		healthy: false,
-		reason:  "error getting persistence mode for device gpu-uuid-123",
+		err:    errors.New("test persistence mode error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting persistence mode for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -259,15 +261,14 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, "test persistence mode error", state.Error)
 }
 
-func TestStates_NoData(t *testing.T) {
+func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
 	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
 
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -302,11 +303,11 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
+	// Give the goroutine time to execute Check at least once
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Verify Check was called
+	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "Check should have been called at least once")
 }
 
 func TestClose(t *testing.T) {
@@ -346,8 +347,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},

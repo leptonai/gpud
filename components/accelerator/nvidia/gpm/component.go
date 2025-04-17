@@ -17,7 +17,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -66,7 +65,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance        nvml.InstanceV2
+	nvmlInstance        nvidianvml.InstanceV2
 	getGPMSupportedFunc func(dev device.Device) (bool, error)
 	getGPMMetricsFunc   func(ctx context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error)
 

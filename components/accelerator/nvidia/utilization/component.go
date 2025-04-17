@@ -108,6 +108,7 @@ func (c *component) Check() components.CheckResult {
 		util, err := c.getUtilizationFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting utilization for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting utilization for device %s", uuid)

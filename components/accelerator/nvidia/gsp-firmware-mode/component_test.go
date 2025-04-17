@@ -20,7 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvml.InstanceV2 interface for testing
+// MockNvmlInstance implements the nvidianvml.InstanceV2 interface for testing
 type MockNvmlInstance struct {
 	devicesFunc func() map[string]device.Device
 }
@@ -77,8 +77,14 @@ func TestNew(t *testing.T) {
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
-	c := New(ctx, mockInstance)
 
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -98,7 +104,7 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
-func TestCheckOnce_Success(t *testing.T) {
+func TestCheck_Success(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -128,7 +134,7 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify the data was collected
 	component.lastMu.RLock()
@@ -136,13 +142,18 @@ func TestCheckOnce_Success(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
 	assert.Len(t, lastData.GSPFirmwareModes, 1)
 	assert.Equal(t, gspMode, lastData.GSPFirmwareModes[0])
+
+	// Also check the returned result
+	d, ok := result.(*Data)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.StateTypeHealthy, d.health)
 }
 
-func TestCheckOnce_Error(t *testing.T) {
+func TestCheck_Error(t *testing.T) {
 	ctx := context.Background()
 
 	uuid := "gpu-uuid-123"
@@ -167,7 +178,7 @@ func TestCheckOnce_Error(t *testing.T) {
 	}
 
 	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify error handling
 	component.lastMu.RLock()
@@ -175,12 +186,12 @@ func TestCheckOnce_Error(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastData.reason)
 }
 
-func TestCheckOnce_NoDevices(t *testing.T) {
+func TestCheck_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -188,7 +199,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, nil).(*component)
-	component.CheckOnce()
+	component.Check()
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
@@ -196,12 +207,12 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
 	assert.Empty(t, lastData.GSPFirmwareModes)
 }
 
-func TestStates_WithData(t *testing.T) {
+func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
 	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
 
@@ -215,14 +226,13 @@ func TestStates_WithData(t *testing.T) {
 				Supported: true,
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no GSP firmware mode issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no GSP firmware mode issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -232,22 +242,21 @@ func TestStates_WithData(t *testing.T) {
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
 
-func TestStates_WithError(t *testing.T) {
+func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
 	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test GSP firmware mode error"),
-		healthy: false,
-		reason:  "error getting GSP firmware mode for device gpu-uuid-123",
+		err:    errors.New("test GSP firmware mode error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting GSP firmware mode for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -257,15 +266,14 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, "test GSP firmware mode error", state.Error)
 }
 
-func TestStates_NoData(t *testing.T) {
+func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
 	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
 
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -300,11 +308,11 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
+	// Give the goroutine time to execute Check at least once
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Verify Check was called
+	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "Check should have been called at least once")
 }
 
 func TestClose(t *testing.T) {
@@ -344,8 +352,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},

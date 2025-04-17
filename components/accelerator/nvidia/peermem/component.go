@@ -82,10 +82,10 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.eventBucket != nil {
-		return c.eventBucket.Get(ctx, since)
+	if c.eventBucket == nil {
+		return nil, nil
 	}
-	return nil, nil
+	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Close() error {

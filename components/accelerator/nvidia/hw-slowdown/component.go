@@ -19,7 +19,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -41,13 +40,13 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	evaluationWindow time.Duration
-	threshold        float64
-
-	nvmlInstance       nvml.InstanceV2
+	nvmlInstance       nvidianvml.InstanceV2
 	getClockEventsFunc func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
 
 	eventBucket eventstore.Bucket
+
+	evaluationWindow time.Duration
+	threshold        float64
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -56,15 +55,15 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:                cctx,
+		cancel:             ccancel,
+		nvmlInstance:       gpudInstance.NVMLInstance,
+		getClockEventsFunc: nvidianvml.GetClockEvents,
 
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-
-		nvmlInstance:       gpudInstance.NVMLInstance,
-		getClockEventsFunc: nvidianvml.GetClockEvents,
 	}
+
 	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
 		var err error
 		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
@@ -73,6 +72,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 	}
+
 	return c, nil
 }
 
@@ -104,6 +104,9 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -168,35 +171,43 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
+		if c.eventBucket != nil {
+			log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
 
-		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-		found, err := c.eventBucket.Find(cctx, *ev)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
-			d.err = err
-			d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
-			return d
-		}
-		if found != nil {
-			log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
-			continue
-		}
+			cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+			found, err := c.eventBucket.Find(cctx, *ev)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
+				d.err = err
+				d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
+				return d
+			}
+			if found != nil {
+				log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
+				continue
+			}
 
-		if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
-			log.Logger.Errorw("failed to insert event", "error", err)
-			d.err = err
-			d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
-			return d
+			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
+				log.Logger.Errorw("failed to insert event", "error", err)
+				d.err = err
+				d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
+				return d
+			}
+			log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
 		}
-		log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
 	}
 
 	if c.evaluationWindow == 0 {
 		// no time window to evaluate /state
 		d.health = apiv1.StateTypeHealthy
 		d.reason = "no time window to evaluate states"
+		return d
+	}
+
+	if c.eventBucket == nil {
+		d.health = apiv1.StateTypeHealthy
+		d.reason = "no event bucket"
 		return d
 	}
 

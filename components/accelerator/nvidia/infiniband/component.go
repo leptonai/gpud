@@ -110,6 +110,9 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if _, err := c.checkOnceIbstat(time.Now().UTC(), thresholds); err != nil {
 		return nil, err
 	}
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 

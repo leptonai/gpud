@@ -76,10 +76,10 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.rebootEventStore != nil {
-		return c.rebootEventStore.GetRebootEvents(ctx, since)
+	if c.rebootEventStore == nil {
+		return nil, nil
 	}
-	return nil, nil
+	return c.rebootEventStore.GetRebootEvents(ctx, since)
 }
 
 func (c *component) Close() error {

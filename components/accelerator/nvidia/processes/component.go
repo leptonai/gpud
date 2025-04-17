@@ -17,7 +17,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -29,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance     nvml.InstanceV2
+	nvmlInstance     nvidianvml.InstanceV2
 	getProcessesFunc func(uuid string, dev device.Device) (nvidianvml.Processes, error)
 
 	lastMu   sync.RWMutex
@@ -152,7 +151,13 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"GPU UUID", "Processes"})
+	for _, proc := range d.Processes {
+		table.Append([]string{
+			proc.UUID,
+			fmt.Sprintf("%d", len(proc.RunningProcesses)),
+		})
+	}
 	table.Render()
 
 	return buf.String()

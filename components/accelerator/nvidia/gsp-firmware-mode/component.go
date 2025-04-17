@@ -15,7 +15,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -27,7 +26,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance           nvml.InstanceV2
+	nvmlInstance           nvidianvml.InstanceV2
 	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error)
 
 	lastMu   sync.RWMutex
@@ -107,6 +106,7 @@ func (c *component) Check() components.CheckResult {
 		mode, err := c.getGSPFirmwareModeFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting GSP firmware mode for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting GSP firmware mode for device %s", uuid)

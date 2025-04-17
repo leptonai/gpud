@@ -70,8 +70,15 @@ func MockMemoryComponent(
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockNvmlInstance := &MockNvmlInstance{}
-	c := New(ctx, mockNvmlInstance)
 
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockNvmlInstance,
+	}
+
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -136,18 +143,17 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify the data was collected
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", lastData.reason)
-	assert.Len(t, lastData.Memories, 1)
-	assert.Equal(t, memory, lastData.Memories[0])
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", data.reason)
+	assert.Len(t, data.Memories, 1)
+	assert.Equal(t, memory, data.Memories[0])
 }
 
 func TestCheckOnce_MemoryError(t *testing.T) {
@@ -177,17 +183,16 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting memory for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, data.err)
+	assert.Equal(t, "error getting memory for device gpu-uuid-123", data.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -200,17 +205,16 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify handling of no devices
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no memory issue found", lastData.reason)
-	assert.Empty(t, lastData.Memories)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no memory issue found", data.reason)
+	assert.Empty(t, data.Memories)
 }
 
 func TestCheckOnce_GetUsedPercentError(t *testing.T) {
@@ -251,17 +255,16 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling for GetUsedPercent failure
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.NotNil(t, lastData.err)
-	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.NotNil(t, data.err)
+	assert.Equal(t, "error getting used percent for device gpu-uuid-123", data.reason)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -285,14 +288,13 @@ func TestStates_WithData(t *testing.T) {
 				UsedPercent:       "50.00",
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no memory issue found",
+		health: apiv1.StateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no memory issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -309,15 +311,14 @@ func TestStates_WithError(t *testing.T) {
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test memory error"),
-		healthy: false,
-		reason:  "error getting memory for device gpu-uuid-123",
+		err:    errors.New("test memory error"),
+		health: apiv1.StateTypeUnhealthy,
+		reason: "error getting memory for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -334,8 +335,7 @@ func TestStates_NoData(t *testing.T) {
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
@@ -372,11 +372,11 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
+	// Give the goroutine time to execute Check at least once
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Verify Check was called
+	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "Check should have been called at least once")
 }
 
 func TestClose(t *testing.T) {
@@ -416,8 +416,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},

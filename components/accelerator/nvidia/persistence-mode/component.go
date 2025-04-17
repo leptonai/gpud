@@ -15,7 +15,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -27,7 +26,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance           nvml.InstanceV2
+	nvmlInstance           nvidianvml.InstanceV2
 	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error)
 
 	lastMu   sync.RWMutex
@@ -107,6 +106,7 @@ func (c *component) Check() components.CheckResult {
 		persistenceMode, err := c.getPersistenceModeFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting persistence mode for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting persistence mode for device %s", uuid)
@@ -149,7 +149,10 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"UUID", "Persistence Mode Enabled", "Persistence Mode Supported"})
+	for _, persistenceMode := range d.PersistenceModes {
+		table.Append([]string{persistenceMode.UUID, fmt.Sprintf("%t", persistenceMode.Enabled), fmt.Sprintf("%t", persistenceMode.Supported)})
+	}
 	table.Render()
 
 	return buf.String()

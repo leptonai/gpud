@@ -29,7 +29,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance  nvml.InstanceV2
+	nvmlInstance  nvidianvml.InstanceV2
 	getNVLinkFunc func(uuid string, dev device.Device) (nvidianvml.NVLink, error)
 
 	lastMu   sync.RWMutex
@@ -108,6 +108,7 @@ func (c *component) Check() components.CheckResult {
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting nvlink for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting nvlink for device %s", uuid)

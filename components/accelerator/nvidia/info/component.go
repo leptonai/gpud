@@ -16,7 +16,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -28,7 +27,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance         nvml.InstanceV2
+	nvmlInstance         nvidianvml.InstanceV2
 	getDriverVersionFunc func() (string, error)
 	getCUDAVersionFunc   func() (string, error)
 	getDeviceCountFunc   func() (int, error)

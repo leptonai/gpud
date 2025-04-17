@@ -108,6 +108,7 @@ func (c *component) Check() components.CheckResult {
 		power, err := c.getPowerFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting power for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting power for device %s", uuid)
@@ -121,6 +122,7 @@ func (c *component) Check() components.CheckResult {
 		usedPct, err := power.GetUsedPercent()
 		if err != nil {
 			log.Logger.Errorw("error getting used percent for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting used percent for device %s", uuid)
@@ -162,7 +164,15 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"GPU UUID", "Current usage", "Enforced limit", "Used %"})
+	for _, power := range d.Powers {
+		table.Append([]string{
+			power.UUID,
+			fmt.Sprintf("%d", power.UsageMilliWatts),
+			fmt.Sprintf("%d", power.EnforcedLimitMilliWatts),
+			power.UsedPercent,
+		})
+	}
 	table.Render()
 
 	return buf.String()

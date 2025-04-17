@@ -94,10 +94,10 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.logLineProcessor != nil {
-		return c.logLineProcessor.getEvents(ctx, since)
+	if c.logLineProcessor == nil {
+		return nil, nil
 	}
-	return nil, nil
+	return c.logLineProcessor.getEvents(ctx, since)
 }
 
 func (c *component) Close() error {

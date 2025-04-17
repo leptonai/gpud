@@ -22,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 // Name is the ID of the remapped rows component.
@@ -33,8 +34,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance        nvml.InstanceV2
-	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+	nvmlInstance        nvidianvml.InstanceV2
+	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
 	eventBucket eventstore.Bucket
 
@@ -91,6 +92,9 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -140,6 +144,7 @@ func (c *component) Check() components.CheckResult {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting remapped rows", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting remapped rows for %s", uuid)
@@ -162,7 +167,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		b, _ := json.Marshal(d)
-		if remappedRows.RemappingPending {
+		if c.eventBucket != nil && remappedRows.RemappingPending {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
@@ -191,7 +196,7 @@ func (c *component) Check() components.CheckResult {
 			}
 		}
 
-		if remappedRows.RemappingFailed {
+		if c.eventBucket != nil && remappedRows.RemappingFailed {
 			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
@@ -271,7 +276,16 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"GPU UUID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
+	for _, remappedRows := range d.RemappedRows {
+		table.Append([]string{
+			remappedRows.UUID,
+			fmt.Sprintf("%d", remappedRows.RemappedDueToCorrectableErrors),
+			fmt.Sprintf("%d", remappedRows.RemappedDueToUncorrectableErrors),
+			fmt.Sprintf("%v", remappedRows.RemappingPending),
+			fmt.Sprintf("%v", remappedRows.RemappingFailed),
+		})
+	}
 	table.Render()
 
 	return buf.String()

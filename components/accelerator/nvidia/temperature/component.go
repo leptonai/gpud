@@ -89,7 +89,14 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu temperature")
 
-	d := checkHealthState(c.nvmlInstance, c.getTemperatureFunc)
+	d := &Data{
+		ts: time.Now().UTC(),
+	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = d
+		c.lastMu.Unlock()
+	}()
 
 	if c.nvmlInstance == nil || !c.nvmlInstance.NVMLExists() {
 		d.reason = "NVIDIA NVML is not loaded"
@@ -97,22 +104,13 @@ func (c *component) Check() components.CheckResult {
 		return d
 	}
 
-	c.lastMu.Lock()
-	c.lastData = d
-	c.lastMu.Unlock()
-}
-
-func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error)) *Data {
-	d := &Data{
-		ts: time.Now().UTC(),
-	}
-
 	tempThresholdExceeded := make([]string, 0)
-	devs := nvmlInstance.Devices()
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
-		temp, err := getTemperatureFunc(uuid, dev)
+		temp, err := c.getTemperatureFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting temperature for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting temperature for device %s", uuid)
@@ -138,6 +136,7 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
 			log.Logger.Errorw("error getting used percent for slowdown for device", "uuid", uuid, "error", err)
+
 			d.err = err
 			d.health = apiv1.StateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting used percent for slowdown for device %s", uuid)
@@ -157,7 +156,7 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 	return d
 }
 
-var _ components.HealthStateCheckResult = &Data{}
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	Temperatures []nvidianvml.Temperature `json:"temperatures,omitempty"`
