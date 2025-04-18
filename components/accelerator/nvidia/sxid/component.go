@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -82,14 +83,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 
-		c.kmsgWatcher, err = kmsg.NewWatcher()
-		if err != nil {
-			ccancel()
-			return nil, err
+		if os.Geteuid() == 0 {
+			c.kmsgWatcher, err = kmsg.NewWatcher()
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
 		}
 	}
 
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
 	}
 

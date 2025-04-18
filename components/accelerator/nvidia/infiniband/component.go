@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -65,10 +66,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 
-		c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
-		if err != nil {
-			ccancel()
-			return nil, err
+		if os.Geteuid() == 0 {
+			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
 		}
 	}
 

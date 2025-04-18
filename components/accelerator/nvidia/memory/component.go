@@ -171,14 +171,14 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU UUID", "Total", "Reserved", "Used", "Free", "Used %"})
+	table.SetHeader([]string{"GPU UUID", "Total", "Reserved", "Used", "Free", "Used %%"})
 	for _, mem := range d.Memories {
 		table.Append([]string{
 			mem.UUID,
-			fmt.Sprintf("%d", mem.TotalBytes),
-			fmt.Sprintf("%d", mem.ReservedBytes),
-			fmt.Sprintf("%d", mem.UsedBytes),
-			fmt.Sprintf("%d", mem.FreeBytes),
+			mem.TotalHumanized,
+			mem.ReservedHumanized,
+			mem.UsedHumanized,
+			mem.FreeHumanized,
 			mem.UsedPercent,
 		})
 	}
