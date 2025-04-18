@@ -164,25 +164,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
 
-		for {
-			cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-			err := rebootEventStore.RecordReboot(cctx)
-			ccancel()
-			if err != nil {
-				log.Logger.Errorw("failed to record reboot", "error", err)
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Minute):
-			}
-		}
-	}()
+	// only record once when we create the server instance
+	cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+	err = rebootEventStore.RecordReboot(cctx)
+	ccancel()
+	if err != nil {
+		log.Logger.Errorw("failed to record reboot", "error", err)
+	}
 
 	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(pkgmetrics.DefaultGatherer())
 	if err != nil {
