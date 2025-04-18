@@ -1422,11 +1422,11 @@ func TestComponentWithNoNVML(t *testing.T) {
 
 	// Verify the component reports healthy since NVML is not available
 	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 
 	// Get health states
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", states[0].Reason)
+	assert.Equal(t, "NVIDIA NVML instance is nil", states[0].Reason)
 }

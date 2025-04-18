@@ -411,7 +411,7 @@ func TestSXIDComponent_Check_NoNVML(t *testing.T) {
 	data, ok := result.(*Data)
 	assert.True(t, ok, "Result should be of type *Data")
 	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
-	assert.Contains(t, data.reason, "NVIDIA NVML is not loaded")
+	assert.Contains(t, data.reason, "NVIDIA NVML instance is nil")
 }
 
 func TestSXIDComponent_Close(t *testing.T) {

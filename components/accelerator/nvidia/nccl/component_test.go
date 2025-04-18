@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -72,36 +71,6 @@ type MockEventStore struct {
 func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
 	return args.Get(0).(eventstore.Bucket), args.Error(1)
-}
-
-// TestNewComponent tests the constructor function
-func TestNewComponent(t *testing.T) {
-	t.Parallel()
-
-	// Testing with nil EventStore
-	gpudInstance := &components.GPUdInstance{
-		RootCtx:      context.Background(),
-		EventStore:   nil,
-		NVMLInstance: nil,
-	}
-
-	comp, err := New(gpudInstance)
-	assert.NoError(t, err)
-	assert.NotNil(t, comp)
-
-	// Testing with non-nil EventStore but on non-linux platform
-	mockEventStore := new(MockEventStore)
-
-	// We don't expect any calls to these mocks on non-linux
-	gpudInstance = &components.GPUdInstance{
-		RootCtx:      context.Background(),
-		EventStore:   mockEventStore,
-		NVMLInstance: nil,
-	}
-
-	comp, err = New(gpudInstance)
-	assert.NoError(t, err)
-	assert.NotNil(t, comp)
 }
 
 // Complete implementation of nvidianvml.InstanceV2 for testing

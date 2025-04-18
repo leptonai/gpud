@@ -429,7 +429,7 @@ func TestComponentCheck(t *testing.T) {
 	data, ok := result.(*Data)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 
 	// Case 2: With NVML
 	nvmlMock := &mockNVMLInstance{exists: true}
