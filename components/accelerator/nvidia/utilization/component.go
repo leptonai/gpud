@@ -158,7 +158,15 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"GPU", "Used %", "Memory Utilization", "Supported"})
+	for _, util := range d.Utilizations {
+		table.Append([]string{
+			util.UUID,
+			fmt.Sprintf("%d %%", util.GPUUsedPercent),
+			fmt.Sprintf("%d %%", util.MemoryUsedPercent),
+			fmt.Sprintf("%t", util.Supported),
+		})
+	}
 	table.Render()
 
 	return buf.String()
