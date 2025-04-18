@@ -622,7 +622,7 @@ func TestCalculateCPUUsageEdgeCases(t *testing.T) {
 	})
 }
 
-func TestDataMarshallingInStates(t *testing.T) {
+func TestDataMarshalingInStates(t *testing.T) {
 	// Test data with unusual values
 	testData := &Data{
 		Info: Info{

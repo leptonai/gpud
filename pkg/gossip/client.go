@@ -52,7 +52,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 
 	var resp apiv1.GossipResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("error unmarshalling gossip response: %w", err)
+		return nil, fmt.Errorf("error unmarshaling gossip response: %w", err)
 	}
 
 	if httpResp.StatusCode != http.StatusOK {

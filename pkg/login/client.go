@@ -50,7 +50,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 
 	var resp apiv1.LoginResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("error unmarshalling login response: %w", err)
+		return nil, fmt.Errorf("error unmarshaling login response: %w", err)
 	}
 
 	if httpResp.StatusCode != http.StatusOK {

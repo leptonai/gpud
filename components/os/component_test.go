@@ -191,6 +191,7 @@ func TestComponent(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NotNil(t, comp)
+		assert.NoError(t, err)
 		assert.Equal(t, Name, comp.Name())
 
 		// Clean up

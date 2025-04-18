@@ -163,7 +163,7 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 	// Verify error is returned
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Contains(t, err.Error(), "error unmarshalling gossip response")
+	assert.Contains(t, err.Error(), "error unmarshaling gossip response")
 }
 
 func TestSendRequest_ContextCancellation(t *testing.T) {

@@ -44,10 +44,6 @@ type component struct {
 
 	lastMu   sync.RWMutex
 	lastData *Data
-
-	lastEventMu        sync.Mutex
-	lastEvent          *apiv1.Event
-	lastEventThreshold infiniband.ExpectedPortStates
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -141,13 +137,13 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.reason = "NVIDIA NVML instance is nil"
 		d.health = apiv1.StateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.reason = "NVIDIA NVML is not loaded"
 		d.health = apiv1.StateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
 	if c.getIbstatOutputFunc == nil {

@@ -209,7 +209,7 @@ func (d *Data) String() string {
 
 	b, err := yaml.Marshal(d)
 	if err != nil {
-		return fmt.Sprintf("error marshalling data: %v", err)
+		return fmt.Sprintf("error marshaling data: %v", err)
 	}
 	return string(b)
 }

@@ -100,13 +100,13 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.reason = "NVIDIA NVML instance is nil"
 		d.health = apiv1.StateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.reason = "NVIDIA NVML is not loaded"
 		d.health = apiv1.StateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
 
