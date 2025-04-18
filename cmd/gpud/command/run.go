@@ -82,6 +82,7 @@ func cmdRun(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
+
 	start := time.Now()
 
 	signals := make(chan os.Signal, 2048)
@@ -103,11 +104,22 @@ func cmdRun(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
+
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer dbRO.Close()
+
+	if err := gpudstate.CreateTableMachineMetadata(rootCtx, dbRW); err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
 	uid, err := gpudstate.ReadMachineID(rootCtx, dbRO)
 	if err != nil {
 		return fmt.Errorf("failed to read machine ID: %w", err)
