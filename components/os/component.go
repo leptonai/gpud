@@ -34,7 +34,8 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 
-	countProcessesByStatusFunc func(ctx context.Context) (map[string][]*procs.Process, error)
+	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]*procs.Process, error)
+	zombieProcessCountThreshold int
 
 	lastMu   sync.RWMutex
 	lastData *Data
@@ -43,10 +44,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	return &component{
-		ctx:                        cctx,
-		cancel:                     ccancel,
-		rebootEventStore:           gpudInstance.RebootEventStore,
-		countProcessesByStatusFunc: process.CountProcessesByStatus,
+		ctx:                         cctx,
+		cancel:                      ccancel,
+		rebootEventStore:            gpudInstance.RebootEventStore,
+		countProcessesByStatusFunc:  process.CountProcessesByStatus,
+		zombieProcessCountThreshold: defaultZombieProcessCountThreshold,
 	}, nil
 }
 
@@ -145,9 +147,9 @@ func (c *component) Check() components.CheckResult {
 			break
 		}
 	}
-	if d.ProcessCountZombieProcesses > zombieProcessCountThreshold {
+	if d.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
 		d.health = apiv1.StateTypeUnhealthy
-		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, zombieProcessCountThreshold)
+		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, c.zombieProcessCountThreshold)
 		return d
 	}
 
@@ -278,7 +280,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-var zombieProcessCountThreshold = 1000
+var defaultZombieProcessCountThreshold = 1000
 
 func init() {
 	// Linux-specific operations
@@ -291,7 +293,7 @@ func init() {
 		limit, err := file.GetLimit()
 		if limit > 0 && err == nil {
 			// set to 20% of system limit
-			zombieProcessCountThreshold = int(float64(limit) * 0.20)
+			defaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
 		}
 	}
 }

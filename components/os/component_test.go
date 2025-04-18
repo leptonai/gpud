@@ -115,19 +115,19 @@ func TestData_GetStates(t *testing.T) {
 		{
 			name: "with too many zombie processes",
 			data: &Data{
-				ProcessCountZombieProcesses: zombieProcessCountThreshold + 1,
+				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 1,
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
 				health: apiv1.StateTypeUnhealthy,
-				reason: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold),
+				reason: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold),
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
-				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
+				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -333,13 +333,13 @@ func TestComponent_States(t *testing.T) {
 	t.Run("component states with too many zombie processes", func(t *testing.T) {
 		// Inject zombie process data
 		c := comp.(*component)
-		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+1, zombieProcessCountThreshold)
+		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
 		c.lastMu.Lock()
 		c.lastData = &Data{
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
-			ProcessCountZombieProcesses: zombieProcessCountThreshold + 1,
+			ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 1,
 			health:                      apiv1.StateTypeUnhealthy,
 			reason:                      expected,
 			ts:                          time.Now().UTC(),
@@ -516,7 +516,7 @@ func TestComponent_EventsWithNilStore(t *testing.T) {
 func TestZombieProcessCountThreshold(t *testing.T) {
 	// Just verify that the zombie process count threshold is set to a reasonable value
 	// This is primarily to increase the test coverage of the init function
-	assert.GreaterOrEqual(t, zombieProcessCountThreshold, 1000)
+	assert.GreaterOrEqual(t, defaultZombieProcessCountThreshold, 1000)
 }
 
 // TestData_String tests the String method of Data struct
@@ -757,11 +757,14 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 
 	comp := c.(*component)
 
+	threshold := 10
+
 	// Override the process counting function to return many zombie processes
+	comp.zombieProcessCountThreshold = threshold
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
 		return map[string][]*procs.Process{
 			procs.Running: make([]*procs.Process, 10),
-			procs.Zombie:  make([]*procs.Process, zombieProcessCountThreshold+1),
+			procs.Zombie:  make([]*procs.Process, threshold+1),
 		}, nil
 	}
 
@@ -770,34 +773,10 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 
 	// Verify zombie process detection
 	data := result.(*Data)
-	assert.Equal(t, zombieProcessCountThreshold+1, data.ProcessCountZombieProcesses)
+	assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
 	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
-	expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)",
-		zombieProcessCountThreshold+1, zombieProcessCountThreshold)
+	expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
 	assert.Equal(t, expectedReason, data.reason)
-}
-
-// TestZombieProcessThresholdCalculation verifies the calculation of zombie process threshold
-func TestZombieProcessThresholdCalculation(t *testing.T) {
-	// Save the original threshold value
-	originalThreshold := zombieProcessCountThreshold
-	// Restore it after the test
-	defer func() {
-		zombieProcessCountThreshold = originalThreshold
-	}()
-
-	// Test with a specific value
-	testValue := 10000
-	expectedThreshold := int(float64(testValue) * 0.20) // 20% of test value
-
-	// Manually calculate the threshold as done in init
-	actualThreshold := int(float64(testValue) * 0.20)
-
-	// Assert the calculation is correct
-	assert.Equal(t, expectedThreshold, actualThreshold)
-
-	// Verify that the actual threshold from init is at least a reasonable value
-	assert.GreaterOrEqual(t, zombieProcessCountThreshold, 1000)
 }
 
 // TestComponent_SystemManufacturer tests that the system manufacturer is captured
@@ -1042,11 +1021,11 @@ func TestData_SummaryComprehensive(t *testing.T) {
 		{
 			name: "unhealthy with zombie processes",
 			data: &Data{
-				ProcessCountZombieProcesses: zombieProcessCountThreshold + 10,
-				reason:                      fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+10, zombieProcessCountThreshold),
+				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 10,
+				reason:                      fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
 				health:                      apiv1.StateTypeUnhealthy,
 			},
-			expected: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieProcessCountThreshold+10, zombieProcessCountThreshold),
+			expected: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
 		},
 		{
 			name: "unhealthy with uptime error",

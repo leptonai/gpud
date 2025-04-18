@@ -263,6 +263,55 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+
+		NVMLInstance:         nvmlInstanceV2,
+		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
+
+		Annotations: config.Annotations,
+		DBRO:        dbRO,
+
+		EventStore:       eventStore,
+		RebootEventStore: rebootEventStore,
+
+		MountPoints:  []string{"/"},
+		MountTargets: []string{"/var/lib/kubelet"},
+	}
+
+	allComponents := make([]components.Component, 0)
+	for _, initFunc := range componentInits {
+		c, err := initFunc(gpudInstance)
+		if err != nil {
+			return nil, err
+		}
+		allComponents = append(allComponents, c)
+	}
+
+	for i := range allComponents {
+		metrics.SetRegistered(allComponents[i].Name())
+	}
+
+	var componentNames []string
+	componentSet := make(map[string]struct{})
+	for _, c := range allComponents {
+		componentSet[c.Name()] = struct{}{}
+		componentNames = append(componentNames, c.Name())
+
+		// this guarantees no name conflict, thus safe to register handlers by its name
+		if err := components.RegisterComponent(c.Name(), c); err != nil {
+			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
+			continue
+		}
+	}
+
+	for _, c := range allComponents {
+		if err = c.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
+		}
+		defer c.Close()
+	}
+
 	go func() {
 		ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
 		defer ticker.Stop()
@@ -324,56 +373,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}()
 	} else {
 		log.Logger.Debugw("compact period is not set, skipping compacting")
-	}
-
-	gpudInstance := &components.GPUdInstance{
-		RootCtx: ctx,
-
-		NVMLInstance:         nvmlInstanceV2,
-		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
-
-		Annotations: config.Annotations,
-		DBRO:        dbRO,
-
-		EventStore:       eventStore,
-		RebootEventStore: rebootEventStore,
-
-		MountPoints:  []string{"/"},
-		MountTargets: []string{"/var/lib/kubelet"},
-	}
-
-	allComponents := make([]components.Component, 0)
-	for _, initFunc := range componentInits {
-		c, err := initFunc(gpudInstance)
-		if err != nil {
-			return nil, err
-		}
-		allComponents = append(allComponents, c)
-	}
-
-	for i := range allComponents {
-		metrics.SetRegistered(allComponents[i].Name())
-	}
-
-	var componentNames []string
-	componentSet := make(map[string]struct{})
-	for _, c := range allComponents {
-		componentSet[c.Name()] = struct{}{}
-		componentNames = append(componentNames, c.Name())
-
-		// this guarantees no name conflict, thus safe to register handlers by its name
-		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-			continue
-		}
-	}
-
-	for _, c := range allComponents {
-		if err = c.Start(); err != nil {
-			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
-			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
-		}
-		defer c.Close()
 	}
 
 	uid, err := gpudstate.ReadMachineID(ctx, dbRO)

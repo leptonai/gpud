@@ -3,6 +3,7 @@ package sxid
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -730,9 +731,11 @@ func TestSXIDComponent_Start(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Start again to ensure it doesn't cause issues
-	err = component.Start()
-	assert.NoError(t, err)
+	if runtime.GOOS == "linux" {
+		// Start again to ensure it doesn't cause issues
+		err = component.Start()
+		assert.Equal(t, kmsg.ErrWatcherAlreadyStarted, err)
+	}
 }
 
 func TestSXIDComponent_Start_ContextCanceled(t *testing.T) {
