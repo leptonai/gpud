@@ -309,7 +309,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if err = c.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
-		defer c.Close()
 	}
 
 	go func() {
