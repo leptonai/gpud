@@ -257,6 +257,7 @@ func (d *Data) String() string {
 		return "no sxid error found"
 	}
 
+	now := time.Now().UTC()
 	header := []string{"Time", "SXID", "DeviceUUID", "Name", "Critical", "Action(s)"}
 	outputs := make([]string, 0, len(d.FoundErrors))
 	for _, foundErr := range d.FoundErrors {
@@ -279,7 +280,7 @@ func (d *Data) String() string {
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
 		table.SetHeader(header)
 		table.Append([]string{
-			foundErr.Kmsg.Timestamp.Format(time.RFC3339),
+			foundErr.Kmsg.DescribeTimestamp(now),
 			fmt.Sprintf("%d", foundErr.SXid),
 			foundErr.DeviceUUID,
 			foundErr.Detail.Name,

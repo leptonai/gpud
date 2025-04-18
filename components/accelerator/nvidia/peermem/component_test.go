@@ -194,7 +194,7 @@ func TestCheckWithNoNVML(t *testing.T) {
 
 	result := c.Check()
 	assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
-	assert.Contains(t, result.Summary(), "NVIDIA NVML is not loaded")
+	assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 }
 
 func TestCheckWithNVML(t *testing.T) {

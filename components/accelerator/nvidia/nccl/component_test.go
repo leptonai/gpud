@@ -153,7 +153,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.NotNil(t, result)
 		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
-		assert.Contains(t, result.Summary(), "NVIDIA NVML is not loaded")
+		assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 	})
 
 	t.Run("nil readAllKmsg", func(t *testing.T) {
