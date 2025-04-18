@@ -3,6 +3,8 @@ package pod
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -90,8 +92,15 @@ func TestPodSandboxTypes(t *testing.T) {
 	})
 }
 
-// Test the connect function with mock server
+// Test the connect function with a mock server
 func Test_connect(t *testing.T) {
+	t.Run("empty endpoint", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_, err := connect(ctx, "")
+		assert.Error(t, err)
+	})
+
 	t.Run("invalid endpoint", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -104,6 +113,48 @@ func Test_connect(t *testing.T) {
 		defer cancel()
 		_, err := connect(ctx, "unix:///nonexistent/socket/path")
 		assert.Error(t, err)
+	})
+
+	t.Run("stat fails with non-IsNotExist error", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		// Create a temporary file
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "a_file")
+		f, err := os.Create(filePath)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		// Construct an endpoint where a file is used as a directory path component
+		invalidSocketPath := filepath.Join(filePath, "socket.sock")
+		endpoint := "unix://" + invalidSocketPath
+
+		_, err = connect(ctx, endpoint)
+
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "failed to stat socket file:")
+	})
+
+	t.Run("context cancellation during dial", func(t *testing.T) {
+		// Create a temporary directory and a file to act as the socket path
+		tempDir := t.TempDir()
+		socketPath := filepath.Join(tempDir, "test_cancel.sock")
+		f, err := os.Create(socketPath) // Create the file so os.Stat passes
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		// We don't listen on this socket, so Dial should block/retry
+
+		endpoint := "unix://" + socketPath
+
+		// Create a context and cancel it calling connect
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Immediately cancel
+
+		_, err = connect(ctx, endpoint)
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled, "Expected context.Canceled error")
 	})
 }
 
