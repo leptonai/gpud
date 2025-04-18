@@ -101,6 +101,7 @@ func (c *component) Close() error {
 
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking kubelet pods")
+
 	d := &Data{
 		ts: time.Now().UTC(),
 	}
@@ -184,7 +185,15 @@ func (d *Data) String() string {
 	table.SetHeader([]string{"Namespace", "Pod", "Container", "State"})
 	for _, pod := range d.Pods {
 		for _, container := range pod.ContainerStatuses {
-			table.Append([]string{pod.Namespace, pod.Name, container.Name, container.State.String()})
+			state := "unknown"
+			if container.State.Running != nil {
+				state = "running"
+			} else if container.State.Terminated != nil {
+				state = "terminated"
+			} else if container.State.Waiting != nil {
+				state = "waiting"
+			}
+			table.Append([]string{pod.Namespace, pod.Name, container.Name, state})
 		}
 	}
 	table.Render()

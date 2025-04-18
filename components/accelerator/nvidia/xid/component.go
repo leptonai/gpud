@@ -87,7 +87,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			ccancel()
 			return nil, err
 		}
+	}
 
+	if runtime.GOOS == "linux" {
 		c.readAllKmsg = kmsg.ReadAll
 	}
 
