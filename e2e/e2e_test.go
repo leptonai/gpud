@@ -233,7 +233,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	Describe("/v1/metrics requests", func() {
 		It("request without compress", func() {
 			// enough time for metrics to be collected
-			time.Sleep(2 * time.Minute)
+			time.Sleep(time.Minute + 30*time.Second)
 
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
