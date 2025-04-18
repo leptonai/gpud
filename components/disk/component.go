@@ -214,7 +214,12 @@ func (c *component) Check() components.CheckResult {
 
 	for target := range c.mountPointsToTrackUsage {
 		if _, err := os.Stat(target); err != nil {
-			log.Logger.Errorw("mount target does not exist", "mount_target", target)
+			if os.IsNotExist(err) {
+				log.Logger.Debugw("mount target does not exist", "target", target)
+				continue
+			}
+
+			log.Logger.Errorw("failed to check mount target", "target", target, "error", err)
 			continue
 		}
 
