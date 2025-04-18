@@ -154,15 +154,6 @@ func (c *component) Check() components.CheckResult {
 	d.health = apiv1.StateTypeHealthy
 	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
 
-	// if reboot event store is available
-	// e.g., "gpud scan" is an one-time operation
-	// in such case, we may not set the db instance
-	if c.rebootEventStore != nil {
-		if err := c.rebootEventStore.RecordReboot(c.ctx); err != nil {
-			log.Logger.Warnw("error creating reboot event", "error", err)
-		}
-	}
-
 	return d
 }
 

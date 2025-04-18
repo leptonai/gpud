@@ -57,18 +57,16 @@ func (m *MockNVMLInstanceV2) Shutdown() error {
 
 func createMockGPUdInstance(ctx context.Context, nvmlInstance nvml.InstanceV2) *components.GPUdInstance {
 	return &components.GPUdInstance{
-		RootCtx:                    ctx,
-		LibraryAndAlternativeNames: make(map[string][]string),
-		LibrarySearchDirs:          []string{},
-		KernelModulesToCheck:       []string{},
-		NVMLInstance:               nvmlInstance,
-		NVIDIAToolOverwrites:       common.ToolOverwrites{},
-		Annotations:                make(map[string]string),
-		DBRO:                       nil,
-		EventStore:                 nil,
-		RebootEventStore:           nil,
-		MountPoints:                []string{},
-		MountTargets:               []string{},
+		RootCtx:              ctx,
+		KernelModulesToCheck: []string{},
+		NVMLInstance:         nvmlInstance,
+		NVIDIAToolOverwrites: common.ToolOverwrites{},
+		Annotations:          make(map[string]string),
+		DBRO:                 nil,
+		EventStore:           nil,
+		RebootEventStore:     nil,
+		MountPoints:          []string{},
+		MountTargets:         []string{},
 	}
 }
 

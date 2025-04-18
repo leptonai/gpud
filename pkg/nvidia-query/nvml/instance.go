@@ -28,7 +28,7 @@ func NewInstanceV2() (InstanceV2, error) {
 	nvmlLib, err := nvmllib.New()
 	if err != nil {
 		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
-			return &noOpInstanceV2{}, nil
+			return NewNoOpInstanceV2(), nil
 		}
 		return nil, err
 	}
