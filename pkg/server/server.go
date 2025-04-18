@@ -268,6 +268,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
+	var componentNames []string
+	componentSet := make(map[string]struct{})
 	allComponents := make([]components.Component, 0)
 	for _, initFunc := range componentInits {
 		c, err := initFunc(gpudInstance)
@@ -275,15 +277,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			return nil, err
 		}
 		allComponents = append(allComponents, c)
-	}
 
-	for i := range allComponents {
-		metrics.SetRegistered(allComponents[i].Name())
-	}
+		metrics.SetRegistered(c.Name())
 
-	var componentNames []string
-	componentSet := make(map[string]struct{})
-	for _, c := range allComponents {
 		componentSet[c.Name()] = struct{}{}
 		componentNames = append(componentNames, c.Name())
 
