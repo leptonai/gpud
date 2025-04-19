@@ -23,6 +23,7 @@ import (
 // MockNvmlInstance implements the nvidianvml.InstanceV2 interface for testing
 type MockNvmlInstance struct {
 	DevicesFunc func() map[string]device.Device
+	nvmlExists  bool
 }
 
 func (m *MockNvmlInstance) Devices() map[string]device.Device {
@@ -41,7 +42,7 @@ func (m *MockNvmlInstance) ProductName() string {
 }
 
 func (m *MockNvmlInstance) NVMLExists() bool {
-	return true
+	return m.nvmlExists
 }
 
 func (m *MockNvmlInstance) Library() nvml_lib.Library {
@@ -117,6 +118,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	memory := nvidianvml.Memory{
@@ -175,6 +177,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	errExpected := errors.New("memory error")
@@ -202,6 +205,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{} // Empty map
 		},
+		nvmlExists: true,
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
@@ -236,6 +240,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	// Create malformed memory data that will cause GetUsedPercent to fail
@@ -364,6 +369,7 @@ func TestStart(t *testing.T) {
 			callCount.Add(1)
 			return map[string]device.Device{}
 		},
+		nvmlExists: true,
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, nil)
@@ -429,4 +435,214 @@ func TestData_GetError(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+		contains []string // For partial matching of table output
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "empty memories",
+			data: &Data{
+				Memories: []nvidianvml.Memory{},
+			},
+			expected: "no data",
+		},
+		{
+			name: "with memory data",
+			data: &Data{
+				Memories: []nvidianvml.Memory{
+					{
+						UUID:              "gpu-uuid-123",
+						TotalBytes:        16 * 1024 * 1024 * 1024,
+						ReservedBytes:     1 * 1024 * 1024 * 1024,
+						UsedBytes:         8 * 1024 * 1024 * 1024,
+						FreeBytes:         7 * 1024 * 1024 * 1024,
+						TotalHumanized:    "16 GB",
+						ReservedHumanized: "1 GB",
+						UsedHumanized:     "8 GB",
+						FreeHumanized:     "7 GB",
+						UsedPercent:       "50.00",
+					},
+				},
+			},
+			contains: []string{
+				"GPU UUID",
+				"TOTAL",
+				"RESERVED",
+				"USED",
+				"FREE",
+				"USED %",
+				"gpu-uuid-123",
+				"16 GB",
+				"1 GB",
+				"8 GB",
+				"7 GB",
+				"50.00",
+			},
+		},
+		{
+			name: "multiple memory entries",
+			data: &Data{
+				Memories: []nvidianvml.Memory{
+					{
+						UUID:              "gpu-uuid-123",
+						TotalBytes:        16 * 1024 * 1024 * 1024,
+						ReservedBytes:     1 * 1024 * 1024 * 1024,
+						UsedBytes:         8 * 1024 * 1024 * 1024,
+						FreeBytes:         7 * 1024 * 1024 * 1024,
+						TotalHumanized:    "16 GB",
+						ReservedHumanized: "1 GB",
+						UsedHumanized:     "8 GB",
+						FreeHumanized:     "7 GB",
+						UsedPercent:       "50.00",
+					},
+					{
+						UUID:              "gpu-uuid-456",
+						TotalBytes:        32 * 1024 * 1024 * 1024,
+						ReservedBytes:     2 * 1024 * 1024 * 1024,
+						UsedBytes:         20 * 1024 * 1024 * 1024,
+						FreeBytes:         10 * 1024 * 1024 * 1024,
+						TotalHumanized:    "32 GB",
+						ReservedHumanized: "2 GB",
+						UsedHumanized:     "20 GB",
+						FreeHumanized:     "10 GB",
+						UsedPercent:       "62.50",
+					},
+				},
+			},
+			contains: []string{
+				"gpu-uuid-123",
+				"16 GB",
+				"gpu-uuid-456",
+				"32 GB",
+				"20 GB",
+				"62.50",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.String()
+
+			if tt.expected != "" {
+				assert.Equal(t, tt.expected, got)
+			}
+
+			for _, s := range tt.contains {
+				assert.Contains(t, got, s)
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy",
+			data: &Data{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy",
+			data: &Data{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheckOnce_NilNvmlInstance(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with nil nvmlInstance
+	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	result := component.Check()
+
+	// Verify data when nvmlInstance is nil
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+}
+
+func TestCheckOnce_NvmlNotExists(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a mock NVML instance where NVMLExists returns false
+	mockNvmlInstance := &MockNvmlInstance{
+		DevicesFunc: func() map[string]device.Device {
+			return map[string]device.Device{}
+		},
+		nvmlExists: false,
+	}
+
+	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
+	result := component.Check()
+
+	// Verify data when NVML doesn't exist
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
 }
