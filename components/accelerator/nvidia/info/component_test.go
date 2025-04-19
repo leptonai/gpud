@@ -7,14 +7,17 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	testifymock "github.com/stretchr/testify/mock"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 // Ensure we have access to the New function - it should be in the same package
@@ -22,7 +25,7 @@ var _ = New
 
 // MockNVMLInstanceV2 implements nvml.InstanceV2 for testing
 type MockNVMLInstanceV2 struct {
-	mock.Mock
+	testifymock.Mock
 }
 
 func (m *MockNVMLInstanceV2) NVMLExists() bool {
@@ -30,9 +33,9 @@ func (m *MockNVMLInstanceV2) NVMLExists() bool {
 	return args.Bool(0)
 }
 
-func (m *MockNVMLInstanceV2) Library() nvml_lib.Library {
+func (m *MockNVMLInstanceV2) Library() nvmllib.Library {
 	args := m.Called()
-	return args.Get(0).(nvml_lib.Library)
+	return args.Get(0).(nvmllib.Library)
 }
 
 func (m *MockNVMLInstanceV2) Devices() map[string]device.Device {
@@ -45,9 +48,9 @@ func (m *MockNVMLInstanceV2) ProductName() string {
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {
+func (m *MockNVMLInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	args := m.Called()
-	return args.Get(0).(nvml.MemoryErrorManagementCapabilities)
+	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)
 }
 
 func (m *MockNVMLInstanceV2) Shutdown() error {
@@ -55,7 +58,7 @@ func (m *MockNVMLInstanceV2) Shutdown() error {
 	return args.Error(0)
 }
 
-func createMockGPUdInstance(ctx context.Context, nvmlInstance nvml.InstanceV2) *components.GPUdInstance {
+func createMockGPUdInstance(ctx context.Context, nvmlInstance nvidianvml.InstanceV2) *components.GPUdInstance {
 	return &components.GPUdInstance{
 		RootCtx:              ctx,
 		KernelModulesToCheck: []string{},
@@ -99,6 +102,29 @@ func TestComponent_Start(t *testing.T) {
 	// Clean up
 	err = comp.Close()
 	assert.NoError(t, err)
+}
+
+func TestComponent_Close(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	// Test Close function directly
+	err = comp.Close()
+	assert.NoError(t, err)
+
+	// Verify the context was cancelled
+	c := comp.(*component)
+	select {
+	case <-c.ctx.Done():
+		// Context was properly cancelled, test passed
+	default:
+		t.Errorf("context was not cancelled")
+	}
 }
 
 func TestComponent_States_NoData(t *testing.T) {
@@ -227,6 +253,327 @@ func TestCheckOnce_Success(t *testing.T) {
 	assert.Equal(t, "12.7", d.CUDA.Version)
 	assert.Equal(t, 1, d.GPU.DeviceCount)
 	assert.Equal(t, 0, d.GPU.Attached) // No devices in our mock
+}
+
+func TestCheckOnce_WithDevices(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	// Create mock device
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-12345", nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		"GPU-12345": mockDev,
+	}
+	mockInstance.On("Devices").Return(devicesMap)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Mock the functions
+	c.getDriverVersionFunc = func() (string, error) {
+		return "530.82.01", nil
+	}
+
+	c.getCUDAVersionFunc = func() (string, error) {
+		return "12.7", nil
+	}
+
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes:     uint64(16 * 1024 * 1024 * 1024), // 16GB
+			TotalHumanized: "16GB",
+		}, nil
+	}
+
+	c.getProductNameFunc = func(dev device.Device) (string, error) {
+		return "NVIDIA A100", nil
+	}
+
+	c.getArchitectureFunc = func(dev device.Device) (string, error) {
+		return "Ampere", nil
+	}
+
+	c.getBrandFunc = func(dev device.Device) (string, error) {
+		return "NVIDIA", nil
+	}
+
+	// Call the function
+	result := c.Check()
+	d := result.(*Data)
+
+	// Verify the results
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeHealthy, d.health)
+	assert.Equal(t, "530.82.01", d.Driver.Version)
+	assert.Equal(t, "12.7", d.CUDA.Version)
+	assert.Equal(t, 1, d.GPU.DeviceCount)
+	assert.Equal(t, 1, d.GPU.Attached)
+	assert.Equal(t, uint64(16*1024*1024*1024), d.Memory.TotalBytes)
+	assert.Equal(t, "16GB", d.Memory.TotalHumanized)
+	assert.Equal(t, "NVIDIA A100", d.Product.Name)
+	assert.Equal(t, "Ampere", d.Product.Architecture)
+	assert.Equal(t, "NVIDIA", d.Product.Brand)
+}
+
+func TestCheckOnce_MemoryError(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	// Create mock device
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-12345", nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		"GPU-12345": mockDev,
+	}
+	mockInstance.On("Devices").Return(devicesMap)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Mock the functions with success
+	c.getDriverVersionFunc = func() (string, error) {
+		return "530.82.01", nil
+	}
+
+	c.getCUDAVersionFunc = func() (string, error) {
+		return "12.7", nil
+	}
+
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	// Mock memory function with error
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{}, errors.New("memory error")
+	}
+
+	// Call the function
+	result := c.Check()
+	d := result.(*Data)
+
+	// Verify the results
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting memory: memory error", d.reason)
+	assert.Error(t, d.err)
+}
+
+func TestCheckOnce_ProductNameError(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	// Create mock device
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-12345", nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		"GPU-12345": mockDev,
+	}
+	mockInstance.On("Devices").Return(devicesMap)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Mock the functions with success
+	c.getDriverVersionFunc = func() (string, error) {
+		return "530.82.01", nil
+	}
+
+	c.getCUDAVersionFunc = func() (string, error) {
+		return "12.7", nil
+	}
+
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes: uint64(16 * 1024 * 1024 * 1024), // 16GB
+		}, nil
+	}
+
+	// Mock product name function with error
+	c.getProductNameFunc = func(dev device.Device) (string, error) {
+		return "", errors.New("product name error")
+	}
+
+	// Call the function
+	result := c.Check()
+	d := result.(*Data)
+
+	// Verify the results
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting product name: product name error", d.reason)
+	assert.Error(t, d.err)
+}
+
+func TestCheckOnce_ArchitectureError(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	// Create mock device
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-12345", nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		"GPU-12345": mockDev,
+	}
+	mockInstance.On("Devices").Return(devicesMap)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Mock the functions with success
+	c.getDriverVersionFunc = func() (string, error) {
+		return "530.82.01", nil
+	}
+
+	c.getCUDAVersionFunc = func() (string, error) {
+		return "12.7", nil
+	}
+
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes: uint64(16 * 1024 * 1024 * 1024), // 16GB
+		}, nil
+	}
+
+	c.getProductNameFunc = func(dev device.Device) (string, error) {
+		return "NVIDIA A100", nil
+	}
+
+	// Mock architecture function with error
+	c.getArchitectureFunc = func(dev device.Device) (string, error) {
+		return "", errors.New("architecture error")
+	}
+
+	// Call the function
+	result := c.Check()
+	d := result.(*Data)
+
+	// Verify the results
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting architecture: architecture error", d.reason)
+	assert.Error(t, d.err)
+}
+
+func TestCheckOnce_BrandError(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(MockNVMLInstanceV2)
+
+	// Create mock device
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-12345", nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		"GPU-12345": mockDev,
+	}
+	mockInstance.On("Devices").Return(devicesMap)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Mock the functions with success
+	c.getDriverVersionFunc = func() (string, error) {
+		return "530.82.01", nil
+	}
+
+	c.getCUDAVersionFunc = func() (string, error) {
+		return "12.7", nil
+	}
+
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes: uint64(16 * 1024 * 1024 * 1024), // 16GB
+		}, nil
+	}
+
+	c.getProductNameFunc = func(dev device.Device) (string, error) {
+		return "NVIDIA A100", nil
+	}
+
+	c.getArchitectureFunc = func(dev device.Device) (string, error) {
+		return "Ampere", nil
+	}
+
+	// Mock brand function with error
+	c.getBrandFunc = func(dev device.Device) (string, error) {
+		return "", errors.New("brand error")
+	}
+
+	// Call the function
+	result := c.Check()
+	d := result.(*Data)
+
+	// Verify the results
+	assert.NotNil(t, d)
+	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health)
+	assert.Equal(t, "error getting brand: brand error", d.reason)
+	assert.Error(t, d.err)
 }
 
 func TestCheckOnce_DriverVersionError(t *testing.T) {
@@ -410,4 +757,46 @@ func TestData_GetError(t *testing.T) {
 		err: errors.New("test error"),
 	}
 	assert.Equal(t, "test error", withErrorData.getError())
+}
+
+func TestData_StringAndUtilityMethods(t *testing.T) {
+	// Test String() with nil data
+	var nilData *Data
+	assert.Equal(t, "", nilData.String())
+
+	// Test with populated data
+	data := &Data{
+		Driver: Driver{
+			Version: "530.82.01",
+		},
+		CUDA: CUDA{
+			Version: "12.7",
+		},
+		GPU: GPU{
+			DeviceCount: 2,
+			Attached:    1,
+		},
+		Memory: Memory{
+			TotalBytes:     16 * 1024 * 1024 * 1024,
+			TotalHumanized: "16GB",
+		},
+		Product: Product{
+			Name:         "NVIDIA A100",
+			Brand:        "NVIDIA",
+			Architecture: "Ampere",
+		},
+		health: apiv1.StateTypeHealthy,
+		reason: "all 2 GPU(s) were checked",
+	}
+
+	// Test String method
+	assert.NotEmpty(t, data.String())
+
+	// Test Summary method
+	assert.Equal(t, "all 2 GPU(s) were checked", data.Summary())
+	assert.Equal(t, "", nilData.Summary())
+
+	// Test HealthState method
+	assert.Equal(t, apiv1.StateTypeHealthy, data.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
 }

@@ -217,14 +217,17 @@ type Data struct {
 	reason string
 }
 
+// Driver is the driver version of the NVIDIA GPU.
 type Driver struct {
 	Version string `json:"version"`
 }
 
+// CUDA is the CUDA version of the NVIDIA GPU.
 type CUDA struct {
 	Version string `json:"version"`
 }
 
+// GPU is the GPU information of the NVIDIA GPU.
 type GPU struct {
 	// DeviceCount is the number of GPU devices based on the /dev directory.
 	DeviceCount int `json:"device_count"`
@@ -234,11 +237,13 @@ type GPU struct {
 	Attached int `json:"attached"`
 }
 
+// Memory is the memory information of the NVIDIA GPU.
 type Memory struct {
 	TotalBytes     uint64 `json:"total_bytes"`
 	TotalHumanized string `json:"total_humanized"`
 }
 
+// Product is the product information of the NVIDIA GPU.
 type Product struct {
 	Name         string `json:"name"`
 	Brand        string `json:"brand"`
