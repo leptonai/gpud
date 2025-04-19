@@ -32,22 +32,12 @@ var (
 
 	retentionPeriod time.Duration
 
-	netcheck  bool
-	diskcheck bool
-	kmsgCheck bool
-
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	kernelModulesToCheck cli.StringSlice
-
+	kernelModulesToCheck         cli.StringSlice
 	dockerIgnoreConnectionErrors bool
-
-	ibstatCommand string
-
-	checkInfiniBand bool
-
-	deprecatedWebEnable bool
+	ibstatCommand                string
 )
 
 const (
@@ -197,11 +187,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
 					Destination: &retentionPeriod,
 					Value:       config.DefaultRetentionPeriod.Duration,
-				},
-				&cli.BoolFlag{
-					Name:        "web-enable",
-					Usage:       "(DEPRECATED) enable local web interface",
-					Destination: &deprecatedWebEnable,
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
@@ -444,26 +429,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
-				},
-				&cli.BoolTFlag{
-					Name:        "netcheck",
-					Usage:       "enable network connectivity checks to global edge/derp servers (default: true)",
-					Destination: &netcheck,
-				},
-				&cli.BoolTFlag{
-					Name:        "diskcheck",
-					Usage:       "enable disk checks (default: true)",
-					Destination: &diskcheck,
-				},
-				&cli.BoolTFlag{
-					Name:        "kmsg-check",
-					Usage:       "enable kmsg checks (default: true)",
-					Destination: &kmsgCheck,
-				},
-				&cli.BoolFlag{
-					Name:        "check-ib",
-					Usage:       "enable infiniband checks (default: false)",
-					Destination: &checkInfiniBand,
 				},
 
 				// only for testing

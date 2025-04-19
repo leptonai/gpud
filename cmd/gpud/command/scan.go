@@ -19,11 +19,7 @@ func cmdScan(cliContext *cli.Context) error {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	opts := []scan.OpOption{
-		scan.WithNetcheck(netcheck),
-		scan.WithDiskcheck(diskcheck),
-		scan.WithKMsgCheck(kmsgCheck),
 		scan.WithIbstatCommand(ibstatCommand),
-		scan.WithCheckInfiniband(checkInfiniBand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))
