@@ -52,6 +52,15 @@ func (m *MockNvmlInstance) Shutdown() error {
 	return nil
 }
 
+// MockNvmlInstanceNVMLNotExists is a special mock for the case where NVMLExists returns false
+type MockNvmlInstanceNVMLNotExists struct {
+	MockNvmlInstance
+}
+
+func (m *MockNvmlInstanceNVMLNotExists) NVMLExists() bool {
+	return false
+}
+
 // MockNVLinkComponent creates a component with mocked functions for testing
 func MockNVLinkComponent(
 	ctx context.Context,
@@ -376,4 +385,292 @@ func TestData_GetError(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+		contains string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name:     "empty nvlinks",
+			data:     &Data{},
+			expected: "no data",
+		},
+		{
+			name: "with nvlink data",
+			data: &Data{
+				NVLinks: []nvidianvml.NVLink{
+					{
+						UUID:      "gpu-uuid-123",
+						Supported: true,
+						States: []nvidianvml.NVLinkState{
+							{
+								Link:           0,
+								FeatureEnabled: true,
+							},
+						},
+					},
+				},
+			},
+			contains: "UUID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.String()
+			if tt.expected != "" {
+				assert.Equal(t, tt.expected, got)
+			}
+			if tt.contains != "" {
+				assert.Contains(t, got, tt.contains)
+				assert.Contains(t, got, "gpu-uuid-123")
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+		{
+			name:     "empty reason",
+			data:     &Data{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy state",
+			data: &Data{
+				health: apiv1.StateTypeHealthy,
+			},
+			expected: apiv1.StateTypeHealthy,
+		},
+		{
+			name: "unhealthy state",
+			data: &Data{
+				health: apiv1.StateTypeUnhealthy,
+			},
+			expected: apiv1.StateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheckOnce_NilNVMLInstance(t *testing.T) {
+	ctx := context.Background()
+
+	// Create component with nil nvmlInstance
+	component := &component{
+		ctx:          ctx,
+		nvmlInstance: nil,
+	}
+
+	result := component.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+}
+
+func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
+	ctx := context.Background()
+
+	// Use specialized mock instance where NVMLExists returns false
+	mockInstance := &MockNvmlInstanceNVMLNotExists{
+		MockNvmlInstance: MockNvmlInstance{
+			devicesFunc: func() map[string]device.Device { return nil },
+		},
+	}
+
+	component := &component{
+		ctx:          ctx,
+		nvmlInstance: mockInstance,
+	}
+
+	result := component.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+}
+
+func TestData_getLastHealthStates(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedHealth apiv1.HealthStateType
+		expectedReason string
+		expectedError  string
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedHealth: apiv1.StateTypeHealthy,
+			expectedReason: "no data yet",
+		},
+		{
+			name: "healthy data",
+			data: &Data{
+				health: apiv1.StateTypeHealthy,
+				reason: "all good",
+			},
+			expectedHealth: apiv1.StateTypeHealthy,
+			expectedReason: "all good",
+		},
+		{
+			name: "unhealthy data with error",
+			data: &Data{
+				health: apiv1.StateTypeUnhealthy,
+				reason: "something wrong",
+				err:    errors.New("test error"),
+			},
+			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedReason: "something wrong",
+			expectedError:  "test error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			states := tt.data.getLastHealthStates()
+			require.Len(t, states, 1)
+
+			state := states[0]
+			assert.Equal(t, Name, state.Name)
+			assert.Equal(t, tt.expectedHealth, state.Health)
+			assert.Equal(t, tt.expectedReason, state.Reason)
+			assert.Equal(t, tt.expectedError, state.Error)
+
+			// Check that extraInfo is properly populated for non-nil data
+			if tt.data != nil {
+				assert.NotEmpty(t, state.DeprecatedExtraInfo["data"])
+				assert.Equal(t, "json", state.DeprecatedExtraInfo["encoding"])
+			}
+		})
+	}
+}
+
+func TestCheck_MetricsGeneration(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Create NVLink data with specific error counts to check metric values
+	nvLinkStates := []nvidianvml.NVLinkState{
+		{
+			Link:           0,
+			FeatureEnabled: true,
+			ReplayErrors:   5,
+			RecoveryErrors: 3,
+			CRCErrors:      2,
+		},
+		{
+			Link:           1,
+			FeatureEnabled: false,
+			ReplayErrors:   1,
+			RecoveryErrors: 2,
+			CRCErrors:      3,
+		},
+	}
+
+	nvLink := nvidianvml.NVLink{
+		UUID:      uuid,
+		Supported: true,
+		States:    nvLinkStates,
+	}
+
+	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+		return nvLink, nil
+	}
+
+	// Create a component and run Check
+	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	_ = component.Check()
+
+	// Verify the data was collected
+	component.lastMu.RLock()
+	lastData := component.lastData
+	component.lastMu.RUnlock()
+
+	require.NotNil(t, lastData, "lastData should not be nil")
+	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Len(t, lastData.NVLinks, 1)
+
+	// The actual metrics are set using prometheus counters which we can't directly test here
+	// without additional mocking, but we can at least ensure the right structure is in place
+	// and the feature enabled state is correctly determined
+	assert.False(t, lastData.NVLinks[0].States.AllFeatureEnabled(),
+		"AllFeatureEnabled should be false since not all links have FeatureEnabled=true")
+	assert.Equal(t, uint64(6), lastData.NVLinks[0].States.TotalRelayErrors(),
+		"TotalRelayErrors should match the sum")
+	assert.Equal(t, uint64(5), lastData.NVLinks[0].States.TotalRecoveryErrors(),
+		"TotalRecoveryErrors should match the sum")
+	assert.Equal(t, uint64(5), lastData.NVLinks[0].States.TotalCRCErrors(),
+		"TotalCRCErrors should match the sum")
 }
