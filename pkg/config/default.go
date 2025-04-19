@@ -11,23 +11,23 @@ import (
 	"github.com/mitchellh/go-homedir"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
+	componentscontainerdpod "github.com/leptonai/gpud/components/containerd/pod"
 	"github.com/leptonai/gpud/components/cpu"
 	"github.com/leptonai/gpud/components/disk"
-	docker_container "github.com/leptonai/gpud/components/docker/container"
+	componentsdockercontainer "github.com/leptonai/gpud/components/docker/container"
 	"github.com/leptonai/gpud/components/fd"
 	"github.com/leptonai/gpud/components/fuse"
 	"github.com/leptonai/gpud/components/info"
-	kernel_module "github.com/leptonai/gpud/components/kernel-module"
-	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
+	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
+	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
 	"github.com/leptonai/gpud/components/memory"
-	network_latency "github.com/leptonai/gpud/components/network/latency"
+	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
 	"github.com/leptonai/gpud/components/os"
-	component_pci "github.com/leptonai/gpud/components/pci"
+	componentspci "github.com/leptonai/gpud/components/pci"
 	"github.com/leptonai/gpud/components/tailscale"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -65,14 +65,14 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		// default components that work both in mac/linux
 		Components: map[string]any{
-			cpu.Name:           nil,
-			disk.Name:          nil,
-			fuse.Name:          nil,
-			fd.Name:            nil,
-			info.Name:          nil,
-			memory.Name:        nil,
-			os.Name:            nil,
-			kernel_module.Name: nil,
+			cpu.Name:                    nil,
+			disk.Name:                   nil,
+			fuse.Name:                   nil,
+			fd.Name:                     nil,
+			info.Name:                   nil,
+			memory.Name:                 nil,
+			os.Name:                     nil,
+			componentskernelmodule.Name: nil,
 		},
 
 		RetentionPeriod: DefaultRetentionPeriod,
@@ -90,24 +90,24 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		KernelModulesToCheck: options.KernelModulesToCheck,
 
-		NvidiaToolOverwrites: nvidia_common.ToolOverwrites{
+		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			IbstatCommand: options.IbstatCommand,
 		},
 	}
 
 	if len(cfg.KernelModulesToCheck) > 0 {
-		cfg.Components[kernel_module.Name] = cfg.KernelModulesToCheck
+		cfg.Components[componentskernelmodule.Name] = cfg.KernelModulesToCheck
 	}
 
 	// regardless of its dependency activeness, we always enable these components
 	// and dynamically checks its activeness
-	cfg.Components[docker_container.Name] = nil
-	cfg.Components[containerd_pod.Name] = nil
-	cfg.Components[kubelet_pod.Name] = nil
+	cfg.Components[componentsdockercontainer.Name] = nil
+	cfg.Components[componentscontainerdpod.Name] = nil
+	cfg.Components[componentskubeletpod.Name] = nil
 
-	cfg.Components[network_latency.Name] = nil
+	cfg.Components[componentsnetworklatency.Name] = nil
 
-	cfg.Components[component_pci.Name] = nil
+	cfg.Components[componentspci.Name] = nil
 
 	if runtime.GOOS == "linux" {
 		cfg.Components[tailscale.Name] = nil
@@ -115,7 +115,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
 
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
 	if err != nil {
 		return nil, err
 	}
