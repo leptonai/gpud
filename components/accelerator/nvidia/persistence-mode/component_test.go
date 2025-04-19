@@ -23,6 +23,7 @@ import (
 // MockNvmlInstance implements the nvml.InstanceV2 interface for testing
 type MockNvmlInstance struct {
 	devicesFunc func() map[string]device.Device
+	nvmlExists  bool
 }
 
 func (m *MockNvmlInstance) Devices() map[string]device.Device {
@@ -45,7 +46,7 @@ func (m *MockNvmlInstance) ProductName() string {
 }
 
 func (m *MockNvmlInstance) NVMLExists() bool {
-	return true
+	return m.nvmlExists
 }
 
 func (m *MockNvmlInstance) Library() lib.Library {
@@ -66,6 +67,29 @@ func MockPersistenceModeComponent(
 
 	mockInstance := &MockNvmlInstance{
 		devicesFunc: devicesFunc,
+		nvmlExists:  true,
+	}
+
+	return &component{
+		ctx:                    cctx,
+		cancel:                 cancel,
+		nvmlInstance:           mockInstance,
+		getPersistenceModeFunc: getPersistenceModeFunc,
+	}
+}
+
+// MockPersistenceModeComponentWithNVMLExists creates a component with control over NVMLExists
+func MockPersistenceModeComponentWithNVMLExists(
+	ctx context.Context,
+	devicesFunc func() map[string]device.Device,
+	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error),
+	nvmlExists bool,
+) components.Component {
+	cctx, cancel := context.WithCancel(ctx)
+
+	mockInstance := &MockNvmlInstance{
+		devicesFunc: devicesFunc,
+		nvmlExists:  nvmlExists,
 	}
 
 	return &component{
@@ -206,6 +230,112 @@ func TestCheck_NoDevices(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no persistence mode issue found", data.reason)
 	assert.Empty(t, data.PersistenceModes)
+}
+
+func TestCheck_MultipleDevices(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+
+	mockDevice1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDevice1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDevice2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDevice2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+		return nvidianvml.PersistenceMode{
+			UUID:      uuid,
+			Enabled:   uuid == uuid1, // First device has persistence mode enabled
+			Supported: true,
+		}, nil
+	}
+
+	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the data was collected for both devices
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 2 GPU(s) were checked, no persistence mode issue found", data.reason)
+	assert.Len(t, data.PersistenceModes, 2)
+
+	// Verify each device's persistence mode status
+	var device1Mode, device2Mode nvidianvml.PersistenceMode
+	for _, mode := range data.PersistenceModes {
+		if mode.UUID == uuid1 {
+			device1Mode = mode
+		} else if mode.UUID == uuid2 {
+			device2Mode = mode
+		}
+	}
+
+	assert.Equal(t, uuid1, device1Mode.UUID)
+	assert.True(t, device1Mode.Enabled)
+	assert.True(t, device1Mode.Supported)
+
+	assert.Equal(t, uuid2, device2Mode.UUID)
+	assert.False(t, device2Mode.Enabled)
+	assert.True(t, device2Mode.Supported)
+}
+
+func TestCheck_NilNVMLInstance(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+
+	component := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: nil, // Explicitly set to nil
+	}
+
+	result := component.Check()
+
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+}
+
+func TestCheck_NVMLNotExists(t *testing.T) {
+	ctx := context.Background()
+
+	component := MockPersistenceModeComponentWithNVMLExists(
+		ctx,
+		nil,
+		nil,
+		false, // NVML doesn't exist
+	).(*component)
+
+	result := component.Check()
+
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
 }
 
 func TestLastHealthStates_WithData(t *testing.T) {
@@ -357,6 +487,119 @@ func TestData_GetError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.data.getError()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		contains []string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			contains: []string{""},
+		},
+		{
+			name:     "empty data",
+			data:     &Data{},
+			contains: []string{"no data"},
+		},
+		{
+			name: "with persistence modes",
+			data: &Data{
+				PersistenceModes: []nvidianvml.PersistenceMode{
+					{
+						UUID:      "gpu-uuid-123",
+						Enabled:   true,
+						Supported: true,
+					},
+					{
+						UUID:      "gpu-uuid-456",
+						Enabled:   false,
+						Supported: true,
+					},
+				},
+			},
+			contains: []string{
+				"UUID", "PERSISTENCE MODE ENABLED", "PERSISTENCE MODE SUPPORTED",
+				"gpu-uuid-123", "true", "true",
+				"gpu-uuid-456", "false", "true",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.String()
+			for _, substr := range tt.contains {
+				assert.Contains(t, result, substr)
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test summary reason",
+			},
+			expected: "test summary reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
 			assert.Equal(t, tt.expected, got)
 		})
 	}
