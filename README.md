@@ -72,10 +72,6 @@ You can also start with the standalone mode and later switch to the managed opti
 sudo gpud login --token <LEPTON_AI_TOKEN>
 ```
 
-To access the local web UI, open https://localhost:15132 in your browser.
-
-If run with `gpud up`, you may disable this local web UI by setting `FLAGS="--web-enable=false"` to the `/etc/default/gpud` environment file and restart the service.
-
 #### Run GPUd with Kubernetes
 
 See [gpud helm chart](./charts/gpud/README.md) to deploy GPUd in your Kubernetes cluster.
