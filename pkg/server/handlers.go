@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leptonai/gpud/components"
 	gpudconfig "github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/pkg/errdefs"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -79,7 +80,7 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 	var ret []string
 	for _, component := range strings.Split(components, ",") {
 		if c := g.componentsRegistry.Get(component); c == nil {
-			return nil, fmt.Errorf("component %s not found", component)
+			return nil, fmt.Errorf("component %s not found (%w)", component, errdefs.ErrNotFound)
 		}
 		ret = append(ret, component)
 	}
