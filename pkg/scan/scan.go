@@ -9,7 +9,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
 	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
@@ -115,7 +115,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
 
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
 	if err != nil {
 		log.Logger.Warnw("error checking nvidia gpu installation", "error", err)
 		return err
