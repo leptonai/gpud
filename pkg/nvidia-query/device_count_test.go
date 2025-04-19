@@ -84,3 +84,11 @@ func TestCountAllDevicesFromDir(t *testing.T) {
 		t.Errorf("expected %d devices, but got %d", devCnt, count)
 	}
 }
+
+func TestCountAllDevicesFromDevDir(t *testing.T) {
+	devCnt, err := CountAllDevicesFromDevDir()
+	if err != nil {
+		t.Fatalf("CountAllDevicesFromDevDir returned an error: %v", err)
+	}
+	t.Logf("CountAllDevicesFromDevDir: %d", devCnt)
+}

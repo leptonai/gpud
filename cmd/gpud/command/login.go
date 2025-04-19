@@ -6,9 +6,13 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	corev1 "k8s.io/api/core/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	client "github.com/leptonai/gpud/client/v1"
+	componentsacceleratornvidiainfo "github.com/leptonai/gpud/components/accelerator/nvidia/info"
+	componentscpu "github.com/leptonai/gpud/components/cpu"
+	componentsmemory "github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/login"
@@ -59,9 +63,32 @@ func cmdLogin(cliContext *cli.Context) error {
 
 	endpoint := cliContext.String("endpoint")
 
+	req := apiv1.LoginRequest{
+		Token:        token,
+		ResourceSpec: map[string]string{},
+	}
+
+	cpu, err := componentscpu.GetSystemResourceLogicalCores()
+	if err != nil {
+		return fmt.Errorf("failed to get system resource logical cores: %w", err)
+	}
+	req.ResourceSpec[string(corev1.ResourceCPU)] = cpu
+
+	memory, err := componentsmemory.GetSystemResourceMemoryTotal()
+	if err != nil {
+		return fmt.Errorf("failed to get system resource memory total: %w", err)
+	}
+	req.ResourceSpec[string(corev1.ResourceMemory)] = memory
+
+	gpuCnt, err := componentsacceleratornvidiainfo.GetSystemResourceGPUCount()
+	if err != nil {
+		return fmt.Errorf("failed to get system resource gpu count: %w", err)
+	}
+	req.ResourceSpec["nvidia.com/gpu"] = gpuCnt
+
 	// machine ID has not been assigned yet
 	// thus request one and blocks until the login request is processed
-	loginResp, err := login.SendRequest(rootCtx, endpoint, apiv1.LoginRequest{Token: token})
+	loginResp, err := login.SendRequest(rootCtx, endpoint, req)
 	if err != nil {
 		return err
 	}

@@ -1,13 +1,18 @@
 package query
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
 )
 
 func CountAllDevicesFromDevDir() (int, error) {
-	return countAllDevicesFromDir("/dev")
+	dir := "/dev"
+	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	return countAllDevicesFromDir(dir)
 }
 
 // "checkPermissions" in "nvvs/plugin_src/software/Software.cpp"
