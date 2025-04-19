@@ -117,13 +117,13 @@ func TestComponent_Close(t *testing.T) {
 	err = comp.Close()
 	assert.NoError(t, err)
 
-	// Verify the context was cancelled
+	// Verify the context was canceled
 	c := comp.(*component)
 	select {
 	case <-c.ctx.Done():
-		// Context was properly cancelled, test passed
+		// Context was properly canceled, test passed
 	default:
-		t.Errorf("context was not cancelled")
+		t.Errorf("context was not canceled")
 	}
 }
 
