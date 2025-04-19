@@ -132,6 +132,8 @@ type Server struct {
 	dbRW *sql.DB
 	dbRO *sql.DB
 
+	componentsRegistry components.Registry
+
 	uid                string
 	fifoPath           string
 	fifo               *stdos.File
@@ -267,33 +269,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
-
-	var componentNames []string
-	componentSet := make(map[string]struct{})
-	allComponents := make([]components.Component, 0)
+	s.componentsRegistry = components.NewRegistry(gpudInstance)
 	for _, initFunc := range componentInits {
-		c, err := initFunc(gpudInstance)
-		if err != nil {
-			return nil, err
-		}
-		allComponents = append(allComponents, c)
-
-		metrics.SetRegistered(c.Name())
-
-		componentSet[c.Name()] = struct{}{}
-		componentNames = append(componentNames, c.Name())
-
-		// this guarantees no name conflict, thus safe to register handlers by its name
-		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-			continue
-		}
+		s.componentsRegistry.MustRegister(initFunc)
 	}
-
-	for _, c := range allComponents {
+	componentNames := make([]string, 0)
+	for _, c := range s.componentsRegistry.All() {
 		if err = c.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
+		componentNames = append(componentNames, c.Name())
 	}
 
 	go func() {
@@ -386,7 +371,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	ghler := newGlobalHandler(config, components.GetAllComponents(), metricsSQLiteStore)
+	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore)
 	ghler.registerComponentRoutes(v1)
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
@@ -471,13 +456,14 @@ func (s *Server) Stop() {
 	if s.session != nil {
 		s.session.Stop()
 	}
-	for name, component := range components.GetAllComponents() {
+
+	for _, component := range s.componentsRegistry.All() {
 		closer, ok := component.(io.Closer)
 		if !ok {
 			continue
 		}
 		if err := closer.Close(); err != nil {
-			log.Logger.Errorf("failed to close plugin %v: %v", name, err)
+			log.Logger.Errorf("failed to close plugin %v: %v", component.Name(), err)
 		}
 	}
 
@@ -562,6 +548,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithMetricsStore(metricsStore),
 		)
 		if err != nil {

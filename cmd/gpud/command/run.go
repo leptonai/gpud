@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
@@ -146,9 +145,7 @@ func cmdRun(cliContext *cli.Context) error {
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done
 
-	for _, c := range components.GetAllComponents() {
-		log.Logger.Info("closing component", "name", c.Name(), "error", c.Close())
-	}
+	server.Stop()
 
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	gpudmetrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
@@ -37,13 +38,17 @@ type InitFunc func(*GPUdInstance) (Component, error)
 
 // Registry is the interface for the registry of components.
 type Registry interface {
-	// MustRegister registers a component with the given name and initialization function.
+	// MustRegister registers a component with the given initialization function.
 	// It panics if the component is already registered.
 	// It panics if the initialization function returns an error.
-	MustRegister(name string, initFunc InitFunc)
+	MustRegister(initFunc InitFunc)
 
 	// All returns all registered components.
 	All() []Component
+
+	// Get returns a component by name.
+	// It returns nil if the component is not registered.
+	Get(name string) Component
 }
 
 var _ Registry = &registry{}
@@ -55,7 +60,7 @@ type registry struct {
 }
 
 // NewRegistry creates a new registry.
-func NewRegistry(gpudInstance *GPUdInstance) *registry {
+func NewRegistry(gpudInstance *GPUdInstance) Registry {
 	return &registry{
 		gpudInstance: gpudInstance,
 		components:   make(map[string]Component),
@@ -65,8 +70,8 @@ func NewRegistry(gpudInstance *GPUdInstance) *registry {
 // MustRegister registers a component with the given name and initialization function.
 // It panics if the component is already registered.
 // It panics if the initialization function returns an error.
-func (r *registry) MustRegister(name string, initFunc InitFunc) {
-	if err := r.registerInit(name, initFunc); err != nil {
+func (r *registry) MustRegister(initFunc InitFunc) {
+	if err := r.registerInit(initFunc); err != nil {
 		panic(err)
 	}
 }
@@ -81,18 +86,19 @@ func (r *registry) hasRegistered(name string) bool {
 }
 
 // registerInit registers an initialization function for a component with the given name.
-func (r *registry) registerInit(name string, initFunc InitFunc) error {
-	if r.hasRegistered(name) {
-		return fmt.Errorf("component %s already registered", name)
-	}
-
+func (r *registry) registerInit(initFunc InitFunc) error {
 	c, err := initFunc(r.gpudInstance)
 	if err != nil {
 		return err
 	}
 
+	if r.hasRegistered(c.Name()) {
+		return fmt.Errorf("component %s already registered", c.Name())
+	}
+	gpudmetrics.SetRegistered(c.Name())
+
 	r.mu.Lock()
-	r.components[name] = c
+	r.components[c.Name()] = c
 	r.mu.Unlock()
 
 	return nil
@@ -117,4 +123,11 @@ func (r *registry) listAll() []Component {
 		all = append(all, c)
 	}
 	return all
+}
+
+func (r *registry) Get(name string) Component {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.components[name]
 }
