@@ -140,18 +140,18 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
 	if c.getIbstatOutputFunc == nil {
 		d.reason = "ibstat checker not found"
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		return d
 	}
 
@@ -161,17 +161,17 @@ func (c *component) Check() components.CheckResult {
 	if d.err != nil {
 		if errors.Is(d.err, infiniband.ErrNoIbstatCommand) {
 			d.reason = "ibstat command not found"
-			d.health = apiv1.StateTypeHealthy
+			d.health = apiv1.HealthStateTypeHealthy
 		} else {
 			d.reason = fmt.Sprintf("ibstat command failed: %v", d.err)
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 		}
 		return d
 	}
 
 	if d.IbstatOutput == nil {
 		d.reason = reasonMissingIbstatOutput
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		return d
 	}
 
@@ -179,7 +179,7 @@ func (c *component) Check() components.CheckResult {
 	// (e.g., "gpud scan" one-off checks)
 	if c.eventBucket == nil {
 		d.reason = reasonMissingEventBucket
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		return d
 	}
 
@@ -187,7 +187,7 @@ func (c *component) Check() components.CheckResult {
 	d.reason, d.health = evaluateIbstatOutputAgainstThresholds(d.IbstatOutput, thresholds)
 
 	// we only care about unhealthy events, no need to persist healthy events
-	if d.health == apiv1.StateTypeHealthy {
+	if d.health == apiv1.HealthStateTypeHealthy {
 		return d
 	}
 
@@ -216,7 +216,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.reason = fmt.Sprintf("failed to find ibstat event: %v", err)
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		return d
 	}
 
@@ -231,7 +231,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.reason = fmt.Sprintf("failed to insert ibstat event: %v", err)
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		return d
 	}
 
@@ -250,16 +250,16 @@ var (
 func evaluateIbstatOutputAgainstThresholds(o *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
 	// nothing specified for this machine, gpud MUST skip the ib check
 	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
-		return reasonThresholdNotSetSkipped, apiv1.StateTypeHealthy
+		return reasonThresholdNotSetSkipped, apiv1.HealthStateTypeHealthy
 	}
 
 	atLeastPorts := thresholds.AtLeastPorts
 	atLeastRate := thresholds.AtLeastRate
 	if err := o.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return err.Error(), apiv1.StateTypeUnhealthy
+		return err.Error(), apiv1.HealthStateTypeUnhealthy
 	}
 
-	return reasonNoIbIssueFound, apiv1.StateTypeHealthy
+	return reasonNoIbIssueFound, apiv1.HealthStateTypeHealthy
 }
 
 var _ components.CheckResult = &Data{}
@@ -329,7 +329,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

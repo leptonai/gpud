@@ -34,7 +34,7 @@ func (m *mockComponent) Check() CheckResult {
 }
 
 func (m *mockComponent) LastHealthStates() apiv1.HealthStates {
-	return []apiv1.HealthState{{Name: m.name, Health: apiv1.StateTypeHealthy}}
+	return []apiv1.HealthState{{Name: m.name, Health: apiv1.HealthStateTypeHealthy}}
 }
 
 func (m *mockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -82,7 +82,7 @@ func (m *mockCheckResult) Summary() string {
 }
 
 func (m *mockCheckResult) HealthState() apiv1.HealthStateType {
-	return apiv1.StateTypeHealthy
+	return apiv1.HealthStateTypeHealthy
 }
 
 func TestGetComponentErrors(t *testing.T) {

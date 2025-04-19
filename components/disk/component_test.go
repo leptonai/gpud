@@ -83,7 +83,7 @@ func TestEmptyDataStates(t *testing.T) {
 	// No data set yet
 	states := c.LastHealthStates()
 	assert.Equal(t, "no data yet", states[0].Reason)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -95,7 +95,7 @@ func TestDataGetStates(t *testing.T) {
 			{Name: "sda", Type: "disk"},
 		},
 
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "found 1 ext4 partitions and 1 block devices",
 	}
 
@@ -103,7 +103,7 @@ func TestDataGetStates(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 }
@@ -130,14 +130,14 @@ func TestDataGetError(t *testing.T) {
 func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
 		err:    errors.New("failed to get disk data"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 	}
 
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
 	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
 }
@@ -151,7 +151,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	c.lastMu.Lock()
 	c.lastData = &Data{
 		err:    errors.New("failed to get disk data"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 	}
 	c.lastMu.Unlock()
 
@@ -159,7 +159,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
 func TestCheckOnce(t *testing.T) {
@@ -198,7 +198,7 @@ func TestCheckOnce(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Len(t, lastData.BlockDevices, 1)
 		assert.Len(t, lastData.ExtPartitions, 1)
@@ -219,7 +219,7 @@ func TestCheckOnce(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Equal(t, "no block device found", lastData.reason)
 	})
 
@@ -241,7 +241,7 @@ func TestCheckOnce(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Equal(t, "no ext4 partition found", lastData.reason)
 	})
 }
@@ -283,7 +283,7 @@ func TestErrorRetry(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Equal(t, 2, callCount)
 	})
@@ -312,7 +312,7 @@ func TestErrorRetry(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastData.reason)
 		assert.Equal(t, 2, callCount)
 	})
@@ -333,7 +333,7 @@ func TestErrorRetry(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health)
 		assert.NotNil(t, lastData.err)
 		assert.Contains(t, lastData.err.Error(), "context canceled")
 	})
@@ -385,7 +385,7 @@ func TestMountTargetUsages(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Contains(t, lastData.MountTargetUsages, tempDir)
 		assert.Equal(t, mockMountOutput, lastData.MountTargetUsages[tempDir])
 	})
@@ -414,7 +414,7 @@ func TestMountTargetUsages(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Nil(t, lastData.MountTargetUsages)
 	})
 
@@ -438,7 +438,7 @@ func TestMountTargetUsages(t *testing.T) {
 		c.lastMu.RUnlock()
 
 		assert.NotNil(t, lastData)
-		assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 		assert.Nil(t, lastData.MountTargetUsages)
 	})
 }
@@ -494,7 +494,7 @@ func TestMetricsTracking(t *testing.T) {
 
 	// Ensure data was collected
 	assert.NotNil(t, lastData)
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health)
 	assert.Len(t, lastData.ExtPartitions, 1)
 	assert.Equal(t, mockPartition.MountPoint, lastData.ExtPartitions[0].MountPoint)
 }
@@ -506,7 +506,7 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
 }

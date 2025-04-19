@@ -112,13 +112,13 @@ func (c *component) Check() components.CheckResult {
 	driverVersion, err := c.getDriverVersionFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting driver version: %s", err)
 		return d
 	}
 	if driverVersion == "" {
 		d.err = fmt.Errorf("driver version is empty")
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "driver version is empty"
 		return d
 	}
@@ -127,13 +127,13 @@ func (c *component) Check() components.CheckResult {
 	cudaVersion, err := c.getCUDAVersionFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting CUDA version: %s", err)
 		return d
 	}
 	if cudaVersion == "" {
 		d.err = fmt.Errorf("CUDA version is empty")
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "CUDA version is empty"
 		return d
 	}
@@ -142,7 +142,7 @@ func (c *component) Check() components.CheckResult {
 	deviceCount, err := c.getDeviceCountFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting device count: %s", err)
 		return d
 	}
@@ -155,7 +155,7 @@ func (c *component) Check() components.CheckResult {
 		mem, err := c.getMemoryFunc(uuid, dev)
 		if err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting memory: %s", err)
 			return d
 		}
@@ -165,7 +165,7 @@ func (c *component) Check() components.CheckResult {
 		productName, err := c.getProductNameFunc(dev)
 		if err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting product name: %s", err)
 			return d
 		}
@@ -174,7 +174,7 @@ func (c *component) Check() components.CheckResult {
 		architecture, err := c.getArchitectureFunc(dev)
 		if err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting architecture: %s", err)
 			return d
 		}
@@ -183,7 +183,7 @@ func (c *component) Check() components.CheckResult {
 		brand, err := c.getBrandFunc(dev)
 		if err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting brand: %s", err)
 			return d
 		}
@@ -191,7 +191,7 @@ func (c *component) Check() components.CheckResult {
 		break
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("all %d GPU(s) were checked", len(devs))
 
 	return d
@@ -297,7 +297,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

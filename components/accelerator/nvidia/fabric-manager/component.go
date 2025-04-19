@@ -129,7 +129,7 @@ func (c *component) Check() components.CheckResult {
 
 	if !c.checkFMExistsFunc() {
 		d.FabricManagerActive = false
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "nv-fabricmanager executable not found"
 		return d
 	}
@@ -137,13 +137,13 @@ func (c *component) Check() components.CheckResult {
 	active := c.checkFMActiveFunc()
 	if !active {
 		d.FabricManagerActive = false
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "nv-fabricmanager found but fabric manager service is not active"
 		return d
 	}
 
 	d.FabricManagerActive = true
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = "fabric manager found and active"
 
 	return d
@@ -224,7 +224,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

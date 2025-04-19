@@ -23,7 +23,7 @@ func TestDataGetStatesNil(t *testing.T) {
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -32,13 +32,13 @@ func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
 		TotalBytes: 16,
 		UsedBytes:  8,
-		health:     apiv1.StateTypeUnhealthy,
+		health:     apiv1.HealthStateTypeUnhealthy,
 		err:        testError,
 	}
 
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
 // MockEventStore implements a mock for eventstore.Store
@@ -129,7 +129,7 @@ func TestComponentStates(t *testing.T) {
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -137,7 +137,7 @@ func TestComponentStates(t *testing.T) {
 		TotalBytes: 16,
 		UsedBytes:  8,
 		ts:         time.Now(),
-		health:     apiv1.StateTypeHealthy,
+		health:     apiv1.HealthStateTypeHealthy,
 		reason:     "using 8 bytes out of total 16 bytes",
 	}
 	c.lastData = testData
@@ -145,7 +145,7 @@ func TestComponentStates(t *testing.T) {
 	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "using 8 bytes out of total 16 bytes", states[0].Reason)
 }
 
@@ -219,7 +219,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	assert.Equal(t, mockVMStat.Available, c.lastData.AvailableBytes)
 	assert.Equal(t, mockVMStat.Used, c.lastData.UsedBytes)
 	assert.Equal(t, uint64(1024*1024), c.lastData.BPFJITBufferBytes)
-	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWithVMError(t *testing.T) {
@@ -244,7 +244,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get virtual memory")
 }
@@ -285,7 +285,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get bpf jit buffer bytes")
 }
@@ -297,7 +297,7 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
 }

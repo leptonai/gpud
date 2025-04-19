@@ -90,7 +90,7 @@ func TestData_GetStates(t *testing.T) {
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
 		},
@@ -98,14 +98,14 @@ func TestData_GetStates(t *testing.T) {
 			name: "with error",
 			data: &Data{
 				err:    assert.AnError,
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "failed to get os data -- assert.AnError general error for testing",
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 				assert.Equal(t, "failed to get os data -- assert.AnError general error for testing", states[0].Reason)
 				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -119,14 +119,14 @@ func TestData_GetStates(t *testing.T) {
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold),
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
@@ -140,14 +140,14 @@ func TestData_GetStates(t *testing.T) {
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "os kernel version 5.15.0",
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 				assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -211,7 +211,7 @@ func TestComponent(t *testing.T) {
 		states := comp.LastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	})
 
 	t.Run("component events", func(t *testing.T) {
@@ -285,7 +285,7 @@ func TestComponent_States(t *testing.T) {
 		states := comp.LastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -297,7 +297,7 @@ func TestComponent_States(t *testing.T) {
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "os kernel version 5.15.0",
 			ts:     time.Now().UTC(),
 		}
@@ -306,7 +306,7 @@ func TestComponent_States(t *testing.T) {
 		states := comp.LastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 	})
 
@@ -316,7 +316,7 @@ func TestComponent_States(t *testing.T) {
 		c.lastMu.Lock()
 		c.lastData = &Data{
 			err:    errors.New("test error"),
-			health: apiv1.StateTypeUnhealthy,
+			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "failed to get os data -- test error",
 			ts:     time.Now().UTC(),
 		}
@@ -325,7 +325,7 @@ func TestComponent_States(t *testing.T) {
 		states := comp.LastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, "failed to get os data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -340,7 +340,7 @@ func TestComponent_States(t *testing.T) {
 				Version: "5.15.0",
 			},
 			ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 1,
-			health:                      apiv1.StateTypeUnhealthy,
+			health:                      apiv1.HealthStateTypeUnhealthy,
 			reason:                      expected,
 			ts:                          time.Now().UTC(),
 		}
@@ -349,7 +349,7 @@ func TestComponent_States(t *testing.T) {
 		states := comp.LastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, expected, states[0].Reason)
 	})
 }
@@ -415,7 +415,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 		assert.NotNil(t, data)
 		assert.NotNil(t, data.err)
 		assert.Equal(t, "process count error", data.err.Error())
-		assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 		assert.Contains(t, data.reason, "error getting process count")
 	})
 
@@ -447,7 +447,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 
 		assert.NotNil(t, data)
 		assert.Equal(t, 5, data.ProcessCountZombieProcesses)
-		assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Contains(t, data.reason, "os kernel version")
 	})
 }
@@ -473,7 +473,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	errorData := &Data{
 		ts:     time.Now().UTC(),
 		err:    errors.New("uptime error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting uptime: uptime error",
 	}
 
@@ -486,7 +486,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "error getting uptime: uptime error", states[0].Reason)
 	assert.Equal(t, "uptime error", states[0].Error)
 }
@@ -616,16 +616,16 @@ func TestData_HealthState(t *testing.T) {
 		{
 			name: "healthy",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
-			expected: apiv1.StateTypeHealthy,
+			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
 			data: &Data{
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
-			expected: apiv1.StateTypeUnhealthy,
+			expected: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -664,7 +664,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 			Version: "5.15.0",
 		},
 		ProcessCountZombieProcesses: 5,
-		health:                      apiv1.StateTypeHealthy,
+		health:                      apiv1.HealthStateTypeHealthy,
 		reason:                      "os kernel version 5.15.0",
 		ts:                          time.Now().UTC(),
 	}
@@ -677,7 +677,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 }
 
@@ -697,7 +697,7 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	// Inject error data directly
 	errorData := &Data{
 		err:    errors.New("mock uptime error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting uptime: mock uptime error",
 		ts:     time.Now().UTC(),
 	}
@@ -710,7 +710,7 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "error getting uptime: mock uptime error", states[0].Reason)
 	assert.Equal(t, "mock uptime error", states[0].Error)
 }
@@ -740,7 +740,7 @@ func TestComponent_CheckWithProcessError(t *testing.T) {
 	data := result.(*Data)
 	assert.NotNil(t, data.err)
 	assert.Equal(t, "process count error", data.err.Error())
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "error getting process count")
 }
 
@@ -774,7 +774,7 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	// Verify zombie process detection
 	data := result.(*Data)
 	assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
 	assert.Equal(t, expectedReason, data.reason)
 }
@@ -850,7 +850,7 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 
 	result := comp.Check()
 	data := result.(*Data)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 }
 
 // TestComponent_StartTicker tests that the Start method creates a ticker that runs Check
@@ -976,7 +976,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 	// Simulate an uptime error by directly injecting data with an uptime error
 	testData := &Data{
 		err:    errors.New("simulated uptime error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting uptime: simulated uptime error",
 		ts:     time.Now().UTC(),
 	}
@@ -990,7 +990,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 	// Verify health states reflect the uptime error
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "error getting uptime: simulated uptime error", states[0].Reason)
 	assert.Equal(t, "simulated uptime error", states[0].Error)
 }
@@ -1014,7 +1014,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 					Version: "5.15.0-generic",
 				},
 				reason: "os kernel version 5.15.0-generic",
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: "os kernel version 5.15.0-generic",
 		},
@@ -1023,7 +1023,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 			data: &Data{
 				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 10,
 				reason:                      fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
-				health:                      apiv1.StateTypeUnhealthy,
+				health:                      apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
 		},
@@ -1032,7 +1032,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 			data: &Data{
 				err:    errors.New("uptime error"),
 				reason: "error getting uptime: uptime error",
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: "error getting uptime: uptime error",
 		},

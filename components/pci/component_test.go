@@ -67,7 +67,7 @@ func TestComponentStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -349,7 +349,7 @@ func TestData_GetStates(t *testing.T) {
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 				assert.Equal(t, "no data yet", states[0].Reason)
 			},
 		},
@@ -358,13 +358,13 @@ func TestData_GetStates(t *testing.T) {
 			data: &Data{
 				err:    assert.AnError,
 				ts:     time.Now().UTC(),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "failed to get pci data -- " + assert.AnError.Error(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -379,13 +379,13 @@ func TestData_GetStates(t *testing.T) {
 					{ID: "0000:00:01.0"},
 				},
 				ts:     time.Now().UTC(),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "no acs enabled devices found",
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
@@ -425,7 +425,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
@@ -438,7 +438,7 @@ func TestComponent_States(t *testing.T) {
 				{ID: "0000:00:00.0"},
 			},
 			ts:     time.Now().UTC(),
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "no acs enabled devices found",
 		}
 		c.lastMu.Unlock()
@@ -447,7 +447,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 	})
 
@@ -459,7 +459,7 @@ func TestComponent_States(t *testing.T) {
 		c.lastData = &Data{
 			err:    testError,
 			ts:     time.Now().UTC(),
-			health: apiv1.StateTypeUnhealthy,
+			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "failed to get pci data -- test error",
 		}
 		c.lastMu.Unlock()
@@ -468,7 +468,7 @@ func TestComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, "failed to get pci data -- test error", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -786,7 +786,7 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 	data, ok := result.(*Data)
 	require.True(t, ok, "Result should be a *Data")
 	assert.Equal(t, mockErr, data.err)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "error creating event")
 }
 

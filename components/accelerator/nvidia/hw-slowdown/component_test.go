@@ -238,7 +238,7 @@ func TestCheckOnce(t *testing.T) {
 				// Initialize lastData to avoid nil pointer dereference
 				lastData: &Data{
 					ts:     time.Now().UTC(),
-					health: apiv1.StateTypeHealthy,
+					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
 				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
@@ -279,7 +279,7 @@ func TestCheckOnce(t *testing.T) {
 			states := c.LastHealthStates()
 			assert.Equal(t, 1, len(states))
 			if tc.expectHealthyState {
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 			}
 		})
 	}
@@ -347,7 +347,7 @@ func TestComponentStates(t *testing.T) {
 		nvmlInstance:     mockNVML,
 		lastData: &Data{
 			ts:     time.Now(),
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
 		},
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
@@ -378,7 +378,7 @@ func TestComponentStates(t *testing.T) {
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestComponentStatesEdgeCases(t *testing.T) {
@@ -496,7 +496,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				nvmlInstance:     mockNVML,
 				lastData: &Data{
 					ts:     time.Now().UTC(),
-					health: apiv1.StateTypeHealthy,
+					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
 				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
@@ -531,7 +531,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 
 			assert.Equal(t, tc.expectedStates, len(states))
 			if len(states) > 0 && tc.expectHealthy {
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 			}
 		})
 	}
@@ -565,7 +565,7 @@ func TestComponentName(t *testing.T) {
 		eventBucket:      bucket,
 		lastData: &Data{
 			ts:     time.Now().UTC(),
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
 		},
 		// Initialize required functions to avoid nil pointer dereference
@@ -639,7 +639,7 @@ func TestComponentStart(t *testing.T) {
 		eventBucket:      bucket,
 		lastData: &Data{
 			ts:     time.Now().UTC(),
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
 		},
 		// Initialize mock functions to avoid nil pointer dereference if Start() is called
@@ -857,7 +857,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	// Verify lastData was updated
 	c.lastMu.RLock()
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health, "Component should be healthy with no events")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health, "Component should be healthy with no events")
 	c.lastMu.RUnlock()
 
 	// Generate a high frequency of events that should trigger unhealthy state
@@ -890,7 +890,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "hw slowdown events frequency per minute")
 	assert.Contains(t, states[0].Reason, "exceeded threshold")
 }
@@ -925,11 +925,11 @@ func TestDataMethods(t *testing.T) {
 				ClockEvents: []nvidianvml.ClockEvents{},
 				ts:          time.Now().UTC(),
 				reason:      "test reason",
-				health:      apiv1.StateTypeHealthy,
+				health:      apiv1.HealthStateTypeHealthy,
 			},
 			expectString:   "no data",
 			expectSummary:  "test reason",
-			expectHealth:   apiv1.StateTypeHealthy,
+			expectHealth:   apiv1.HealthStateTypeHealthy,
 			expectError:    "",
 			expectStates:   1,
 			expectStateMsg: "test reason",
@@ -950,11 +950,11 @@ func TestDataMethods(t *testing.T) {
 				ts:     time.Now().UTC(),
 				err:    fmt.Errorf("test error"),
 				reason: "error reason",
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expectString:   "+----------+-------------+---------------------+-------------------------+---------+\n| GPU UUID | HW SLOWDOWN | HW SLOWDOWN THERMAL | HW SLOWDOWN POWER BRAKE | REASONS |\n+----------+-------------+---------------------+-------------------------+---------+\n|  gpu-0   |    true     |        false        |          false          |         |\n+----------+-------------+---------------------+-------------------------+---------+\n",
 			expectSummary:  "error reason",
-			expectHealth:   apiv1.StateTypeUnhealthy,
+			expectHealth:   apiv1.HealthStateTypeUnhealthy,
 			expectError:    "test error",
 			expectStates:   1,
 			expectStateMsg: "error reason",
@@ -1267,7 +1267,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				lastData: &Data{
-					health: apiv1.StateTypeHealthy, // Initialize with a default state
+					health: apiv1.HealthStateTypeHealthy, // Initialize with a default state
 				},
 			}
 
@@ -1302,14 +1302,14 @@ func TestCheckEdgeCases(t *testing.T) {
 			if tc.name == "error getting clock events" {
 				// In the component.go, the health field isn't set when returning for this error case
 				// For the purpose of the test, we'll just set it manually before checking
-				data.health = apiv1.StateTypeUnhealthy
+				data.health = apiv1.HealthStateTypeUnhealthy
 			}
 
 			// Validate health state
 			if tc.expectHealthy {
-				assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 			} else {
-				assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 			}
 		})
 	}

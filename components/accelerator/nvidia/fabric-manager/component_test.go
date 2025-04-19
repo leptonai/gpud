@@ -75,7 +75,7 @@ func TestComponentEvents(t *testing.T) {
 	comp.checkFMExistsFunc = func() bool { return false }
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
@@ -206,7 +206,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
 }
 
@@ -288,7 +288,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
 }
 
@@ -317,19 +317,19 @@ func TestDataGetLastHealthStates(t *testing.T) {
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test unhealthy state
 	d = &Data{
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test unhealthy reason",
 		err:    assert.AnError,
 	}
 	states = d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }
@@ -393,9 +393,9 @@ func TestDataHealthState(t *testing.T) {
 
 	// Test with health state
 	d = &Data{
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.StateTypeHealthy, d.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
 }
 
 func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
@@ -416,14 +416,14 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 	data, ok := result.(*Data)
 	assert.True(t, ok)
 	assert.True(t, data.FabricManagerActive)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "fabric manager found and active", data.reason)
 
 	states := comp.LastHealthStates()
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
@@ -443,21 +443,21 @@ func TestCheckAllBranches(t *testing.T) {
 			name:           "FM doesn't exist",
 			fmExists:       false,
 			fmActive:       false,
-			expectedState:  apiv1.StateTypeHealthy,
+			expectedState:  apiv1.HealthStateTypeHealthy,
 			expectedReason: "nv-fabricmanager executable not found",
 		},
 		{
 			name:           "FM exists but not active",
 			fmExists:       true,
 			fmActive:       false,
-			expectedState:  apiv1.StateTypeUnhealthy,
+			expectedState:  apiv1.HealthStateTypeUnhealthy,
 			expectedReason: "nv-fabricmanager found but fabric manager service is not active",
 		},
 		{
 			name:           "FM exists and active",
 			fmExists:       true,
 			fmActive:       true,
-			expectedState:  apiv1.StateTypeHealthy,
+			expectedState:  apiv1.HealthStateTypeHealthy,
 			expectedReason: "fabric manager found and active",
 		},
 	}

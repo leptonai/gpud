@@ -164,7 +164,7 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.err = err
 			return d
 		}
@@ -176,12 +176,12 @@ func (c *component) Check() components.CheckResult {
 	sort.Strings(notFounds)
 
 	if len(notFounds) > 0 {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = strings.Join(notFounds, "; ")
 		return d
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = "all libraries exist"
 	return d
 }
@@ -240,7 +240,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

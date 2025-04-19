@@ -113,14 +113,14 @@ func (c *component) Check() components.CheckResult {
 
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "kubelet is not installed"
 		return d
 	}
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "kubelet is installed but not running"
 		return d
 	}
@@ -137,12 +137,12 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if d.err == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
 	}
 
 	if c.failedCount >= c.failedCountThreshold {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
 	}
 
@@ -227,7 +227,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

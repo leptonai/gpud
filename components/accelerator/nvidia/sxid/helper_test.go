@@ -35,7 +35,7 @@ func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
 		state := evolveHealthyState(apiv1.Events{})
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Equal(t, "SXIDComponent is healthy", state.Reason)
 	})
 
@@ -44,7 +44,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createSXidEvent(time.Time{}, 123, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "SXID 123 detected on PCI:0000:9b:00", state.Reason)
 	})
 
@@ -53,7 +53,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createSXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "SXID 456 detected on PCI:0000:9b:00", state.Reason)
 	})
 
@@ -63,7 +63,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
 	})
 
@@ -98,7 +98,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			},
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 }
 

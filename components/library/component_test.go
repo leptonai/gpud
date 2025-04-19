@@ -47,7 +47,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	result := comp.Check()
-	if result.HealthState() != apiv1.StateTypeUnhealthy {
+	if result.HealthState() != apiv1.HealthStateTypeUnhealthy {
 		t.Errorf("expected unhealthy state, got %s", result.HealthState())
 	}
 	if !contains(result.Summary(), "lib2.so") {
@@ -60,7 +60,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthState() != apiv1.StateTypeUnhealthy {
+	if result.HealthState() != apiv1.HealthStateTypeUnhealthy {
 		t.Errorf("expected unhealthy state, got %s", result.HealthState())
 	}
 
@@ -73,7 +73,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthState() != apiv1.StateTypeHealthy {
+	if result.HealthState() != apiv1.HealthStateTypeHealthy {
 		t.Errorf("expected healthy state, got %s", result.HealthState())
 	}
 	if result.Summary() != "all libraries exist" {
@@ -100,18 +100,18 @@ func TestLastHealthStates(t *testing.T) {
 	if len(states) != 1 {
 		t.Fatalf("expected 1 health state, got %d", len(states))
 	}
-	if states[0].Health != apiv1.StateTypeHealthy {
+	if states[0].Health != apiv1.HealthStateTypeHealthy {
 		t.Errorf("expected healthy state, got %s", states[0].Health)
 	}
 
 	// Set data and check again
 	comp.lastData = &Data{
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test reason",
 	}
 
 	states = comp.LastHealthStates()
-	if states[0].Health != apiv1.StateTypeUnhealthy {
+	if states[0].Health != apiv1.HealthStateTypeUnhealthy {
 		t.Errorf("expected unhealthy state, got %s", states[0].Health)
 	}
 	if states[0].Reason != "test reason" {
@@ -147,11 +147,11 @@ func TestStartAndClose(t *testing.T) {
 func TestDataMethods(t *testing.T) {
 	d := &Data{
 		ResolvedLibraries: []string{"/lib/lib1.so", "/usr/lib/lib2.so"},
-		health:            apiv1.StateTypeHealthy,
+		health:            apiv1.HealthStateTypeHealthy,
 		reason:            "all libraries exist",
 	}
 
-	if d.HealthState() != apiv1.StateTypeHealthy {
+	if d.HealthState() != apiv1.HealthStateTypeHealthy {
 		t.Errorf("expected healthy state, got %s", d.HealthState())
 	}
 

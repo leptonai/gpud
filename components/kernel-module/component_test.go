@@ -126,9 +126,9 @@ func TestStates(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
 			if tt.wantHealthy {
-				assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 			} else {
-				assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 			}
 		})
 	}
@@ -248,7 +248,7 @@ func TestGetHealth(t *testing.T) {
 			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
 			loadError:      nil,
-			wantHealth:     apiv1.StateTypeHealthy,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -256,7 +256,7 @@ func TestGetHealth(t *testing.T) {
 			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
 			loadError:      assert.AnError,
-			wantHealth:     apiv1.StateTypeUnhealthy,
+			wantHealth:     apiv1.HealthStateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 		{
@@ -264,7 +264,7 @@ func TestGetHealth(t *testing.T) {
 			modulesToLoad:  []string{"module1"},
 			modulesToCheck: nil,
 			loadError:      nil,
-			wantHealth:     apiv1.StateTypeHealthy,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -272,7 +272,7 @@ func TestGetHealth(t *testing.T) {
 			modulesToLoad:  []string{"module1", "module2"},
 			modulesToCheck: []string{"module1", "module2"},
 			loadError:      nil,
-			wantHealth:     apiv1.StateTypeHealthy,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
@@ -280,7 +280,7 @@ func TestGetHealth(t *testing.T) {
 			modulesToLoad:  []string{"module1"},
 			modulesToCheck: []string{"module1", "module2"},
 			loadError:      nil,
-			wantHealth:     apiv1.StateTypeUnhealthy,
+			wantHealth:     apiv1.HealthStateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 	}
@@ -301,7 +301,7 @@ func TestGetHealth(t *testing.T) {
 				states := c.LastHealthStates()
 				require.Len(t, states, 1)
 				assert.Equal(t, tt.wantHealth, states[0].Health)
-				assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.StateTypeHealthy)
+				assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.HealthStateTypeHealthy)
 				return
 			}
 
@@ -322,7 +322,7 @@ func TestGetHealth(t *testing.T) {
 			states := c.LastHealthStates()
 			require.Len(t, states, 1)
 			assert.Equal(t, tt.wantHealth, states[0].Health)
-			assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.StateTypeHealthy)
+			assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.HealthStateTypeHealthy)
 		})
 	}
 }
@@ -340,15 +340,15 @@ func TestDataGetStates(t *testing.T) {
 			name:        "nil data",
 			data:        nil,
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "no data yet",
 			wantError:   false,
 		},
 		{
 			name:        "with error",
-			data:        &Data{err: assert.AnError, health: apiv1.StateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
+			data:        &Data{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateTypeUnhealthy,
+			wantHealth:  apiv1.HealthStateTypeUnhealthy,
 			wantReason:  "error getting all modules: assert.AnError general error for testing",
 			wantError:   true,
 		},
@@ -357,11 +357,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{},
 				loadedModules: map[string]struct{}{},
-				health:        apiv1.StateTypeHealthy,
+				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -370,11 +370,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1", "module2"},
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
-				health:        apiv1.StateTypeHealthy,
+				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -383,11 +383,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1"},
 				loadedModules: map[string]struct{}{"module1": {}},
-				health:        apiv1.StateTypeUnhealthy,
+				health:        apiv1.HealthStateTypeUnhealthy,
 				reason:        `missing modules: ["module2"]`,
 			},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateTypeUnhealthy,
+			wantHealth:  apiv1.HealthStateTypeUnhealthy,
 			wantReason:  `missing modules: ["module2"]`,
 			wantError:   false,
 		},
@@ -493,7 +493,7 @@ func TestCheckOnceLogic(t *testing.T) {
 			defer c.lastMu.RUnlock()
 
 			require.NotNil(t, c.lastData)
-			assert.Equal(t, tt.wantHealthy, c.lastData.health == apiv1.StateTypeHealthy)
+			assert.Equal(t, tt.wantHealthy, c.lastData.health == apiv1.HealthStateTypeHealthy)
 			assert.Equal(t, tt.wantReason, c.lastData.reason)
 
 			if tt.loadError != nil {

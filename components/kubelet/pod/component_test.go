@@ -237,11 +237,11 @@ func Test_getLastHealthStates(t *testing.T) {
 		{
 			name: "no pods",
 			data: Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "with pods",
@@ -250,40 +250,40 @@ func Test_getLastHealthStates(t *testing.T) {
 					{Name: "pod1"},
 					{Name: "pod2"},
 				},
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "with error - unhealthy",
 			data: Data{
 				err:    errors.New("some error"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "with connection error - healthy",
 			data: Data{
 				err:    errors.New("connection refused"),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
 			expectedLen:    1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "with failed count above threshold - unhealthy",
 			data: Data{
 				reason: "test reason",
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expectedLen:    1,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -468,40 +468,40 @@ func Test_componentLastHealthStates(t *testing.T) {
 		{
 			name: "healthy state",
 			data: Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
 			data: Data{
 				err:    errors.New("test error"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "connection error - ignored",
 			data: Data{
 				err:    errors.New("connection refused"),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
 			failedCount:    0,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "failed count above threshold",
 			data: Data{
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
 			},
 			failedCount:    6,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -688,19 +688,19 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 			name: "connection error - marked healthy",
 			data: Data{
 				err:    errors.New("connection refused"),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
 			failedCount:    0,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "connection error - marked unhealthy",
 			data: Data{
 				err:    errors.New("connection refused"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			failedCount:    0,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -723,7 +723,7 @@ func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 	c := &component{
 		lastData: &Data{
 			Pods:   []PodStatus{{Name: "test-pod"}},
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 		},
 		failedCount: 0,
 	}
@@ -735,7 +735,7 @@ func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 	// Should still return states using cached data
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 // Add test for component constructor
@@ -762,7 +762,7 @@ func TestDataGetLastHealthStatesNil(t *testing.T) {
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -776,40 +776,40 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 			name: "standard error returned",
 			data: Data{
 				err:    errors.New("standard error"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "standard error",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "empty pods with error",
 			data: Data{
 				Pods:   []PodStatus{},
 				err:    errors.New("no pods error"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "no pods error",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "connection error - healthy",
 			data: Data{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
-				health:   apiv1.StateTypeHealthy,
+				health:   apiv1.HealthStateTypeHealthy,
 				reason:   "connection refused",
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "connection error - unhealthy",
 			data: Data{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
-				health:   apiv1.StateTypeUnhealthy,
+				health:   apiv1.HealthStateTypeUnhealthy,
 				reason:   "connection refused",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "no error with pods",
@@ -817,10 +817,10 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 				NodeName: "test-node",
 				Pods:     []PodStatus{{Name: "pod1"}},
 				err:      nil,
-				health:   apiv1.StateTypeHealthy,
+				health:   apiv1.HealthStateTypeHealthy,
 				reason:   "success",
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "kubelet service error",
@@ -828,19 +828,19 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 				NodeName:             "test-node",
 				KubeletServiceActive: false,
 				err:                  errors.New("kubelet service not active"),
-				health:               apiv1.StateTypeUnhealthy,
+				health:               apiv1.HealthStateTypeUnhealthy,
 				reason:               "kubelet service not active",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "failed count above threshold",
 			data: Data{
 				NodeName: "test-node",
-				health:   apiv1.StateTypeUnhealthy,
+				health:   apiv1.HealthStateTypeUnhealthy,
 				reason:   "failed threshold exceeded",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -869,11 +869,11 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 	deadlineData := Data{
 		NodeName: "test-node",
 		err:      deadlineErr,
-		health:   apiv1.StateTypeUnhealthy,
+		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "deadline exceeded",
 	}
 	states := deadlineData.getLastHealthStates()
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "deadline exceeded")
 
 	// Test with context canceled error
@@ -881,11 +881,11 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 	canceledData := Data{
 		NodeName: "test-node",
 		err:      canceledErr,
-		health:   apiv1.StateTypeUnhealthy,
+		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "context canceled",
 	}
 	states = canceledData.getLastHealthStates()
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "context canceled")
 
 	// Test with formatted error message
@@ -893,11 +893,11 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 	customData := Data{
 		NodeName: "test-node",
 		err:      customErr,
-		health:   apiv1.StateTypeUnhealthy,
+		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "custom error",
 	}
 	states = customData.getLastHealthStates()
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error")
 }
 
@@ -924,7 +924,7 @@ func Test_componentCheck_KubeletNotRunning(t *testing.T) {
 	assert.Empty(t, dataResult.NodeName)
 	assert.Empty(t, dataResult.Pods)
 	assert.Nil(t, dataResult.err)
-	assert.Equal(t, apiv1.StateTypeHealthy, dataResult.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, dataResult.health)
 }
 
 // Test behavior with different checkDependencyInstalled and checkKubeletRunning combinations
@@ -999,7 +999,7 @@ func Test_componentCheck_Dependencies(t *testing.T) {
 				assert.Empty(t, dataResult.NodeName)
 				assert.Empty(t, dataResult.Pods)
 				assert.Nil(t, dataResult.err)
-				assert.Equal(t, apiv1.StateTypeHealthy, dataResult.health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, dataResult.health)
 			} else {
 				// Should attempt to collect data
 				assert.NotEmpty(t, dataResult.NodeName)

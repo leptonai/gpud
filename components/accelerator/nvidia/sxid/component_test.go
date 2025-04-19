@@ -259,7 +259,7 @@ func TestSXIDComponent_States(t *testing.T) {
 
 	s := apiv1.HealthState{
 		Name:   StateNameErrorSXid,
-		Health: apiv1.StateTypeHealthy,
+		Health: apiv1.HealthStateTypeHealthy,
 		Reason: "SXIDComponent is healthy",
 	}
 	component.currState = s
@@ -286,13 +286,13 @@ func TestSXIDComponent_States(t *testing.T) {
 				createSXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
@@ -362,7 +362,7 @@ func TestSXIDComponent_Check(t *testing.T) {
 	// Verify the result
 	data, ok := result.(*Data)
 	assert.True(t, ok, "Result should be of type *Data")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "matched")
 }
 
@@ -391,7 +391,7 @@ func TestSXIDComponent_Check_Error(t *testing.T) {
 	// Verify the result
 	data, ok := result.(*Data)
 	assert.True(t, ok, "Result should be of type *Data")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to read kmsg")
 }
 
@@ -412,7 +412,7 @@ func TestSXIDComponent_Check_NoNVML(t *testing.T) {
 	// Verify the result
 	data, ok := result.(*Data)
 	assert.True(t, ok, "Result should be of type *Data")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "NVIDIA NVML instance is nil")
 }
 
@@ -469,7 +469,7 @@ func TestDataString(t *testing.T) {
 						},
 					},
 				},
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "found some errors",
 			},
 			shouldMatch: []string{"Test SXid Error", "12028", "PCI:0000:05:00.0", "true"},
@@ -478,7 +478,7 @@ func TestDataString(t *testing.T) {
 			name: "empty data",
 			data: &Data{
 				FoundErrors: []FoundError{},
-				health:      apiv1.StateTypeHealthy,
+				health:      apiv1.HealthStateTypeHealthy,
 				reason:      "no errors found",
 			},
 			shouldMatch: []string{"no sxid error found"},
@@ -537,16 +537,16 @@ func TestDataHealthState(t *testing.T) {
 		{
 			name: "healthy state",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
-			expected: apiv1.StateTypeHealthy,
+			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
 			data: &Data{
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
-			expected: apiv1.StateTypeUnhealthy,
+			expected: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:     "nil data",

@@ -188,19 +188,19 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
 
 	if c.readAllKmsg == nil {
 		d.reason = "kmsg reader is not set"
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		return d
 	}
 
@@ -210,7 +210,7 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		d.err = err
 		d.reason = fmt.Sprintf("failed to read kmsg: %v", err)
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		return d
 	}
 
@@ -226,7 +226,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	d.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(d.FoundErrors), len(kmsgs))
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 
 	return d
 }

@@ -83,7 +83,7 @@ func TestComponentStatesNoData(t *testing.T) {
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestComponentStartAndCheckOnce(t *testing.T) {
@@ -122,7 +122,7 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestComponentStartAndCheckOnceWithError(t *testing.T) {
@@ -152,7 +152,7 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
 }
 
@@ -171,7 +171,7 @@ func TestCheckHealthState(t *testing.T) {
 	defer comp.Close()
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
 

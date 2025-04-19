@@ -143,14 +143,14 @@ func (c *component) Check() components.CheckResult {
 	//
 	// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
 	if c.currentVirtEnv.IsKVM {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "host virt env is KVM (no need to check ACS)"
 		return d
 	}
 
 	// unknown virtualization environment
 	if c.currentVirtEnv.Type == "" {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "unknown virtualization environment (no need to check ACS)"
 		return d
 	}
@@ -171,14 +171,14 @@ func (c *component) Check() components.CheckResult {
 	d.Devices, d.err = c.getPCIDevicesFunc(cctx)
 	cancel()
 	if d.err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing devices: %s", d.err)
 		return d
 	}
 
 	acsEnabledDevices := c.findACSEnabledDeviceUUIDsFunc(d.Devices)
 	if len(acsEnabledDevices) == 0 {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "non-KVM host env, no acs enabled device found (no need to disable)"
 		return d
 	}
@@ -193,13 +193,13 @@ func (c *component) Check() components.CheckResult {
 		})
 		cancel()
 		if d.err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error creating event: %s", d.err)
 			return d
 		}
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("found %d acs enabled devices (needs to be disabled, out of %d total)", len(acsEnabledDevices), len(d.Devices))
 
 	return d
@@ -273,7 +273,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

@@ -110,7 +110,7 @@ func (c *component) Check() components.CheckResult {
 
 	// assume "docker" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "docker not installed"
 		return d
 	}
@@ -120,7 +120,7 @@ func (c *component) Check() components.CheckResult {
 	running := c.checkDockerRunningFunc(cctx)
 	ccancel()
 	if !running {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "docker installed but docker is not running"
 		return d
 	}
@@ -128,7 +128,7 @@ func (c *component) Check() components.CheckResult {
 	if c.checkServiceActiveFunc != nil {
 		d.DockerServiceActive, d.err = c.checkServiceActiveFunc()
 		if !d.DockerServiceActive || d.err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", d.err)
 			return d
 		}
@@ -139,7 +139,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 
 	if d.err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing containers -- %s", d.err)
 
 		if isErrDockerClientVersionNewerThanDaemon(d.err) {
@@ -150,14 +150,14 @@ func (c *component) Check() components.CheckResult {
 		// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 		if strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running") {
 			if c.ignoreConnectionErrors {
-				d.health = apiv1.StateTypeHealthy
+				d.health = apiv1.HealthStateTypeHealthy
 			} else {
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 			}
 			d.reason = fmt.Sprintf("connection error to docker daemon -- %s", d.err)
 		}
 	} else {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("total %d container(s)", len(d.Containers))
 	}
 
@@ -230,7 +230,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

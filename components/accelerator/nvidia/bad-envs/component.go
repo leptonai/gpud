@@ -117,12 +117,12 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
@@ -147,7 +147,7 @@ func (c *component) Check() components.CheckResult {
 		d.reason = strings.Join(kvs, "; ")
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	return d
 }
 
@@ -216,7 +216,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

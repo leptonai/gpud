@@ -113,7 +113,7 @@ func (c *component) Check() components.CheckResult {
 	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(cctx)
 	ccancel()
 	if d.err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
 		return d
 	}
@@ -131,10 +131,10 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(exceededMsgs) == 0 {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(d.EgressLatencies))
 	} else {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = strings.Join(exceededMsgs, "; ")
 	}
 
@@ -206,7 +206,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

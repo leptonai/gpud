@@ -164,10 +164,10 @@ func TestData_HealthState(t *testing.T) {
 
 	// Test with health state
 	dataWithHealth := &Data{
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 	}
 	health = dataWithHealth.HealthState()
-	assert.Equal(t, apiv1.StateTypeHealthy, health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, health)
 }
 
 // TestComponent_Events tests the Events method
@@ -366,7 +366,7 @@ func TestComponent_Check_NilNVML(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify health state when NVML is nil
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 	assert.Nil(t, data.err)
 }
@@ -386,7 +386,7 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify health state when NVML is not loaded
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
 	assert.Nil(t, data.err)
 }

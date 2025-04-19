@@ -178,7 +178,7 @@ func TestCheck_GPMNotSupported(t *testing.T) {
 
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.False(t, lastData.GPMSupported, "GPM should not be supported")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "GPM not supported", lastData.reason)
 }
 
@@ -225,7 +225,7 @@ func TestCheck_GPMSupported(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Len(t, lastData.GPMMetrics, 1)
 	assert.Equal(t, uuid, lastData.GPMMetrics[0].UUID)
 	assert.Equal(t, expectedMetrics, lastData.GPMMetrics[0].Metrics)
@@ -270,7 +270,7 @@ func TestCheck_GPMSupportError(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastData.reason)
 }
@@ -312,7 +312,7 @@ func TestCheck_GPMMetricsError(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastData.reason)
 }
@@ -333,7 +333,7 @@ func TestCheck_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no GPM issue found", lastData.reason)
 	assert.Empty(t, lastData.GPMMetrics)
 }
@@ -356,7 +356,7 @@ func TestStates_WithData(t *testing.T) {
 				Time:           metav1.Time{Time: time.Now().UTC()},
 			},
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "all 1 GPU(s) were checked, no GPM issue found",
 	}
 	component.lastMu.Unlock()
@@ -367,7 +367,7 @@ func TestStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -380,7 +380,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastData = &Data{
 		err:    errors.New("test GPM error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting GPM metrics for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
@@ -391,7 +391,7 @@ func TestStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test GPM error", state.Error)
 }
@@ -408,7 +408,7 @@ func TestStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -490,7 +490,7 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
 			expected: "",
@@ -565,7 +565,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Len(t, lastData.GPMMetrics, 2, "should have metrics for 2 GPUs")
 
 	// Verify metrics for each GPU
@@ -632,7 +632,7 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 
 	require.NotNil(t, lastData, "lastData should not be nil")
 	assert.False(t, lastData.GPMSupported, "GPM should not be supported overall")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "GPM not supported", lastData.reason)
 	// We don't have metrics because once we find a device that doesn't support GPM,
 	// we stop and report that GPM is not supported overall
@@ -647,7 +647,7 @@ func TestCheck_NVMLInstanceNil(t *testing.T) {
 
 	result := component.Check()
 
-	assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 	assert.Equal(t, "NVIDIA NVML instance is nil", result.Summary())
 }
 
@@ -665,7 +665,7 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 
 	result := component.Check()
 
-	assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 	assert.Equal(t, "NVIDIA NVML is not loaded", result.Summary())
 }
 
@@ -761,16 +761,16 @@ func TestData_HealthState(t *testing.T) {
 		{
 			name: "healthy",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
-			expected: apiv1.StateTypeHealthy,
+			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
 			data: &Data{
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
-			expected: apiv1.StateTypeUnhealthy,
+			expected: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -857,7 +857,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 			},
 		},
 		ts:     now,
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "test health state json",
 	}
 
@@ -867,7 +867,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 	require.Len(t, states, 1)
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "test health state json", state.Reason)
 
 	// Verify the JSON data in the extra info

@@ -101,16 +101,16 @@ func evolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 func translateToStateHealth(health int) apiv1.HealthStateType {
 	switch health {
 	case StateHealthy:
-		return apiv1.StateTypeHealthy
+		return apiv1.HealthStateTypeHealthy
 
 	case StateDegraded:
-		return apiv1.StateTypeDegraded
+		return apiv1.HealthStateTypeDegraded
 
 	case StateUnhealthy:
-		return apiv1.StateTypeUnhealthy
+		return apiv1.HealthStateTypeUnhealthy
 
 	default:
-		return apiv1.StateTypeHealthy
+		return apiv1.HealthStateTypeHealthy
 	}
 }
 

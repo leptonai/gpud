@@ -135,32 +135,32 @@ func TestDataFunctions(t *testing.T) {
 		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
 	t.Run("getStates with healthy data", func(t *testing.T) {
 		d := &Data{
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "all good",
 		}
 		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		assert.Equal(t, "all good", states[0].Reason)
 	})
 
 	t.Run("getStates with unhealthy data", func(t *testing.T) {
 		d := &Data{
-			health: apiv1.StateTypeUnhealthy,
+			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "something wrong",
 			err:    errors.New("test error"),
 		}
 		states := d.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		assert.Equal(t, "something wrong", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 	})
@@ -253,7 +253,7 @@ func TestCheckOnce(t *testing.T) {
 			require.Len(t, states, 1)
 
 			if tc.expectedHealthy {
-				assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 			}
 			if tc.expectedErrorMessage != "" {
 				assert.Contains(t, states[0].Reason, tc.expectedErrorMessage)
@@ -427,7 +427,7 @@ func TestCheckWithEventBucketError(t *testing.T) {
 	// Check if the component reports as healthy (it should, because events are recorded but health is still true)
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 // TestFindError tests the error handling when Find returns an error

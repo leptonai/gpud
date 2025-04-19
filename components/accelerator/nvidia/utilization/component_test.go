@@ -150,7 +150,7 @@ func TestCheck_Success(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
 	assert.Equal(t, "all 1 GPU(s) were checked, no utilization issue found", data.reason)
 	assert.Len(t, data.Utilizations, 1)
 	assert.Equal(t, utilization, data.Utilizations[0])
@@ -188,7 +188,7 @@ func TestCheck_UtilizationError(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
 	assert.Equal(t, "error getting utilization for device gpu-uuid-123", data.reason)
 }
@@ -208,7 +208,7 @@ func TestCheck_NoDevices(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no utilization issue found", data.reason)
 	assert.Empty(t, data.Utilizations)
 }
@@ -228,7 +228,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 				Supported:         true,
 			},
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "checked 1 devices for utilization",
 	}
 	component.lastMu.Unlock()
@@ -239,7 +239,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "checked 1 devices for utilization", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -252,7 +252,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastData = &Data{
 		err:    errors.New("test utilization error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting utilization for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
@@ -263,7 +263,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting utilization for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test utilization error", state.Error)
 }
@@ -280,7 +280,7 @@ func TestLastHealthStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -354,7 +354,7 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
 			expected: "",
@@ -465,16 +465,16 @@ func TestData_HealthState(t *testing.T) {
 		{
 			name: "healthy",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 			},
-			expected: apiv1.StateTypeHealthy,
+			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
 			data: &Data{
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 			},
-			expected: apiv1.StateTypeUnhealthy,
+			expected: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -503,7 +503,7 @@ func TestCheck_NilNVMLInstance(t *testing.T) {
 	data, ok := result.(*Data)
 	require.True(t, ok, "result should be of type *Data")
 
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 	assert.Empty(t, data.Utilizations)
 }
@@ -532,7 +532,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 	data, ok := result.(*Data)
 	require.True(t, ok, "result should be of type *Data")
 
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
 	assert.Empty(t, data.Utilizations)
 }
@@ -603,7 +603,7 @@ func TestCheck_MultipleGPUs(t *testing.T) {
 	data, ok := result.(*Data)
 	require.True(t, ok, "result should be of type *Data")
 
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "all 2 GPU(s) were checked, no utilization issue found", data.reason)
 	assert.Len(t, data.Utilizations, 2)
 

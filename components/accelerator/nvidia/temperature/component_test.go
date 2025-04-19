@@ -146,7 +146,7 @@ func TestCheck_Success(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
 	assert.Contains(t, data.reason, "no temperature issue found")
 	assert.Len(t, data.Temperatures, 1)
 	assert.Equal(t, temperature, data.Temperatures[0])
@@ -182,7 +182,7 @@ func TestCheck_TemperatureError(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
 	assert.Equal(t, "error getting temperature for device gpu-uuid-123", data.reason)
 }
@@ -200,7 +200,7 @@ func TestCheck_NoDevices(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
 	assert.Contains(t, data.reason, "all 0")
 	assert.Empty(t, data.Temperatures)
 }
@@ -248,7 +248,7 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 	require.True(t, ok, "result should be of type *Data")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.NotNil(t, data.err)
 	assert.Equal(t, "error getting used percent for slowdown for device gpu-uuid-123", data.reason)
 }
@@ -275,7 +275,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 				UsedPercentGPUMax:        "75.00",
 			},
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "checked 1 devices for temperature",
 	}
 	component.lastMu.Unlock()
@@ -286,7 +286,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "checked 1 devices for temperature", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -300,7 +300,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastData = &Data{
 		err:    errors.New("test temperature error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting temperature for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
@@ -311,7 +311,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting temperature for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test temperature error", state.Error)
 }
@@ -329,7 +329,7 @@ func TestLastHealthStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -419,7 +419,7 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
 			expected: "",
@@ -446,28 +446,28 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 			name:                 "Below threshold",
 			currentTemp:          80,
 			memMaxThreshold:      100,
-			expectHealthy:        apiv1.StateTypeHealthy,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
 		},
 		{
 			name:                 "Equal to threshold",
 			currentTemp:          100,
 			memMaxThreshold:      100,
-			expectHealthy:        apiv1.StateTypeHealthy,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
 		},
 		{
 			name:                 "Above threshold",
 			currentTemp:          110,
 			memMaxThreshold:      100,
-			expectHealthy:        apiv1.StateTypeUnhealthy,
+			expectHealthy:        apiv1.HealthStateTypeUnhealthy,
 			expectReasonContains: "exceeding the HBM temperature threshold",
 		},
 		{
 			name:                 "Threshold is zero (disabled)",
 			currentTemp:          110,
 			memMaxThreshold:      0,
-			expectHealthy:        apiv1.StateTypeHealthy,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
 		},
 	}

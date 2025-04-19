@@ -166,7 +166,7 @@ func (c *component) Check() components.CheckResult {
 	allocatedFileHandles, _, err := c.getFileHandlesFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
 		return d
 	}
@@ -176,7 +176,7 @@ func (c *component) Check() components.CheckResult {
 	runningPIDs, err := c.countRunningPIDsFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
 		return d
 	}
@@ -189,7 +189,7 @@ func (c *component) Check() components.CheckResult {
 	usage, uerr := c.getUsageFunc()
 	if uerr != nil {
 		d.err = uerr
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
 		return d
 	}
@@ -198,7 +198,7 @@ func (c *component) Check() components.CheckResult {
 	limit, err := c.getLimitFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting limit -- %s", err)
 		return d
 	}
@@ -242,10 +242,10 @@ func (c *component) Check() components.CheckResult {
 	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
 
 	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
-		d.health = apiv1.StateTypeDegraded
+		d.health = apiv1.HealthStateTypeDegraded
 		d.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
 			d.Usage,
 			d.ThresholdAllocatedFileHandles,
@@ -348,7 +348,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

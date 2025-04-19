@@ -121,7 +121,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting uptime: %s", err)
 		return d
 	}
@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting process count: %s", err)
 		return d
 	}
@@ -148,12 +148,12 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 	if d.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, c.zombieProcessCountThreshold)
 		return d
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
 
 	return d
@@ -259,7 +259,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

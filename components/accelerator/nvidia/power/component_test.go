@@ -137,7 +137,7 @@ func TestCheckOnce_Success(t *testing.T) {
 	lastData := result.(*Data)
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", lastData.reason)
 	assert.Len(t, lastData.Powers, 1)
 	assert.Equal(t, power, lastData.Powers[0])
@@ -174,7 +174,7 @@ func TestCheckOnce_PowerError(t *testing.T) {
 	lastData := result.(*Data)
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting power for device gpu-uuid-123", lastData.reason)
 }
@@ -193,7 +193,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	lastData := result.(*Data)
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no power issue found", lastData.reason)
 	assert.Empty(t, lastData.Powers)
 }
@@ -240,7 +240,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	lastData := result.(*Data)
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.NotNil(t, lastData.err)
 	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastData.reason)
 }
@@ -264,7 +264,7 @@ func TestStates_WithData(t *testing.T) {
 				GetPowerManagementLimitSupported: true,
 			},
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "all 1 GPU(s) were checked, no power issue found",
 	}
 	component.lastMu.Unlock()
@@ -275,7 +275,7 @@ func TestStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -288,7 +288,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastData = &Data{
 		err:    errors.New("test power error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting power for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
@@ -299,7 +299,7 @@ func TestStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting power for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test power error", state.Error)
 }
@@ -316,7 +316,7 @@ func TestStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -394,7 +394,7 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
 			expected: "",

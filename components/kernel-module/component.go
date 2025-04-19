@@ -97,7 +97,7 @@ func (c *component) Check() components.CheckResult {
 
 	d.LoadedModules, d.err = c.getAllModulesFunc()
 	if d.err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting all modules: %v", d.err)
 		return d
 	}
@@ -118,10 +118,10 @@ func (c *component) Check() components.CheckResult {
 	sort.Strings(missingModules)
 
 	if len(missingModules) == 0 {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "all modules are loaded"
 	} else {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("missing modules: %q", missingModules)
 	}
 	return d
@@ -182,7 +182,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

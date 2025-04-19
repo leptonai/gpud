@@ -41,7 +41,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  0,
 			},
 			wantReason: reasonThresholdNotSetSkipped,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name:   "only ports threshold set",
@@ -51,7 +51,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  0,
 			},
 			wantReason: "only 0 ports (>= 0 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:   "only rate threshold set",
@@ -61,7 +61,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: reasonNoIbIssueFound,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "healthy state with matching ports and rate",
@@ -91,7 +91,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: reasonNoIbIssueFound,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state - not enough ports",
@@ -113,7 +113,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: "only 1 ports (>= 200 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "unhealthy state - rate too low",
@@ -143,7 +143,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "unhealthy state - disabled ports",
@@ -173,7 +173,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2; 2 device(s) found Disabled (mlx5_0, mlx5_1)",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "empty ibstat cards",
@@ -186,7 +186,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "inactive ports",
@@ -216,7 +216,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: reasonNoIbIssueFound,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "mixed port states",
@@ -254,7 +254,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  200,
 			},
 			wantReason: "only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1)",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "mixed rate values",
@@ -292,7 +292,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  300,
 			},
 			wantReason: "only 1 ports (>= 300 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "zero rate value",
@@ -314,7 +314,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastRate:  100,
 			},
 			wantReason: "only 0 ports (>= 100 Gb/s) are active, expect at least 1",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -379,7 +379,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastRate:  400, // Expected rate for H100 cards
 			},
 			wantReason: reasonNoIbIssueFound,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "healthy state - mixed rate ports",
@@ -388,7 +388,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastRate:  100, // Minimum rate that includes all ports
 			},
 			wantReason: reasonNoIbIssueFound,
-			wantHealth: apiv1.StateTypeHealthy,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state - not enough high-rate ports",
@@ -397,7 +397,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastRate:  400, // Only 8 ports have this rate
 			},
 			wantReason: "only 8 ports (>= 400 Gb/s) are active, expect at least 12",
-			wantHealth: apiv1.StateTypeUnhealthy,
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -428,7 +428,7 @@ func TestComponentCheck(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 
 	// Case 2: With NVML
@@ -437,7 +437,7 @@ func TestComponentCheck(t *testing.T) {
 	result = c.Check()
 	data, ok = result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.NotNil(t, data.IbstatOutput)
 }
 
@@ -754,12 +754,12 @@ func TestLastHealthStates(t *testing.T) {
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
 	mockData := &Data{
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test reason",
 		err:    fmt.Errorf("test error"),
 	}
@@ -770,7 +770,7 @@ func TestLastHealthStates(t *testing.T) {
 	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test reason", states[0].Reason)
 	assert.Equal(t, "test error", states[0].Error)
 }
@@ -828,8 +828,8 @@ func TestDataHealthState(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
 
 	// Test with health state
-	d = &Data{health: apiv1.StateTypeUnhealthy}
-	assert.Equal(t, apiv1.StateTypeUnhealthy, d.HealthState())
+	d = &Data{health: apiv1.HealthStateTypeUnhealthy}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.HealthState())
 }
 
 func TestDataGetError(t *testing.T) {
@@ -868,7 +868,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "ibstat command failed")
 
 	// Test case: getIbstatOutputFunc returns nil output
@@ -885,7 +885,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	result = c.Check()
 	data, ok = result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, reasonMissingIbstatOutput, data.reason)
 
 	// Test case: ibstat command not found
@@ -902,7 +902,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	result = c.Check()
 	data, ok = result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat command not found", data.reason)
 }
 
@@ -933,7 +933,7 @@ func TestComponentCheckEventBucketOperations(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Verify that an event was inserted
 	events := mockBucket.GetEvents()
@@ -1024,7 +1024,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to find ibstat event")
 
 	// Test case: Insert method returns error
@@ -1033,7 +1033,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	result = c.Check()
 	data, ok = result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to insert ibstat event")
 }
 
@@ -1105,7 +1105,7 @@ func TestCheckWithExistingEvent(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Verify that no insertion was attempted
 	assert.False(t, mockBucket.insertCalled, "Insert should not be called when event already exists")
@@ -1169,6 +1169,6 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 	result := c.Check()
 	data, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat checker not found", data.reason)
 }

@@ -118,7 +118,7 @@ func (c *component) Check() components.CheckResult {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting interfaces: %v", err)
 		return d
 	}
@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 		d.Packages, d.err = gpud_manager.GlobalController.Status(cctx)
 		cancel()
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting package status: %v", err)
 			return d
 		}
@@ -145,14 +145,14 @@ func (c *component) Check() components.CheckResult {
 	d.GPUdPID = os.Getpid()
 	d.GPUdUsageFileDescriptors, d.err = file.GetCurrentProcessUsage()
 	if err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting current process usage: %v", err)
 		return d
 	}
 
 	d.GPUdUsageMemoryInBytes, d.err = memory.GetCurrentProcessRSSInBytes()
 	if err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting current process RSS: %v", err)
 		return d
 	}
@@ -163,7 +163,7 @@ func (c *component) Check() components.CheckResult {
 		d.GPUdUsageDBInBytes, d.err = sqlite.ReadDBSize(cctx, c.dbRO)
 		ccancel()
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting DB size: %v", err)
 			return d
 		}
@@ -173,7 +173,7 @@ func (c *component) Check() components.CheckResult {
 	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting SQLite metrics: %v", err)
 		return d
 	}
@@ -194,13 +194,13 @@ func (c *component) Check() components.CheckResult {
 
 	d.GPUdStartTimeInUnixTime, d.err = uptime.GetCurrentProcessStartTimeInUnixTime()
 	if d.err != nil {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting GPUd start time: %v", err)
 		return d
 	}
 	d.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(d.GPUdStartTimeInUnixTime), 0))
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
 
 	return d
@@ -317,7 +317,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

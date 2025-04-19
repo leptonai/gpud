@@ -146,12 +146,12 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
@@ -159,18 +159,18 @@ func (c *component) Check() components.CheckResult {
 	if c.getSystemDriverVersionFunc != nil {
 		driverVersion, err := c.getSystemDriverVersionFunc()
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting driver version: %s", err)
 			return d
 		}
 		major, _, _, err := c.parseDriverVersionFunc(driverVersion)
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error parsing driver version: %s", err)
 			return d
 		}
 		if !c.checkClockEventsSupportedFunc(major) {
-			d.health = apiv1.StateTypeHealthy
+			d.health = apiv1.HealthStateTypeHealthy
 			d.reason = fmt.Sprintf("clock events not supported for driver version %s", driverVersion)
 			return d
 		}
@@ -180,21 +180,21 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		supported, err := c.getClockEventsSupportedFunc(dev)
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.err = err
 			d.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
 			return d
 		}
 
 		if !supported {
-			d.health = apiv1.StateTypeHealthy
+			d.health = apiv1.HealthStateTypeHealthy
 			d.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
 			return d
 		}
 
 		clockEvents, err := c.getClockEventsFunc(uuid, dev)
 		if err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.err = err
 			d.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
 			return d
@@ -235,7 +235,7 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
 
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.err = err
 				d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
 				return d
@@ -248,7 +248,7 @@ func (c *component) Check() components.CheckResult {
 			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
 				log.Logger.Errorw("failed to insert event", "error", err)
 
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.err = err
 				d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
 				return d
@@ -259,13 +259,13 @@ func (c *component) Check() components.CheckResult {
 
 	if c.evaluationWindow == 0 {
 		// no time window to evaluate /state
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no time window to evaluate states"
 		return d
 	}
 
 	if c.eventBucket == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no event bucket"
 		return d
 	}
@@ -278,13 +278,13 @@ func (c *component) Check() components.CheckResult {
 		log.Logger.Errorw("failed to get clock events from db", "error", err)
 
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting clock events from db: %s", err)
 		return d
 	}
 
 	if len(latestEvents) == 0 {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no clock events found"
 		return d
 	}
@@ -300,13 +300,13 @@ func (c *component) Check() components.CheckResult {
 
 	if freqPerMin < c.threshold {
 		// hw slowdown events happened but within its threshold
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 		return d
 	}
 
 	// hw slowdown events happened and beyond its threshold
-	d.health = apiv1.StateTypeUnhealthy
+	d.health = apiv1.HealthStateTypeUnhealthy
 	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 	d.suggestedActions = &apiv1.SuggestedActions{
 		RepairActions: []apiv1.RepairActionType{
@@ -384,7 +384,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

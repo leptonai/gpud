@@ -160,7 +160,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
 		return d
 	}
@@ -170,7 +170,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
 		return d
 	}
@@ -194,7 +194,7 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error calculating load average -- %s", err)
 		return d
 	}
@@ -206,7 +206,7 @@ func (c *component) Check() components.CheckResult {
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
 		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
 
@@ -308,7 +308,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

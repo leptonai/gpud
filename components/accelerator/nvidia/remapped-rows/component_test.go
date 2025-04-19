@@ -461,7 +461,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 		},
 		ts:     time.Now(),
 		err:    errors.New("nvml error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting remapped rows for GPU1: nvml error",
 	}
 	c.lastMu.Unlock()
@@ -472,13 +472,13 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	// Verify the component's data contains the error
 	assert.NotNil(t, d.err, "Expected an error in the component's data")
 	assert.Contains(t, d.err.Error(), "nvml error")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, d.health, "Expected health state to be Unhealthy when error occurs")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health, "Expected health state to be Unhealthy when error occurs")
 	assert.Contains(t, d.reason, "error getting remapped rows", "Reason should indicate error getting remapped rows")
 
 	// Get the health states through the LastHealthStates method
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health, "Expected health state to be Unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health, "Expected health state to be Unhealthy")
 	assert.Contains(t, states[0].Error, "nvml error", "Error message should contain our expected error")
 }
 
@@ -561,14 +561,14 @@ func TestComponentStates(t *testing.T) {
 			name:                  "No row remapping support",
 			rowRemappingSupported: false,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        apiv1.StateTypeHealthy,
+			expectedHealth:        apiv1.HealthStateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
 			name:                  "Empty remapped rows",
 			rowRemappingSupported: true,
 			remappedRows:          []nvml.RemappedRows{},
-			expectedHealth:        apiv1.StateTypeHealthy,
+			expectedHealth:        apiv1.HealthStateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
@@ -582,7 +582,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending:                 false,
 				},
 			},
-			expectedHealth:  apiv1.StateTypeHealthy,
+			expectedHealth:  apiv1.HealthStateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
@@ -595,7 +595,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingFailed:                  true,
 				},
 			},
-			expectedHealth:           apiv1.StateTypeUnhealthy,
+			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy:          false,
 			expectContainsRMAMessage: true,
 		},
@@ -608,7 +608,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             apiv1.StateTypeUnhealthy,
+			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy:            false,
 			expectContainsResetMessage: true,
 		},
@@ -632,7 +632,7 @@ func TestComponentStates(t *testing.T) {
 					RemappingPending: true,
 				},
 			},
-			expectedHealth:             apiv1.StateTypeUnhealthy,
+			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy:            false,
 			expectContainsRMAMessage:   true,
 			expectContainsResetMessage: true,
@@ -687,10 +687,10 @@ func TestComponentStates(t *testing.T) {
 
 			// Calculate the reason and health based on the data
 			if !tt.rowRemappingSupported {
-				c.lastData.health = apiv1.StateTypeHealthy
+				c.lastData.health = apiv1.HealthStateTypeHealthy
 				c.lastData.reason = fmt.Sprintf("%q does not support row remapping", c.lastData.ProductName)
 			} else if len(tt.remappedRows) == 0 {
-				c.lastData.health = apiv1.StateTypeHealthy
+				c.lastData.health = apiv1.HealthStateTypeHealthy
 				c.lastData.reason = "no issue detected"
 			} else {
 				issues := make([]string, 0)
@@ -704,10 +704,10 @@ func TestComponentStates(t *testing.T) {
 				}
 
 				if len(issues) > 0 {
-					c.lastData.health = apiv1.StateTypeUnhealthy
+					c.lastData.health = apiv1.HealthStateTypeUnhealthy
 					c.lastData.reason = strings.Join(issues, ", ")
 				} else {
-					c.lastData.health = apiv1.StateTypeHealthy
+					c.lastData.health = apiv1.HealthStateTypeHealthy
 					c.lastData.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(tt.remappedRows))
 				}
 			}
@@ -777,7 +777,7 @@ func TestComponentStatesWithError(t *testing.T) {
 		RemappedRows:                      []nvml.RemappedRows{},
 		ts:                                time.Now(),
 		err:                               errors.New("test error"),
-		health:                            apiv1.StateTypeUnhealthy,
+		health:                            apiv1.HealthStateTypeUnhealthy,
 		reason:                            "failed to get remapped rows data -- test error",
 	}
 	c.lastMu.Unlock()
@@ -788,7 +788,7 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "failed to get remapped rows data")
 	assert.Equal(t, "test error", state.Error)
 }
@@ -838,7 +838,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 	assert.Empty(t, state.Error)
 }
@@ -950,27 +950,27 @@ func TestStateTransitions(t *testing.T) {
 	c.Check()
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Perform second check cycle - should transition to unhealthy (pending)
 	c.Check()
 	states = c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "needs reset")
 
 	// Perform third check cycle - should remain unhealthy (failed)
 	c.Check()
 	states = c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "qualifies for RMA")
 
 	// Perform fourth check cycle - should return to healthy
 	c.Check()
 	states = c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Verify that events were generated for state transitions
 	events, err := eventBucket.Get(ctx, time.Time{})
@@ -1052,10 +1052,10 @@ func TestRemappedRowsThresholds(t *testing.T) {
 		expectedHealth      apiv1.HealthStateType
 		description         string
 	}{
-		{0, false, apiv1.StateTypeHealthy, "No errors"},
-		{1, true, apiv1.StateTypeUnhealthy, "Minimum threshold for RMA qualification"},
-		{5, true, apiv1.StateTypeUnhealthy, "Multiple errors"},
-		{100, true, apiv1.StateTypeUnhealthy, "Large number of errors"},
+		{0, false, apiv1.HealthStateTypeHealthy, "No errors"},
+		{1, true, apiv1.HealthStateTypeUnhealthy, "Minimum threshold for RMA qualification"},
+		{5, true, apiv1.HealthStateTypeUnhealthy, "Multiple errors"},
+		{100, true, apiv1.HealthStateTypeUnhealthy, "Large number of errors"},
 	}
 
 	for _, tc := range testCases {
@@ -1078,7 +1078,7 @@ func TestRemappedRowsThresholds(t *testing.T) {
 			require.Len(t, states, 1)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
-			if tc.expectedHealth == apiv1.StateTypeUnhealthy {
+			if tc.expectedHealth == apiv1.HealthStateTypeUnhealthy {
 				assert.Contains(t, states[0].Reason, "qualifies for RMA")
 				assert.Contains(t, states[0].Reason, fmt.Sprintf("%d uncorrectable error", tc.uncorrectableErrors))
 			}
@@ -1185,7 +1185,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify component state
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Check for both GPU2 and GPU3 issues in the reason
 	assert.Contains(t, data.reason, "GPU2 needs reset")
@@ -1194,7 +1194,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	// Check health states API
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "needs reset")
 	assert.Contains(t, states[0].Reason, "qualifies for RMA")
 
@@ -1227,7 +1227,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
 				return nvml.RemappedRows{UUID: uuid}, nil
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name:                  "GetRemappedRows error",
@@ -1240,7 +1240,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			// The component sets the overall health to Healthy when there are no issues detected
 			// Even with errors for individual GPUs, the component only becomes unhealthy if there are
 			// actual remapping issues detected
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 	}
 
@@ -1368,8 +1368,8 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 
 			// If data is not nil, test HealthState() method
 			if tt.data != nil {
-				tt.data.health = apiv1.StateTypeUnhealthy
-				assert.Equal(t, apiv1.StateTypeUnhealthy, tt.data.HealthState())
+				tt.data.health = apiv1.HealthStateTypeUnhealthy
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, tt.data.HealthState())
 			}
 		})
 	}
@@ -1421,12 +1421,12 @@ func TestComponentWithNoNVML(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify the component reports healthy since NVML is not available
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 
 	// Get health states
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", states[0].Reason)
 }

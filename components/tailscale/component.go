@@ -97,7 +97,7 @@ func (c *component) Check() components.CheckResult {
 
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "tailscaled is not installed"
 		return d
 	}
@@ -106,13 +106,13 @@ func (c *component) Check() components.CheckResult {
 	if c.checkServiceActiveFunc != nil {
 		d.TailscaledServiceActive, d.err = c.checkServiceActiveFunc()
 		if !d.TailscaledServiceActive || d.err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", d.err)
 			return d
 		}
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = "tailscaled service is active/running"
 
 	return d
@@ -168,7 +168,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

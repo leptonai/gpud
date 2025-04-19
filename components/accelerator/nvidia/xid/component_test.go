@@ -281,7 +281,7 @@ func TestXIDComponent_States(t *testing.T) {
 
 	s := apiv1.HealthState{
 		Name:   StateNameErrorXid,
-		Health: apiv1.StateTypeHealthy,
+		Health: apiv1.HealthStateTypeHealthy,
 		Reason: "XIDComponent is healthy",
 	}
 	c.currState = s
@@ -308,13 +308,13 @@ func TestXIDComponent_States(t *testing.T) {
 				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
@@ -408,7 +408,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 	})
 
@@ -427,7 +427,7 @@ func TestCheck(t *testing.T) {
 		c.readAllKmsg = nil
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "kmsg reader is not set")
 	})
 
@@ -448,7 +448,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.StateTypeUnhealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "failed to read kmsg")
 	})
 
@@ -474,7 +474,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "matched")
 		data := result.(*Data)
 		assert.Len(t, data.FoundErrors, 1)
@@ -549,7 +549,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.NoError(t, err)
 	initialStates := comp.LastHealthStates()
 	assert.Len(t, initialStates, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
 
 	warningTime := time.Now().Add(-5 * time.Minute)
 	xid94Event := apiv1.Event{
@@ -575,7 +575,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	// Check that the state was updated to degraded
 	warningStates := comp.LastHealthStates()
 	assert.Len(t, warningStates, 1)
-	assert.Equal(t, apiv1.StateTypeDegraded, warningStates[0].Health, "State should be degraded after warning event")
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, warningStates[0].Health, "State should be degraded after warning event")
 	assert.NotNil(t, warningStates[0].SuggestedActions, "Should have suggested actions")
 	assert.Contains(t, warningStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
@@ -604,7 +604,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	// Check that the state is unhealthy and recommends reboot
 	fatalStates := comp.LastHealthStates()
 	assert.Len(t, fatalStates, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after fatal event")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after fatal event")
 	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
 	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
@@ -624,7 +624,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	// Check that the state is now healthy
 	rebootStates := comp.LastHealthStates()
 	assert.Len(t, rebootStates, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, rebootStates[0].Health, "State should be healthy after reboot")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rebootStates[0].Health, "State should be healthy after reboot")
 	assert.Nil(t, rebootStates[0].SuggestedActions, "Should not have suggested actions")
 
 	// Insert a SetHealthy event
@@ -643,7 +643,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	// Check that the state is still healthy
 	healthyStates := comp.LastHealthStates()
 	assert.Len(t, healthyStates, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, healthyStates[0].Health, "State should remain healthy after SetHealthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthyStates[0].Health, "State should remain healthy after SetHealthy")
 	assert.Nil(t, healthyStates[0].SuggestedActions, "Should not have suggested actions")
 
 	// Test with nil rebootEventStore
@@ -719,7 +719,7 @@ func TestDataString(t *testing.T) {
 			data: &Data{
 				FoundErrors: []FoundError{},
 				ts:          time.Now(),
-				health:      apiv1.StateTypeHealthy,
+				health:      apiv1.HealthStateTypeHealthy,
 				reason:      "no errors found",
 			},
 			expected: "no xid error found",
@@ -747,7 +747,7 @@ func TestDataString(t *testing.T) {
 					},
 				},
 				ts:     time.Now(),
-				health: apiv1.StateTypeDegraded,
+				health: apiv1.HealthStateTypeDegraded,
 				reason: "found 1 error",
 			},
 			expected: "", // We'll just check that it's not empty since the table format is hard to predict exactly
@@ -845,7 +845,7 @@ func TestDataSummary(t *testing.T) {
 	// Test data with reason
 	data := &Data{
 		reason: "test reason",
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 	}
 	summary = data.Summary()
 	assert.Equal(t, "test reason", summary)

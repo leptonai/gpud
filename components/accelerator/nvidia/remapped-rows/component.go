@@ -123,12 +123,12 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML instance is nil"
 		return d
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "NVIDIA NVML is not loaded"
 		return d
 	}
@@ -137,7 +137,7 @@ func (c *component) Check() components.CheckResult {
 	d.MemoryErrorManagementCapabilities = c.nvmlInstance.GetMemoryErrorManagementCapabilities()
 
 	if !d.MemoryErrorManagementCapabilities.RowRemapping {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("%q does not support row remapping", d.ProductName)
 		return d
 	}
@@ -151,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw("error getting remapped rows", "uuid", uuid, "error", err)
 
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting remapped rows for %s", uuid)
 			continue
 		}
@@ -195,7 +195,7 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				log.Logger.Errorw("error inserting event for remapping pending", "uuid", uuid, "error", err)
 				d.err = err
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.reason = fmt.Sprintf("error inserting event for remapping pending for %s", uuid)
 				continue
 			}
@@ -224,7 +224,7 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				log.Logger.Errorw("error inserting event for remapping failed", "uuid", uuid, "error", err)
 				d.err = err
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.reason = fmt.Sprintf("error inserting event for remapping failed for %s", uuid)
 				continue
 			}
@@ -239,10 +239,10 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(issues) > 0 {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = strings.Join(issues, ", ")
 	} else {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(devs))
 	}
 
@@ -322,7 +322,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

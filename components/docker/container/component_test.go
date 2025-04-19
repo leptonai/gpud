@@ -24,7 +24,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{}, {}, {}},
 				err:        nil,
-				health:     apiv1.StateTypeHealthy,
+				health:     apiv1.HealthStateTypeHealthy,
 				reason:     "total 3 container(s)",
 			},
 			expectedText: "total 3 container",
@@ -34,7 +34,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{},
 				err:        nil,
-				health:     apiv1.StateTypeHealthy,
+				health:     apiv1.HealthStateTypeHealthy,
 				reason:     "total 0 container(s)",
 			},
 			expectedText: "total 0 container",
@@ -44,7 +44,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: nil,
 				err:        nil,
-				health:     apiv1.StateTypeHealthy,
+				health:     apiv1.HealthStateTypeHealthy,
 				reason:     "total 0 container(s)",
 			},
 			expectedText: "total 0 container",
@@ -54,7 +54,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "not supported; Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43 (needs upgrading docker daemon in the host)",
 			},
 			expectedText: "not supported",
@@ -64,7 +64,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Cannot connect to the Docker daemon"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "connection error to docker daemon -- Cannot connect to the Docker daemon",
 			},
 			expectedText: "connection error to docker daemon",
@@ -74,7 +74,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("some general error"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- some general error",
 			},
 			expectedText: "error listing containers",
@@ -85,7 +85,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("connection refused"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- connection refused",
 			},
 			expectedText: "error listing containers",
@@ -95,7 +95,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Is the docker daemon running?"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "connection error to docker daemon -- Is the docker daemon running?",
 			},
 			expectedText: "connection error to docker daemon",
@@ -105,7 +105,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("permission denied"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- permission denied",
 			},
 			expectedText: "error listing containers",
@@ -115,7 +115,7 @@ func TestData_getStates(t *testing.T) {
 			data: Data{
 				Containers: []DockerContainer{{ID: "test-id"}},
 				err:        errors.New("network error communicating with Docker daemon"),
-				health:     apiv1.StateTypeUnhealthy,
+				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- network error communicating with Docker daemon",
 			},
 			expectedText: "error listing containers",
@@ -144,75 +144,75 @@ func TestDataHealthField(t *testing.T) {
 			name: "No error",
 			data: Data{
 				err:    nil,
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "healthy",
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "Connection error - ignored",
 			data: Data{
 				err:    errors.New("Cannot connect to the Docker daemon"),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "connection error to docker daemon but ignored",
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "Connection error - not ignored",
 			data: Data{
 				err:    errors.New("Cannot connect to the Docker daemon"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "connection error to docker daemon",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "General error",
 			data: Data{
 				err:    errors.New("some general error"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "error occurred",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		// Additional test cases for error scenarios
 		{
 			name: "Permission denied error - not ignored",
 			data: Data{
 				err:    errors.New("permission denied"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "permission denied error",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "Docker service inactive error - not ignored",
 			data: Data{
 				err:                 errors.New("docker service is not active"),
 				DockerServiceActive: false,
-				health:              apiv1.StateTypeUnhealthy,
+				health:              apiv1.HealthStateTypeUnhealthy,
 				reason:              "docker service is not active",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "Docker not found error - not ignored",
 			data: Data{
 				err:    errors.New("docker not found"),
-				health: apiv1.StateTypeUnhealthy,
+				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "docker not found error",
 			},
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "Is docker daemon running - ignored",
 			data: Data{
 				err:    errors.New("Is the docker daemon running?"),
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "connection error ignored",
 			},
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 	}
 
@@ -226,7 +226,7 @@ func TestDataHealthField(t *testing.T) {
 	// Test with nil data
 	var nilData *Data
 	states := nilData.getLastHealthStates()
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestDataGetStates(t *testing.T) {
@@ -242,11 +242,11 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{},
 				err:                 nil,
-				health:              apiv1.StateTypeHealthy,
+				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "no container found",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "With containers",
@@ -254,11 +254,11 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 nil,
-				health:              apiv1.StateTypeHealthy,
+				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "total 1 container(s)",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "With error not ignored",
@@ -266,11 +266,11 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("test error"),
-				health:              apiv1.StateTypeUnhealthy,
+				health:              apiv1.HealthStateTypeUnhealthy,
 				reason:              "error listing containers -- test error",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name: "With connection error ignored",
@@ -278,11 +278,11 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
-				health:              apiv1.StateTypeHealthy,
+				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "connection error but ignored",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "With connection error not ignored",
@@ -290,11 +290,11 @@ func TestDataGetStates(t *testing.T) {
 				DockerServiceActive: true,
 				Containers:          []DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
-				health:              apiv1.StateTypeUnhealthy,
+				health:              apiv1.HealthStateTypeUnhealthy,
 				reason:              "connection error not ignored",
 			},
 			stateCount:     1,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
@@ -321,7 +321,7 @@ func TestDataGetStates(t *testing.T) {
 	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -396,14 +396,14 @@ func TestComponentStates(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 nil,
-		health:              apiv1.StateTypeHealthy,
+		health:              apiv1.HealthStateTypeHealthy,
 		reason:              "total 0 container(s)",
 	}
 
 	states := comp.LastHealthStates()
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Test with containers
 	comp.lastData = &Data{
@@ -413,7 +413,7 @@ func TestComponentStates(t *testing.T) {
 		},
 		ts:     time.Now(),
 		err:    nil,
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "total 1 container(s)",
 	}
 
@@ -427,13 +427,13 @@ func TestComponentStates(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon"),
-		health:              apiv1.StateTypeHealthy,
+		health:              apiv1.HealthStateTypeHealthy,
 		reason:              "connection error to docker daemon -- Cannot connect to the Docker daemon",
 	}
 
 	states = comp.LastHealthStates()
 	assert.Equal(t, 1, len(states))
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestCheckOnceErrorConditions(t *testing.T) {
@@ -449,7 +449,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 		Containers:          []DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
-		health:              apiv1.StateTypeHealthy,
+		health:              apiv1.HealthStateTypeHealthy,
 		reason:              "connection error to docker daemon -- Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
 	}
 
@@ -460,7 +460,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	// Get states and verify error handling with ignoreConnectionErrors=true
 	states := comp.LastHealthStates()
 	assert.Equal(t, 1, len(states))
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health) // Should be healthy because we're ignoring connection errors
 
 	// Create a new component that doesn't ignore connection errors
 	c2, err := New(gpudInstance)
@@ -468,14 +468,14 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	comp2 := c2.(*component)
 	comp2.ignoreConnectionErrors = false
 
-	mockData.health = apiv1.StateTypeUnhealthy
+	mockData.health = apiv1.HealthStateTypeUnhealthy
 	comp2.lastMu.Lock()
 	comp2.lastData = mockData
 	comp2.lastMu.Unlock()
 
 	// Get states and verify error handling with ignoreConnectionErrors=false
 	states = comp2.LastHealthStates()
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health) // Should be unhealthy because we're not ignoring connection errors
 
 	// Test with client version newer than daemon error
 	mockData = &Data{
@@ -485,7 +485,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 		},
 		ts:     time.Now(),
 		err:    errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "not supported; Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43 (needs upgrading docker daemon in the host)",
 	}
 
@@ -554,7 +554,7 @@ func TestDirectCheckOnce(t *testing.T) {
 		// Verify error handling
 		comp.lastMu.RLock()
 		assert.False(t, comp.lastData.DockerServiceActive)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "docker service is not active")
 		comp.lastMu.RUnlock()
 	})
@@ -578,7 +578,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify error handling
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "docker installed but docker is not running")
 		comp.lastMu.RUnlock()
 	})
@@ -608,7 +608,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify error handling
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "error listing containers")
 		comp.lastMu.RUnlock()
 	})
@@ -640,7 +640,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify special error handling
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "not supported")
 		assert.Contains(t, comp.lastData.reason, "needs upgrading docker daemon")
 		comp.lastMu.RUnlock()
@@ -674,7 +674,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify connection error handling with ignoreConnectionErrors=true
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeHealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "connection error to docker daemon")
 		comp.lastMu.RUnlock()
 	})
@@ -707,7 +707,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify connection error handling with ignoreConnectionErrors=false
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeUnhealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 		assert.Contains(t, comp.lastData.reason, "connection error to docker daemon")
 		comp.lastMu.RUnlock()
 	})
@@ -742,7 +742,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify successful container list
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.StateTypeHealthy, comp.lastData.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastData.health)
 		assert.Equal(t, containers, comp.lastData.Containers)
 		assert.Contains(t, comp.lastData.reason, "total 2 container")
 		comp.lastMu.RUnlock()

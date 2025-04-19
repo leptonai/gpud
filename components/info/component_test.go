@@ -127,25 +127,25 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	var nilData *Data
 	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Test with error
 	data := &Data{
 		err:    assert.AnError,
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 	}
 	states = data.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 
 	// Test without error
 	data = &Data{
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 	}
 	states = data.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestDataGetStatesForReason(t *testing.T) {
@@ -184,7 +184,7 @@ func TestDataGetStatesNil(t *testing.T) {
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Empty(t, states[0].Error, "Error should be empty for nil data")
 }
@@ -216,7 +216,7 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 		DaemonVersion: "test-version",
 		MacAddress:    "00:11:22:33:44:55",
 		Annotations:   map[string]string{"key": "value"},
-		health:        apiv1.StateTypeHealthy,
+		health:        apiv1.HealthStateTypeHealthy,
 		reason:        "test reason",
 	}
 
@@ -308,15 +308,15 @@ func TestDataHealthState(t *testing.T) {
 
 	// Test with health set
 	data := &Data{
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.StateTypeHealthy, data.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthState())
 
 	// Test with unhealthy state
 	data = &Data{
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 	}
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.HealthState())
 }
 
 func TestCheckWithErrors(t *testing.T) {
@@ -343,7 +343,7 @@ func TestCheckWithErrors(t *testing.T) {
 	assert.NotNil(t, result)
 	data, ok := result.(*Data)
 	assert.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "error getting SQLite metrics")
 	assert.Error(t, data.err)
 }
@@ -370,7 +370,7 @@ func TestLastHealthStatesWithNilData(t *testing.T) {
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -414,7 +414,7 @@ func TestCheckDataFieldInitialization(t *testing.T) {
 	assert.NotEmpty(t, data.DaemonVersion)
 	assert.Equal(t, gpudInstance.Annotations, data.Annotations)
 	assert.NotZero(t, data.ts)
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "daemon version")
 }
 
@@ -446,6 +446,6 @@ func TestCheckWithMoreBranches(t *testing.T) {
 	assert.NotNil(t, data.ts)
 
 	// Verify specific data from check
-	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "daemon version")
 }

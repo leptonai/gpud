@@ -35,7 +35,7 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, 
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
 		state := evolveHealthyState(apiv1.Events{})
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Equal(t, "XIDComponent is healthy", state.Reason)
 	})
 
@@ -44,7 +44,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 123, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 		assert.Equal(t, "XID 123(SPI PMU RPC Write Failure) detected on PCI:0000:9b:00", state.Reason)
 	})
 
@@ -53,7 +53,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 456 detected on PCI:0000:9b:00", state.Reason)
 	})
 
@@ -63,7 +63,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 789, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 
 	t.Run("reboot multiple time cannot recover, should be in degraded state", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
@@ -86,7 +86,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
 	})
 
@@ -99,7 +99,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			},
 		}
 		state := evolveHealthyState(events)
-		assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 }
 

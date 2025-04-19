@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 
 				select {
 				case <-c.ctx.Done():
-					d.health = apiv1.StateTypeUnhealthy
+					d.health = apiv1.HealthStateTypeUnhealthy
 					d.err = c.ctx.Err()
 					return d
 				case <-time.After(5 * time.Second):
@@ -153,7 +153,7 @@ func (c *component) Check() components.CheckResult {
 			break
 		}
 		if len(d.BlockDevices) == 0 {
-			d.health = apiv1.StateTypeHealthy
+			d.health = apiv1.HealthStateTypeHealthy
 			d.reason = "no block device found"
 			return d
 		}
@@ -169,7 +169,7 @@ func (c *component) Check() components.CheckResult {
 
 			select {
 			case <-c.ctx.Done():
-				d.health = apiv1.StateTypeUnhealthy
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.err = c.ctx.Err()
 				return d
 			case <-time.After(5 * time.Second):
@@ -186,7 +186,7 @@ func (c *component) Check() components.CheckResult {
 		break
 	}
 	if len(d.ExtPartitions) == 0 {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no ext4 partition found"
 		return d
 	}
@@ -237,7 +237,7 @@ func (c *component) Check() components.CheckResult {
 		d.MountTargetUsages[target] = *mntOut
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("found %d ext4 partition(s) and %d block device(s)", len(d.ExtPartitions), len(d.BlockDevices))
 
 	return d
@@ -311,7 +311,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

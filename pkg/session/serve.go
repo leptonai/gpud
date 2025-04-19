@@ -447,7 +447,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 	currState.States = state
 
 	for i, componentState := range currState.States {
-		if componentState.Health != apiv1.StateTypeHealthy {
+		if componentState.Health != apiv1.HealthStateTypeHealthy {
 			if lastRebootTime == nil {
 				rebootTime, err := pkghost.LastReboot(context.Background())
 				lastRebootTime = &rebootTime
@@ -457,7 +457,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			}
 			if time.Since(*lastRebootTime) < initializeGracePeriod {
 				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
-				currState.States[i].Health = apiv1.StateTypeInitializing
+				currState.States[i].Health = apiv1.HealthStateTypeInitializing
 			}
 
 			if componentState.Error != "" &&

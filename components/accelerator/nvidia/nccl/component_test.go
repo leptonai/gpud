@@ -121,7 +121,7 @@ func TestCheck(t *testing.T) {
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 	})
 
@@ -138,7 +138,7 @@ func TestCheck(t *testing.T) {
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "kmsg reader is not set")
 	})
 
@@ -161,7 +161,7 @@ func TestCheck(t *testing.T) {
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
-		assert.Equal(t, apiv1.StateTypeUnhealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "failed to read kmsg")
 	})
 
@@ -188,7 +188,7 @@ func TestCheck(t *testing.T) {
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "matched 0 kmsg(s)")
 	})
 
@@ -218,7 +218,7 @@ func TestCheck(t *testing.T) {
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
-		assert.Equal(t, apiv1.StateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "matched 1 kmsg(s)")
 
 		data, ok := result.(*Data)
@@ -241,12 +241,12 @@ func TestDataMethods(t *testing.T) {
 
 	t.Run("empty data", func(t *testing.T) {
 		d := &Data{
-			health: apiv1.StateTypeHealthy,
+			health: apiv1.HealthStateTypeHealthy,
 			reason: "test reason",
 		}
 		assert.Equal(t, "matched 0 kmsg(s)", d.String())
 		assert.Equal(t, "test reason", d.Summary())
-		assert.Equal(t, apiv1.StateTypeHealthy, d.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
 	})
 
 	t.Run("data with matched kmsg(s)", func(t *testing.T) {
@@ -255,12 +255,12 @@ func TestDataMethods(t *testing.T) {
 				{Message: "test message 1"},
 				{Message: "test message 2"},
 			},
-			health: apiv1.StateTypeUnhealthy,
+			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "matched kmsg(s)",
 		}
 		assert.Equal(t, "matched 2 kmsg(s)", d.String())
 		assert.Equal(t, "matched kmsg(s)", d.Summary())
-		assert.Equal(t, apiv1.StateTypeUnhealthy, d.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.HealthState())
 	})
 }
 
@@ -286,7 +286,7 @@ func TestComponentStates(t *testing.T) {
 
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no issue", states[0].Reason)
 }
 

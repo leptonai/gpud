@@ -142,7 +142,7 @@ func TestCheck_Success(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
 	assert.Len(t, lastData.GSPFirmwareModes, 1)
 	assert.Equal(t, gspMode, lastData.GSPFirmwareModes[0])
@@ -150,7 +150,7 @@ func TestCheck_Success(t *testing.T) {
 	// Also check the returned result
 	d, ok := result.(*Data)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.StateTypeHealthy, d.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.health)
 }
 
 func TestCheck_Error(t *testing.T) {
@@ -186,7 +186,7 @@ func TestCheck_Error(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastData.err)
 	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastData.reason)
 }
@@ -207,7 +207,7 @@ func TestCheck_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.StateTypeHealthy, lastData.health, "data should be marked healthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
 	assert.Empty(t, lastData.GSPFirmwareModes)
 }
@@ -226,7 +226,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 				Supported: true,
 			},
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "all 1 GPU(s) were checked, no GSP firmware mode issue found",
 	}
 	component.lastMu.Unlock()
@@ -237,7 +237,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -250,7 +250,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastData = &Data{
 		err:    errors.New("test GSP firmware mode error"),
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting GSP firmware mode for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
@@ -261,7 +261,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test GSP firmware mode error", state.Error)
 }
@@ -278,7 +278,7 @@ func TestLastHealthStates_NoData(t *testing.T) {
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -352,7 +352,7 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				health: apiv1.StateTypeHealthy,
+				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
 			expected: "",

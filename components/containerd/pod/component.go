@@ -112,14 +112,14 @@ func (c *component) Check() components.CheckResult {
 
 	// assume "containerd" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-		d.health = apiv1.StateTypeHealthy
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "containerd not installed"
 		return d
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
 	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "containerd installed but socket file does not exist"
 		return d
 	}
@@ -129,7 +129,7 @@ func (c *component) Check() components.CheckResult {
 		running := c.checkContainerdRunningFunc(cctx)
 		ccancel()
 		if !running {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = "containerd installed but not running"
 			return d
 		}
@@ -140,7 +140,7 @@ func (c *component) Check() components.CheckResult {
 		d.ContainerdServiceActive, d.err = c.checkServiceActiveFunc(cctx)
 		ccancel()
 		if !d.ContainerdServiceActive || d.err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = "containerd installed but service is not active"
 			return d
 		}
@@ -151,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 		d.Pods, d.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
 		if d.err != nil {
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 
 			st, ok := status.FromError(d.err)
 			if ok {
@@ -171,7 +171,7 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("found %d pod sandbox(es)", len(d.Pods))
 
 	return d
@@ -247,7 +247,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

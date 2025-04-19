@@ -89,7 +89,7 @@ func TestDataGetStatesNil(t *testing.T) {
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -98,13 +98,13 @@ func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
 		ts:     time.Now(),
 		err:    testError,
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error calculating CPU usage",
 	}
 
 	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testError.Error(), states[0].Error)
 	assert.Equal(t, d.reason, states[0].Reason)
 }
@@ -132,7 +132,7 @@ func TestComponentStates(t *testing.T) {
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -155,7 +155,7 @@ func TestComponentStates(t *testing.T) {
 			usedPercent:  25.5,
 		},
 		ts:     time.Now(),
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
 	}
 	c.lastMu.Lock()
@@ -165,7 +165,7 @@ func TestComponentStates(t *testing.T) {
 	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, testData.reason, states[0].Reason)
 }
 
@@ -277,7 +277,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	assert.Equal(t, "1.50", c.lastData.Usage.LoadAvg1Min)
 	assert.Equal(t, "1.25", c.lastData.Usage.LoadAvg5Min)
 	assert.Equal(t, "1.10", c.lastData.Usage.LoadAvg15Min)
-	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
 	assert.Contains(t, c.lastData.reason, "arch: ")
 }
 
@@ -310,7 +310,7 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
 }
@@ -384,7 +384,7 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating load average")
 }
@@ -452,7 +452,7 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
 }
@@ -528,7 +528,7 @@ func TestComponentDataExtraInfo(t *testing.T) {
 			usedPercent:  25.5,
 		},
 		ts:     time.Now(),
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "test reason",
 	}
 
@@ -643,7 +643,7 @@ func TestDataMarshalingInStates(t *testing.T) {
 			usedPercent:  999999.99,
 		},
 		ts:     time.Now(),
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "test reason with special characters: +!@#$%^&*()_",
 	}
 
@@ -702,7 +702,7 @@ func TestCheckHealthState(t *testing.T) {
 	// Use the Check method directly which returns CheckResult
 	rs := c.Check()
 	assert.NotNil(t, rs)
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
 

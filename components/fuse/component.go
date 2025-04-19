@@ -141,7 +141,7 @@ func (c *component) Check() components.CheckResult {
 	infos, err := c.listConnectionsFunc()
 	if err != nil {
 		d.err = err
-		d.health = apiv1.StateTypeUnhealthy
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing fuse connections %v", err)
 		return d
 	}
@@ -193,7 +193,7 @@ func (c *component) Check() components.CheckResult {
 		found, err := c.eventBucket.Find(c.ctx, ev)
 		if err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error finding event %v", err)
 			return d
 		}
@@ -202,13 +202,13 @@ func (c *component) Check() components.CheckResult {
 		}
 		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
 			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error inserting event %v", err)
 			return d
 		}
 	}
 
-	d.health = apiv1.StateTypeHealthy
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = fmt.Sprintf("found %d fuse connection(s)", len(d.ConnectionInfos))
 
 	return d
@@ -274,7 +274,7 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
 		}

@@ -161,19 +161,19 @@ func TestLastHealthStates(t *testing.T) {
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with empty data
 	comp.lastData = &Data{
 		ts:     time.Now(),
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "no bad envs found",
 	}
 	states = comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no bad envs found", states[0].Reason)
 
 	// Test with bad env data
@@ -182,26 +182,26 @@ func TestLastHealthStates(t *testing.T) {
 		FoundBadEnvsForCUDA: map[string]string{
 			"CUDA_PROFILE": BAD_CUDA_ENV_KEYS["CUDA_PROFILE"],
 		},
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: "CUDA_PROFILE: Enables CUDA profiling.",
 	}
 	states = comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")
 
 	// Test with error
 	comp.lastData = &Data{
 		ts:     time.Now(),
 		err:    assert.AnError,
-		health: apiv1.StateTypeUnhealthy,
+		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "failed to get bad envs data",
 	}
 	states = comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "failed to get bad envs data")
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 }
@@ -287,7 +287,7 @@ func TestDataWithMultipleBadEnvs(t *testing.T) {
 			"COMPUTE_PROFILE": "Enables compute profiling.",
 		},
 		ts:     time.Now(),
-		health: apiv1.StateTypeHealthy,
+		health: apiv1.HealthStateTypeHealthy,
 		reason: reason,
 	}
 
