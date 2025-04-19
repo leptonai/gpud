@@ -26,6 +26,7 @@ var _ = prometheus.Register(metricRunningProcesses) // This will fail silently i
 // mockNVMLInstance is a mock implementation of nvidianvml.InstanceV2
 type mockNVMLInstance struct {
 	devicesFunc func() map[string]device.Device
+	nvmlExists  bool
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
@@ -36,7 +37,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 // Override other InstanceV2 methods to return empty values
-func (m *mockNVMLInstance) NVMLExists() bool         { return true }
+func (m *mockNVMLInstance) NVMLExists() bool         { return m.nvmlExists }
 func (m *mockNVMLInstance) Library() nvmllib.Library { return nil }
 func (m *mockNVMLInstance) ProductName() string      { return "Test GPU" }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
@@ -71,7 +72,7 @@ func createMockDevice(uuid string, runningProcs []nvml.ProcessInfo) device.Devic
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNVMLInstance{}
+	mockInstance := &mockNVMLInstance{nvmlExists: true}
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
@@ -88,7 +89,7 @@ func TestNew(t *testing.T) {
 
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNVMLInstance{}
+	mockInstance := &mockNVMLInstance{nvmlExists: true}
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
@@ -104,7 +105,7 @@ func TestComponentName(t *testing.T) {
 
 func TestStartAndClose(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNVMLInstance{}
+	mockInstance := &mockNVMLInstance{nvmlExists: true}
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
@@ -126,7 +127,7 @@ func TestStartAndClose(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNVMLInstance{}
+	mockInstance := &mockNVMLInstance{nvmlExists: true}
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
@@ -155,6 +156,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
 		devicesFunc: func() map[string]device.Device {
 			return mockDevices
 		},
@@ -206,6 +208,7 @@ func TestCheckError(t *testing.T) {
 	}
 
 	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
 		devicesFunc: func() map[string]device.Device {
 			return mockDevices
 		},
@@ -241,7 +244,7 @@ func TestCheckError(t *testing.T) {
 
 func TestLastHealthStates(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNVMLInstance{}
+	mockInstance := &mockNVMLInstance{nvmlExists: true}
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
@@ -311,4 +314,175 @@ func TestDataGetError(t *testing.T) {
 	testErr := errors.New("test error")
 	errorData := &Data{err: testErr}
 	assert.Equal(t, testErr.Error(), errorData.getError())
+}
+
+// Test Data.String() method
+func TestDataString(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	assert.Equal(t, "", nilData.String())
+
+	// Test empty data
+	emptyData := &Data{}
+	assert.Equal(t, "no data", emptyData.String())
+
+	// Test data with processes
+	dataWithProcesses := &Data{
+		Processes: []nvidianvml.Processes{
+			{
+				UUID: "gpu-uuid-1",
+				RunningProcesses: []nvidianvml.Process{
+					{PID: 1234},
+					{PID: 5678},
+				},
+			},
+		},
+	}
+
+	result := dataWithProcesses.String()
+	assert.Contains(t, result, "gpu-uuid-1")
+	assert.Contains(t, result, "2") // Number of processes
+}
+
+// Test Data.Summary() method
+func TestDataSummary(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	assert.Equal(t, "", nilData.Summary())
+
+	// Test data with reason
+	dataWithReason := &Data{
+		reason: "test reason",
+	}
+	assert.Equal(t, "test reason", dataWithReason.Summary())
+}
+
+// Test Data.HealthState() method
+func TestDataHealthState(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
+
+	// Test data with health state
+	dataWithHealth := &Data{
+		health: apiv1.StateTypeHealthy,
+	}
+	assert.Equal(t, apiv1.StateTypeHealthy, dataWithHealth.HealthState())
+
+	// Test data with unhealthy state
+	dataUnhealthy := &Data{
+		health: apiv1.StateTypeUnhealthy,
+	}
+	assert.Equal(t, apiv1.StateTypeUnhealthy, dataUnhealthy.HealthState())
+}
+
+// Test Check edge cases
+func TestCheckEdgeCases(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("nil NVML instance", func(t *testing.T) {
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: nil,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		result := c.Check()
+
+		data, ok := result.(*Data)
+		require.True(t, ok)
+		assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+		assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+	})
+
+	t.Run("NVML not loaded", func(t *testing.T) {
+		mockInstance := &mockNVMLInstance{
+			nvmlExists: false,
+		}
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockInstance,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		result := c.Check()
+
+		data, ok := result.(*Data)
+		require.True(t, ok)
+		assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+		assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	})
+
+	t.Run("multiple devices", func(t *testing.T) {
+		// Create mock devices with running processes
+		mockDev1 := createMockDevice("gpu-uuid-1", []nvml.ProcessInfo{
+			{Pid: 1234, UsedGpuMemory: 100000000},
+		})
+		mockDev2 := createMockDevice("gpu-uuid-2", []nvml.ProcessInfo{
+			{Pid: 5678, UsedGpuMemory: 200000000},
+			{Pid: 9012, UsedGpuMemory: 300000000},
+		})
+
+		mockDevices := map[string]device.Device{
+			"gpu-uuid-1": mockDev1,
+			"gpu-uuid-2": mockDev2,
+		}
+
+		mockInstance := &mockNVMLInstance{
+			nvmlExists: true,
+			devicesFunc: func() map[string]device.Device {
+				return mockDevices
+			},
+		}
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockInstance,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+
+		// Set up the getProcessesFunc to match device UUID
+		c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
+			if uuid == "gpu-uuid-1" {
+				return nvidianvml.Processes{
+					UUID: uuid,
+					RunningProcesses: []nvidianvml.Process{
+						{PID: 1234, GPUUsedMemoryBytes: 100000000},
+					},
+				}, nil
+			} else {
+				return nvidianvml.Processes{
+					UUID: uuid,
+					RunningProcesses: []nvidianvml.Process{
+						{PID: 5678, GPUUsedMemoryBytes: 200000000},
+						{PID: 9012, GPUUsedMemoryBytes: 300000000},
+					},
+				}, nil
+			}
+		}
+
+		result := c.Check()
+
+		data, ok := result.(*Data)
+		require.True(t, ok)
+		assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+		assert.Equal(t, 2, len(data.Processes))
+		assert.Equal(t, "all 2 GPU(s) were checked, no process issue found", data.reason)
+
+		// Check that the first device has 1 process
+		assert.Equal(t, 1, len(data.Processes[0].RunningProcesses))
+		// Check that the second device has 2 processes
+		assert.Equal(t, 2, len(data.Processes[1].RunningProcesses))
+	})
 }

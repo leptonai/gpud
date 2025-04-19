@@ -368,3 +368,261 @@ func TestData_GetError(t *testing.T) {
 		})
 	}
 }
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name:     "empty utilizations",
+			data:     &Data{},
+			expected: "no data",
+		},
+		{
+			name: "with utilization data",
+			data: &Data{
+				Utilizations: []nvidianvml.Utilization{
+					{
+						UUID:              "gpu-uuid-123",
+						GPUUsedPercent:    75,
+						MemoryUsedPercent: 60,
+						Supported:         true,
+					},
+				},
+			},
+			expected: "", // We just check that it's not empty as the actual output depends on tablewriter
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.String()
+
+			if tt.expected == "" && tt.data != nil && len(tt.data.Utilizations) > 0 {
+				// For the case with utilization data, just verify it's not empty
+				assert.NotEmpty(t, result)
+				assert.Contains(t, result, "GPU")
+				assert.Contains(t, result, "USED %")
+				assert.Contains(t, result, "MEMORY UTILIZATION")
+			} else {
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test summary reason",
+			},
+			expected: "test summary reason",
+		},
+		{
+			name:     "empty data",
+			data:     &Data{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy",
+			data: &Data{
+				health: apiv1.StateTypeHealthy,
+			},
+			expected: apiv1.StateTypeHealthy,
+		},
+		{
+			name: "unhealthy",
+			data: &Data{
+				health: apiv1.StateTypeUnhealthy,
+			},
+			expected: apiv1.StateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheck_NilNVMLInstance(t *testing.T) {
+	ctx := context.Background()
+
+	// Create component with nil NVML instance
+	cctx, cancel := context.WithCancel(ctx)
+	comp := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: nil, // Explicitly nil
+	}
+
+	result := comp.Check()
+
+	// Verify data
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+	assert.Empty(t, data.Utilizations)
+}
+
+func TestCheck_NVMLNotExists(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a custom mock instance with NVMLExists returning false
+	mockInstance := &mockInstanceV2WithNVMLExists{
+		mockInstanceV2: &mockInstanceV2{
+			devices: map[string]device.Device{},
+		},
+		nvmlExists: false,
+	}
+
+	cctx, cancel := context.WithCancel(ctx)
+	comp := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: mockInstance,
+	}
+
+	result := comp.Check()
+
+	// Verify data
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Empty(t, data.Utilizations)
+}
+
+// mockInstanceV2WithNVMLExists is a mock that allows setting NVMLExists result
+type mockInstanceV2WithNVMLExists struct {
+	*mockInstanceV2
+	nvmlExists bool
+}
+
+func (m *mockInstanceV2WithNVMLExists) NVMLExists() bool {
+	return m.nvmlExists
+}
+
+func TestCheck_MultipleGPUs(t *testing.T) {
+	ctx := context.Background()
+
+	// Create multiple mock devices
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
+		// Return different utilization values based on UUID
+		if uuid == uuid1 {
+			return nvidianvml.Utilization{
+				UUID:              uuid1,
+				GPUUsedPercent:    75,
+				MemoryUsedPercent: 60,
+				Supported:         true,
+			}, nil
+		} else {
+			return nvidianvml.Utilization{
+				UUID:              uuid2,
+				GPUUsedPercent:    90,
+				MemoryUsedPercent: 85,
+				Supported:         true,
+			}, nil
+		}
+	}
+
+	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	result := component.Check()
+
+	// Verify the data was collected for both GPUs
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no utilization issue found", data.reason)
+	assert.Len(t, data.Utilizations, 2)
+
+	// Verify we have utilization data for both GPUs
+	uuids := []string{}
+	for _, util := range data.Utilizations {
+		uuids = append(uuids, util.UUID)
+	}
+	assert.Contains(t, uuids, uuid1)
+	assert.Contains(t, uuids, uuid2)
+
+	// Check the values for each GPU
+	for _, util := range data.Utilizations {
+		if util.UUID == uuid1 {
+			assert.Equal(t, uint32(75), util.GPUUsedPercent)
+			assert.Equal(t, uint32(60), util.MemoryUsedPercent)
+		} else if util.UUID == uuid2 {
+			assert.Equal(t, uint32(90), util.GPUUsedPercent)
+			assert.Equal(t, uint32(85), util.MemoryUsedPercent)
+		}
+	}
+}

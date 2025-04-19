@@ -56,6 +56,15 @@ func (m *MockNvmlInstance) Shutdown() error {
 	return nil
 }
 
+// MockNvmlInstanceNVMLNotLoaded is a special mock implementation that always returns false for NVMLExists
+type MockNvmlInstanceNVMLNotLoaded struct {
+	*MockNvmlInstance
+}
+
+func (m *MockNvmlInstanceNVMLNotLoaded) NVMLExists() bool {
+	return false
+}
+
 // MockECCComponent creates a component with mocked functions for testing
 func MockECCComponent(
 	ctx context.Context,
@@ -455,4 +464,268 @@ func TestData_GetError(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+		contains []string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name:     "empty data",
+			data:     &Data{},
+			expected: "no data",
+		},
+		{
+			name: "with data",
+			data: &Data{
+				ECCModes: []nvidianvml.ECCMode{
+					{
+						UUID:           "gpu-uuid-123",
+						EnabledCurrent: true,
+						EnabledPending: false,
+						Supported:      true,
+					},
+				},
+				ECCErrors: []nvidianvml.ECCErrors{
+					{
+						UUID: "gpu-uuid-123",
+						Aggregate: nvidianvml.AllECCErrorCounts{
+							Total: nvidianvml.ECCErrorCounts{
+								Corrected:   10,
+								Uncorrected: 5,
+							},
+						},
+						Volatile: nvidianvml.AllECCErrorCounts{
+							Total: nvidianvml.ECCErrorCounts{
+								Corrected:   3,
+								Uncorrected: 1,
+							},
+						},
+					},
+				},
+			},
+			contains: []string{
+				"GPU UUID",
+				"ENABLED CURRENT",
+				"ENABLED PENDING",
+				"SUPPORTED",
+				"gpu-uuid-123",
+				"AGGREGATE TOTAL CORRECTED",
+				"AGGREGATE TOTAL UNCORRECTED",
+				"VOLATILE TOTAL CORRECTED",
+				"VOLATILE TOTAL UNCORRECTED",
+				"10", "5", "3", "1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.String()
+			if tt.expected != "" {
+				assert.Equal(t, tt.expected, got)
+			}
+			for _, str := range tt.contains {
+				assert.Contains(t, got, str)
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test summary reason",
+			},
+			expected: "test summary reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy state",
+			data: &Data{
+				health: apiv1.StateTypeHealthy,
+			},
+			expected: apiv1.StateTypeHealthy,
+		},
+		{
+			name: "unhealthy state",
+			data: &Data{
+				health: apiv1.StateTypeUnhealthy,
+			},
+			expected: apiv1.StateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheck_NilNvmlInstance(t *testing.T) {
+	ctx := context.Background()
+
+	// Create component with nil NVML instance
+	cctx, cancel := context.WithCancel(ctx)
+	component := &component{
+		ctx:                   cctx,
+		cancel:                cancel,
+		nvmlInstance:          nil,
+		getECCModeEnabledFunc: nil,
+		getECCErrorsFunc:      nil,
+	}
+
+	result := component.Check()
+
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+}
+
+func TestCheck_NvmlNotLoaded(t *testing.T) {
+	ctx := context.Background()
+
+	// Create base mock instance
+	baseMock := &MockNvmlInstance{
+		devicesFunc: func() map[string]device.Device { return nil },
+	}
+
+	// Wrap it with our special mock that overrides NVMLExists
+	mockInstance := &MockNvmlInstanceNVMLNotLoaded{
+		MockNvmlInstance: baseMock,
+	}
+
+	cctx, cancel := context.WithCancel(ctx)
+	component := &component{
+		ctx:                   cctx,
+		cancel:                cancel,
+		nvmlInstance:          mockInstance,
+		getECCModeEnabledFunc: nil,
+		getECCErrorsFunc:      nil,
+	}
+
+	result := component.Check()
+
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+}
+
+func TestCheck_MultipleDevices(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch1", "test-brand1", "test-cuda1", "test-pci1")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch2", "test-brand2", "test-cuda2", "test-pci2")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+		return nvidianvml.ECCMode{
+			UUID:           uuid,
+			EnabledCurrent: true,
+			EnabledPending: true,
+			Supported:      true,
+		}, nil
+	}
+
+	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+		return nvidianvml.ECCErrors{
+			UUID: uuid,
+			Aggregate: nvidianvml.AllECCErrorCounts{
+				Total: nvidianvml.ECCErrorCounts{
+					Corrected:   5,
+					Uncorrected: 2,
+				},
+			},
+			Volatile: nvidianvml.AllECCErrorCounts{
+				Total: nvidianvml.ECCErrorCounts{
+					Corrected:   3,
+					Uncorrected: 1,
+				},
+			},
+			Supported: true,
+		}, nil
+	}
+
+	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+	result := component.Check()
+
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no ECC issue found", data.reason)
+	assert.Len(t, data.ECCModes, 2)
+	assert.Len(t, data.ECCErrors, 2)
+
+	// Check that data for both GPUs was collected
+	uuids := []string{data.ECCModes[0].UUID, data.ECCModes[1].UUID}
+	assert.Contains(t, uuids, uuid1)
+	assert.Contains(t, uuids, uuid2)
 }

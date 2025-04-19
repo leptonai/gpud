@@ -12,22 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 // mockInstanceV2 implements the nvidianvml.InstanceV2 interface for testing
 type mockInstanceV2 struct {
-	devices map[string]device.Device
+	devices    map[string]device.Device
+	nvmlExists bool
 }
 
 func (m *mockInstanceV2) NVMLExists() bool {
-	return true
+	return m.nvmlExists
 }
 
-func (m *mockInstanceV2) Library() nvml_lib.Library {
+func (m *mockInstanceV2) Library() nvmllib.Library {
 	return nil
 }
 
@@ -97,6 +99,77 @@ func TestData_GetStates(t *testing.T) {
 	assert.Equal(t, successData.ClockSpeeds, parsedData.ClockSpeeds)
 }
 
+// TestData_String tests the String method of Data
+func TestData_String(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	str := nilData.String()
+	assert.Empty(t, str)
+
+	// Test empty data
+	emptyData := &Data{}
+	str = emptyData.String()
+	assert.Equal(t, "no data", str)
+
+	// Test with clock speeds data
+	dataWithClockSpeeds := &Data{
+		ClockSpeeds: []nvidianvml.ClockSpeed{
+			{
+				UUID:                   "test-uuid-1",
+				GraphicsMHz:            1000,
+				MemoryMHz:              2000,
+				ClockGraphicsSupported: true,
+				ClockMemorySupported:   true,
+			},
+			{
+				UUID:                   "test-uuid-2",
+				GraphicsMHz:            1500,
+				MemoryMHz:              3000,
+				ClockGraphicsSupported: false,
+				ClockMemorySupported:   false,
+			},
+		},
+	}
+
+	str = dataWithClockSpeeds.String()
+	assert.Contains(t, str, "test-uuid-1")
+	assert.Contains(t, str, "1000 MHz")
+	assert.Contains(t, str, "2000 MHz")
+	assert.Contains(t, str, "test-uuid-2")
+	assert.Contains(t, str, "1500 MHz")
+	assert.Contains(t, str, "3000 MHz")
+}
+
+// TestData_Summary tests the Summary method of Data
+func TestData_Summary(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	summary := nilData.Summary()
+	assert.Empty(t, summary)
+
+	// Test with reason
+	dataWithReason := &Data{
+		reason: "test reason",
+	}
+	summary = dataWithReason.Summary()
+	assert.Equal(t, "test reason", summary)
+}
+
+// TestData_HealthState tests the HealthState method of Data
+func TestData_HealthState(t *testing.T) {
+	// Test nil data
+	var nilData *Data
+	health := nilData.HealthState()
+	assert.Empty(t, health)
+
+	// Test with health state
+	dataWithHealth := &Data{
+		health: apiv1.StateTypeHealthy,
+	}
+	health = dataWithHealth.HealthState()
+	assert.Equal(t, apiv1.StateTypeHealthy, health)
+}
+
 // TestComponent_Events tests the Events method
 func TestComponent_Events(t *testing.T) {
 	ctx := context.Background()
@@ -134,7 +207,8 @@ func TestNew(t *testing.T) {
 		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
 	}
 	mockInstance := &mockInstanceV2{
-		devices: mockDevices,
+		devices:    mockDevices,
+		nvmlExists: true,
 	}
 
 	gpudInstance := &components.GPUdInstance{
@@ -161,7 +235,8 @@ func TestComponent_Start(t *testing.T) {
 		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
 	}
 	mockInstance := &mockInstanceV2{
-		devices: mockDevices,
+		devices:    mockDevices,
+		nvmlExists: true,
 	}
 
 	c := &component{
@@ -229,7 +304,8 @@ func TestComponent_CheckOnce(t *testing.T) {
 	c := &component{
 		ctx: ctx,
 		nvmlInstance: &mockInstanceV2{
-			devices: mockDevices,
+			devices:    mockDevices,
+			nvmlExists: true,
 		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{
@@ -240,7 +316,9 @@ func TestComponent_CheckOnce(t *testing.T) {
 		},
 	}
 
-	c.Check()
+	result := c.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
 
 	// Verify that lastData was updated
 	require.NotNil(t, c.lastData)
@@ -249,23 +327,111 @@ func TestComponent_CheckOnce(t *testing.T) {
 	assert.Equal(t, uint32(1000), c.lastData.ClockSpeeds[0].GraphicsMHz)
 	assert.Equal(t, uint32(2000), c.lastData.ClockSpeeds[0].MemoryMHz)
 	assert.Nil(t, c.lastData.err)
+	assert.Equal(t, data, c.lastData)
 
 	// Test error case
 	testErr := errors.New("test error")
 	c = &component{
 		ctx: ctx,
 		nvmlInstance: &mockInstanceV2{
-			devices: mockDevices,
+			devices:    mockDevices,
+			nvmlExists: true,
 		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, testErr
 		},
 	}
 
-	c.Check()
+	result = c.Check()
+	data, ok = result.(*Data)
+	require.True(t, ok)
 
 	// Verify that lastData contains the error
 	require.NotNil(t, c.lastData)
 	assert.Len(t, c.lastData.ClockSpeeds, 0)
 	assert.Equal(t, testErr, c.lastData.err)
+	assert.Equal(t, data, c.lastData)
+}
+
+// TestComponent_Check_NilNVML tests the Check method with nil NVML instance
+func TestComponent_Check_NilNVML(t *testing.T) {
+	ctx := context.Background()
+	c := &component{
+		ctx:          ctx,
+		nvmlInstance: nil,
+	}
+
+	result := c.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
+
+	// Verify health state when NVML is nil
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+	assert.Nil(t, data.err)
+}
+
+// TestComponent_Check_NVMLNotLoaded tests the Check method when NVML is not loaded
+func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
+	ctx := context.Background()
+	c := &component{
+		ctx: ctx,
+		nvmlInstance: &mockInstanceV2{
+			nvmlExists: false,
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
+
+	// Verify health state when NVML is not loaded
+	assert.Equal(t, apiv1.StateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Nil(t, data.err)
+}
+
+// TestComponent_Check_MultipleDevices tests the Check method with multiple devices
+func TestComponent_Check_MultipleDevices(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock devices
+	mockNvmlDevice1 := &mock.Device{}
+	mockDevice1 := testutil.NewMockDevice(mockNvmlDevice1, "test-arch-1", "test-brand-1", "1.0", "0000:00:00.0")
+
+	mockNvmlDevice2 := &mock.Device{}
+	mockDevice2 := testutil.NewMockDevice(mockNvmlDevice2, "test-arch-2", "test-brand-2", "1.0", "0000:00:01.0")
+
+	mockDevices := map[string]device.Device{
+		"test-uuid-1": mockDevice1,
+		"test-uuid-2": mockDevice2,
+	}
+
+	c := &component{
+		ctx: ctx,
+		nvmlInstance: &mockInstanceV2{
+			devices:    mockDevices,
+			nvmlExists: true,
+		},
+		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
+			return nvidianvml.ClockSpeed{
+				UUID:                   uuid,
+				GraphicsMHz:            1000,
+				MemoryMHz:              2000,
+				ClockGraphicsSupported: true,
+				ClockMemorySupported:   true,
+			}, nil
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*Data)
+	require.True(t, ok)
+
+	// Verify that lastData was updated with both devices
+	require.NotNil(t, c.lastData)
+	assert.Len(t, c.lastData.ClockSpeeds, 2)
+	assert.Contains(t, c.lastData.reason, "2 GPU(s) were checked")
+	assert.Nil(t, c.lastData.err)
+	assert.Equal(t, data, c.lastData)
 }
