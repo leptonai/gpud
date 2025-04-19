@@ -181,12 +181,6 @@ func (c *component) Check() components.CheckResult {
 			curStat,
 			usedPct,
 		)
-		if err != nil {
-			d.err = err
-			d.health = apiv1.StateTypeUnhealthy
-			d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-			return d
-		}
 		c.setPrevTimeStatFunc(curStat)
 
 		d.Usage = Usage{}
@@ -279,6 +273,7 @@ func (d *Data) String() string {
 	table.Append([]string{"Family", d.Info.Family})
 	table.Append([]string{"Model", d.Info.Model})
 	table.Append([]string{"Model Name", d.Info.ModelName})
+	table.Append([]string{"Logical Cores", fmt.Sprintf("%d", d.Cores.Logical)})
 	table.Append([]string{"Avg Load 1-min", d.Usage.LoadAvg1Min})
 	table.Append([]string{"Avg Load 5-min", d.Usage.LoadAvg5Min})
 	table.Append([]string{"Avg Load 15-min", d.Usage.LoadAvg15Min})

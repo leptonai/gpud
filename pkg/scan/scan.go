@@ -102,6 +102,7 @@ func printSummary(result components.CheckResult) {
 	}
 	fmt.Printf("%s %s\n", header, result.Summary())
 	fmt.Println(result.String())
+	println()
 }
 
 // Runs the scan operations.

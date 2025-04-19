@@ -2,14 +2,11 @@
 package tailscale
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/olekukonko/tablewriter"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -142,14 +139,7 @@ func (d *Data) String() string {
 	if d == nil {
 		return ""
 	}
-
-	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
-	table.Render()
-
-	return buf.String()
+	return d.reason
 }
 
 func (d *Data) Summary() string {

@@ -226,13 +226,25 @@ func (d *Data) String() string {
 		return ""
 	}
 
+	cnt := 0
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.SetHeader([]string{"Device ID", "Device Name", "ACS Enabled"})
+	for _, dev := range d.Devices {
+		acsEnabled := dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid
+		if acsEnabled {
+			cnt++
+			table.Append([]string{dev.ID, dev.Name, "yes"})
+		}
+	}
 	table.Render()
 
-	return buf.String()
+	if cnt > 0 {
+		return buf.String()
+	}
+
+	return "no devices with ACS enabled (ok)"
 }
 
 func (d *Data) Summary() string {

@@ -952,7 +952,7 @@ func TestDataMethods(t *testing.T) {
 				reason: "error reason",
 				health: apiv1.StateTypeUnhealthy,
 			},
-			expectString:   "+\n+\n",
+			expectString:   "+----------+-------------+---------------------+-------------------------+---------+\n| GPU UUID | HW SLOWDOWN | HW SLOWDOWN THERMAL | HW SLOWDOWN POWER BRAKE | REASONS |\n+----------+-------------+---------------------+-------------------------+---------+\n|  gpu-0   |    true     |        false        |          false          |         |\n+----------+-------------+---------------------+-------------------------+---------+\n",
 			expectSummary:  "error reason",
 			expectHealth:   apiv1.StateTypeUnhealthy,
 			expectError:    "test error",

@@ -303,15 +303,16 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-	table.Append([]string{"Allocated File Handles", fmt.Sprintf("%d", d.AllocatedFileHandles)})
 	table.Append([]string{"Running PIDs", fmt.Sprintf("%d", d.RunningPIDs)})
 	table.Append([]string{"Usage", fmt.Sprintf("%d", d.Usage)})
 	table.Append([]string{"Limit", fmt.Sprintf("%d", d.Limit)})
-	table.Append([]string{"Allocated File Handles Percent", d.AllocatedFileHandlesPercent})
-	table.Append([]string{"Used Percent", d.UsedPercent})
+	table.Append([]string{"Used %", d.UsedPercent})
 
-	table.Append([]string{"Threshold Allocated File Handles", fmt.Sprintf("%d", d.ThresholdAllocatedFileHandles)})
-	table.Append([]string{"Threshold Allocated File Handles %", d.ThresholdAllocatedFileHandlesPercent})
+	table.Append([]string{"Allocated File Handles", fmt.Sprintf("%d", d.AllocatedFileHandles)})
+	table.Append([]string{"Allocated File Handles %", d.AllocatedFileHandlesPercent})
+
+	table.Append([]string{"Threshold Alloc File Handles", fmt.Sprintf("%d", d.ThresholdAllocatedFileHandles)})
+	table.Append([]string{"Threshold Alloc File Handles %", d.ThresholdAllocatedFileHandlesPercent})
 
 	table.Append([]string{"Threshold Running PIDs", fmt.Sprintf("%d", d.ThresholdRunningPIDs)})
 	table.Append([]string{"Threshold Running PIDs %", d.ThresholdRunningPIDsPercent})

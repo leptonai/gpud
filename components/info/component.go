@@ -269,21 +269,21 @@ func (d *Data) String() string {
 	table.Append([]string{"Daemon Version", d.DaemonVersion})
 	table.Append([]string{"Mac Address", d.MacAddress})
 
-	table.Append([]string{"GPUd Usage: File Descriptors", fmt.Sprintf("%d", d.GPUdUsageFileDescriptors)})
-	table.Append([]string{"GPUd Usage: Memory", d.GPUdUsageMemoryHumanized})
-	table.Append([]string{"GPUd Usage: DB", d.GPUdUsageDBHumanized})
+	table.Append([]string{"GPUd File Descriptors", fmt.Sprintf("%d", d.GPUdUsageFileDescriptors)})
+	table.Append([]string{"GPUd Memory", d.GPUdUsageMemoryHumanized})
+	table.Append([]string{"GPUd DB Size", d.GPUdUsageDBHumanized})
 
-	table.Append([]string{"GPUd Usage: Insert/Update Total", fmt.Sprintf("%d", d.GPUdUsageInsertUpdateTotal)})
-	table.Append([]string{"GPUd Usage: Insert/Update Avg QPS", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgQPS)})
-	table.Append([]string{"GPUd Usage: Insert/Update Avg Latency", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgLatencyInSeconds)})
+	table.Append([]string{"DB Insert/Update Total", fmt.Sprintf("%d", d.GPUdUsageInsertUpdateTotal)})
+	table.Append([]string{"DB Insert/Update Avg QPS", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgQPS)})
+	table.Append([]string{"DB Insert/Update Avg Latency", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgLatencyInSeconds)})
 
-	table.Append([]string{"GPUd Usage: Delete Total", fmt.Sprintf("%d", d.GPUdUsageDeleteTotal)})
-	table.Append([]string{"GPUd Usage: Delete Avg QPS", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgQPS)})
-	table.Append([]string{"GPUd Usage: Delete Avg Latency", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgLatencyInSeconds)})
+	table.Append([]string{"DB Delete Total", fmt.Sprintf("%d", d.GPUdUsageDeleteTotal)})
+	table.Append([]string{"DB Delete Avg QPS", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgQPS)})
+	table.Append([]string{"DB Delete Avg Latency", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgLatencyInSeconds)})
 
-	table.Append([]string{"GPUd Usage: Select Total", fmt.Sprintf("%d", d.GPUdUsageSelectTotal)})
-	table.Append([]string{"GPUd Usage: Select Avg QPS", fmt.Sprintf("%f", d.GPUdUsageSelectAvgQPS)})
-	table.Append([]string{"GPUd Usage: Select Avg Latency", fmt.Sprintf("%f", d.GPUdUsageSelectAvgLatencyInSeconds)})
+	table.Append([]string{"DB Select Total", fmt.Sprintf("%d", d.GPUdUsageSelectTotal)})
+	table.Append([]string{"DB Select Avg QPS", fmt.Sprintf("%f", d.GPUdUsageSelectAvgQPS)})
+	table.Append([]string{"DB Select Avg Latency", fmt.Sprintf("%f", d.GPUdUsageSelectAvgLatencyInSeconds)})
 
 	table.Append([]string{"GPUd Start Time", d.GPUdStartTimeHumanized})
 
