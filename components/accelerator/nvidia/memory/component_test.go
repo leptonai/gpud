@@ -23,6 +23,7 @@ import (
 // MockNvmlInstance implements the nvidianvml.InstanceV2 interface for testing
 type MockNvmlInstance struct {
 	DevicesFunc func() map[string]device.Device
+	nvmlExists  bool
 }
 
 func (m *MockNvmlInstance) Devices() map[string]device.Device {
@@ -41,7 +42,7 @@ func (m *MockNvmlInstance) ProductName() string {
 }
 
 func (m *MockNvmlInstance) NVMLExists() bool {
-	return true
+	return m.nvmlExists
 }
 
 func (m *MockNvmlInstance) Library() nvml_lib.Library {
@@ -70,8 +71,15 @@ func MockMemoryComponent(
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockNvmlInstance := &MockNvmlInstance{}
-	c := New(ctx, mockNvmlInstance)
 
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockNvmlInstance,
+	}
+
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -110,6 +118,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	memory := nvidianvml.Memory{
@@ -136,18 +145,17 @@ func TestCheckOnce_Success(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify the data was collected
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", lastData.reason)
-	assert.Len(t, lastData.Memories, 1)
-	assert.Equal(t, memory, lastData.Memories[0])
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", data.reason)
+	assert.Len(t, data.Memories, 1)
+	assert.Equal(t, memory, data.Memories[0])
 }
 
 func TestCheckOnce_MemoryError(t *testing.T) {
@@ -169,6 +177,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	errExpected := errors.New("memory error")
@@ -177,17 +186,16 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting memory for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, data.err)
+	assert.Equal(t, "error getting memory for device gpu-uuid-123", data.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -197,20 +205,20 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{} // Empty map
 		},
+		nvmlExists: true,
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify handling of no devices
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.True(t, lastData.healthy, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no memory issue found", lastData.reason)
-	assert.Empty(t, lastData.Memories)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no memory issue found", data.reason)
+	assert.Empty(t, data.Memories)
 }
 
 func TestCheckOnce_GetUsedPercentError(t *testing.T) {
@@ -232,6 +240,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
+		nvmlExists: true,
 	}
 
 	// Create malformed memory data that will cause GetUsedPercent to fail
@@ -251,17 +260,16 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
-	component.CheckOnce()
+	result := component.Check()
 
 	// Verify error handling for GetUsedPercent failure
-	component.lastMu.RLock()
-	lastData := component.lastData
-	component.lastMu.RUnlock()
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.healthy, "data should be marked unhealthy")
-	assert.NotNil(t, lastData.err)
-	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.NotNil(t, data.err)
+	assert.Equal(t, "error getting used percent for device gpu-uuid-123", data.reason)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -285,19 +293,18 @@ func TestStates_WithData(t *testing.T) {
 				UsedPercent:       "50.00",
 			},
 		},
-		healthy: true,
-		reason:  "all 1 GPU(s) were checked, no memory issue found",
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "all 1 GPU(s) were checked, no memory issue found",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no memory issue found", state.Reason)
 	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
 }
@@ -309,20 +316,19 @@ func TestStates_WithError(t *testing.T) {
 	// Set test data with error
 	component.lastMu.Lock()
 	component.lastData = &Data{
-		err:     errors.New("test memory error"),
-		healthy: false,
-		reason:  "error getting memory for device gpu-uuid-123",
+		err:    errors.New("test memory error"),
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "error getting memory for device gpu-uuid-123",
 	}
 	component.lastMu.Unlock()
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting memory for device gpu-uuid-123", state.Reason)
 	assert.Equal(t, "test memory error", state.Error)
 }
@@ -334,13 +340,12 @@ func TestStates_NoData(t *testing.T) {
 	// Don't set any data
 
 	// Get states
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
@@ -364,6 +369,7 @@ func TestStart(t *testing.T) {
 			callCount.Add(1)
 			return map[string]device.Device{}
 		},
+		nvmlExists: true,
 	}
 
 	component := MockMemoryComponent(ctx, mockNvmlInstance, nil)
@@ -372,11 +378,11 @@ func TestStart(t *testing.T) {
 	err := component.Start()
 	assert.NoError(t, err)
 
-	// Give the goroutine time to execute CheckOnce at least once
+	// Give the goroutine time to execute Check at least once
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify CheckOnce was called
-	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+	// Verify Check was called
+	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "Check should have been called at least once")
 }
 
 func TestClose(t *testing.T) {
@@ -416,8 +422,8 @@ func TestData_GetError(t *testing.T) {
 		{
 			name: "no error",
 			data: &Data{
-				healthy: true,
-				reason:  "all good",
+				health: apiv1.HealthStateTypeHealthy,
+				reason: "all good",
 			},
 			expected: "",
 		},
@@ -429,4 +435,214 @@ func TestData_GetError(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestData_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+		contains []string // For partial matching of table output
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "empty memories",
+			data: &Data{
+				Memories: []nvidianvml.Memory{},
+			},
+			expected: "no data",
+		},
+		{
+			name: "with memory data",
+			data: &Data{
+				Memories: []nvidianvml.Memory{
+					{
+						UUID:              "gpu-uuid-123",
+						TotalBytes:        16 * 1024 * 1024 * 1024,
+						ReservedBytes:     1 * 1024 * 1024 * 1024,
+						UsedBytes:         8 * 1024 * 1024 * 1024,
+						FreeBytes:         7 * 1024 * 1024 * 1024,
+						TotalHumanized:    "16 GB",
+						ReservedHumanized: "1 GB",
+						UsedHumanized:     "8 GB",
+						FreeHumanized:     "7 GB",
+						UsedPercent:       "50.00",
+					},
+				},
+			},
+			contains: []string{
+				"GPU UUID",
+				"TOTAL",
+				"RESERVED",
+				"USED",
+				"FREE",
+				"USED %",
+				"gpu-uuid-123",
+				"16 GB",
+				"1 GB",
+				"8 GB",
+				"7 GB",
+				"50.00",
+			},
+		},
+		{
+			name: "multiple memory entries",
+			data: &Data{
+				Memories: []nvidianvml.Memory{
+					{
+						UUID:              "gpu-uuid-123",
+						TotalBytes:        16 * 1024 * 1024 * 1024,
+						ReservedBytes:     1 * 1024 * 1024 * 1024,
+						UsedBytes:         8 * 1024 * 1024 * 1024,
+						FreeBytes:         7 * 1024 * 1024 * 1024,
+						TotalHumanized:    "16 GB",
+						ReservedHumanized: "1 GB",
+						UsedHumanized:     "8 GB",
+						FreeHumanized:     "7 GB",
+						UsedPercent:       "50.00",
+					},
+					{
+						UUID:              "gpu-uuid-456",
+						TotalBytes:        32 * 1024 * 1024 * 1024,
+						ReservedBytes:     2 * 1024 * 1024 * 1024,
+						UsedBytes:         20 * 1024 * 1024 * 1024,
+						FreeBytes:         10 * 1024 * 1024 * 1024,
+						TotalHumanized:    "32 GB",
+						ReservedHumanized: "2 GB",
+						UsedHumanized:     "20 GB",
+						FreeHumanized:     "10 GB",
+						UsedPercent:       "62.50",
+					},
+				},
+			},
+			contains: []string{
+				"gpu-uuid-123",
+				"16 GB",
+				"gpu-uuid-456",
+				"32 GB",
+				"20 GB",
+				"62.50",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.String()
+
+			if tt.expected != "" {
+				assert.Equal(t, tt.expected, got)
+			}
+
+			for _, s := range tt.contains {
+				assert.Contains(t, got, s)
+			}
+		})
+	}
+}
+
+func TestData_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.Summary()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestData_HealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+		{
+			name: "healthy",
+			data: &Data{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy",
+			data: &Data{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.data.HealthState()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheckOnce_NilNvmlInstance(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a component with nil nvmlInstance
+	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	result := component.Check()
+
+	// Verify data when nvmlInstance is nil
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+}
+
+func TestCheckOnce_NvmlNotExists(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a mock NVML instance where NVMLExists returns false
+	mockNvmlInstance := &MockNvmlInstance{
+		DevicesFunc: func() map[string]device.Device {
+			return map[string]device.Device{}
+		},
+		nvmlExists: false,
+	}
+
+	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
+	result := component.Check()
+
+	// Verify data when NVML doesn't exist
+	data, ok := result.(*Data)
+	require.True(t, ok, "result should be of type *Data")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
 }

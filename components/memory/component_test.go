@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -14,17 +13,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -33,14 +32,13 @@ func TestDataGetStatesWithError(t *testing.T) {
 	d := &Data{
 		TotalBytes: 16,
 		UsedBytes:  8,
-		health:     apiv1.StateTypeUnhealthy,
+		health:     apiv1.HealthStateTypeUnhealthy,
 		err:        testError,
 	}
 
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
 // MockEventStore implements a mock for eventstore.Store
@@ -128,11 +126,10 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	// Test with no data yet
-	states, err := c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
@@ -140,16 +137,15 @@ func TestComponentStates(t *testing.T) {
 		TotalBytes: 16,
 		UsedBytes:  8,
 		ts:         time.Now(),
-		health:     apiv1.StateTypeHealthy,
+		health:     apiv1.HealthStateTypeHealthy,
 		reason:     "using 8 bytes out of total 16 bytes",
 	}
 	c.lastData = testData
 
-	states, err = c.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "using 8 bytes out of total 16 bytes", states[0].Reason)
 }
 
@@ -215,7 +211,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
@@ -223,7 +219,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	assert.Equal(t, mockVMStat.Available, c.lastData.AvailableBytes)
 	assert.Equal(t, mockVMStat.Used, c.lastData.UsedBytes)
 	assert.Equal(t, uint64(1024*1024), c.lastData.BPFJITBufferBytes)
-	assert.Equal(t, apiv1.StateTypeHealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
 }
 
 func TestComponentCheckOnceWithVMError(t *testing.T) {
@@ -244,11 +240,11 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get virtual memory")
 }
@@ -285,26 +281,23 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	// Test
-	c.CheckOnce()
+	_ = c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, c.lastData.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
 	assert.Equal(t, testError, c.lastData.err)
 	assert.Contains(t, c.lastData.reason, "failed to get bpf jit buffer bytes")
 }
 
-func TestCheckHealthState(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	rs, err := CheckHealthState(ctx)
+func TestCheck(t *testing.T) {
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+
+	rs := comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
-
-	b, err := json.Marshal(rs)
-	assert.NoError(t, err)
-	fmt.Println(string(b))
 }

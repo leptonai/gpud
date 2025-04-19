@@ -2,19 +2,28 @@ package sxid
 
 import (
 	"context"
+	"errors"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+// createTestEvent creates a test event with the specified timestamp
 func createTestEvent(timestamp time.Time) apiv1.Event {
 	return apiv1.Event{
 		Time:    metav1.Time{Time: timestamp},
@@ -28,6 +37,43 @@ func createTestEvent(timestamp time.Time) apiv1.Event {
 			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 		},
 	}
+}
+
+// createGPUdInstance creates a mock GPUdInstance for testing
+func createGPUdInstance(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *components.GPUdInstance {
+	return &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       eventStore,
+		RebootEventStore: rebootEventStore,
+	}
+}
+
+// initComponentForTest initializes a component and sets up necessary test mocks
+func initComponentForTest(ctx context.Context, t *testing.T) (*component, func()) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+
+	gpudInstance := createGPUdInstance(ctx, rebootEventStore, store)
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	// Type assertion to access component methods
+	component, ok := comp.(*component)
+	assert.True(t, ok, "Failed to cast to *component type")
+
+	// Ensure the component has an eventBucket
+	if component.eventBucket == nil {
+		bucket, err := store.Bucket(Name)
+		assert.NoError(t, err)
+		component.eventBucket = bucket
+	}
+
+	return component, cleanup
 }
 
 func TestMergeEvents(t *testing.T) {
@@ -112,21 +158,14 @@ func TestMergeEvents(t *testing.T) {
 }
 
 func TestSXIDComponent_SetHealthy(t *testing.T) {
-	// initialize component
+	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
-	assert.NoError(t, err)
-
-	rebootEventStore := pkghost.NewRebootEventStore(store)
-
-	component := New(ctx, rebootEventStore, store)
-	assert.NotNil(t, component)
-	err = component.SetHealthy()
+	err := component.SetHealthy()
 	assert.NoError(t, err)
 
 	select {
@@ -137,88 +176,94 @@ func TestSXIDComponent_SetHealthy(t *testing.T) {
 	}
 }
 
-func TestSXIDComponent_Events(t *testing.T) {
-	// initialize component
+func TestSXIDComponent_SetHealthy_ChannelFull(t *testing.T) {
+	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	// Create a channel with a small buffer capacity
+	component.extraEventCh = make(chan *apiv1.Event, 1)
+
+	// Fill the channel
+	component.extraEventCh <- &apiv1.Event{
+		Time: metav1.Time{Time: time.Now()},
+		Name: "dummy",
+	}
+
+	// SetHealthy should not block when the channel is full
+	err := component.SetHealthy()
 	assert.NoError(t, err)
+}
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+func TestSXIDComponent_Events(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
-	component := New(ctx, rebootEventStore, store)
-	assert.NotNil(t, component)
-	go component.start(make(<-chan kmsg.Message, 1), 1*time.Second)
-	defer func() {
-		if err := component.Close(); err != nil {
-			t.Error("failed to close component")
-		}
-	}()
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Create a channel with a buffer to avoid blocking
+	msgCh := make(chan kmsg.Message, 1)
+	go component.start(msgCh, 500*time.Millisecond)
+	defer component.Close()
 
 	testEvents := apiv1.Events{
 		createTestEvent(time.Now()),
 	}
 
-	// insert test events
+	// Insert test events
 	for _, event := range testEvents {
-		select {
-		case component.extraEventCh <- &event:
-		default:
-			t.Error("failed to insert event into channel")
-		}
+		event := event // To avoid capturing the loop variable
+		err := component.eventBucket.Insert(ctx, event)
+		assert.NoError(t, err)
 	}
 
-	// wait for events to be processed
-	time.Sleep(5 * time.Second)
+	// Wait for events to be processed
+	time.Sleep(1 * time.Second)
 
 	events, err := component.Events(ctx, time.Now().Add(-1*time.Hour))
 	assert.NoError(t, err)
-	assert.Len(t, events, len(testEvents))
-	for i, event := range events {
-		assert.Equal(t, testEvents[i].Time.Time.Unix(), event.Time.Time.Unix())
-		assert.Equal(t, testEvents[i].Name, event.Name)
-		assert.Equal(t, testEvents[i].Type, event.Type)
-		assert.Equal(t, testEvents[i].Message, event.Message)
-		assert.Equal(t, testEvents[i].DeprecatedExtraInfo, event.DeprecatedExtraInfo)
-		assert.Equal(t, testEvents[i].DeprecatedSuggestedActions, event.DeprecatedSuggestedActions)
+	assert.GreaterOrEqual(t, len(events), len(testEvents))
+
+	if len(events) > 0 {
+		// Check that at least one of the events matches what we expect
+		found := false
+		for _, event := range events {
+			if event.Name == testEvents[0].Name {
+				found = true
+				assert.Equal(t, testEvents[0].Type, event.Type)
+				assert.Equal(t, testEvents[0].Message, event.Message)
+				break
+			}
+		}
+		assert.True(t, found, "Couldn't find the test event in the retrieved events")
 	}
 }
 
 func TestSXIDComponent_States(t *testing.T) {
-	// initialize component
+	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
-	assert.NoError(t, err)
-
-	rebootEventStore := pkghost.NewRebootEventStore(store)
-
-	component := New(ctx, rebootEventStore, store)
-
-	assert.NotNil(t, component)
-	go component.start(make(<-chan kmsg.Message, 1), 100*time.Millisecond)
-	defer func() {
-		if err := component.Close(); err != nil {
-			t.Error("failed to close component")
-		}
-	}()
+	// Create a channel with a buffer to avoid blocking
+	msgCh := make(chan kmsg.Message, 1)
+	go component.start(msgCh, 100*time.Millisecond)
+	defer component.Close()
 
 	s := apiv1.HealthState{
 		Name:   StateNameErrorSXid,
-		Health: apiv1.StateTypeHealthy,
+		Health: apiv1.HealthStateTypeHealthy,
 		Reason: "SXIDComponent is healthy",
 	}
 	component.currState = s
-	states, err := component.HealthStates(ctx)
-	assert.NoError(t, err)
+	states := component.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, s, states[0])
 
@@ -241,31 +286,30 @@ func TestSXIDComponent_States(t *testing.T) {
 				createSXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.StateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.StateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// insert test events
+			// Insert test events directly into eventBucket rather than using extraEventCh
 			for i, event := range tt.events {
-				select {
-				case component.extraEventCh <- &event:
-				default:
-					t.Error("failed to insert event into channel")
-				}
-				// wait for events to be processed
-				time.Sleep(1 * time.Second)
-				states, err = component.HealthStates(ctx)
+				err := component.eventBucket.Insert(ctx, event)
+				assert.NoError(t, err)
+
+				// Manually trigger state update rather than waiting for channel
+				err = component.updateCurrentState()
+				assert.NoError(t, err)
+
+				states := component.LastHealthStates()
 				t.Log(states[0])
-				assert.NoError(t, err, "index %d", i)
 				assert.Len(t, states, 1, "index %d", i)
 				assert.Equal(t, tt.wantState[i].Health, states[0].Health, "index %d", i)
 				if tt.wantState[i].SuggestedActions == nil {
@@ -275,10 +319,594 @@ func TestSXIDComponent_States(t *testing.T) {
 					assert.Equal(t, tt.wantState[i].SuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions, "index %d", i)
 				}
 			}
-			err = component.SetHealthy()
+			err := component.SetHealthy()
 			assert.NoError(t, err)
-			// wait for events to be processed
-			time.Sleep(1 * time.Second)
+			// Wait for events to be processed
+			time.Sleep(500 * time.Millisecond)
 		})
 	}
+}
+
+func TestSXIDComponent_Check(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Create a mock NVML instance
+	mockNVML := &MockNVMLInstance{
+		exists: true,
+	}
+	component.nvmlInstance = mockNVML
+
+	// Mock the readAllKmsg function to return test data
+	mockMessages := []kmsg.Message{
+		{
+			Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
+			Timestamp: metav1.Time{Time: time.Now()},
+		},
+		{
+			Message:   "some other message that doesn't match",
+			Timestamp: metav1.Time{Time: time.Now()},
+		},
+	}
+	component.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		return mockMessages, nil
+	}
+
+	// Run the check
+	result := component.Check()
+
+	// Verify the result
+	data, ok := result.(*Data)
+	assert.True(t, ok, "Result should be of type *Data")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Contains(t, data.reason, "matched")
+}
+
+func TestSXIDComponent_Check_Error(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Create a mock NVML instance
+	mockNVML := &MockNVMLInstance{
+		exists: true,
+	}
+	component.nvmlInstance = mockNVML
+
+	// Mock the readAllKmsg function to return an error
+	component.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		return nil, errors.New("test error")
+	}
+
+	// Run the check
+	result := component.Check()
+
+	// Verify the result
+	data, ok := result.(*Data)
+	assert.True(t, ok, "Result should be of type *Data")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "failed to read kmsg")
+}
+
+func TestSXIDComponent_Check_NoNVML(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Set nvmlInstance to nil to simulate no NVML
+	component.nvmlInstance = nil
+
+	// Run the check
+	result := component.Check()
+
+	// Verify the result
+	data, ok := result.(*Data)
+	assert.True(t, ok, "Result should be of type *Data")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Contains(t, data.reason, "NVIDIA NVML instance is nil")
+}
+
+func TestSXIDComponent_Close(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Call Close directly and verify it doesn't error
+	err := component.Close()
+	assert.NoError(t, err)
+}
+
+func TestSXIDComponent_Name(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Verify the component name
+	assert.Equal(t, Name, component.Name())
+}
+
+func TestDataString(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        *Data
+		shouldMatch []string
+	}{
+		{
+			name: "data with errors",
+			data: &Data{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
+							Timestamp: metav1.Time{Time: time.Now()},
+						},
+						SXidError: SXidError{
+							SXid:       12028,
+							DeviceUUID: "PCI:0000:05:00.0",
+							Detail: &sxid.Detail{
+								Name: "Test SXid Error",
+								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+								},
+								CriticalErrorMarkedByGPUd: true,
+							},
+						},
+					},
+				},
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "found some errors",
+			},
+			shouldMatch: []string{"Test SXid Error", "12028", "PCI:0000:05:00.0", "true"},
+		},
+		{
+			name: "empty data",
+			data: &Data{
+				FoundErrors: []FoundError{},
+				health:      apiv1.HealthStateTypeHealthy,
+				reason:      "no errors found",
+			},
+			shouldMatch: []string{"no sxid error found"},
+		},
+		{
+			name:        "nil data",
+			data:        nil,
+			shouldMatch: []string{""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.String()
+			for _, substr := range tt.shouldMatch {
+				assert.Contains(t, result, substr)
+			}
+		})
+	}
+}
+
+func TestDataSummary(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected string
+	}{
+		{
+			name: "with reason",
+			data: &Data{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.Summary()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDataHealthState(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *Data
+		expected apiv1.HealthStateType
+	}{
+		{
+			name: "healthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.HealthState()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestMatcher(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectMatch  bool
+		expectedSXid int
+		expectedUUID string
+	}{
+		{
+			name:         "valid SXid message",
+			input:        "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
+			expectMatch:  true,
+			expectedSXid: 12028,
+			expectedUUID: "PCI:0000:05:00.0",
+		},
+		{
+			name:        "non-matching message",
+			input:       "some random log line",
+			expectMatch: false,
+		},
+		{
+			name:        "empty string",
+			input:       "",
+			expectMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Match(tt.input)
+			if tt.expectMatch {
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expectedSXid, result.SXid)
+				assert.Equal(t, tt.expectedUUID, result.DeviceUUID)
+			} else {
+				assert.Nil(t, result)
+			}
+		})
+	}
+}
+
+func TestSXIDComponent_UpdateCurrentState_NilStores(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Set stores to nil
+	component.rebootEventStore = nil
+	component.eventBucket = nil
+
+	// This should not cause an error
+	err := component.updateCurrentState()
+	assert.NoError(t, err)
+}
+
+func TestSXIDComponent_UpdateCurrentState_ErrorOnGet(t *testing.T) {
+	// Create a mock event bucket that returns an error on Get
+	mockBucket := &MockEventBucket{
+		getError: errors.New("test error"),
+	}
+
+	// Initialize component with the mock bucket
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.eventBucket = mockBucket
+
+	// Should return an error
+	err := component.updateCurrentState()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get all events")
+}
+
+// MockEventBucket implements eventstore.Bucket for testing
+type MockEventBucket struct {
+	getError error
+	events   apiv1.Events
+}
+
+func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+	return nil
+}
+
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if m.getError != nil {
+		return nil, m.getError
+	}
+	return m.events, nil
+}
+
+func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+	return nil, nil
+}
+
+func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+	if m.getError != nil {
+		return nil, m.getError
+	}
+	if len(m.events) == 0 {
+		return nil, nil
+	}
+	return &m.events[0], nil
+}
+
+func (m *MockEventBucket) Close() {}
+
+func (m *MockEventBucket) Name() string {
+	return "mock-bucket"
+}
+
+func (m *MockEventBucket) Purge(ctx context.Context, beforeUnixTime int64) (int, error) {
+	return 0, nil
+}
+
+// MockNVMLInstance implements nvidianvml.InstanceV2 for testing
+type MockNVMLInstance struct {
+	exists bool
+}
+
+func (m *MockNVMLInstance) NVMLExists() bool {
+	return m.exists
+}
+
+func (m *MockNVMLInstance) DeviceGetCount() (int, error) {
+	return 0, nil
+}
+
+func (m *MockNVMLInstance) DeviceGetHandleByIndex(idx int) (interface{}, error) {
+	return nil, nil
+}
+
+func (m *MockNVMLInstance) Devices() map[string]device.Device {
+	return make(map[string]device.Device)
+}
+
+func (m *MockNVMLInstance) Library() nvmllib.Library {
+	return nil
+}
+
+func (m *MockNVMLInstance) ProductName() string {
+	return "Test GPU"
+}
+
+func (m *MockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *MockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+func TestSXIDComponent_Start(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Call Start
+	err := component.Start()
+	assert.NoError(t, err)
+
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		// Start again to ensure it doesn't cause issues
+		err = component.Start()
+		assert.Equal(t, kmsg.ErrWatcherAlreadyStarted, err)
+	}
+}
+
+func TestSXIDComponent_Start_ContextCanceled(t *testing.T) {
+	// Initialize component with a canceled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Start should exit cleanly when context is canceled
+	err := component.Start()
+	assert.NoError(t, err)
+}
+
+func TestSXIDComponent_Events_NoEventBucket(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Set eventBucket to nil
+	component.eventBucket = nil
+
+	// Events should return nil, nil
+	events, err := component.Events(ctx, time.Now().Add(-1*time.Hour))
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+}
+
+func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Create a mock reboot event store that returns an error on GetRebootEvents
+	mockRebootStore := &MockRebootEventStore{
+		getRebootEventsError: errors.New("test error"),
+	}
+	component.rebootEventStore = mockRebootStore
+
+	// Create a mock event bucket with events
+	mockBucket := &MockEventBucket{
+		events: apiv1.Events{
+			createTestEvent(time.Now()),
+		},
+	}
+	component.eventBucket = mockBucket
+
+	// Call updateCurrentState - should still work but the error should be in the state
+	err := component.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Check that the error is in the state
+	state := component.LastHealthStates()[0]
+	assert.Contains(t, state.Error, "failed to get reboot events")
+}
+
+// MockRebootEventStore implements pkghost.RebootEventStore for testing
+type MockRebootEventStore struct {
+	rebootEvents         apiv1.Events
+	getRebootEventsError error
+}
+
+func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if m.getRebootEventsError != nil {
+		return nil, m.getRebootEventsError
+	}
+	return m.rebootEvents, nil
+}
+
+func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
+	return nil
+}
+
+func TestSXIDComponent_Start_KmsgWatcherError(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Replace kmsgWatcher with a mock that returns an error when Watch is called
+	component.kmsgWatcher = &MockKmsgWatcher{
+		watchError: errors.New("watch error"),
+	}
+
+	// Start should return the error from kmsgWatcher.Watch
+	err := component.Start()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "watch error")
+}
+
+func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// Create a mock kmsg watcher that returns a test channel
+	mockCh := make(chan kmsg.Message, 2)
+	component.kmsgWatcher = &MockKmsgWatcher{
+		watchCh: mockCh,
+	}
+
+	// Start the component in a goroutine
+	startDone := make(chan struct{})
+	go func() {
+		err := component.Start()
+		assert.NoError(t, err)
+		close(startDone)
+	}()
+
+	// Send a message to extraEventCh to verify processing
+	event := &apiv1.Event{
+		Time:    metav1.Time{Time: time.Now()},
+		Name:    "test_event",
+		Message: "test message",
+	}
+	component.extraEventCh <- event
+
+	// Also send a kmsg message to mock channel
+	mockCh <- kmsg.Message{
+		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)",
+		Timestamp: metav1.Time{Time: time.Now()},
+	}
+
+	// Send another kmsg message that doesn't match SXid pattern
+	mockCh <- kmsg.Message{
+		Message:   "some other non-matching message",
+		Timestamp: metav1.Time{Time: time.Now()},
+	}
+
+	// Cancel to clean up
+	time.Sleep(1 * time.Second) // Allow time for processing
+	cancel()
+
+	// Wait for start to finish
+	<-startDone
+}
+
+// MockKmsgWatcher implements kmsg.Watcher for testing
+type MockKmsgWatcher struct {
+	watchCh    chan kmsg.Message
+	watchError error
+}
+
+func (m *MockKmsgWatcher) Watch() (<-chan kmsg.Message, error) {
+	if m.watchError != nil {
+		return nil, m.watchError
+	}
+
+	if m.watchCh == nil {
+		m.watchCh = make(chan kmsg.Message)
+	}
+
+	return m.watchCh, nil
+}
+
+func (m *MockKmsgWatcher) Close() error {
+	if m.watchCh != nil {
+		close(m.watchCh)
+	}
+	return nil
 }

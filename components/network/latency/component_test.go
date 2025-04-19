@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 )
@@ -39,15 +40,24 @@ func TestDataGetError(t *testing.T) {
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	c := New(context.Background())
-	assert.Equal(t, Name, c.Name())
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	assert.NoError(t, err)
+	defer comp.Close()
+	assert.Equal(t, Name, comp.Name())
 }
 
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
-	c := New(context.Background())
-	events, err := c.Events(context.Background(), time.Now())
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	assert.NoError(t, err)
+	defer comp.Close()
+
+	events, err := comp.Events(context.Background(), time.Now())
 	assert.NoError(t, err)
 	assert.Empty(t, events)
 }
@@ -55,20 +65,25 @@ func TestComponentEvents(t *testing.T) {
 func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
-	c := New(context.Background())
-	err := c.Close()
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
 	assert.NoError(t, err)
+	assert.NoError(t, comp.Close())
 }
 
 func TestComponentStatesNoData(t *testing.T) {
 	t.Parallel()
 
-	c := New(context.Background())
-	states, err := c.HealthStates(context.Background())
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
 	assert.NoError(t, err)
+
+	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestComponentStartAndCheckOnce(t *testing.T) {
@@ -101,14 +116,13 @@ func TestComponentStartAndCheckOnce(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test check once with success
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Check states
-	states, err := comp.HealthStates(context.Background())
-	assert.NoError(t, err)
+	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
 func TestComponentStartAndCheckOnceWithError(t *testing.T) {
@@ -131,14 +145,14 @@ func TestComponentStartAndCheckOnceWithError(t *testing.T) {
 	err := comp.Start()
 	assert.NoError(t, err)
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Check states when there's an error
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 	assert.NoError(t, err)
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "error measuring egress latencies")
 }
 
@@ -150,9 +164,14 @@ func TestCheckHealthState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	rs, err := CheckHealthState(ctx)
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, apiv1.StateTypeHealthy, rs.HealthState())
+	defer comp.Close()
+
+	rs := comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 
 	fmt.Println(rs.String())
 

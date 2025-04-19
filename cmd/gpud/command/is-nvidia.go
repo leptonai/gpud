@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 
 	"github.com/urfave/cli"
 )
@@ -14,7 +14,7 @@ func cmdIsNvidia(cliContext *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	gpudcomponents "github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -46,9 +45,9 @@ const (
 // @Success 200 {object} []string
 // @Router /v1/components [get]
 func (g *globalHandler) getComponents(c *gin.Context) {
-	components := make([]string, 0, len(g.components))
-	for name := range g.components {
-		components = append(components, name)
+	components := make([]string, 0)
+	for _, c := range g.componentsRegistry.All() {
+		components = append(components, c.Name())
 	}
 	sort.Strings(components)
 
@@ -102,29 +101,23 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		currState := apiv1.ComponentHealthStates{
 			Component: componentName,
 		}
-		component, err := gpudcomponents.GetComponent(componentName)
-		if err != nil {
+		component := g.componentsRegistry.Get(componentName)
+		if component == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetStates",
 				"component", componentName,
-				"error", err,
+				"error", errdefs.ErrNotFound,
 			)
 			states = append(states, currState)
 			continue
 		}
 
 		log.Logger.Debugw("getting states", "component", componentName)
-		state, err := component.HealthStates(c)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component state",
-				"operation", "GetStates",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			log.Logger.Debugw("successfully got states", "component", componentName)
-			currState.States = state
-		}
+		state := component.LastHealthStates()
+
+		log.Logger.Debugw("successfully got states", "component", componentName)
+		currState.States = state
+
 		states = append(states, currState)
 	}
 
@@ -185,12 +178,12 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 			StartTime: startTime,
 			EndTime:   endTime,
 		}
-		component, err := gpudcomponents.GetComponent(componentName)
-		if err != nil {
+		component := g.componentsRegistry.Get(componentName)
+		if component == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetEvents",
 				"component", componentName,
-				"error", err,
+				"error", errdefs.ErrNotFound,
 			)
 			events = append(events, currEvent)
 			continue
@@ -303,12 +296,12 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			EndTime:   endTime,
 			Info:      apiv1.Info{},
 		}
-		component, err := gpudcomponents.GetComponent(componentName)
-		if err != nil {
+		component := g.componentsRegistry.Get(componentName)
+		if component == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetInfo",
 				"component", componentName,
-				"error", err,
+				"error", errdefs.ErrNotFound,
 			)
 			infos = append(infos, currInfo)
 			continue
@@ -323,16 +316,9 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		} else if len(events) > 0 {
 			currInfo.Info.Events = events
 		}
-		state, err := component.HealthStates(c)
-		if err != nil {
-			log.Logger.Errorw("failed to invoke component states",
-				"operation", "GetInfo",
-				"component", componentName,
-				"error", err,
-			)
-		} else {
-			currInfo.Info.States = state
-		}
+
+		state := component.LastHealthStates()
+		currInfo.Info.States = state
 
 		currInfo.Info.Metrics = componentsToMetrics[componentName]
 

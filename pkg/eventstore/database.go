@@ -164,8 +164,8 @@ func (t *table) runPurge() {
 }
 
 func (t *table) Close() {
-	log.Logger.Infow("closing the store", "table", t.table)
 	if t.rootCancel != nil {
+		log.Logger.Infow("closing the store", "table", t.table)
 		t.rootCancel()
 	}
 }

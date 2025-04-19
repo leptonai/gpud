@@ -66,6 +66,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		b, err := cmd.CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to run gpud scan:\n%s", string(b)))
 		GinkgoLogr.Info("gpud scan successfully", "output", string(b))
+		fmt.Println("'gpud scan' OUTPUT:", string(b))
 
 		By("get an available port")
 		listener, err := net.Listen("tcp", "localhost:0")
@@ -85,7 +86,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			"run",
 			`--log-file=""`, // stdout/stderr
 			"--log-level=debug",
-			"--web-enable=false",
 			"--enable-auto-update=false",
 			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
 			fmt.Sprintf("--listen-address=%s", ep),
@@ -121,6 +121,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				return fmt.Errorf("unexpected response body: %s", string(b1))
 			}
 			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
+			fmt.Println("/healthz RESPONSE:", string(b1))
+
 			return nil
 		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
 		By("gpud started")
@@ -230,7 +232,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 	Describe("/v1/metrics requests", func() {
 		It("request without compress", func() {
-			time.Sleep(time.Minute + 10*time.Second)
+			// enough time for metrics to be collected
+			time.Sleep(time.Minute + 30*time.Second)
 
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")

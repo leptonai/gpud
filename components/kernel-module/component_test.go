@@ -11,17 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 )
 
-func TestNew(t *testing.T) {
-	modulesToCheck := []string{"module1", "module2"}
-	c := New(modulesToCheck).(*component)
-	assert.Equal(t, modulesToCheck, c.modulesToCheck)
-	assert.NotNil(t, c.getAllModulesFunc)
-}
-
 func TestComponentName(t *testing.T) {
-	c := New(nil)
+	c, err := New(&components.GPUdInstance{})
+	require.NoError(t, err)
 	assert.Equal(t, Name, c.Name())
 }
 
@@ -51,12 +46,15 @@ func TestCheckOnce(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(nil).(*component)
+			comp, err := New(&components.GPUdInstance{})
+			require.NoError(t, err)
+			c := comp.(*component)
+
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
 			}
 
-			c.CheckOnce()
+			_ = c.Check()
 
 			c.lastMu.RLock()
 			defer c.lastMu.RUnlock()
@@ -112,97 +110,126 @@ func TestStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(tt.modulesToCheck).(*component)
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			require.NoError(t, err)
+			c := comp.(*component)
+
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
 			}
 
-			c.CheckOnce()
+			_ = c.Check()
 
-			states, err := c.HealthStates(context.Background())
-			require.NoError(t, err)
+			states := c.LastHealthStates()
 			require.Len(t, states, 1)
 
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
 			if tt.wantHealthy {
-				assert.Equal(t, apiv1.StateTypeHealthy, state.Health)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 			} else {
-				assert.Equal(t, apiv1.StateTypeUnhealthy, state.Health)
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 			}
 		})
 	}
 }
 
 func TestEvents(t *testing.T) {
-	c := New(nil)
+	c, err := New(&components.GPUdInstance{})
+	require.NoError(t, err)
 	events, err := c.Events(context.Background(), time.Now())
 	assert.NoError(t, err)
 	assert.Empty(t, events)
 }
 
 func TestClose(t *testing.T) {
-	c := New(nil)
-	err := c.Close()
+	c, err := New(&components.GPUdInstance{})
+	require.NoError(t, err)
+	err = c.Close()
 	assert.NoError(t, err)
 }
 
 func TestGetReason(t *testing.T) {
 	tests := []struct {
 		name           string
-		data           *Data
+		modulesToLoad  []string
 		modulesToCheck []string
+		loadError      error
 		wantReason     string
 	}{
 		{
 			name:           "nil data",
-			data:           nil,
+			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
-			wantReason:     "", // nil data has no reason
+			loadError:      nil,
+			wantReason:     "no data yet",
 		},
 		{
 			name:           "with error",
-			data:           &Data{err: assert.AnError, reason: "error getting all modules: assert.AnError general error for testing"},
+			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
+			loadError:      assert.AnError,
 			wantReason:     "error getting all modules: assert.AnError general error for testing",
 		},
 		{
 			name:           "no modules to check",
-			data:           &Data{loadedModules: map[string]struct{}{"module1": {}}, reason: "all modules are loaded"},
+			modulesToLoad:  []string{"module1"},
 			modulesToCheck: nil,
+			loadError:      nil,
 			wantReason:     "all modules are loaded",
 		},
 		{
-			name: "all modules present",
-			data: &Data{
-				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
-				LoadedModules: []string{"module1", "module2"},
-				reason:        "all modules are loaded",
-				healthy:       true,
-			},
+			name:           "all modules present",
+			modulesToLoad:  []string{"module1", "module2"},
 			modulesToCheck: []string{"module1", "module2"},
+			loadError:      nil,
 			wantReason:     "all modules are loaded",
 		},
 		{
-			name: "missing modules",
-			data: &Data{
-				loadedModules: map[string]struct{}{"module1": {}},
-				LoadedModules: []string{"module1"},
-				reason:        `missing modules: ["module2"]`,
-				healthy:       false,
-			},
+			name:           "missing modules",
+			modulesToLoad:  []string{"module1"},
 			modulesToCheck: []string{"module1", "module2"},
+			loadError:      nil,
 			wantReason:     `missing modules: ["module2"]`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.data == nil {
-				assert.Equal(t, tt.wantReason, "")
-			} else {
-				assert.Equal(t, tt.wantReason, tt.data.reason)
+			if tt.name == "nil data" {
+				// Special case for nil data test
+				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+				require.NoError(t, err)
+				c := comp.(*component)
+
+				// Ensure lastData is nil
+				c.lastMu.Lock()
+				c.lastData = nil
+				c.lastMu.Unlock()
+
+				states := c.LastHealthStates()
+				require.Len(t, states, 1)
+				assert.Equal(t, tt.wantReason, states[0].Reason)
+				return
 			}
+
+			// For all other tests, create component and run Check
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			require.NoError(t, err)
+			c := comp.(*component)
+
+			// Mock the getAllModulesFunc
+			c.getAllModulesFunc = func() ([]string, error) {
+				return tt.modulesToLoad, tt.loadError
+			}
+
+			// Run Check to initialize the data
+			c.Check()
+
+			// Get health states which will have the computed reason
+			states := c.LastHealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, tt.wantReason, states[0].Reason)
 		})
 	}
 }
@@ -210,62 +237,92 @@ func TestGetReason(t *testing.T) {
 func TestGetHealth(t *testing.T) {
 	tests := []struct {
 		name           string
-		data           *Data
+		modulesToLoad  []string
 		modulesToCheck []string
+		loadError      error
 		wantHealth     apiv1.HealthStateType
 		wantHealthy    bool
 	}{
 		{
-			name:           "with error",
-			data:           &Data{err: assert.AnError, healthy: false},
+			name:           "nil data",
+			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
-			wantHealth:     apiv1.StateTypeUnhealthy,
+			loadError:      nil,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
+			wantHealthy:    true,
+		},
+		{
+			name:           "with error",
+			modulesToLoad:  nil,
+			modulesToCheck: []string{"module1"},
+			loadError:      assert.AnError,
+			wantHealth:     apiv1.HealthStateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 		{
-			name: "no modules to check",
-			data: &Data{
-				LoadedModules: []string{},
-				loadedModules: map[string]struct{}{},
-				healthy:       true,
-			},
+			name:           "no modules to check",
+			modulesToLoad:  []string{"module1"},
 			modulesToCheck: nil,
-			wantHealth:     apiv1.StateTypeHealthy,
+			loadError:      nil,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
-			name: "all modules present",
-			data: &Data{
-				LoadedModules: []string{"module1", "module2"},
-				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
-				healthy:       true,
-			},
+			name:           "all modules present",
+			modulesToLoad:  []string{"module1", "module2"},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     apiv1.StateTypeHealthy,
+			loadError:      nil,
+			wantHealth:     apiv1.HealthStateTypeHealthy,
 			wantHealthy:    true,
 		},
 		{
-			name: "missing modules",
-			data: &Data{
-				LoadedModules: []string{"module1"},
-				loadedModules: map[string]struct{}{"module1": {}},
-				healthy:       false,
-			},
+			name:           "missing modules",
+			modulesToLoad:  []string{"module1"},
 			modulesToCheck: []string{"module1", "module2"},
-			wantHealth:     apiv1.StateTypeUnhealthy,
+			loadError:      nil,
+			wantHealth:     apiv1.HealthStateTypeUnhealthy,
 			wantHealthy:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health := apiv1.StateTypeHealthy
-			if tt.data != nil && !tt.data.healthy {
-				health = apiv1.StateTypeUnhealthy
+			if tt.name == "nil data" {
+				// Special case for nil data test
+				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+				require.NoError(t, err)
+				c := comp.(*component)
+
+				// Ensure lastData is nil
+				c.lastMu.Lock()
+				c.lastData = nil
+				c.lastMu.Unlock()
+
+				states := c.LastHealthStates()
+				require.Len(t, states, 1)
+				assert.Equal(t, tt.wantHealth, states[0].Health)
+				assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.HealthStateTypeHealthy)
+				return
 			}
 
-			assert.Equal(t, tt.wantHealth, health)
-			assert.Equal(t, tt.wantHealthy, tt.data != nil && tt.data.healthy)
+			// For all other tests, create component and run Check
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			require.NoError(t, err)
+			c := comp.(*component)
+
+			// Mock the getAllModulesFunc
+			c.getAllModulesFunc = func() ([]string, error) {
+				return tt.modulesToLoad, tt.loadError
+			}
+
+			// Run Check to initialize the data
+			c.Check()
+
+			// Get health states which will have the computed health
+			states := c.LastHealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, tt.wantHealth, states[0].Health)
+			assert.Equal(t, tt.wantHealthy, states[0].Health == apiv1.HealthStateTypeHealthy)
 		})
 	}
 }
@@ -283,15 +340,15 @@ func TestDataGetStates(t *testing.T) {
 			name:        "nil data",
 			data:        nil,
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "no data yet",
 			wantError:   false,
 		},
 		{
 			name:        "with error",
-			data:        &Data{err: assert.AnError, healthy: false, reason: "error getting all modules: assert.AnError general error for testing"},
+			data:        &Data{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateTypeUnhealthy,
+			wantHealth:  apiv1.HealthStateTypeUnhealthy,
 			wantReason:  "error getting all modules: assert.AnError general error for testing",
 			wantError:   true,
 		},
@@ -300,11 +357,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{},
 				loadedModules: map[string]struct{}{},
-				healthy:       true,
+				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -313,11 +370,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1", "module2"},
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
-				healthy:       true,
+				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
 			wantHealthy: true,
-			wantHealth:  apiv1.StateTypeHealthy,
+			wantHealth:  apiv1.HealthStateTypeHealthy,
 			wantReason:  "all modules are loaded",
 			wantError:   false,
 		},
@@ -326,11 +383,11 @@ func TestDataGetStates(t *testing.T) {
 			data: &Data{
 				LoadedModules: []string{"module1"},
 				loadedModules: map[string]struct{}{"module1": {}},
-				healthy:       false,
+				health:        apiv1.HealthStateTypeUnhealthy,
 				reason:        `missing modules: ["module2"]`,
 			},
 			wantHealthy: false,
-			wantHealth:  apiv1.StateTypeUnhealthy,
+			wantHealth:  apiv1.HealthStateTypeUnhealthy,
 			wantReason:  `missing modules: ["module2"]`,
 			wantError:   false,
 		},
@@ -338,8 +395,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states, err := tt.data.getHealthStates()
-			assert.NoError(t, err)
+			states := tt.data.getLastHealthStates()
 
 			require.Len(t, states, 1)
 			state := states[0]
@@ -423,18 +479,21 @@ func TestCheckOnceLogic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(tt.modulesToCheck).(*component)
+			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
+			require.NoError(t, err)
+			c := comp.(*component)
+
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
 			}
 
-			c.CheckOnce()
+			_ = c.Check()
 
 			c.lastMu.RLock()
 			defer c.lastMu.RUnlock()
 
 			require.NotNil(t, c.lastData)
-			assert.Equal(t, tt.wantHealthy, c.lastData.healthy)
+			assert.Equal(t, tt.wantHealthy, c.lastData.health == apiv1.HealthStateTypeHealthy)
 			assert.Equal(t, tt.wantReason, c.lastData.reason)
 
 			if tt.loadError != nil {
@@ -448,11 +507,13 @@ func TestCheckOnceLogic(t *testing.T) {
 
 // Test that timestamp is properly set
 func TestDataTimestamp(t *testing.T) {
-	c := New(nil).(*component)
+	comp, err := New(&components.GPUdInstance{})
+	require.NoError(t, err)
+	c := comp.(*component)
 
 	beforeCheck := time.Now().UTC()
 	time.Sleep(10 * time.Millisecond)
-	c.CheckOnce()
+	_ = c.Check()
 	time.Sleep(10 * time.Millisecond)
 	afterCheck := time.Now().UTC()
 

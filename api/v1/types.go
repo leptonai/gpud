@@ -10,10 +10,10 @@ import (
 type HealthStateType string
 
 const (
-	StateTypeHealthy      HealthStateType = "Healthy"
-	StateTypeUnhealthy    HealthStateType = "Unhealthy"
-	StateTypeDegraded     HealthStateType = "Degraded"
-	StateTypeInitializing HealthStateType = "Initializing"
+	HealthStateTypeHealthy      HealthStateType = "Healthy"
+	HealthStateTypeUnhealthy    HealthStateType = "Unhealthy"
+	HealthStateTypeDegraded     HealthStateType = "Degraded"
+	HealthStateTypeInitializing HealthStateType = "Initializing"
 )
 
 // HealthState represents the health state of a component.

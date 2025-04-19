@@ -14,7 +14,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	"github.com/leptonai/gpud/pkg/errdefs"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -115,9 +116,9 @@ func (s *Session) serve() {
 		case "sethealthy":
 			log.Logger.Infow("sethealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
-				comp, err := components.GetComponent(componentName)
-				if err != nil {
-					log.Logger.Errorw("failed to get component", "error", err)
+				comp := s.componentsRegistry.Get(componentName)
+				if comp == nil {
+					log.Logger.Errorw("failed to get component", "error", errdefs.ErrNotFound)
 					continue
 				}
 				if healthSettable, ok := comp.(components.HealthSettable); ok {
@@ -179,12 +180,12 @@ func (s *Session) serve() {
 					log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
 
 					switch componentName {
-					case nvidia_infiniband.Name:
+					case componentsnvidiainfiniband.Name:
 						var updateCfg infiniband.ExpectedPortStates
 						if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
 							log.Logger.Warnw("failed to unmarshal update config", "error", err)
 						} else {
-							nvidia_infiniband.SetDefaultExpectedPortStates(updateCfg)
+							componentsnvidiainfiniband.SetDefaultExpectedPortStates(updateCfg)
 						}
 					default:
 						log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
@@ -358,12 +359,12 @@ func (s *Session) getHealthStates(ctx context.Context, payload Request) (apiv1.G
 }
 
 func (s *Session) getEventsFromComponent(ctx context.Context, componentName string, startTime, endTime time.Time) apiv1.ComponentEvents {
-	component, err := components.GetComponent(componentName)
-	if err != nil {
+	component := s.componentsRegistry.Get(componentName)
+	if component == nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetEvents",
 			"component", componentName,
-			"error", err,
+			"error", errdefs.ErrNotFound,
 		)
 		return apiv1.ComponentEvents{
 			Component: componentName,
@@ -392,11 +393,12 @@ func (s *Session) getEventsFromComponent(ctx context.Context, componentName stri
 }
 
 func (s *Session) getMetricsFromComponent(ctx context.Context, componentName string, since time.Time) apiv1.ComponentMetrics {
-	if _, err := components.GetComponent(componentName); err != nil {
+	component := s.componentsRegistry.Get(componentName)
+	if component == nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetEvents",
 			"component", componentName,
-			"error", err,
+			"error", errdefs.ErrNotFound,
 		)
 		return apiv1.ComponentMetrics{
 			Component: componentName,
@@ -427,12 +429,12 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 }
 
 func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) apiv1.ComponentHealthStates {
-	component, err := components.GetComponent(componentName)
-	if err != nil {
+	component := s.componentsRegistry.Get(componentName)
+	if component == nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetStates",
 			"component", componentName,
-			"error", err,
+			"error", errdefs.ErrNotFound,
 		)
 		return apiv1.ComponentHealthStates{
 			Component: componentName,
@@ -442,19 +444,12 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 		Component: componentName,
 	}
 	log.Logger.Debugw("getting states", "component", componentName)
-	state, err := component.HealthStates(ctx)
-	if err != nil {
-		log.Logger.Errorw("failed to invoke component state",
-			"operation", "GetStates",
-			"component", componentName,
-			"error", err,
-		)
-	} else {
-		log.Logger.Debugw("successfully got states", "component", componentName)
-		currState.States = state
-	}
+	state := component.LastHealthStates()
+	log.Logger.Debugw("successfully got states", "component", componentName)
+	currState.States = state
+
 	for i, componentState := range currState.States {
-		if componentState.Health != apiv1.StateTypeHealthy {
+		if componentState.Health != apiv1.HealthStateTypeHealthy {
 			if lastRebootTime == nil {
 				rebootTime, err := pkghost.LastReboot(context.Background())
 				lastRebootTime = &rebootTime
@@ -464,7 +459,7 @@ func (s *Session) getStatesFromComponent(ctx context.Context, componentName stri
 			}
 			if time.Since(*lastRebootTime) < initializeGracePeriod {
 				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
-				currState.States[i].Health = apiv1.StateTypeInitializing
+				currState.States[i].Health = apiv1.HealthStateTypeInitializing
 			}
 
 			if componentState.Error != "" &&

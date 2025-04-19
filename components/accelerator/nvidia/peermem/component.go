@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 )
 
@@ -25,31 +28,46 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	kmsgSyncer  *kmsg.Syncer
+	nvmlInstance nvidianvml.InstanceV2
+
 	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
+
+	checkLsmodPeermemModuleFunc func(ctx context.Context) (*querypeermem.LsmodPeermemModuleOutput, error)
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+
+		nvmlInstance: gpudInstance.NVMLInstance,
+
+		checkLsmodPeermemModuleFunc: querypeermem.CheckLsmodPeermemModule,
 	}
 
-	kmsgSyncer, err := kmsg.NewSyncer(ctx, Match, eventBucket)
-	if err != nil {
-		return nil, err
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		if os.Geteuid() == 0 {
+			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+		}
 	}
 
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		kmsgSyncer:  kmsgSyncer,
-		eventBucket: eventBucket,
-	}, nil
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -60,7 +78,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 
 			select {
 			case <-c.ctx.Done():
@@ -72,55 +90,78 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
-	c.kmsgSyncer.Close()
-	c.eventBucket.Close()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
+
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking peermem")
-	d := Data{
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia gpu peermem")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
+	if c.nvmlInstance == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
+		return d
+	}
+
 	var err error
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	d.PeerMemModuleOutput, err = querypeermem.CheckLsmodPeermemModule(cctx)
+	d.PeerMemModuleOutput, err = c.checkLsmodPeermemModuleFunc(cctx)
 	ccancel()
 	if err != nil {
 		d.err = err
-		d.healthy = false
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error checking peermem: %s", err)
-		return
+		return d
 	}
 
-	d.healthy = true
+	d.health = apiv1.HealthStateTypeHealthy
 	if d.PeerMemModuleOutput != nil && d.PeerMemModuleOutput.IbcoreUsingPeermemModule {
 		d.reason = "ibcore successfully loaded peermem module"
 	} else {
 		d.reason = "ibcore is not using peermem module"
 	}
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	PeerMemModuleOutput *querypeermem.LsmodPeermemModuleOutput `json:"peer_mem_module_output,omitempty"`
@@ -131,9 +172,34 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if d.PeerMemModuleOutput == nil {
+		return "no data"
+	}
+
+	return fmt.Sprintf("ibcore using peermem module: %t", d.PeerMemModuleOutput.IbcoreUsingPeermemModule)
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -143,26 +209,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -170,5 +232,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

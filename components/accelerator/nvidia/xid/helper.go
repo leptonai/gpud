@@ -20,9 +20,9 @@ const (
 	rebootThreshold = 2
 )
 
-// EvolveHealthyState resolves the state of the XID error component.
+// evolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
-func EvolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
+func evolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
@@ -101,16 +101,16 @@ func EvolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 func translateToStateHealth(health int) apiv1.HealthStateType {
 	switch health {
 	case StateHealthy:
-		return apiv1.StateTypeHealthy
+		return apiv1.HealthStateTypeHealthy
 
 	case StateDegraded:
-		return apiv1.StateTypeDegraded
+		return apiv1.HealthStateTypeDegraded
 
 	case StateUnhealthy:
-		return apiv1.StateTypeUnhealthy
+		return apiv1.HealthStateTypeUnhealthy
 
 	default:
-		return apiv1.StateTypeHealthy
+		return apiv1.HealthStateTypeHealthy
 	}
 }
 

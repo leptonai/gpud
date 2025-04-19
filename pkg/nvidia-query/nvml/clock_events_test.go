@@ -1,22 +1,17 @@
 package nvml
 
 import (
-	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	nvml_lib_mock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -259,186 +254,6 @@ func TestGetClockEvents(t *testing.T) {
 	}
 }
 
-func TestClockEventsSupported(t *testing.T) {
-	tests := []struct {
-		name           string
-		mockDevices    []*testutil.MockDevice
-		mockDeviceErr  error
-		expectedResult bool
-		expectError    bool
-	}{
-		{
-			name: "all devices support clock events",
-			mockDevices: []*testutil.MockDevice{
-				{
-					Device: &mock.Device{
-						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-						GetNameFunc: func() (string, nvml.Return) {
-							return "Tesla V100", nvml.SUCCESS
-						},
-						GetUUIDFunc: func() (string, nvml.Return) {
-							return "GPU-1234", nvml.SUCCESS
-						},
-						GetMinorNumberFunc: func() (int, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-					},
-				},
-				{
-					Device: &mock.Device{
-						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-						GetNameFunc: func() (string, nvml.Return) {
-							return "Tesla V100", nvml.SUCCESS
-						},
-						GetUUIDFunc: func() (string, nvml.Return) {
-							return "GPU-5678", nvml.SUCCESS
-						},
-						GetMinorNumberFunc: func() (int, nvml.Return) {
-							return 1, nvml.SUCCESS
-						},
-					},
-				},
-			},
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "one device supports clock events",
-			mockDevices: []*testutil.MockDevice{
-				{
-					Device: &mock.Device{
-						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-							return 0, nvml.ERROR_NOT_SUPPORTED
-						},
-						GetNameFunc: func() (string, nvml.Return) {
-							return "Tesla V100", nvml.SUCCESS
-						},
-						GetUUIDFunc: func() (string, nvml.Return) {
-							return "GPU-1234", nvml.SUCCESS
-						},
-						GetMinorNumberFunc: func() (int, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-					},
-				},
-				{
-					Device: &mock.Device{
-						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-						GetNameFunc: func() (string, nvml.Return) {
-							return "Tesla V100", nvml.SUCCESS
-						},
-						GetUUIDFunc: func() (string, nvml.Return) {
-							return "GPU-5678", nvml.SUCCESS
-						},
-						GetMinorNumberFunc: func() (int, nvml.Return) {
-							return 1, nvml.SUCCESS
-						},
-					},
-				},
-			},
-			expectedResult: true,
-			expectError:    false,
-		},
-		{
-			name: "no devices support clock events",
-			mockDevices: []*testutil.MockDevice{
-				{
-					Device: &mock.Device{
-						GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
-							return 0, nvml.ERROR_NOT_SUPPORTED
-						},
-						GetNameFunc: func() (string, nvml.Return) {
-							return "Tesla V100", nvml.SUCCESS
-						},
-						GetUUIDFunc: func() (string, nvml.Return) {
-							return "GPU-1234", nvml.SUCCESS
-						},
-						GetMinorNumberFunc: func() (int, nvml.Return) {
-							return 0, nvml.SUCCESS
-						},
-					},
-				},
-			},
-			expectedResult: false,
-			expectError:    false,
-		},
-		{
-			name:          "error getting devices",
-			mockDeviceErr: fmt.Errorf("failed to get devices"),
-			expectError:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock devices
-			mockDevices := make([]device.Device, len(tt.mockDevices))
-			for i, d := range tt.mockDevices {
-				mockDevices[i] = d
-			}
-
-			// Mock NVML
-			mockNVML := &mock.Interface{
-				InitFunc: func() nvml.Return {
-					return nvml.SUCCESS
-				},
-				DeviceGetCountFunc: func() (int, nvml.Return) {
-					if tt.mockDeviceErr != nil {
-						return 0, nvml.ERROR_UNKNOWN
-					}
-					return len(mockDevices), nvml.SUCCESS
-				},
-				DeviceGetHandleByIndexFunc: func(idx int) (nvml.Device, nvml.Return) {
-					if tt.mockDeviceErr != nil {
-						return nil, nvml.ERROR_UNKNOWN
-					}
-					if idx < 0 || idx >= len(tt.mockDevices) {
-						return nil, nvml.ERROR_INVALID_ARGUMENT
-					}
-					return tt.mockDevices[idx].Device, nvml.SUCCESS
-				},
-				ShutdownFunc: func() nvml.Return {
-					return nvml.SUCCESS
-				},
-			}
-
-			err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
-			if err != nil {
-				t.Fatalf("failed to set mock NVML environment: %v", err)
-			}
-			defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
-
-			// Replace the mock instance
-			originalMockInstance := nvml_lib_mock.AllSuccessInterface
-			nvml_lib_mock.AllSuccessInterface = mockNVML
-			defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
-
-			result, err := ClockEventsSupported()
-			if tt.expectError {
-				if err == nil {
-					t.Error("expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if result != tt.expectedResult {
-				t.Errorf("ClockEventsSupported() = %v, want %v", result, tt.expectedResult)
-			}
-		})
-	}
-}
-
 func TestClockEventsSupportedByDevice(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -670,71 +485,5 @@ func TestClockEventsWithNilPointer(t *testing.T) {
 		result, err := clockEvents.YAML()
 		assert.NoError(t, err)
 		assert.Nil(t, result)
-	})
-}
-
-// TestClockEventsSupportedWithMockedNVML tests the top-level ClockEventsSupported function
-// with a mocked NVML library and various device configurations
-func TestClockEventsSupportedWithMockedNVML(t *testing.T) {
-	// Test with initialization failure
-	t.Run("nvml initialization failure", func(t *testing.T) {
-		err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
-		if err != nil {
-			t.Fatalf("failed to set mock NVML environment: %v", err)
-		}
-		defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
-
-		// Mock NVML with init failure
-		mockNVML := &mock.Interface{
-			InitFunc: func() nvml.Return {
-				return nvml.ERROR_UNKNOWN
-			},
-			ShutdownFunc: func() nvml.Return {
-				return nvml.SUCCESS
-			},
-		}
-
-		// Replace the mock instance
-		originalMockInstance := nvml_lib_mock.AllSuccessInterface
-		nvml_lib_mock.AllSuccessInterface = mockNVML
-		defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
-
-		// Call function
-		result, err := ClockEventsSupported()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to initialize NVML")
-		assert.False(t, result)
-	})
-
-	// Test with device initialization but GetDevices failure
-	t.Run("device get failure", func(t *testing.T) {
-		err := os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
-		if err != nil {
-			t.Fatalf("failed to set mock NVML environment: %v", err)
-		}
-		defer os.Unsetenv(nvml_lib.EnvMockAllSuccess)
-
-		// Mock NVML with device get failure
-		mockNVML := &mock.Interface{
-			InitFunc: func() nvml.Return {
-				return nvml.SUCCESS
-			},
-			DeviceGetCountFunc: func() (int, nvml.Return) {
-				return 0, nvml.ERROR_UNKNOWN
-			},
-			ShutdownFunc: func() nvml.Return {
-				return nvml.SUCCESS
-			},
-		}
-
-		// Replace the mock instance
-		originalMockInstance := nvml_lib_mock.AllSuccessInterface
-		nvml_lib_mock.AllSuccessInterface = mockNVML
-		defer func() { nvml_lib_mock.AllSuccessInterface = originalMockInstance }()
-
-		// Call function
-		result, err := ClockEventsSupported()
-		assert.Error(t, err)
-		assert.False(t, result)
 	})
 }

@@ -2,13 +2,17 @@
 package hwslowdown
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -16,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -38,37 +41,54 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	evaluationWindow time.Duration
-	threshold        float64
-
-	nvmlInstanceV2     nvml.InstanceV2
-	getClockEventsFunc func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+	nvmlInstance                  nvidianvml.InstanceV2
+	getClockEventsSupportedFunc   func(dev device.Device) (bool, error)
+	getClockEventsFunc            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+	getSystemDriverVersionFunc    func() (string, error)
+	parseDriverVersionFunc        func(driverVersion string) (int, int, int, error)
+	checkClockEventsSupportedFunc func(major int) bool
 
 	eventBucket eventstore.Bucket
+
+	evaluationWindow time.Duration
+	threshold        float64
 
 	lastMu   sync.RWMutex
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
+		nvmlInstance:                gpudInstance.NVMLInstance,
+		getClockEventsSupportedFunc: nvidianvml.ClockEventsSupportedByDevice,
+		getClockEventsFunc:          nvidianvml.GetClockEvents,
+
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+	}
 
-		nvmlInstanceV2:     nvmlInstanceV2,
-		getClockEventsFunc: nvidianvml.GetClockEvents,
+	if gpudInstance.NVMLInstance != nil && gpudInstance.NVMLInstance.NVMLExists() {
+		c.getSystemDriverVersionFunc = func() (string, error) {
+			return nvidianvml.GetSystemDriverVersion(gpudInstance.NVMLInstance.Library().NVML())
+		}
+		c.parseDriverVersionFunc = nvidianvml.ParseDriverVersion
+		c.checkClockEventsSupportedFunc = nvidianvml.ClockEventsSupportedVersion
+	}
 
-		eventBucket: eventBucket,
-	}, nil
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -79,7 +99,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 
 			select {
 			case <-c.ctx.Done():
@@ -91,14 +111,17 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -110,26 +133,71 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking clock events")
-	d := Data{
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia gpu clock events for hw slowdown")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
-	devs := c.nvmlInstanceV2.Devices()
+	if c.nvmlInstance == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
+		return d
+	}
+
+	if c.getSystemDriverVersionFunc != nil {
+		driverVersion, err := c.getSystemDriverVersionFunc()
+		if err != nil {
+			d.health = apiv1.HealthStateTypeUnhealthy
+			d.reason = fmt.Sprintf("error getting driver version: %s", err)
+			return d
+		}
+		major, _, _, err := c.parseDriverVersionFunc(driverVersion)
+		if err != nil {
+			d.health = apiv1.HealthStateTypeUnhealthy
+			d.reason = fmt.Sprintf("error parsing driver version: %s", err)
+			return d
+		}
+		if !c.checkClockEventsSupportedFunc(major) {
+			d.health = apiv1.HealthStateTypeHealthy
+			d.reason = fmt.Sprintf("clock events not supported for driver version %s", driverVersion)
+			return d
+		}
+	}
+
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
+		supported, err := c.getClockEventsSupportedFunc(dev)
+		if err != nil {
+			d.health = apiv1.HealthStateTypeUnhealthy
+			d.err = err
+			d.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
+			return d
+		}
+
+		if !supported {
+			d.health = apiv1.HealthStateTypeHealthy
+			d.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
+			return d
+		}
+
 		clockEvents, err := c.getClockEventsFunc(uuid, dev)
 		if err != nil {
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.err = err
 			d.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
-			return
+			return d
 		}
 
 		if clockEvents.HWSlowdown {
@@ -158,36 +226,48 @@ func (c *component) CheckOnce() {
 			continue
 		}
 
-		log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
+		if c.eventBucket != nil {
+			log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
 
-		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-		found, err := c.eventBucket.Find(cctx, *ev)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
-			d.err = err
-			d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
-			return
-		}
-		if found != nil {
-			log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
-			continue
-		}
+			cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+			found, err := c.eventBucket.Find(cctx, *ev)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
 
-		if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
-			log.Logger.Errorw("failed to insert event", "error", err)
-			d.err = err
-			d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
-			return
+				d.health = apiv1.HealthStateTypeUnhealthy
+				d.err = err
+				d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
+				return d
+			}
+			if found != nil {
+				log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
+				continue
+			}
+
+			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
+				log.Logger.Errorw("failed to insert event", "error", err)
+
+				d.health = apiv1.HealthStateTypeUnhealthy
+				d.err = err
+				d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
+				return d
+			}
+			log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
 		}
-		log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
 	}
 
 	if c.evaluationWindow == 0 {
 		// no time window to evaluate /state
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no time window to evaluate states"
-		return
+		return d
+	}
+
+	if c.eventBucket == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "no event bucket"
+		return d
 	}
 
 	since := time.Now().UTC().Add(-c.evaluationWindow)
@@ -196,15 +276,17 @@ func (c *component) CheckOnce() {
 	ccancel()
 	if err != nil {
 		log.Logger.Errorw("failed to get clock events from db", "error", err)
+
 		d.err = err
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error getting clock events from db: %s", err)
-		return
+		return d
 	}
 
 	if len(latestEvents) == 0 {
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "no clock events found"
-		return
+		return d
 	}
 
 	eventsByMinute := make(map[int]struct{})
@@ -218,13 +300,13 @@ func (c *component) CheckOnce() {
 
 	if freqPerMin < c.threshold {
 		// hw slowdown events happened but within its threshold
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-		return
+		return d
 	}
 
 	// hw slowdown events happened and beyond its threshold
-	d.healthy = false
+	d.health = apiv1.HealthStateTypeUnhealthy
 	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 	d.suggestedActions = &apiv1.SuggestedActions{
 		RepairActions: []apiv1.RepairActionType{
@@ -234,7 +316,11 @@ func (c *component) CheckOnce() {
 			"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
 		},
 	}
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	ClockEvents []nvidianvml.ClockEvents `json:"clock_events,omitempty"`
@@ -245,11 +331,45 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 	// tracks the suggested actions of the last check
 	suggestedActions *apiv1.SuggestedActions
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.ClockEvents) == 0 {
+		return "no data"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"GPU UUID", "HW Slowdown", "HW Slowdown Thermal", "HW Slowdown Power Brake", "Reasons"})
+	for _, event := range d.ClockEvents {
+		table.Append([]string{event.UUID, fmt.Sprintf("%t", event.HWSlowdown), fmt.Sprintf("%t", event.HWSlowdownThermal), fmt.Sprintf("%t", event.HWSlowdownPowerBrake), strings.Join(event.Reasons, ", ")})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -259,26 +379,23 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:             Name,
 		Reason:           d.reason,
 		Error:            d.getError(),
-		Health:           apiv1.StateTypeHealthy,
+		Health:           d.health,
 		SuggestedActions: d.suggestedActions,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
 	}
 
 	b, _ := json.Marshal(d)
@@ -286,5 +403,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

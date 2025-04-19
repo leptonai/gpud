@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -48,7 +49,7 @@ func TestComponentEvents(t *testing.T) {
 	}
 	defer comp.Close()
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	time.Sleep(5 * time.Second)
 
@@ -72,10 +73,9 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
-	states, err := comp.HealthStates(ctx)
-	require.NoError(t, err)
+	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
@@ -197,17 +197,16 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		checkFMActiveFunc: func() bool { return false },
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
 	// Call States
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 
 	// Verify results
-	assert.NoError(t, err)
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
 }
 
@@ -282,15 +281,14 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 		checkFMActiveFunc: func() bool { return false },
 	}
 
-	comp.CheckOnce()
+	_ = comp.Check()
 
-	states, err := comp.HealthStates(context.Background())
+	states := comp.LastHealthStates()
 
-	assert.NoError(t, err)
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
 }
 
@@ -311,29 +309,183 @@ func TestDataGetError(t *testing.T) {
 	assert.Equal(t, testErr.Error(), d.getError())
 }
 
-func TestDataGetStates(t *testing.T) {
+func TestDataGetLastHealthStates(t *testing.T) {
 	t.Parallel()
 
 	// Test nil Data
 	var d *Data
-	states, err := d.getHealthStates()
-	assert.NoError(t, err)
+	states := d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeHealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test unhealthy state
 	d = &Data{
-		healthy: false,
-		reason:  "test unhealthy reason",
-		err:     assert.AnError,
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "test unhealthy reason",
+		err:    assert.AnError,
 	}
-	states, err = d.getHealthStates()
-	assert.NoError(t, err)
+	states = d.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.StateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test unhealthy reason", states[0].Reason)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	// Test creating component with nil eventstore
+	instance := &components.GPUdInstance{
+		RootCtx: context.Background(),
+	}
+	comp, err := New(instance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	// Clean up
+	err = comp.Close()
+	assert.NoError(t, err)
+}
+
+func TestDataString(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	assert.Equal(t, "", d.String())
+
+	// Test with active fabric manager
+	d = &Data{
+		FabricManagerActive: true,
+	}
+	assert.Equal(t, "fabric manager is active", d.String())
+
+	// Test with inactive fabric manager
+	d = &Data{
+		FabricManagerActive: false,
+	}
+	assert.Equal(t, "fabric manager is not active", d.String())
+}
+
+func TestDataSummary(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	assert.Equal(t, "", d.Summary())
+
+	// Test with reason
+	d = &Data{
+		reason: "test reason",
+	}
+	assert.Equal(t, "test reason", d.Summary())
+}
+
+func TestDataHealthState(t *testing.T) {
+	t.Parallel()
+
+	// Test nil data
+	var d *Data
+	assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
+
+	// Test with health state
+	d = &Data{
+		health: apiv1.HealthStateTypeHealthy,
+	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
+}
+
+func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
+	}
+
+	result := comp.Check()
+	assert.NotNil(t, result)
+
+	// Type assertion to access Data methods
+	data, ok := result.(*Data)
+	assert.True(t, ok)
+	assert.True(t, data.FabricManagerActive)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "fabric manager found and active", data.reason)
+
+	states := comp.LastHealthStates()
+	require.NotNil(t, states)
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Equal(t, "fabric manager found and active", states[0].Reason)
+}
+
+// This test mocks checkFMExists and checkFMActive to test all branches in Check method
+func TestCheckAllBranches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		fmExists       bool
+		fmActive       bool
+		expectedData   *Data
+		expectedState  apiv1.HealthStateType
+		expectedReason string
+	}{
+		{
+			name:           "FM doesn't exist",
+			fmExists:       false,
+			fmActive:       false,
+			expectedState:  apiv1.HealthStateTypeHealthy,
+			expectedReason: "nv-fabricmanager executable not found",
+		},
+		{
+			name:           "FM exists but not active",
+			fmExists:       true,
+			fmActive:       false,
+			expectedState:  apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "nv-fabricmanager found but fabric manager service is not active",
+		},
+		{
+			name:           "FM exists and active",
+			fmExists:       true,
+			fmActive:       true,
+			expectedState:  apiv1.HealthStateTypeHealthy,
+			expectedReason: "fabric manager found and active",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc // Capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				checkFMExistsFunc: func() bool { return tc.fmExists },
+				checkFMActiveFunc: func() bool { return tc.fmActive },
+			}
+
+			result := comp.Check()
+			data, ok := result.(*Data)
+			assert.True(t, ok)
+
+			if tc.fmExists && tc.fmActive {
+				assert.True(t, data.FabricManagerActive)
+			} else {
+				assert.False(t, data.FabricManagerActive)
+			}
+
+			assert.Equal(t, tc.expectedState, data.health)
+			assert.Equal(t, tc.expectedReason, data.reason)
+		})
+	}
 }

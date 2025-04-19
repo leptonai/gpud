@@ -2,14 +2,17 @@
 package pci
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -29,8 +32,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	currentVirtEnv    pkghost.VirtualizationEnvironment
-	getPCIDevicesFunc func(ctx context.Context) (pci.Devices, error)
+	currentVirtEnv                pkghost.VirtualizationEnvironment
+	getPCIDevicesFunc             func(ctx context.Context) (pci.Devices, error)
+	findACSEnabledDeviceUUIDsFunc func(devs []pci.Device) []string
 
 	eventBucket eventstore.Bucket
 
@@ -38,22 +42,27 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
-		currentVirtEnv:    pkghost.VirtualizationEnv(),
-		getPCIDevicesFunc: pci.List,
+		currentVirtEnv:                pkghost.VirtualizationEnv(),
+		getPCIDevicesFunc:             pci.List,
+		findACSEnabledDeviceUUIDsFunc: findACSEnabledDeviceUUIDs,
+	}
 
-		eventBucket: eventBucket,
-	}, nil
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -62,26 +71,45 @@ func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
+
 		for {
-			c.CheckOnce()
 			select {
 			case <-c.ctx.Done():
 				return
 			case <-ticker.C:
 			}
+
+			if c.eventBucket != nil {
+				lastEvent, err := c.eventBucket.Latest(c.ctx)
+				if err != nil {
+					log.Logger.Errorw("error getting latest event", "error", err)
+					continue
+				}
+
+				nowUTC := time.Now().UTC()
+				if lastEvent != nil && nowUTC.Sub(lastEvent.Time.Time) < 24*time.Hour {
+					log.Logger.Debugw("found events thus skipping to not overwrite latest data -- we only check once per day", "since", humanize.Time(nowUTC))
+					continue
+				}
+			}
+
+			_ = c.Check()
 		}
 	}()
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -97,16 +125,16 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
+func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking pci")
-	d := Data{
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
+
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
@@ -115,25 +143,16 @@ func (c *component) CheckOnce() {
 	//
 	// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
 	if c.currentVirtEnv.IsKVM {
-		return
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "host virt env is KVM (no need to check ACS)"
+		return d
 	}
+
 	// unknown virtualization environment
 	if c.currentVirtEnv.Type == "" {
-		return
-	}
-
-	lastEvent, err := c.eventBucket.Latest(c.ctx)
-	if err != nil {
-		d.err = err
-		d.healthy = false
-		d.reason = fmt.Sprintf("error getting latest event: %s", err)
-		return
-	}
-
-	nowUTC := time.Now().UTC()
-	if lastEvent != nil && nowUTC.Sub(lastEvent.Time.Time) < 24*time.Hour {
-		log.Logger.Debugw("found events thus skipping -- we only check once per day", "since", humanize.Time(nowUTC))
-		return
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "unknown virtualization environment (no need to check ACS)"
+		return d
 	}
 
 	// in linux, and not in VM
@@ -152,38 +171,41 @@ func (c *component) CheckOnce() {
 	d.Devices, d.err = c.getPCIDevicesFunc(cctx)
 	cancel()
 	if d.err != nil {
-		d.healthy = false
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("error listing devices: %s", d.err)
-		return
+		return d
 	}
 
-	acsEnabledDevices := findACSEnabledDeviceUUIDs(d.Devices)
+	acsEnabledDevices := c.findACSEnabledDeviceUUIDsFunc(d.Devices)
 	if len(acsEnabledDevices) == 0 {
-		d.healthy = true
-		d.reason = "no acs enabled devices found"
-		return
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "non-KVM host env, no acs enabled device found (no need to disable)"
+		return d
 	}
 
-	// no need to check duplicates
-	// since we check once above
-
-	cctx, cancel = context.WithTimeout(c.ctx, 15*time.Second)
-	d.err = c.eventBucket.Insert(cctx, apiv1.Event{
-		Time:    metav1.Time{Time: nowUTC},
-		Name:    "acs_enabled",
-		Type:    apiv1.EventTypeWarning,
-		Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s", pkghost.VirtualizationEnv().Type, strings.Join(acsEnabledDevices, ", ")),
-	})
-	cancel()
-	if d.err != nil {
-		d.healthy = false
-		d.reason = fmt.Sprintf("error creating event: %s", d.err)
-		return
+	if c.eventBucket != nil {
+		cctx, cancel = context.WithTimeout(c.ctx, 15*time.Second)
+		d.err = c.eventBucket.Insert(cctx, apiv1.Event{
+			Time:    metav1.Time{Time: time.Now().UTC()},
+			Name:    "acs_enabled",
+			Type:    apiv1.EventTypeWarning,
+			Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s (needs to be disabled)", c.currentVirtEnv.Type, strings.Join(acsEnabledDevices, ", ")),
+		})
+		cancel()
+		if d.err != nil {
+			d.health = apiv1.HealthStateTypeUnhealthy
+			d.reason = fmt.Sprintf("error creating event: %s", d.err)
+			return d
+		}
 	}
 
-	d.healthy = true
-	d.reason = fmt.Sprintf("found %d acs enabled devices (out of %d total)", len(acsEnabledDevices), len(d.Devices))
+	d.health = apiv1.HealthStateTypeHealthy
+	d.reason = fmt.Sprintf("found %d acs enabled devices (needs to be disabled, out of %d total)", len(acsEnabledDevices), len(d.Devices))
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	Devices []pci.Device `json:"devices,omitempty"`
@@ -194,9 +216,49 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	cnt := 0
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"Device ID", "Device Name", "ACS Enabled"})
+	for _, dev := range d.Devices {
+		acsEnabled := dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid
+		if acsEnabled {
+			cnt++
+			table.Append([]string{dev.ID, dev.Name, "yes"})
+		}
+	}
+	table.Render()
+
+	if cnt > 0 {
+		return buf.String()
+	}
+
+	return "no devices with ACS enabled (ok)"
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -206,26 +268,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -233,7 +291,7 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }
 
 func findACSEnabledDeviceUUIDs(devs []pci.Device) []string {

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,7 +80,7 @@ func TestNewSession(t *testing.T) {
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
 
-	session, err := NewSession(ctx, endpoint, WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true))
+	session, err := NewSession(ctx, endpoint, WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
 	if err != nil {
 		t.Fatalf("error creating session: %v", err)
 	}

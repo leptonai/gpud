@@ -23,6 +23,7 @@ type Op struct {
 	pipeInterval       time.Duration
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+	componentsRegistry components.Registry
 	metricsStore       pkgmetrics.Store
 }
 
@@ -62,6 +63,12 @@ func WithEnableAutoUpdate(enableAutoUpdate bool) OpOption {
 	}
 }
 
+func WithComponentsRegistry(componentsRegistry components.Registry) OpOption {
+	return func(op *Op) {
+		op.componentsRegistry = componentsRegistry
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
@@ -86,8 +93,9 @@ type Session struct {
 	machineID string
 	endpoint  string
 
-	metricsStore  pkgmetrics.Store
-	processRunner process.Runner
+	metricsStore       pkgmetrics.Store
+	componentsRegistry components.Registry
+	processRunner      process.Runner
 
 	components []string
 
@@ -126,9 +134,8 @@ func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Sessio
 	}
 
 	cps := make([]string, 0)
-	allComponents := components.GetAllComponents()
-	for key := range allComponents {
-		cps = append(cps, key)
+	for _, c := range op.componentsRegistry.All() {
+		cps = append(cps, c.Name())
 	}
 
 	cctx, ccancel := context.WithCancel(ctx)
@@ -141,8 +148,9 @@ func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Sessio
 		endpoint:  endpoint,
 		machineID: op.machineID,
 
-		metricsStore:  op.metricsStore,
-		processRunner: process.NewExclusiveRunner(),
+		metricsStore:       op.metricsStore,
+		componentsRegistry: op.componentsRegistry,
+		processRunner:      process.NewExclusiveRunner(),
 
 		components: cps,
 

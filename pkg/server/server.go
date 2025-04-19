@@ -25,72 +25,114 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	swaggerfiles "github.com/swaggo/files"
+	ginswagger "github.com/swaggo/gin-swagger"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidia_badenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
-	nvidia_clock_speed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
-	nvidia_ecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
-	nvidia_fabric_manager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
-	nvidia_gpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
-	nvidia_gsp_firmware_mode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
-	nvidia_hw_slowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
-	nvidia_infiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	nvidia_info "github.com/leptonai/gpud/components/accelerator/nvidia/info"
-	nvidia_memory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
-	nvidia_nccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
-	nvidia_nvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
-	nvidia_peermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
-	nvidia_persistence_mode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
-	nvidia_power "github.com/leptonai/gpud/components/accelerator/nvidia/power"
-	nvidia_processes "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
-	nvidia_remapped_rows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
-	nvidia_sxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
-	nvidia_temperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
-	nvidia_utilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
-	nvidia_xid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	containerd_pod "github.com/leptonai/gpud/components/containerd/pod"
-	"github.com/leptonai/gpud/components/cpu"
-	"github.com/leptonai/gpud/components/disk"
-	docker_container "github.com/leptonai/gpud/components/docker/container"
-	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/fuse"
-	"github.com/leptonai/gpud/components/info"
-	kernel_module "github.com/leptonai/gpud/components/kernel-module"
-	kubelet_pod "github.com/leptonai/gpud/components/kubelet/pod"
-	"github.com/leptonai/gpud/components/library"
-	"github.com/leptonai/gpud/components/memory"
-	network_latency "github.com/leptonai/gpud/components/network/latency"
-	"github.com/leptonai/gpud/components/os"
-	"github.com/leptonai/gpud/components/pci"
-	"github.com/leptonai/gpud/components/tailscale"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/gossip"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
-	components_metrics_state "github.com/leptonai/gpud/pkg/gpud-metrics/state"
-	gpud_state "github.com/leptonai/gpud/pkg/gpud-state"
+	metricstate "github.com/leptonai/gpud/pkg/gpud-metrics/state"
+	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
-	nvidia_query "github.com/leptonai/gpud/pkg/nvidia-query"
-	nvidia_query_nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/version"
+
+	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
+	componentsacceleratornvidiaclockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
+	componentsacceleratornvidiaecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
+	componentsacceleratornvidiafabricmanager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
+	componentsacceleratornvidiagpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
+	componentsacceleratornvidiagspfirmwaremode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
+	componentsacceleratornvidiahwslowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
+	componentsacceleratornvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsacceleratornvidiainfo "github.com/leptonai/gpud/components/accelerator/nvidia/info"
+	componentsacceleratornvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
+	componentsacceleratornvidianccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
+	componentsacceleratornvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentsacceleratornvidiapeermem "github.com/leptonai/gpud/components/accelerator/nvidia/peermem"
+	componentsacceleratornvidiapersistencemode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
+	componentsacceleratornvidiapower "github.com/leptonai/gpud/components/accelerator/nvidia/power"
+	componentsacceleratornvidiaprocesses "github.com/leptonai/gpud/components/accelerator/nvidia/processes"
+	componentsacceleratornvidiaremappedrows "github.com/leptonai/gpud/components/accelerator/nvidia/remapped-rows"
+	componentsacceleratornvidiasxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	componentsacceleratornvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
+	componentsacceleratornvidiautilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
+	componentsacceleratornvidiaxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	componentscontainerdpod "github.com/leptonai/gpud/components/containerd/pod"
+	componentscpu "github.com/leptonai/gpud/components/cpu"
+	componentsdisk "github.com/leptonai/gpud/components/disk"
+	componentsdockercontainer "github.com/leptonai/gpud/components/docker/container"
+	componentsfd "github.com/leptonai/gpud/components/fd"
+	componentsfuse "github.com/leptonai/gpud/components/fuse"
+	componentsinfo "github.com/leptonai/gpud/components/info"
+	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
+	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
+	componentslibrary "github.com/leptonai/gpud/components/library"
+	componentsmemory "github.com/leptonai/gpud/components/memory"
+	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
+	componentsos "github.com/leptonai/gpud/components/os"
+	componentspci "github.com/leptonai/gpud/components/pci"
+	componentstailscale "github.com/leptonai/gpud/components/tailscale"
 )
+
+var componentInits = []components.InitFunc{
+	componentscpu.New,
+	componentscontainerdpod.New,
+	componentsdisk.New,
+	componentsdockercontainer.New,
+	componentsfd.New,
+	componentsfuse.New,
+	componentsinfo.New,
+	componentskernelmodule.New,
+	componentskubeletpod.New,
+	componentslibrary.New,
+	componentsmemory.New,
+	componentsnetworklatency.New,
+	componentsos.New,
+	componentspci.New,
+	componentstailscale.New,
+	componentsacceleratornvidiabadenvs.New,
+	componentsacceleratornvidiaclockspeed.New,
+	componentsacceleratornvidiaecc.New,
+	componentsacceleratornvidiafabricmanager.New,
+	componentsacceleratornvidiagpm.New,
+	componentsacceleratornvidiagspfirmwaremode.New,
+	componentsacceleratornvidiahwslowdown.New,
+	componentsacceleratornvidiainfiniband.New,
+	componentsacceleratornvidiainfo.New,
+	componentsacceleratornvidiamemory.New,
+	componentsacceleratornvidianccl.New,
+	componentsacceleratornvidianvlink.New,
+	componentsacceleratornvidiapeermem.New,
+	componentsacceleratornvidiapersistencemode.New,
+	componentsacceleratornvidiapower.New,
+	componentsacceleratornvidiaprocesses.New,
+	componentsacceleratornvidiaremappedrows.New,
+	componentsacceleratornvidiasxid.New,
+	componentsacceleratornvidiatemperature.New,
+	componentsacceleratornvidiautilization.New,
+	componentsacceleratornvidiaxid.New,
+}
 
 // Server is the gpud main daemon
 type Server struct {
 	dbRW *sql.DB
 	dbRO *sql.DB
+
+	componentsRegistry components.Registry
 
 	uid                string
 	fifoPath           string
@@ -100,7 +142,7 @@ type Server struct {
 	autoUpdateExitCode int
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpud_manager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -122,7 +164,16 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
+
 	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
+
+	// only record once when we create the server instance
+	cctx, ccancel := context.WithTimeout(ctx, time.Minute)
+	err = rebootEventStore.RecordReboot(cctx)
+	ccancel()
+	if err != nil {
+		log.Logger.Errorw("failed to record reboot", "error", err)
+	}
 
 	promScraper, err := pkgmetricsscraper.NewPrometheusScraper(pkgmetrics.DefaultGatherer())
 	if err != nil {
@@ -153,26 +204,26 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	nvidiaInstalled, err := nvidia_query.GPUsInstalled(ctx)
+	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var nvmlInstanceV2 nvidia_query_nvml.InstanceV2
+	var nvmlInstanceV2 nvidianvml.InstanceV2
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		nvmlInstanceV2, err = nvidia_query_nvml.NewInstanceV2()
+		nvmlInstanceV2, err = nvidianvml.NewInstanceV2()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 		}
 	}
 
-	if err := gpud_state.CreateTableMachineMetadata(ctx, dbRW); err != nil {
+	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
-	if err := gpud_state.CreateTableAPIVersion(ctx, dbRW); err != nil {
+	if err := gpudstate.CreateTableAPIVersion(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create api version table: %w", err)
 	}
-	ver, err := gpud_state.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
+	ver, err := gpudstate.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to update api version: %w", err)
 	}
@@ -181,7 +232,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
-	if err := components_metrics_state.CreateTableMetrics(ctx, dbRW, components_metrics_state.DefaultTableName); err != nil {
+	if err := metricstate.CreateTableMetrics(ctx, dbRW, metricstate.DefaultTableName); err != nil {
 		return nil, fmt.Errorf("failed to create metrics table: %w", err)
 	}
 	go func() {
@@ -193,7 +244,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			case <-time.After(dur):
 				now := time.Now().UTC()
 				before := now.Add(-dur)
-				purged, err := components_metrics_state.PurgeMetrics(ctx, dbRW, components_metrics_state.DefaultTableName, before)
+				purged, err := metricstate.PurgeMetrics(ctx, dbRW, metricstate.DefaultTableName, before)
 				if err != nil {
 					log.Logger.Warnw("failed to purge metrics", "error", err)
 				} else {
@@ -203,187 +254,31 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	allComponents := make([]components.Component, 0)
-	if _, ok := config.Components[os.Name]; !ok {
-		allComponents = append(allComponents, os.New(ctx, rebootEventStore))
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+
+		NVMLInstance:         nvmlInstanceV2,
+		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
+
+		Annotations: config.Annotations,
+		DBRO:        dbRO,
+
+		EventStore:       eventStore,
+		RebootEventStore: rebootEventStore,
+
+		MountPoints:  []string{"/"},
+		MountTargets: []string{"/var/lib/kubelet"},
 	}
-
-	for k, configValue := range config.Components {
-		switch k {
-		case cpu.Name:
-			c, err := cpu.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case disk.Name:
-			allComponents = append(allComponents, disk.New(
-				ctx,
-				[]string{"/"},
-				[]string{"/var/lib/kubelet"},
-			))
-
-		case fuse.Name:
-			c, err := fuse.New(ctx, fuse.DefaultCongestedPercentAgainstThreshold, fuse.DefaultMaxBackgroundPercentAgainstThreshold, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case pci.Name:
-			c, err := pci.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case fd.Name:
-			c, err := fd.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case kernel_module.Name:
-			kernelModulesToCheck := []string{}
-			if configValue != nil {
-				var ok bool
-				kernelModulesToCheck, ok = configValue.([]string)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-			}
-			allComponents = append(allComponents, kernel_module.New(kernelModulesToCheck))
-
-		case library.Name:
-			if configValue != nil {
-				libCfg, ok := configValue.(library.Config)
-				if !ok {
-					return nil, fmt.Errorf("failed to parse component %s config: %w", k, err)
-				}
-				allComponents = append(allComponents, library.New(libCfg))
-			}
-
-		case info.Name:
-			allComponents = append(allComponents, info.New(config.Annotations, dbRO))
-
-		case memory.Name:
-			c, err := memory.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case os.Name:
-			allComponents = append(allComponents, os.New(ctx, rebootEventStore))
-
-		case tailscale.Name:
-			allComponents = append(allComponents, tailscale.New(ctx))
-
-		case nvidia_info.Name:
-			allComponents = append(allComponents, nvidia_info.New(ctx, nvmlInstanceV2))
-
-		case nvidia_badenvs.Name:
-			allComponents = append(allComponents, nvidia_badenvs.New(ctx))
-
-		case nvidia_xid.Name:
-			allComponents = append(allComponents, nvidia_xid.New(ctx, rebootEventStore, eventStore))
-
-		case nvidia_sxid.Name:
-			// db object to read sxid events (read-only, writes are done in poller)
-			allComponents = append(allComponents, nvidia_sxid.New(ctx, rebootEventStore, eventStore))
-
-		case nvidia_hw_slowdown.Name:
-			c, err := nvidia_hw_slowdown.New(ctx, nvmlInstanceV2, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case nvidia_clock_speed.Name:
-			allComponents = append(allComponents, nvidia_clock_speed.New(ctx, nvmlInstanceV2))
-
-		case nvidia_ecc.Name:
-			allComponents = append(allComponents, nvidia_ecc.New(ctx, nvmlInstanceV2))
-
-		case nvidia_memory.Name:
-			allComponents = append(allComponents, nvidia_memory.New(ctx, nvmlInstanceV2))
-
-		case nvidia_gpm.Name:
-			allComponents = append(allComponents, nvidia_gpm.New(ctx, nvmlInstanceV2))
-
-		case nvidia_nvlink.Name:
-			allComponents = append(allComponents, nvidia_nvlink.New(ctx, nvmlInstanceV2))
-
-		case nvidia_power.Name:
-			allComponents = append(allComponents, nvidia_power.New(ctx, nvmlInstanceV2))
-
-		case nvidia_temperature.Name:
-			allComponents = append(allComponents, nvidia_temperature.New(ctx, nvmlInstanceV2))
-
-		case nvidia_utilization.Name:
-			allComponents = append(allComponents, nvidia_utilization.New(ctx, nvmlInstanceV2))
-
-		case nvidia_processes.Name:
-			allComponents = append(allComponents, nvidia_processes.New(ctx, nvmlInstanceV2))
-
-		case nvidia_remapped_rows.Name:
-			c, err := nvidia_remapped_rows.New(ctx, nvmlInstanceV2, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case nvidia_fabric_manager.Name:
-			fabricManagerLogComponent, err := nvidia_fabric_manager.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, fabricManagerLogComponent)
-
-		case nvidia_gsp_firmware_mode.Name:
-			allComponents = append(allComponents, nvidia_gsp_firmware_mode.New(ctx, nvmlInstanceV2))
-
-		case nvidia_infiniband.Name:
-			c, err := nvidia_infiniband.New(ctx, eventStore, config.NvidiaToolOverwrites)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case nvidia_peermem.Name:
-			c, err := nvidia_peermem.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case nvidia_persistence_mode.Name:
-			allComponents = append(allComponents, nvidia_persistence_mode.New(ctx, nvmlInstanceV2))
-
-		case nvidia_nccl.Name:
-			c, err := nvidia_nccl.New(ctx, eventStore)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create component %s: %w", k, err)
-			}
-			allComponents = append(allComponents, c)
-
-		case containerd_pod.Name:
-			allComponents = append(allComponents, containerd_pod.New(ctx))
-
-		case docker_container.Name:
-			allComponents = append(allComponents, docker_container.New(ctx, config.DockerIgnoreConnectionErrors))
-
-		case kubelet_pod.Name:
-			allComponents = append(allComponents, kubelet_pod.New(ctx, kubelet_pod.DefaultKubeletReadOnlyPort))
-
-		case network_latency.Name:
-			allComponents = append(allComponents, network_latency.New(ctx))
-
-		default:
-			return nil, fmt.Errorf("unknown component %s", k)
+	s.componentsRegistry = components.NewRegistry(gpudInstance)
+	for _, initFunc := range componentInits {
+		s.componentsRegistry.MustRegister(initFunc)
+	}
+	componentNames := make([]string, 0)
+	for _, c := range s.componentsRegistry.All() {
+		if err = c.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
+		componentNames = append(componentNames, c.Name())
 	}
 
 	go func() {
@@ -421,7 +316,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 				ticker.Reset(time.Hour)
 			}
 
-			if err := gpud_state.RecordMetrics(ctx, dbRW); err != nil {
+			if err := gpudstate.RecordMetrics(ctx, dbRW); err != nil {
 				log.Logger.Errorw("failed to record metrics", "error", err)
 			}
 		}
@@ -449,37 +344,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		log.Logger.Debugw("compact period is not set, skipping compacting")
 	}
 
-	for i := range allComponents {
-		metrics.SetRegistered(allComponents[i].Name())
-	}
-
-	var componentNames []string
-	componentSet := make(map[string]struct{})
-	for _, c := range allComponents {
-		componentSet[c.Name()] = struct{}{}
-		componentNames = append(componentNames, c.Name())
-
-		// this guarantees no name conflict, thus safe to register handlers by its name
-		if err := components.RegisterComponent(c.Name(), c); err != nil {
-			log.Logger.Debugw("failed to register component", "name", c.Name(), "error", err)
-			continue
-		}
-	}
-
-	for _, c := range allComponents {
-		if err = c.Start(); err != nil {
-			log.Logger.Errorw("failed to start component", "name", c.Name(), "error", err)
-			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
-		}
-	}
-
-	uid, err := gpud_state.ReadMachineID(ctx, dbRO)
+	uid, err := gpudstate.ReadMachineID(ctx, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
 	s.uid = uid
 	if s.uid != "" {
-		if err = gpud_state.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
+		if err = gpudstate.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
 			return nil, fmt.Errorf("failed to update components: %w", err)
 		}
 	}
@@ -500,14 +371,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	ghler := newGlobalHandler(config, components.GetAllComponents(), metricsSQLiteStore)
+	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore)
 	ghler.registerComponentRoutes(v1)
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
 	})
 
-	router.GET(URLPathSwagger, ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
 	router.GET(URLPathHealthz, createHealthzHandler())
 
 	admin := router.Group(urlPathAdmin)
@@ -523,7 +394,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
 
-	go func(nvmlInstance nvidia_query_nvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
+	go func(nvmlInstance nvidianvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
 			if nvmlInstance != nil {
 				if err := nvmlInstance.Shutdown(); err != nil {
@@ -585,13 +456,14 @@ func (s *Server) Stop() {
 	if s.session != nil {
 		s.session.Stop()
 	}
-	for name, component := range components.GetAllComponents() {
+
+	for _, component := range s.componentsRegistry.All() {
 		closer, ok := component.(io.Closer)
 		if !ok {
 			continue
 		}
 		if err := closer.Close(); err != nil {
-			log.Logger.Errorf("failed to close plugin %v: %v", name, err)
+			log.Logger.Errorf("failed to close plugin %v: %v", component.Name(), err)
 		}
 	}
 
@@ -663,7 +535,7 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string, metricsStore pkgmetrics.Store) {
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpud_state.GetLoginInfo(ctx, db, uid); err == nil {
+	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, uid); err == nil {
 		userToken = dbToken
 	}
 
@@ -676,6 +548,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithMetricsStore(metricsStore),
 		)
 		if err != nil {

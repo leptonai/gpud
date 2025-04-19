@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -12,19 +11,20 @@ import (
 	"sync"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/gin-gonic/gin"
 	"github.com/leptonai/gpud/components"
-	gpudcomponents "github.com/leptonai/gpud/components"
 	gpudconfig "github.com/leptonai/gpud/pkg/config"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	"github.com/leptonai/gpud/pkg/errdefs"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-
-	"sigs.k8s.io/yaml"
 )
 
 type globalHandler struct {
-	cfg        *gpudconfig.Config
-	components map[string]components.Component
+	cfg *gpudconfig.Config
+
+	componentsRegistry components.Registry
 
 	componentNamesMu sync.RWMutex
 	componentNames   []string
@@ -32,18 +32,18 @@ type globalHandler struct {
 	metricsStore pkgmetrics.Store
 }
 
-func newGlobalHandler(cfg *gpudconfig.Config, components map[string]components.Component, metricsStore pkgmetrics.Store) *globalHandler {
+func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Registry, metricsStore pkgmetrics.Store) *globalHandler {
 	var componentNames []string
-	for name := range components {
-		componentNames = append(componentNames, name)
+	for _, c := range componentsRegistry.All() {
+		componentNames = append(componentNames, c.Name())
 	}
 	sort.Strings(componentNames)
 
 	return &globalHandler{
-		cfg:            cfg,
-		components:     components,
-		componentNames: componentNames,
-		metricsStore:   metricsStore,
+		cfg:                cfg,
+		componentsRegistry: componentsRegistry,
+		componentNames:     componentNames,
+		metricsStore:       metricsStore,
 	}
 }
 
@@ -79,8 +79,8 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 
 	var ret []string
 	for _, component := range strings.Split(components, ",") {
-		if _, err := gpudcomponents.GetComponent(component); err != nil {
-			return nil, fmt.Errorf("failed to get component: %v (%w)", err, errors.Unwrap(err))
+		if c := g.componentsRegistry.Get(component); c == nil {
+			return nil, fmt.Errorf("component %s not found (%w)", component, errdefs.ErrNotFound)
 		}
 		ret = append(ret, component)
 	}
@@ -164,7 +164,7 @@ var (
 	URLPathAdminPackages = path.Join(urlPathAdmin, urlPathPackages)
 )
 
-func createPackageHandler(m *gpud_manager.Manager) func(c *gin.Context) {
+func createPackageHandler(m *gpudmanager.Manager) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		packageStatus, err := m.Status(c)
 		if err != nil {

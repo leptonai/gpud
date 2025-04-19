@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -22,10 +23,13 @@ type InstanceV2 interface {
 }
 
 // NewInstanceV2 creates a new instance of the NVML library.
-// If NVML is not installed, it returns `ErrNVMLNotInstalled`.
+// If NVML is not installed, it returns no-op nvml instance.
 func NewInstanceV2() (InstanceV2, error) {
 	nvmlLib, err := nvmllib.New()
 	if err != nil {
+		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
+			return NewNoOpInstanceV2(), nil
+		}
 		return nil, err
 	}
 
@@ -36,7 +40,7 @@ func NewInstanceV2() (InstanceV2, error) {
 	}
 
 	log.Logger.Infow("getting driver version from nvml library")
-	driverVersion, err := getDriverVersion(nvmlLib.NVML())
+	driverVersion, err := GetSystemDriverVersion(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
 	}
@@ -136,3 +140,20 @@ func (inst *instanceV2) Shutdown() error {
 	}
 	return nil
 }
+
+var _ InstanceV2 = &noOpInstanceV2{}
+
+func NewNoOpInstanceV2() InstanceV2 {
+	return &noOpInstanceV2{}
+}
+
+type noOpInstanceV2 struct{}
+
+func (inst *noOpInstanceV2) NVMLExists() bool                  { return false }
+func (inst *noOpInstanceV2) Library() nvmllib.Library          { return nil }
+func (inst *noOpInstanceV2) Devices() map[string]device.Device { return nil }
+func (inst *noOpInstanceV2) ProductName() string               { return "" }
+func (inst *noOpInstanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
+	return MemoryErrorManagementCapabilities{}
+}
+func (inst *noOpInstanceV2) Shutdown() error { return nil }

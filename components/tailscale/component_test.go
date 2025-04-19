@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 )
 
 // mockComponent creates a component with mock functions for testing
@@ -34,20 +35,20 @@ func mockComponent(
 	if isInstalled && (!isActive || activeError != nil) {
 		c.lastData = &Data{
 			TailscaledServiceActive: isActive,
-			healthy:                 false,
+			health:                  apiv1.HealthStateTypeUnhealthy,
 			err:                     activeError,
 			reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 		}
 	} else if isInstalled && isActive {
 		c.lastData = &Data{
 			TailscaledServiceActive: true,
-			healthy:                 true,
+			health:                  apiv1.HealthStateTypeHealthy,
 			reason:                  "tailscaled service is active/running",
 		}
 	} else {
 		c.lastData = &Data{
 			TailscaledServiceActive: false,
-			healthy:                 true,
+			health:                  apiv1.HealthStateTypeHealthy,
 			reason:                  "tailscaled is not installed",
 		}
 	}
@@ -56,8 +57,12 @@ func mockComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	c := New(ctx)
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+	}
+	c, err := New(gpudInstance)
 
+	assert.NoError(t, err, "New should not return an error")
 	assert.NotNil(t, c, "New should return a non-nil component")
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 
@@ -166,7 +171,7 @@ func TestCheckOnce(t *testing.T) {
 			ctx := context.Background()
 			c := mockComponent(ctx, tc.isInstalled, tc.isActive, tc.activeError)
 
-			c.CheckOnce()
+			_ = c.Check()
 
 			c.lastMu.RLock()
 			lastData := c.lastData
@@ -205,7 +210,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       true,
 			activeError:    nil,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedStatus: true,
 		},
 		{
@@ -213,7 +218,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -221,7 +226,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    errors.New("test error"),
-			expectedHealth: apiv1.StateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 			expectedStatus: false,
 		},
 		{
@@ -229,7 +234,7 @@ func TestStates(t *testing.T) {
 			isInstalled:    false,
 			isActive:       false,
 			activeError:    nil,
-			expectedHealth: apiv1.StateTypeHealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedStatus: true,
 		},
 	}
@@ -240,12 +245,10 @@ func TestStates(t *testing.T) {
 			c := mockComponent(ctx, tc.isInstalled, tc.isActive, tc.activeError)
 
 			// Run CheckOnce to populate lastData
-			c.CheckOnce()
+			_ = c.Check()
 
 			// Get the states
-			states, err := c.HealthStates(ctx)
-
-			assert.NoError(t, err, "States should not return an error")
+			states := c.LastHealthStates()
 			assert.Len(t, states, 1, "States should return exactly one state")
 
 			state := states[0]
@@ -277,42 +280,41 @@ func TestDataGetStates(t *testing.T) {
 			name: "active service",
 			data: &Data{
 				TailscaledServiceActive: true,
-				healthy:                 true,
+				health:                  apiv1.HealthStateTypeHealthy,
 				reason:                  "tailscaled service is active/running",
 			},
 			expectedReason:  "tailscaled service is active/running",
-			expectedHealth:  apiv1.StateTypeHealthy,
+			expectedHealth:  apiv1.HealthStateTypeHealthy,
 			expectedHealthy: true,
 		},
 		{
 			name: "inactive service",
 			data: &Data{
 				TailscaledServiceActive: false,
-				healthy:                 false,
+				health:                  apiv1.HealthStateTypeUnhealthy,
 				reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check",
-			expectedHealth:  apiv1.StateTypeUnhealthy,
+			expectedHealth:  apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 		{
 			name: "error state",
 			data: &Data{
-				err:     errors.New("test error"),
-				healthy: false,
-				reason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
+				err:    errors.New("test error"),
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
 			},
 			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
-			expectedHealth:  apiv1.StateTypeUnhealthy,
+			expectedHealth:  apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states, err := tc.data.getHealthStates()
+			states := tc.data.getLastHealthStates()
 
-			assert.NoError(t, err)
 			assert.Len(t, states, 1, "getStates should return exactly one state")
 
 			state := states[0]

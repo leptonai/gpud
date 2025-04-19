@@ -18,7 +18,7 @@ import (
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
-	lepServer "github.com/leptonai/gpud/pkg/server"
+	gpudserver "github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
@@ -86,7 +86,7 @@ func cmdRun(cliContext *cli.Context) error {
 	start := time.Now()
 
 	signals := make(chan os.Signal, 2048)
-	serverC := make(chan *lepServer.Server, 1)
+	serverC := make(chan *gpudserver.Server, 1)
 
 	log.Logger.Infof("starting gpud %v", version.Version)
 
@@ -128,7 +128,7 @@ func cmdRun(cliContext *cli.Context) error {
 		log.Logger.Warnw("machine ID not found, running in local mode not connected to any control plane")
 	}
 
-	server, err := lepServer.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
+	server, err := gpudserver.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
 	if err != nil {
 		return err
 	}
@@ -144,5 +144,6 @@ func cmdRun(cliContext *cli.Context) error {
 
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done
+
 	return nil
 }

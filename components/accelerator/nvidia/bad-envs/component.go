@@ -2,6 +2,7 @@
 package badenvs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,9 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 const Name = "accelerator-nvidia-bad-envs"
@@ -23,6 +27,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	nvmlInstance nvidianvml.InstanceV2
+
 	// returns true if the specified environment variable is set
 	checkEnvFunc func(key string) bool
 
@@ -30,16 +36,17 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:          cctx,
+		cancel:       ccancel,
+		nvmlInstance: gpudInstance.NVMLInstance,
 		checkEnvFunc: func(key string) bool {
 			return os.Getenv(key) == "1"
 		},
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -48,8 +55,10 @@ func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
+
 		for {
-			c.CheckOnce()
+			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
@@ -60,11 +69,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -95,18 +104,28 @@ var BAD_CUDA_ENV_KEYS = map[string]string{
 	"OPENCL_PROFILE":                    "Enables OpenCL profiling.",
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking memory")
-	d := Data{
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia gpu bad env variables")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
+		return d
+	}
 
 	foundBadEnvsForCUDA := make(map[string]string)
 	for k, desc := range BAD_CUDA_ENV_KEYS {
@@ -118,8 +137,6 @@ func (c *component) CheckOnce() {
 		d.FoundBadEnvsForCUDA = foundBadEnvsForCUDA
 	}
 
-	d.healthy = true
-
 	if len(foundBadEnvsForCUDA) == 0 {
 		d.reason = "no bad envs found"
 	} else {
@@ -129,7 +146,12 @@ func (c *component) CheckOnce() {
 		}
 		d.reason = strings.Join(kvs, "; ")
 	}
+
+	d.health = apiv1.HealthStateTypeHealthy
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// FoundBadEnvsForCUDA is a map of environment variables that are known to hurt CUDA.
@@ -143,9 +165,43 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.FoundBadEnvsForCUDA) == 0 {
+		return "no bad envs found"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"Found Env Key", "Description"})
+	for k, v := range d.FoundBadEnvsForCUDA {
+		table.Append([]string{k, v})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -155,26 +211,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -182,5 +234,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

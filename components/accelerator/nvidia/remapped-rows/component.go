@@ -2,14 +2,17 @@
 package remappedrows
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -19,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 // Name is the ID of the remapped rows component.
@@ -30,8 +34,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstanceV2      nvml.InstanceV2
-	getRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+	nvmlInstance        nvidianvml.InstanceV2
+	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
 	eventBucket eventstore.Bucket
 
@@ -39,22 +43,25 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstanceV2 nvml.InstanceV2, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:                 cctx,
+		cancel:              ccancel,
+		nvmlInstance:        gpudInstance.NVMLInstance,
+		getRemappedRowsFunc: nvml.GetRemappedRows,
 	}
 
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
 
-		nvmlInstanceV2:      nvmlInstanceV2,
-		getRemappedRowsFunc: nvml.GetRemappedRows,
-
-		eventBucket: eventBucket,
-	}, nil
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -65,7 +72,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 
 			select {
 			case <-c.ctx.Done():
@@ -77,14 +84,17 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
 	return c.eventBucket.Get(ctx, since)
 }
 
@@ -100,38 +110,48 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking remapped rows")
-	d := Data{
-		ProductName:                       c.nvmlInstanceV2.ProductName(),
-		MemoryErrorManagementCapabilities: c.nvmlInstanceV2.GetMemoryErrorManagementCapabilities(),
-		RemappedRows:                      nil,
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia gpu remapped rows")
 
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
+	if c.nvmlInstance == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
+		return d
+	}
+
+	d.ProductName = c.nvmlInstance.ProductName()
+	d.MemoryErrorManagementCapabilities = c.nvmlInstance.GetMemoryErrorManagementCapabilities()
+
 	if !d.MemoryErrorManagementCapabilities.RowRemapping {
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("%q does not support row remapping", d.ProductName)
-		return
+		return d
 	}
 
 	issues := make([]string, 0)
 
-	devs := c.nvmlInstanceV2.Devices()
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting remapped rows", "uuid", uuid, "error", err)
+
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting remapped rows for %s", uuid)
 			continue
 		}
@@ -152,7 +172,7 @@ func (c *component) CheckOnce() {
 		}
 
 		b, _ := json.Marshal(d)
-		if remappedRows.RemappingPending {
+		if c.eventBucket != nil && remappedRows.RemappingPending {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
@@ -175,13 +195,13 @@ func (c *component) CheckOnce() {
 			if err != nil {
 				log.Logger.Errorw("error inserting event for remapping pending", "uuid", uuid, "error", err)
 				d.err = err
-				d.healthy = false
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.reason = fmt.Sprintf("error inserting event for remapping pending for %s", uuid)
 				continue
 			}
 		}
 
-		if remappedRows.RemappingFailed {
+		if c.eventBucket != nil && remappedRows.RemappingFailed {
 			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
@@ -204,7 +224,7 @@ func (c *component) CheckOnce() {
 			if err != nil {
 				log.Logger.Errorw("error inserting event for remapping failed", "uuid", uuid, "error", err)
 				d.err = err
-				d.healthy = false
+				d.health = apiv1.HealthStateTypeUnhealthy
 				d.reason = fmt.Sprintf("error inserting event for remapping failed for %s", uuid)
 				continue
 			}
@@ -219,13 +239,17 @@ func (c *component) CheckOnce() {
 	}
 
 	if len(issues) > 0 {
-		d.healthy = false
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = strings.Join(issues, ", ")
 	} else {
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(devs))
 	}
+
+	return d
 }
+
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	// ProductName is the product name of the GPU.
@@ -241,9 +265,49 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+	if len(d.RemappedRows) == 0 {
+		return "no data"
+	}
+
+	buf := bytes.NewBuffer(nil)
+	table := tablewriter.NewWriter(buf)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"GPU UUID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
+	for _, remappedRows := range d.RemappedRows {
+		table.Append([]string{
+			remappedRows.UUID,
+			fmt.Sprintf("%d", remappedRows.RemappedDueToCorrectableErrors),
+			fmt.Sprintf("%d", remappedRows.RemappedDueToUncorrectableErrors),
+			fmt.Sprintf("%v", remappedRows.RemappingPending),
+			fmt.Sprintf("%v", remappedRows.RemappingFailed),
+		})
+	}
+	table.Render()
+
+	return buf.String()
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -253,26 +317,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -280,5 +340,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

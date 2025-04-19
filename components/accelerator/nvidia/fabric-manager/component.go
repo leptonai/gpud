@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -34,34 +35,35 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, eventStore eventstore.Store) (components.Component, error) {
-	eventBucket, err := eventStore.Bucket(Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cctx, ccancel := context.WithCancel(ctx)
-
-	var llp *logLineProcessor
-	if checkFMExists() {
-		w, err := newWatcher(defaultWatchCommands)
-		if err != nil {
-			ccancel()
-			return nil, err
-		}
-		llp = newLogLineProcessor(cctx, w, Match, eventBucket)
-	}
-
-	return &component{
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
+	}
 
-		eventBucket:      eventBucket,
-		logLineProcessor: llp,
-	}, nil
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
+	if checkFMExists() && c.eventBucket != nil {
+		w, err := newWatcher(defaultWatchCommands)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		c.logLineProcessor = newLogLineProcessor(cctx, w, Match, c.eventBucket)
+	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -72,7 +74,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 
 			select {
 			case <-c.ctx.Done():
@@ -84,18 +86,18 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.logLineProcessor != nil {
-		return c.logLineProcessor.getEvents(ctx, since)
+	if c.logLineProcessor == nil {
+		return nil, nil
 	}
-	return nil, nil
+	return c.logLineProcessor.getEvents(ctx, since)
 }
 
 func (c *component) Close() error {
@@ -113,37 +115,38 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking power")
-	d := Data{
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia fabric manager")
+
+	d := &Data{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = &d
+		c.lastData = d
 		c.lastMu.Unlock()
 	}()
 
 	if !c.checkFMExistsFunc() {
 		d.FabricManagerActive = false
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = "nv-fabricmanager executable not found"
-		return
+		return d
 	}
 
 	active := c.checkFMActiveFunc()
 	if !active {
 		d.FabricManagerActive = false
-		d.healthy = false
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = "nv-fabricmanager found but fabric manager service is not active"
-		return
+		return d
 	}
 
 	d.FabricManagerActive = true
-	d.healthy = true
+	d.health = apiv1.HealthStateTypeHealthy
 	d.reason = "fabric manager found and active"
+
+	return d
 }
 
 // checkFMExists returns true if the fabric manager executable is found in the system.
@@ -165,6 +168,8 @@ func checkFMActive() bool {
 	return netutil.IsPortOpen(defaultFabricManagerPort)
 }
 
+var _ components.CheckResult = &Data{}
+
 type Data struct {
 	// FabricManagerActive is true if the fabric manager is active.
 	// By default, it checks the "nv-fabricmanager" default listening port 6666.
@@ -176,9 +181,35 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+}
+
+func (d *Data) String() string {
+	if d == nil {
+		return ""
+	}
+
+	if d.FabricManagerActive {
+		return "fabric manager is active"
+	}
+
+	return "fabric manager is not active"
+}
+
+func (d *Data) Summary() string {
+	if d == nil {
+		return ""
+	}
+	return d.reason
+}
+
+func (d *Data) HealthState() apiv1.HealthStateType {
+	if d == nil {
+		return ""
+	}
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -188,26 +219,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-
-		Health: apiv1.StateTypeHealthy,
-	}
-	if !d.healthy {
-		state.Health = apiv1.StateTypeUnhealthy
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -215,5 +242,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }

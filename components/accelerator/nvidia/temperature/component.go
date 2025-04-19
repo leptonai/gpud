@@ -36,15 +36,15 @@ type component struct {
 	lastData *Data
 }
 
-func New(ctx context.Context, nvmlInstance nvidianvml.InstanceV2) components.Component {
-	cctx, ccancel := context.WithCancel(ctx)
-	return &component{
-		ctx:    cctx,
-		cancel: ccancel,
-
-		nvmlInstance:       nvmlInstance,
+func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	c := &component{
+		ctx:                cctx,
+		cancel:             ccancel,
+		nvmlInstance:       gpudInstance.NVMLInstance,
 		getTemperatureFunc: nvidianvml.GetTemperature,
 	}
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -55,7 +55,7 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
-			c.CheckOnce()
+			_ = c.Check()
 
 			select {
 			case <-c.ctx.Done():
@@ -67,11 +67,11 @@ func (c *component) Start() error {
 	return nil
 }
 
-func (c *component) HealthStates(ctx context.Context) (apiv1.HealthStates, error) {
+func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastData := c.lastData
 	c.lastMu.RUnlock()
-	return lastData.getHealthStates()
+	return lastData.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -86,39 +86,38 @@ func (c *component) Close() error {
 	return nil
 }
 
-// CheckOnce checks the current pods
-// run this periodically
-func (c *component) CheckOnce() {
-	log.Logger.Infow("checking temperature")
+func (c *component) Check() components.CheckResult {
+	log.Logger.Infow("checking nvidia gpu temperature")
 
-	d := checkHealthState(c.nvmlInstance, c.getTemperatureFunc)
-
-	c.lastMu.Lock()
-	c.lastData = d
-	c.lastMu.Unlock()
-}
-
-func CheckHealthState(nvmlInstance nvidianvml.InstanceV2) (components.HealthStateCheckResult, error) {
-	d := checkHealthState(nvmlInstance, nvidianvml.GetTemperature)
-	if d.err != nil {
-		return nil, d.err
-	}
-	return d, nil
-}
-
-func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error)) *Data {
 	d := &Data{
 		ts: time.Now().UTC(),
 	}
+	defer func() {
+		c.lastMu.Lock()
+		c.lastData = d
+		c.lastMu.Unlock()
+	}()
+
+	if c.nvmlInstance == nil {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML instance is nil"
+		return d
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		d.health = apiv1.HealthStateTypeHealthy
+		d.reason = "NVIDIA NVML is not loaded"
+		return d
+	}
 
 	tempThresholdExceeded := make([]string, 0)
-	devs := nvmlInstance.Devices()
+	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
-		temp, err := getTemperatureFunc(uuid, dev)
+		temp, err := c.getTemperatureFunc(uuid, dev)
 		if err != nil {
 			log.Logger.Errorw("error getting temperature for device", "uuid", uuid, "error", err)
+
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting temperature for device %s", uuid)
 			return d
 		}
@@ -142,8 +141,9 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
 			log.Logger.Errorw("error getting used percent for slowdown for device", "uuid", uuid, "error", err)
+
 			d.err = err
-			d.healthy = false
+			d.health = apiv1.HealthStateTypeUnhealthy
 			d.reason = fmt.Sprintf("error getting used percent for slowdown for device %s", uuid)
 			return d
 		}
@@ -151,17 +151,17 @@ func checkHealthState(nvmlInstance nvidianvml.InstanceV2, getTemperatureFunc fun
 	}
 
 	if len(tempThresholdExceeded) == 0 {
-		d.healthy = true
+		d.health = apiv1.HealthStateTypeHealthy
 		d.reason = fmt.Sprintf("all %d GPU(s) were checked, no temperature issue found", len(devs))
 	} else {
-		d.healthy = false
+		d.health = apiv1.HealthStateTypeUnhealthy
 		d.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(tempThresholdExceeded, ", "))
 	}
 
 	return d
 }
 
-var _ components.HealthStateCheckResult = &Data{}
+var _ components.CheckResult = &Data{}
 
 type Data struct {
 	Temperatures []nvidianvml.Temperature `json:"temperatures,omitempty"`
@@ -172,14 +172,17 @@ type Data struct {
 	err error
 
 	// tracks the healthy evaluation result of the last check
-	healthy bool
+	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 }
 
 func (d *Data) String() string {
-	if d == nil || len(d.Temperatures) == 0 {
+	if d == nil {
 		return ""
+	}
+	if len(d.Temperatures) == 0 {
+		return "no data"
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -206,10 +209,7 @@ func (d *Data) HealthState() apiv1.HealthStateType {
 	if d == nil {
 		return ""
 	}
-	if d.healthy {
-		return apiv1.StateTypeHealthy
-	}
-	return apiv1.StateTypeUnhealthy
+	return d.health
 }
 
 func (d *Data) getError() string {
@@ -219,22 +219,22 @@ func (d *Data) getError() string {
 	return d.err.Error()
 }
 
-func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
+func (d *Data) getLastHealthStates() apiv1.HealthStates {
 	if d == nil {
-		return []apiv1.HealthState{
+		return apiv1.HealthStates{
 			{
 				Name:   Name,
-				Health: apiv1.StateTypeHealthy,
+				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
-		}, nil
+		}
 	}
 
 	state := apiv1.HealthState{
 		Name:   Name,
 		Reason: d.reason,
 		Error:  d.getError(),
-		Health: d.HealthState(),
+		Health: d.health,
 	}
 
 	b, _ := json.Marshal(d)
@@ -242,5 +242,5 @@ func (d *Data) getHealthStates() (apiv1.HealthStates, error) {
 		"data":     string(b),
 		"encoding": "json",
 	}
-	return []apiv1.HealthState{state}, nil
+	return apiv1.HealthStates{state}
 }
