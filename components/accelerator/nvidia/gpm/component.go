@@ -155,6 +155,8 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+
+	// First, check if all GPUs support GPM
 	for uuid, dev := range devs {
 		supported, err := c.getGPMSupportedFunc(dev)
 		if err != nil {
@@ -170,7 +172,10 @@ func (c *component) Check() components.CheckResult {
 			d.reason = "GPM not supported"
 			return d
 		}
+	}
 
+	// All GPUs support GPM, now collect metrics
+	for uuid, dev := range devs {
 		metrics, err := c.getGPMMetricsFunc(c.ctx, dev)
 		if err != nil {
 			d.err = err
