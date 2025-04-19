@@ -10,12 +10,12 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	client "github.com/leptonai/gpud/client/v1"
-	componentsacceleratornvidiainfo "github.com/leptonai/gpud/components/accelerator/nvidia/info"
-	componentscpu "github.com/leptonai/gpud/components/cpu"
-	componentsmemory "github.com/leptonai/gpud/components/memory"
 	"github.com/leptonai/gpud/pkg/config"
+	pkgcpu "github.com/leptonai/gpud/pkg/cpu"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/login"
+	pkgmemory "github.com/leptonai/gpud/pkg/memory"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -68,19 +68,19 @@ func cmdLogin(cliContext *cli.Context) error {
 		ResourceSpec: map[string]string{},
 	}
 
-	cpu, err := componentscpu.GetSystemResourceLogicalCores()
+	cpu, err := pkgcpu.GetSystemResourceLogicalCores()
 	if err != nil {
 		return fmt.Errorf("failed to get system resource logical cores: %w", err)
 	}
 	req.ResourceSpec[string(corev1.ResourceCPU)] = cpu
 
-	memory, err := componentsmemory.GetSystemResourceMemoryTotal()
+	memory, err := pkgmemory.GetSystemResourceMemoryTotal()
 	if err != nil {
 		return fmt.Errorf("failed to get system resource memory total: %w", err)
 	}
 	req.ResourceSpec[string(corev1.ResourceMemory)] = memory
 
-	gpuCnt, err := componentsacceleratornvidiainfo.GetSystemResourceGPUCount()
+	gpuCnt, err := nvidiaquery.GetSystemResourceGPUCount()
 	if err != nil {
 		return fmt.Errorf("failed to get system resource gpu count: %w", err)
 	}

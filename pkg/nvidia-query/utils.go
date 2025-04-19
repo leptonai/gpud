@@ -1,4 +1,4 @@
-package info
+package query
 
 import (
 	"github.com/leptonai/gpud/pkg/log"

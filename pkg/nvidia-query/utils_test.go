@@ -1,16 +1,14 @@
-package info
+package query
 
 import (
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 )
 
 func TestGetSystemResourceGPUCount(t *testing.T) {
-	devCnt, err := nvidiaquery.CountAllDevicesFromDevDir()
+	devCnt, err := CountAllDevicesFromDevDir()
 	assert.NoError(t, err)
 
 	gpuCnt, err := GetSystemResourceGPUCount()
