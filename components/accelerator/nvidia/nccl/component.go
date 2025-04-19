@@ -79,8 +79,9 @@ func (c *component) Start() error {
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{
 		{
-			Health: apiv1.HealthStateTypeHealthy,
-			Reason: "no issue",
+			Component: Name,
+			Health:    apiv1.HealthStateTypeHealthy,
+			Reason:    "no issue",
 		},
 	}
 }

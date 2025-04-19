@@ -145,7 +145,5 @@ func cmdRun(cliContext *cli.Context) error {
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done
 
-	server.Stop()
-
 	return nil
 }

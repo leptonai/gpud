@@ -398,3 +398,19 @@ func TestMatchFunctionality(t *testing.T) {
 		})
 	}
 }
+
+func TestLastHealthStates(t *testing.T) {
+	// Create a minimal component instance for testing
+	c := &component{}
+
+	// Call the LastHealthStates method
+	healthStates := c.LastHealthStates()
+
+	// Assert that exactly one health state is returned
+	assert.Len(t, healthStates, 1)
+
+	// Assert that the health state has the expected values
+	assert.Equal(t, Name, healthStates[0].Component)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "no issue", healthStates[0].Reason)
+}
