@@ -253,7 +253,14 @@ func (d *Data) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-
+	table.Append([]string{"Product", d.Product.Name})
+	table.Append([]string{"Brand", d.Product.Brand})
+	table.Append([]string{"Architecture", d.Product.Architecture})
+	table.Append([]string{"Driver Version", d.Driver.Version})
+	table.Append([]string{"CUDA Version", d.CUDA.Version})
+	table.Append([]string{"GPU Count", fmt.Sprintf("%d", d.GPU.DeviceCount)})
+	table.Append([]string{"GPU Attached", fmt.Sprintf("%d", d.GPU.Attached)})
+	table.Append([]string{"GPU Memory", d.Memory.TotalHumanized})
 	table.Render()
 
 	return buf.String()
