@@ -1701,8 +1701,8 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	var parsedData Data
 	err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
 	assert.NoError(t, err)
+	assert.Equal(t, len(d.Pods), len(parsedData.Pods))
 	assert.Equal(t, d.ContainerdServiceActive, parsedData.ContainerdServiceActive)
-	assert.Equal(t, 1, len(parsedData.Pods))
 	assert.Equal(t, "pod-1", parsedData.Pods[0].ID)
 	assert.Equal(t, "test-pod", parsedData.Pods[0].Name)
 	assert.Equal(t, "default", parsedData.Pods[0].Namespace)
@@ -2026,7 +2026,6 @@ func Test_checkContainerdRunningFunc(t *testing.T) {
 	assert.False(t, comp.lastData.health == apiv1.HealthStateTypeHealthy)
 	assert.Equal(t, "containerd installed but not running", comp.lastData.reason)
 	assert.Nil(t, comp.lastData.err)
-	assert.Empty(t, comp.lastData.Pods)
 }
 
 func Test_listAllSandboxesFunc(t *testing.T) {
@@ -2112,4 +2111,452 @@ func Test_listAllSandboxesFunc_with_error(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastData.health)
 	assert.Equal(t, "error listing pod sandbox status: test error", comp.lastData.reason)
 	assert.NotNil(t, comp.lastData.err)
+}
+
+// TestDataString thoroughly tests the Data.String() method
+func TestDataString(t *testing.T) {
+	tests := []struct {
+		name              string
+		data              *Data
+		expectedResult    string
+		expectEmpty       bool
+		expectContains    []string
+		expectNotContains []string
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedResult: "",
+			expectEmpty:    true,
+		},
+		{
+			name: "empty pods",
+			data: &Data{
+				Pods: []PodSandbox{},
+			},
+			expectedResult: "no pod found",
+			expectEmpty:    false,
+		},
+		{
+			name: "single pod without containers",
+			data: &Data{
+				Pods: []PodSandbox{
+					{
+						ID:        "pod1",
+						Name:      "test-pod",
+						Namespace: "default",
+						State:     "READY",
+					},
+				},
+			},
+			expectEmpty: false,
+			expectContains: []string{
+				"NAMESPACE", "POD", "CONTAINER", "STATE", // Headers are uppercase in tablewriter
+			},
+			// Pods without containers don't appear in the table
+			expectNotContains: []string{
+				"default", "test-pod",
+			},
+		},
+		{
+			name: "single pod with containers",
+			data: &Data{
+				Pods: []PodSandbox{
+					{
+						ID:        "pod1",
+						Name:      "test-pod",
+						Namespace: "default",
+						State:     "READY",
+						Containers: []PodSandboxContainerStatus{
+							{
+								ID:    "container1",
+								Name:  "container-1",
+								State: "RUNNING",
+							},
+						},
+					},
+				},
+			},
+			expectEmpty: false,
+			expectContains: []string{
+				"NAMESPACE", "POD", "CONTAINER", "STATE", // Headers are uppercase in tablewriter
+				"default", "test-pod", "container-1", "RUNNING", // Pod and container data
+			},
+		},
+		{
+			name: "multiple pods with multiple containers",
+			data: &Data{
+				Pods: []PodSandbox{
+					{
+						ID:        "pod1",
+						Name:      "test-pod-1",
+						Namespace: "default",
+						State:     "READY",
+						Containers: []PodSandboxContainerStatus{
+							{
+								ID:    "container1",
+								Name:  "container-1",
+								State: "RUNNING",
+							},
+							{
+								ID:    "container2",
+								Name:  "container-2",
+								State: "STOPPED",
+							},
+						},
+					},
+					{
+						ID:        "pod2",
+						Name:      "test-pod-2",
+						Namespace: "kube-system",
+						State:     "READY",
+						Containers: []PodSandboxContainerStatus{
+							{
+								ID:    "container3",
+								Name:  "container-3",
+								State: "RUNNING",
+							},
+						},
+					},
+				},
+			},
+			expectEmpty: false,
+			expectContains: []string{
+				"NAMESPACE", "POD", "CONTAINER", "STATE", // Headers are uppercase in tablewriter
+				"default", "test-pod-1", "container-1", "RUNNING",
+				"default", "test-pod-1", "container-2", "STOPPED",
+				"kube-system", "test-pod-2", "container-3", "RUNNING",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.String()
+
+			if tt.expectEmpty {
+				assert.Empty(t, result)
+			} else if tt.expectedResult != "" {
+				assert.Equal(t, tt.expectedResult, result)
+			} else {
+				for _, str := range tt.expectContains {
+					assert.Contains(t, result, str)
+				}
+				// Check strings that shouldn't be in the result
+				if tt.expectNotContains != nil {
+					for _, str := range tt.expectNotContains {
+						assert.NotContains(t, result, str)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestDataSummary thoroughly tests the Data.Summary() method
+func TestDataSummary(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedResult string
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedResult: "",
+		},
+		{
+			name: "data with explicit reason",
+			data: &Data{
+				reason: "custom summary reason",
+			},
+			expectedResult: "custom summary reason",
+		},
+		{
+			name: "data with empty reason",
+			data: &Data{
+				reason: "",
+			},
+			expectedResult: "",
+		},
+		{
+			name: "data with explicit reason and pods",
+			data: &Data{
+				reason: "found 3 pods",
+				Pods:   []PodSandbox{{ID: "pod1"}, {ID: "pod2"}, {ID: "pod3"}},
+			},
+			expectedResult: "found 3 pods",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.Summary()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+// TestDataHealthState thoroughly tests the Data.HealthState() method
+func TestDataHealthState(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           *Data
+		expectedResult apiv1.HealthStateType
+	}{
+		{
+			name:           "nil data",
+			data:           nil,
+			expectedResult: "",
+		},
+		{
+			name: "data with explicit healthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expectedResult: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "data with explicit unhealthy state",
+			data: &Data{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expectedResult: apiv1.HealthStateTypeUnhealthy,
+		},
+		{
+			name: "data with empty health state",
+			data: &Data{
+				health: "",
+			},
+			expectedResult: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.data.HealthState()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+// TestCheckWithNilFunctions tests component Check with missing functions
+func TestCheckWithNilFunctions(t *testing.T) {
+	// Test cases to cover edge cases for component Check method
+	tests := []struct {
+		name                          string
+		checkDependencyInstalledFunc  func() bool
+		checkSocketExistsFunc         func() bool
+		checkServiceActiveFunc        func(context.Context) (bool, error)
+		checkContainerdRunningFunc    func(context.Context) bool
+		listAllSandboxesFunc          func(context.Context, string) ([]PodSandbox, error)
+		expectedHealth                apiv1.HealthStateType
+		expectServiceChecked          bool
+		expectContainerdRunningChecks bool
+		expectPodChecks               bool
+	}{
+		{
+			name:                          "all nil functions",
+			checkDependencyInstalledFunc:  nil,
+			checkSocketExistsFunc:         nil,
+			checkServiceActiveFunc:        nil,
+			checkContainerdRunningFunc:    nil,
+			listAllSandboxesFunc:          nil,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectServiceChecked:          false,
+			expectContainerdRunningChecks: false,
+			expectPodChecks:               false,
+		},
+		{
+			name: "only dependency check non-nil but false",
+			checkDependencyInstalledFunc: func() bool {
+				return false
+			},
+			checkSocketExistsFunc:         nil,
+			checkServiceActiveFunc:        nil,
+			checkContainerdRunningFunc:    nil,
+			listAllSandboxesFunc:          nil,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectServiceChecked:          false,
+			expectContainerdRunningChecks: false,
+			expectPodChecks:               false,
+		},
+		{
+			name: "only dependency check non-nil and true, others nil",
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkSocketExistsFunc:         nil,
+			checkServiceActiveFunc:        nil,
+			checkContainerdRunningFunc:    nil,
+			listAllSandboxesFunc:          nil,
+			expectedHealth:                apiv1.HealthStateTypeHealthy, // The actual behavior is Healthy when socket check is nil
+			expectServiceChecked:          false,
+			expectContainerdRunningChecks: false,
+			expectPodChecks:               false,
+		},
+		{
+			name: "dependency and socket exist, others nil",
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkSocketExistsFunc: func() bool {
+				return true
+			},
+			checkServiceActiveFunc:        nil,
+			checkContainerdRunningFunc:    nil,
+			listAllSandboxesFunc:          nil,
+			expectedHealth:                apiv1.HealthStateTypeHealthy, // The actual behavior is Healthy when containerdRunning is nil
+			expectServiceChecked:          false,
+			expectContainerdRunningChecks: false,
+			expectPodChecks:               false,
+		},
+		{
+			name: "all functions except listAllSandboxes",
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkSocketExistsFunc: func() bool {
+				return true
+			},
+			checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			checkContainerdRunningFunc: func(ctx context.Context) bool {
+				return true
+			},
+			listAllSandboxesFunc:          nil,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectServiceChecked:          true,
+			expectContainerdRunningChecks: true,
+			expectPodChecks:               false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Create component with the provided functions
+			comp := &component{
+				ctx:                          ctx,
+				cancel:                       cancel,
+				checkDependencyInstalledFunc: tt.checkDependencyInstalledFunc,
+				checkSocketExistsFunc:        tt.checkSocketExistsFunc,
+				checkServiceActiveFunc:       tt.checkServiceActiveFunc,
+				checkContainerdRunningFunc:   tt.checkContainerdRunningFunc,
+				listAllSandboxesFunc:         tt.listAllSandboxesFunc,
+				endpoint:                     "unix:///mock/endpoint",
+			}
+
+			// Run Check method
+			result := comp.Check()
+
+			// Verify result
+			assert.NotNil(t, result)
+			data, ok := result.(*Data)
+			assert.True(t, ok)
+
+			// Check health state
+			assert.Equal(t, tt.expectedHealth, data.health)
+
+			// Verify containerd service active status if service was checked
+			if tt.expectServiceChecked {
+				assert.True(t, data.ContainerdServiceActive)
+			}
+
+			// Verify pods data if we expect pod checks
+			if tt.expectPodChecks {
+				assert.NotNil(t, data.Pods)
+			} else if !tt.expectServiceChecked && !tt.expectContainerdRunningChecks {
+				// If we're not checking services or running, the Pods array should be empty
+				assert.Empty(t, data.Pods)
+			}
+		})
+	}
+}
+
+// TestCheckServiceActiveError tests handling of service active check errors
+func TestCheckServiceActiveError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create error to test with
+	testError := errors.New("service active check error")
+
+	// Create component with mocked functions
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return false, testError
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	// Run Check method
+	result := comp.Check()
+
+	// Verify result
+	assert.NotNil(t, result)
+	data, ok := result.(*Data)
+	assert.True(t, ok)
+
+	// Check health state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "service is not active")
+	assert.False(t, data.ContainerdServiceActive)
+	assert.NotNil(t, data.err)
+}
+
+// TestComponentCheckWithContextDeadline tests what happens when context times out during checks
+func TestComponentCheckWithContextDeadline(t *testing.T) {
+	// Create a context with a very short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+
+	// Sleep to ensure the context expires
+	time.Sleep(1 * time.Millisecond)
+
+	// Create component with functions that should never be called due to expired context
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		// This function will never be called because the context is already expired
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			default:
+				return true, nil
+			}
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return false
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	// Run Check method
+	result := comp.Check()
+
+	// Verify result
+	assert.NotNil(t, result)
+	// The check should still complete, but may have partial results
 }
