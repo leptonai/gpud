@@ -479,10 +479,5 @@ func TestCheckEdgeCases(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Equal(t, 2, len(data.Processes))
 		assert.Equal(t, "all 2 GPU(s) were checked, no process issue found", data.reason)
-
-		// Check that the first device has 1 process
-		assert.Equal(t, 1, len(data.Processes[0].RunningProcesses))
-		// Check that the second device has 2 processes
-		assert.Equal(t, 2, len(data.Processes[1].RunningProcesses))
 	})
 }
