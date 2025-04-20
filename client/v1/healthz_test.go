@@ -167,3 +167,72 @@ func TestCheckHealthzContextCancellation(t *testing.T) {
 		t.Error("CheckHealthz() with canceled context should return error")
 	}
 }
+
+func TestBlockUntilServerReady(t *testing.T) {
+	t.Run("server becomes ready immediately", func(t *testing.T) {
+		expectedHealthz, err := server.DefaultHealthz.JSON()
+		require.NoError(t, err)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/healthz", r.URL.Path)
+			assert.Equal(t, http.MethodGet, r.Method)
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(expectedHealthz)
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err = BlockUntilServerReady(ctx, srv.URL)
+		require.NoError(t, err)
+	})
+
+	t.Run("server becomes ready after delay", func(t *testing.T) {
+		expectedHealthz, err := server.DefaultHealthz.JSON()
+		require.NoError(t, err)
+
+		// Track number of requests to simulate the server becoming ready after a few attempts
+		requestCount := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/healthz", r.URL.Path)
+			assert.Equal(t, http.MethodGet, r.Method)
+
+			requestCount++
+			if requestCount <= 2 {
+				// First two requests fail
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+
+			// Later requests succeed
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(expectedHealthz)
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err = BlockUntilServerReady(ctx, srv.URL)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, requestCount, 3, "Expected at least 3 requests")
+	})
+
+	t.Run("context canceled", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/healthz", r.URL.Path)
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		err := BlockUntilServerReady(ctx, srv.URL)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context")
+	})
+}
