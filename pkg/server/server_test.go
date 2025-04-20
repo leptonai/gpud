@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/x509"
-	"github.com/leptonai/gpud/components"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -180,7 +180,7 @@ func TestWriteTokenErrors(t *testing.T) {
 	require.Contains(t, err.Error(), "server not ready")
 
 	// Test with invalid FIFO file (directory instead of file)
-	tempDir, err := ioutil.TempDir("", "gpud-test")
+	tempDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -190,7 +190,7 @@ func TestWriteTokenErrors(t *testing.T) {
 
 func TestServerWithFifoFile(t *testing.T) {
 	// Create a temporary directory for the test
-	tempDir, err := ioutil.TempDir("", "gpud-test")
+	tempDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
