@@ -173,13 +173,13 @@ func TestCheck_GPMNotSupported(t *testing.T) {
 
 	// Verify data
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.GPMSupported, "GPM should not be supported")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "GPM not supported", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.False(t, lastCheckResult.GPMSupported, "GPM should not be supported")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "GPM not supported", lastCheckResult.reason)
 }
 
 func TestCheck_GPMSupported(t *testing.T) {
@@ -221,16 +221,16 @@ func TestCheck_GPMSupported(t *testing.T) {
 
 	// Verify data
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Len(t, lastData.GPMMetrics, 1)
-	assert.Equal(t, uuid, lastData.GPMMetrics[0].UUID)
-	assert.Equal(t, expectedMetrics, lastData.GPMMetrics[0].Metrics)
-	assert.Equal(t, metav1.Duration{Duration: sampleDuration}, lastData.GPMMetrics[0].SampleDuration)
-	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Len(t, lastCheckResult.GPMMetrics, 1)
+	assert.Equal(t, uuid, lastCheckResult.GPMMetrics[0].UUID)
+	assert.Equal(t, expectedMetrics, lastCheckResult.GPMMetrics[0].Metrics)
+	assert.Equal(t, metav1.Duration{Duration: sampleDuration}, lastCheckResult.GPMMetrics[0].SampleDuration)
+	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", lastCheckResult.reason)
 }
 
 func TestCheck_GPMSupportError(t *testing.T) {
@@ -266,13 +266,13 @@ func TestCheck_GPMSupportError(t *testing.T) {
 
 	// Verify error handling
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestCheck_GPMMetricsError(t *testing.T) {
@@ -308,13 +308,13 @@ func TestCheck_GPMMetricsError(t *testing.T) {
 
 	// Verify error handling
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -329,13 +329,13 @@ func TestCheck_NoDevices(t *testing.T) {
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no GPM issue found", lastData.reason)
-	assert.Empty(t, lastData.GPMMetrics)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no GPM issue found", lastCheckResult.reason)
+	assert.Empty(t, lastCheckResult.GPMMetrics)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -344,7 +344,7 @@ func TestStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		GPMSupported: true,
 		GPMMetrics: []nvidianvml.GPMMetrics{
 			{
@@ -378,7 +378,7 @@ func TestStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test GPM error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting GPM metrics for device gpu-uuid-123",
@@ -472,7 +472,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -482,14 +482,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -561,22 +561,22 @@ func TestCheck_MultipleDevices(t *testing.T) {
 
 	// Verify data
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Len(t, lastData.GPMMetrics, 2, "should have metrics for 2 GPUs")
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Len(t, lastCheckResult.GPMMetrics, 2, "should have metrics for 2 GPUs")
 
 	// Verify metrics for each GPU
 	metricsByUUID := make(map[string]map[nvml.GpmMetricId]float64)
-	for _, metric := range lastData.GPMMetrics {
+	for _, metric := range lastCheckResult.GPMMetrics {
 		metricsByUUID[metric.UUID] = metric.Metrics
 	}
 
 	assert.Equal(t, metrics1, metricsByUUID[uuid1], "metrics for first GPU should match")
 	assert.Equal(t, metrics2, metricsByUUID[uuid2], "metrics for second GPU should match")
-	assert.Equal(t, "all 2 GPU(s) were checked, no GPM issue found", lastData.reason)
+	assert.Equal(t, "all 2 GPU(s) were checked, no GPM issue found", lastCheckResult.reason)
 }
 
 func TestCheck_MixedGPMSupport(t *testing.T) {
@@ -627,16 +627,16 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 
 	// Verify data
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.False(t, lastData.GPMSupported, "GPM should not be supported overall")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "GPM not supported", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.False(t, lastCheckResult.GPMSupported, "GPM should not be supported overall")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "GPM not supported", lastCheckResult.reason)
 	// We don't have metrics because once we find a device that doesn't support GPM,
 	// we stop and report that GPM is not supported overall
-	assert.Empty(t, lastData.GPMMetrics)
+	assert.Empty(t, lastCheckResult.GPMMetrics)
 }
 
 func TestCheck_NVMLInstanceNil(t *testing.T) {
@@ -672,7 +672,7 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 func TestData_String(t *testing.T) {
 	tests := []struct {
 		name        string
-		data        *Data
+		data        *checkResult
 		shouldMatch bool
 		contains    string
 	}{
@@ -684,7 +684,7 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name: "empty metrics",
-			data: &Data{
+			data: &checkResult{
 				GPMMetrics: []nvidianvml.GPMMetrics{},
 			},
 			shouldMatch: true,
@@ -692,7 +692,7 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name: "with metrics",
-			data: &Data{
+			data: &checkResult{
 				GPMMetrics: []nvidianvml.GPMMetrics{
 					{
 						UUID: "gpu-uuid-123",
@@ -722,7 +722,7 @@ func TestData_String(t *testing.T) {
 func TestData_Summary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -732,7 +732,7 @@ func TestData_Summary(t *testing.T) {
 		},
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test reason",
 			},
 			expected: "test reason",
@@ -750,7 +750,7 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
@@ -760,14 +760,14 @@ func TestData_HealthState(t *testing.T) {
 		},
 		{
 			name: "healthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,
@@ -846,7 +846,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 		nvml.GPM_METRIC_DFMA_TENSOR_UTIL: 40.3,
 	}
 
-	data := &Data{
+	data := &checkResult{
 		GPMSupported: true,
 		GPMMetrics: []nvidianvml.GPMMetrics{
 			{

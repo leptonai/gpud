@@ -119,17 +119,17 @@ func Test_parsePodsFromKubeletReadOnlyPort(t *testing.T) {
 func Test_marshalJSON(t *testing.T) {
 	testCases := []struct {
 		name     string
-		data     Data
+		data     checkResult
 		expected string
 	}{
 		{
 			name:     "empty data",
-			data:     Data{},
+			data:     checkResult{},
 			expected: `{"kubelet_service_active":false}`,
 		},
 		{
 			name: "with node name",
-			data: Data{
+			data: checkResult{
 				KubeletServiceActive: true,
 				NodeName:             "test-node",
 			},
@@ -137,7 +137,7 @@ func Test_marshalJSON(t *testing.T) {
 		},
 		{
 			name: "with pods",
-			data: Data{
+			data: checkResult{
 				KubeletServiceActive: true,
 				NodeName:             "test-node",
 				Pods: []PodStatus{
@@ -230,13 +230,13 @@ func Test_PodStatusJSON(t *testing.T) {
 func Test_getLastHealthStates(t *testing.T) {
 	testCases := []struct {
 		name           string
-		data           Data
+		data           checkResult
 		expectedLen    int
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "no pods",
-			data: Data{
+			data: checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
@@ -245,7 +245,7 @@ func Test_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "with pods",
-			data: Data{
+			data: checkResult{
 				Pods: []PodStatus{
 					{Name: "pod1"},
 					{Name: "pod2"},
@@ -258,7 +258,7 @@ func Test_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "with error - unhealthy",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("some error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
@@ -268,7 +268,7 @@ func Test_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "with connection error - healthy",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("connection refused"),
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
@@ -278,7 +278,7 @@ func Test_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "with failed count above threshold - unhealthy",
-			data: Data{
+			data: checkResult{
 				reason: "test reason",
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
@@ -461,13 +461,13 @@ func Test_defaultHTTPClient(t *testing.T) {
 func Test_componentLastHealthStates(t *testing.T) {
 	testCases := []struct {
 		name           string
-		data           Data
+		data           checkResult
 		failedCount    int
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "healthy state",
-			data: Data{
+			data: checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
 			},
@@ -476,7 +476,7 @@ func Test_componentLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "unhealthy state",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("test error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
@@ -486,7 +486,7 @@ func Test_componentLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "connection error - ignored",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("connection refused"),
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
@@ -496,7 +496,7 @@ func Test_componentLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "failed count above threshold",
-			data: Data{
+			data: checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason",
 			},
@@ -508,8 +508,8 @@ func Test_componentLastHealthStates(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
-				lastData:    &tc.data,
-				failedCount: tc.failedCount,
+				lastCheckResult: &tc.data,
+				failedCount:     tc.failedCount,
 			}
 
 			states := c.LastHealthStates()
@@ -668,8 +668,8 @@ func Test_componentCheck(t *testing.T) {
 	assert.Equal(t, 1, kubeletRunningCalled, "checkKubeletRunning should be called once")
 
 	// Verify the returned data
-	dataResult, ok := data.(*Data)
-	require.True(t, ok, "data should be of type *Data")
+	dataResult, ok := data.(*checkResult)
+	require.True(t, ok, "data should be of type *checkResult")
 
 	// We can't reliably check KubeletPidFound as it depends on the test environment
 	assert.Equal(t, "mynodehostname", dataResult.NodeName)
@@ -680,13 +680,13 @@ func Test_componentCheck(t *testing.T) {
 func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
-		data           Data
+		data           checkResult
 		failedCount    int
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "connection error - marked healthy",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("connection refused"),
 				health: apiv1.HealthStateTypeHealthy,
 			},
@@ -695,7 +695,7 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 		},
 		{
 			name: "connection error - marked unhealthy",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("connection refused"),
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
@@ -707,8 +707,8 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
-				lastData:    &tc.data,
-				failedCount: tc.failedCount,
+				lastCheckResult: &tc.data,
+				failedCount:     tc.failedCount,
 			}
 
 			states := c.LastHealthStates()
@@ -721,7 +721,7 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 // Test that canceled context in LastHealthStates works correctly
 func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 	c := &component{
-		lastData: &Data{
+		lastCheckResult: &checkResult{
 			Pods:   []PodStatus{{Name: "test-pod"}},
 			health: apiv1.HealthStateTypeHealthy,
 		},
@@ -758,8 +758,8 @@ func Test_componentConstructor(t *testing.T) {
 
 func TestDataGetLastHealthStatesNil(t *testing.T) {
 	// Test with nil data
-	var d *Data
-	states := d.getLastHealthStates()
+	var cr *checkResult
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -769,12 +769,12 @@ func TestDataGetLastHealthStatesNil(t *testing.T) {
 func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 	testCases := []struct {
 		name           string
-		data           Data
+		data           checkResult
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
 			name: "standard error returned",
-			data: Data{
+			data: checkResult{
 				err:    errors.New("standard error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "standard error",
@@ -783,7 +783,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "empty pods with error",
-			data: Data{
+			data: checkResult{
 				Pods:   []PodStatus{},
 				err:    errors.New("no pods error"),
 				health: apiv1.HealthStateTypeUnhealthy,
@@ -793,7 +793,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "connection error - healthy",
-			data: Data{
+			data: checkResult{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
 				health:   apiv1.HealthStateTypeHealthy,
@@ -803,7 +803,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "connection error - unhealthy",
-			data: Data{
+			data: checkResult{
 				NodeName: "test-node",
 				err:      errors.New("connection refused"),
 				health:   apiv1.HealthStateTypeUnhealthy,
@@ -813,7 +813,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "no error with pods",
-			data: Data{
+			data: checkResult{
 				NodeName: "test-node",
 				Pods:     []PodStatus{{Name: "pod1"}},
 				err:      nil,
@@ -824,7 +824,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "kubelet service error",
-			data: Data{
+			data: checkResult{
 				NodeName:             "test-node",
 				KubeletServiceActive: false,
 				err:                  errors.New("kubelet service not active"),
@@ -835,7 +835,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		},
 		{
 			name: "failed count above threshold",
-			data: Data{
+			data: checkResult{
 				NodeName: "test-node",
 				health:   apiv1.HealthStateTypeUnhealthy,
 				reason:   "failed threshold exceeded",
@@ -866,7 +866,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 	// Test with context deadline exceeded error
 	deadlineErr := context.DeadlineExceeded
-	deadlineData := Data{
+	deadlineData := checkResult{
 		NodeName: "test-node",
 		err:      deadlineErr,
 		health:   apiv1.HealthStateTypeUnhealthy,
@@ -878,7 +878,7 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 
 	// Test with context canceled error
 	canceledErr := context.Canceled
-	canceledData := Data{
+	canceledData := checkResult{
 		NodeName: "test-node",
 		err:      canceledErr,
 		health:   apiv1.HealthStateTypeUnhealthy,
@@ -890,7 +890,7 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 
 	// Test with formatted error message
 	customErr := fmt.Errorf("custom error: %v", "details")
-	customData := Data{
+	customData := checkResult{
 		NodeName: "test-node",
 		err:      customErr,
 		health:   apiv1.HealthStateTypeUnhealthy,
@@ -917,8 +917,8 @@ func Test_componentCheck_KubeletNotRunning(t *testing.T) {
 
 	// Run the check
 	result := c.Check()
-	dataResult, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	dataResult, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	// Should return early so empty pods and no errors, but healthy status
 	assert.Empty(t, dataResult.NodeName)
@@ -991,8 +991,8 @@ func Test_componentCheck_Dependencies(t *testing.T) {
 
 			// Run the check
 			result := c.Check()
-			dataResult, ok := result.(*Data)
-			require.True(t, ok, "result should be of type *Data")
+			dataResult, ok := result.(*checkResult)
+			require.True(t, ok, "result should be of type *checkResult")
 
 			if !tc.expectDataToBeCollected {
 				// Should return early with default data

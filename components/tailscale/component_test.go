@@ -31,22 +31,22 @@ func mockComponent(
 			return isActive, activeError
 		},
 	}
-	// Initialize lastData for tests that don't call CheckOnce
+	// Initialize lastCheckResult for tests that don't call CheckOnce
 	if isInstalled && (!isActive || activeError != nil) {
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: isActive,
 			health:                  apiv1.HealthStateTypeUnhealthy,
 			err:                     activeError,
 			reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 		}
 	} else if isInstalled && isActive {
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: true,
 			health:                  apiv1.HealthStateTypeHealthy,
 			reason:                  "tailscaled service is active/running",
 		}
 	} else {
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: false,
 			health:                  apiv1.HealthStateTypeHealthy,
 			reason:                  "tailscaled is not installed",
@@ -92,14 +92,14 @@ func TestStart(t *testing.T) {
 	err := c.Start()
 	assert.NoError(t, err, "Start should not return an error")
 
-	// Verify the background goroutine started by checking if CheckOnce updates lastData
+	// Verify the background goroutine started by checking if CheckOnce updates lastCheckResult
 	time.Sleep(100 * time.Millisecond) // Give some time for the goroutine to run
 
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	assert.NotNil(t, lastData, "lastData should be updated after Start")
+	assert.NotNil(t, lastCheckResult, "lastCheckResult should be updated after Start")
 }
 
 func TestClose(t *testing.T) {
@@ -174,23 +174,23 @@ func TestCheckOnce(t *testing.T) {
 			_ = c.Check()
 
 			c.lastMu.RLock()
-			lastData := c.lastData
+			lastCheckResult := c.lastCheckResult
 			c.lastMu.RUnlock()
 
-			assert.NotNil(t, lastData, "lastData should be set after CheckOnce")
-			assert.Equal(t, tc.expectActive, lastData.TailscaledServiceActive,
+			assert.NotNil(t, lastCheckResult, "lastCheckResult should be set after CheckOnce")
+			assert.Equal(t, tc.expectActive, lastCheckResult.TailscaledServiceActive,
 				"TailscaledServiceActive should match expected value")
-			assert.Equal(t, tc.expectReason, lastData.reason,
+			assert.Equal(t, tc.expectReason, lastCheckResult.reason,
 				"Reason should match expected value")
 
 			if tc.expectError {
 				if tc.activeError != nil {
-					assert.Equal(t, tc.activeError, lastData.err, "Error should match expected error")
+					assert.Equal(t, tc.activeError, lastCheckResult.err, "Error should match expected error")
 				} else {
-					assert.NotNil(t, lastData.err, "Error should be set when expected")
+					assert.NotNil(t, lastCheckResult.err, "Error should be set when expected")
 				}
 			} else {
-				assert.Nil(t, lastData.err, "Error should not be set when not expected")
+				assert.Nil(t, lastCheckResult.err, "Error should not be set when not expected")
 			}
 		})
 	}
@@ -244,7 +244,7 @@ func TestStates(t *testing.T) {
 			ctx := context.Background()
 			c := mockComponent(ctx, tc.isInstalled, tc.isActive, tc.activeError)
 
-			// Run CheckOnce to populate lastData
+			// Run CheckOnce to populate lastCheckResult
 			_ = c.Check()
 
 			// Get the states
@@ -271,14 +271,14 @@ func TestEvents(t *testing.T) {
 func TestDataGetStates(t *testing.T) {
 	testCases := []struct {
 		name            string
-		data            *Data
+		data            *checkResult
 		expectedReason  string
 		expectedHealth  apiv1.HealthStateType
 		expectedHealthy bool
 	}{
 		{
 			name: "active service",
-			data: &Data{
+			data: &checkResult{
 				TailscaledServiceActive: true,
 				health:                  apiv1.HealthStateTypeHealthy,
 				reason:                  "tailscaled service is active/running",
@@ -289,7 +289,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name: "inactive service",
-			data: &Data{
+			data: &checkResult{
 				TailscaledServiceActive: false,
 				health:                  apiv1.HealthStateTypeUnhealthy,
 				reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
@@ -300,7 +300,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name: "error state",
-			data: &Data{
+			data: &checkResult{
 				err:    errors.New("test error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "tailscaled installed but tailscaled service is not active or failed to check (error test error)",

@@ -85,8 +85,8 @@ func (m *MockKmsgSyncer) Close() error {
 
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
-	var d *Data
-	states := d.getLastHealthStates()
+	var cr *checkResult
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -95,18 +95,18 @@ func TestDataGetStatesNil(t *testing.T) {
 
 func TestDataGetStatesWithError(t *testing.T) {
 	testError := errors.New("CPU usage retrieval error")
-	d := &Data{
+	cr := &checkResult{
 		ts:     time.Now(),
 		err:    testError,
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error calculating CPU usage",
 	}
 
-	states := d.getLastHealthStates()
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testError.Error(), states[0].Error)
-	assert.Equal(t, d.reason, states[0].Reason)
+	assert.Equal(t, cr.reason, states[0].Reason)
 }
 
 func TestComponentName(t *testing.T) {
@@ -136,7 +136,7 @@ func TestComponentStates(t *testing.T) {
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
-	testData := &Data{
+	testData := &checkResult{
 		Info: Info{
 			Arch:      "x86_64",
 			CPU:       "0",
@@ -159,7 +159,7 @@ func TestComponentStates(t *testing.T) {
 		reason: "arch: x86_64, cpu: 0, family: 6, model: 60, model_name: Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
 	}
 	c.lastMu.Lock()
-	c.lastData = testData
+	c.lastCheckResult = testData
 	c.lastMu.Unlock()
 
 	states = c.LastHealthStates()
@@ -272,13 +272,13 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Contains(t, c.lastData.Usage.UsedPercent, "45.")
-	assert.Equal(t, "1.50", c.lastData.Usage.LoadAvg1Min)
-	assert.Equal(t, "1.25", c.lastData.Usage.LoadAvg5Min)
-	assert.Equal(t, "1.10", c.lastData.Usage.LoadAvg15Min)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
-	assert.Contains(t, c.lastData.reason, "arch: ")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Contains(t, c.lastCheckResult.Usage.UsedPercent, "45.")
+	assert.Equal(t, "1.50", c.lastCheckResult.Usage.LoadAvg1Min)
+	assert.Equal(t, "1.25", c.lastCheckResult.Usage.LoadAvg5Min)
+	assert.Equal(t, "1.10", c.lastCheckResult.Usage.LoadAvg15Min)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+	assert.Contains(t, c.lastCheckResult.reason, "arch: ")
 }
 
 func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
@@ -309,10 +309,10 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error calculating CPU usage")
 }
 
 func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
@@ -383,10 +383,10 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error calculating load average")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error calculating load average")
 }
 
 func TestComponentClose(t *testing.T) {
@@ -451,10 +451,10 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error calculating CPU usage")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error calculating CPU usage")
 }
 
 func TestComponentStart(t *testing.T) {
@@ -491,25 +491,25 @@ func TestComponentStart(t *testing.T) {
 
 func TestComponentGetError(t *testing.T) {
 	// Test nil data
-	var d *Data
-	err := d.getError()
+	var cr *checkResult
+	err := cr.getError()
 	assert.Equal(t, "", err)
 
 	// Test with nil error
-	d = &Data{}
-	err = d.getError()
+	cr = &checkResult{}
+	err = cr.getError()
 	assert.Equal(t, "", err)
 
 	// Test with error
 	testError := errors.New("test error")
-	d = &Data{err: testError}
-	err = d.getError()
+	cr = &checkResult{err: testError}
+	err = cr.getError()
 	assert.Equal(t, testError.Error(), err)
 }
 
 func TestComponentDataExtraInfo(t *testing.T) {
 	// Create test data
-	testData := &Data{
+	testData := &checkResult{
 		Info: Info{
 			Arch:      "x86_64",
 			CPU:       "0",
@@ -624,7 +624,7 @@ func TestCalculateCPUUsageEdgeCases(t *testing.T) {
 
 func TestDataMarshalingInStates(t *testing.T) {
 	// Test data with unusual values
-	testData := &Data{
+	testData := &checkResult{
 		Info: Info{
 			Arch:      "x86_64",
 			CPU:       "unusual-cpu-name+!@#$",

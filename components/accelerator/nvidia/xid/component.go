@@ -57,8 +57,8 @@ type component struct {
 	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
 	extraEventCh chan *apiv1.Event
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 
 	mu        sync.RWMutex
 	currState apiv1.HealthState
@@ -178,40 +178,40 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu xid")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML instance is nil"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML is not loaded"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
 	}
 
 	if c.readAllKmsg == nil {
-		d.reason = "kmsg reader is not set"
-		d.health = apiv1.HealthStateTypeHealthy
-		return d
+		cr.reason = "kmsg reader is not set"
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
 	}
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
 	kmsgs, err := c.readAllKmsg(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.reason = fmt.Sprintf("failed to read kmsg: %v", err)
-		d.health = apiv1.HealthStateTypeUnhealthy
-		return d
+		cr.err = err
+		cr.reason = fmt.Sprintf("failed to read kmsg: %v", err)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		return cr
 	}
 
 	for _, kmsg := range kmsgs {
@@ -219,21 +219,21 @@ func (c *component) Check() components.CheckResult {
 		if xidErr == nil {
 			continue
 		}
-		d.FoundErrors = append(d.FoundErrors, FoundError{
+		cr.FoundErrors = append(cr.FoundErrors, FoundError{
 			Kmsg:     kmsg,
 			XidError: *xidErr,
 		})
 	}
 
-	d.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(d.FoundErrors), len(kmsgs))
-	d.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(cr.FoundErrors), len(kmsgs))
+	cr.health = apiv1.HealthStateTypeHealthy
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	FoundErrors []FoundError `json:"found_errors"`
 
 	// timestamp of the last check
@@ -253,19 +253,19 @@ type FoundError struct {
 	XidError
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
-	if len(d.FoundErrors) == 0 {
+	if len(cr.FoundErrors) == 0 {
 		return "no xid error found"
 	}
 
 	now := time.Now().UTC()
 	header := []string{"Time", "XID", "DeviceUUID", "Name", "Critical", "Action(s)"}
-	outputs := make([]string, 0, len(d.FoundErrors))
-	for _, foundErr := range d.FoundErrors {
+	outputs := make([]string, 0, len(cr.FoundErrors))
+	for _, foundErr := range cr.FoundErrors {
 		action := "unknown"
 		if foundErr.Detail != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
 			actions := make([]string, 0, len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions))
@@ -299,18 +299,18 @@ func (d *Data) String() string {
 	return strings.Join(outputs, "\n\n")
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
 func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration) {

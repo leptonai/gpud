@@ -46,7 +46,7 @@ func TestComponentStartAndClose(t *testing.T) {
 
 	// Verify data was collected
 	comp.lastMu.RLock()
-	assert.NotNil(t, comp.lastData)
+	assert.NotNil(t, comp.lastCheckResult)
 	comp.lastMu.RUnlock()
 
 	err = comp.Close()
@@ -114,7 +114,7 @@ func TestComponentWithDB(t *testing.T) {
 
 	// Verify that database metrics are collected
 	comp.lastMu.RLock()
-	data := comp.lastData
+	data := comp.lastCheckResult
 	comp.lastMu.RUnlock()
 
 	assert.NotNil(t, data)
@@ -124,13 +124,13 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Test with error
-	data := &Data{
+	data := &checkResult{
 		err:    assert.AnError,
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
@@ -140,7 +140,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
 
 	// Test without error
-	data = &Data{
+	data = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
 	states = data.getLastHealthStates()
@@ -152,13 +152,13 @@ func TestDataGetStatesForReason(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with error
-	data := &Data{
+	data := &checkResult{
 		err:    assert.AnError,
 		reason: "failed to get info data",
 	}
@@ -167,7 +167,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 	assert.Equal(t, "failed to get info data", states[0].Reason)
 
 	// Test without error
-	data = &Data{
+	data = &checkResult{
 		MacAddress:  "00:11:22:33:44:55",
 		Annotations: map[string]string{"test": "value"},
 		reason:      "daemon version: test, mac address: 00:11:22:33:44:55",
@@ -180,8 +180,8 @@ func TestDataGetStatesForReason(t *testing.T) {
 
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
-	var d *Data
-	states := d.getLastHealthStates()
+	var cr *checkResult
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -193,17 +193,17 @@ func TestDataGetError(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	errStr := nilData.getError()
 	assert.Equal(t, "", errStr)
 
 	// Test with error
-	data := &Data{err: assert.AnError}
+	data := &checkResult{err: assert.AnError}
 	errStr = data.getError()
 	assert.Equal(t, assert.AnError.Error(), errStr)
 
 	// Test without error
-	data = &Data{}
+	data = &checkResult{}
 	errStr = data.getError()
 	assert.Equal(t, "", errStr)
 }
@@ -212,7 +212,7 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 	t.Parallel()
 
 	// Test with basic data
-	data := &Data{
+	data := &checkResult{
 		DaemonVersion: "test-version",
 		MacAddress:    "00:11:22:33:44:55",
 		Annotations:   map[string]string{"key": "value"},
@@ -242,11 +242,11 @@ func TestDataString(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.String())
 
 	// Test with populated data
-	data := &Data{
+	data := &checkResult{
 		DaemonVersion:                            "test-version",
 		MacAddress:                               "00:11:22:33:44:55",
 		GPUdUsageFileDescriptors:                 100,
@@ -289,11 +289,11 @@ func TestDataSummary(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.Summary())
 
 	// Test with reason set
-	data := &Data{
+	data := &checkResult{
 		reason: "test summary reason",
 	}
 	assert.Equal(t, "test summary reason", data.Summary())
@@ -303,17 +303,17 @@ func TestDataHealthState(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil Data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
 
 	// Test with health set
-	data := &Data{
+	data := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthState())
 
 	// Test with unhealthy state
-	data = &Data{
+	data = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.HealthState())
@@ -341,7 +341,7 @@ func TestCheckWithErrors(t *testing.T) {
 	// Run check and verify it handles metrics error correctly
 	result := comp.Check()
 	assert.NotNil(t, result)
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "error getting SQLite metrics")
@@ -366,7 +366,7 @@ func TestLastHealthStatesWithNilData(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Don't run Check, so lastData remains nil
+	// Don't run Check, so lastCheckResult remains nil
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -407,7 +407,7 @@ func TestCheckDataFieldInitialization(t *testing.T) {
 	comp := c.(*component)
 
 	result := comp.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	assert.True(t, ok)
 
 	// Verify that data fields are set correctly
@@ -433,7 +433,7 @@ func TestCheckWithMoreBranches(t *testing.T) {
 	// Run check with a real dataset
 	result := comp.Check()
 	assert.NotNil(t, result)
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	assert.True(t, ok)
 
 	// Verify data contains minimal expected information

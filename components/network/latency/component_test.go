@@ -23,18 +23,18 @@ func TestDataGetError(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.getError())
+	var cr *checkResult
+	assert.Equal(t, "", cr.getError())
 
 	// Test data with nil error
-	d = &Data{}
-	assert.Equal(t, "", d.getError())
+	cr = &checkResult{}
+	assert.Equal(t, "", cr.getError())
 
 	// Test data with error
-	d = &Data{
+	cr = &checkResult{
 		err: errors.New("test error"),
 	}
-	assert.Equal(t, "test error", d.getError())
+	assert.Equal(t, "test error", cr.getError())
 }
 
 func TestComponentName(t *testing.T) {

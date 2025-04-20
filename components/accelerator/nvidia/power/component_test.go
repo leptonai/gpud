@@ -133,14 +133,14 @@ func TestCheckOnce_Success(t *testing.T) {
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
 	result := component.Check()
 
-	// Cast the result to *Data
-	lastData := result.(*Data)
+	// Cast the result to *checkResult
+	lastCheckResult := result.(*checkResult)
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", lastData.reason)
-	assert.Len(t, lastData.Powers, 1)
-	assert.Equal(t, power, lastData.Powers[0])
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.Powers, 1)
+	assert.Equal(t, power, lastCheckResult.Powers[0])
 }
 
 func TestCheckOnce_PowerError(t *testing.T) {
@@ -170,13 +170,13 @@ func TestCheckOnce_PowerError(t *testing.T) {
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
 	result := component.Check()
 
-	// Cast the result to *Data
-	lastData := result.(*Data)
+	// Cast the result to *checkResult
+	lastCheckResult := result.(*checkResult)
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting power for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.Equal(t, "error getting power for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -189,13 +189,13 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	component := MockPowerComponent(ctx, mockNvml, nil).(*component)
 	result := component.Check()
 
-	// Cast the result to *Data
-	lastData := result.(*Data)
+	// Cast the result to *checkResult
+	lastCheckResult := result.(*checkResult)
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no power issue found", lastData.reason)
-	assert.Empty(t, lastData.Powers)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no power issue found", lastCheckResult.reason)
+	assert.Empty(t, lastCheckResult.Powers)
 }
 
 func TestCheckOnce_GetUsedPercentError(t *testing.T) {
@@ -236,13 +236,13 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
 	result := component.Check()
 
-	// Cast the result to *Data
-	lastData := result.(*Data)
+	// Cast the result to *checkResult
+	lastCheckResult := result.(*checkResult)
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.NotNil(t, lastData.err)
-	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.NotNil(t, lastCheckResult.err)
+	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -251,7 +251,7 @@ func TestStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		Powers: []nvidianvml.Power{
 			{
 				UUID:                             "gpu-uuid-123",
@@ -286,7 +286,7 @@ func TestStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test power error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting power for device gpu-uuid-123",
@@ -376,7 +376,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -386,14 +386,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},

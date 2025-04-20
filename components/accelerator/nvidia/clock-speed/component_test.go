@@ -52,13 +52,13 @@ func (m *mockInstanceV2) Shutdown() error {
 // TestData_GetError tests the getError method of Data
 func TestData_GetError(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	errStr := nilData.getError()
 	assert.Empty(t, errStr)
 
 	// Test data with error
 	testError := errors.New("test error")
-	errData := &Data{
+	errData := &checkResult{
 		err: testError,
 	}
 
@@ -66,7 +66,7 @@ func TestData_GetError(t *testing.T) {
 	assert.Equal(t, testError.Error(), errStr)
 
 	// Test successful data
-	successData := &Data{
+	successData := &checkResult{
 		ClockSpeeds: []nvidianvml.ClockSpeed{
 			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 		},
@@ -79,7 +79,7 @@ func TestData_GetError(t *testing.T) {
 // TestData_GetStates tests the getStates method of Data
 func TestData_GetStates(t *testing.T) {
 	// Test successful data
-	successData := &Data{
+	successData := &checkResult{
 		ClockSpeeds: []nvidianvml.ClockSpeed{
 			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 		},
@@ -93,7 +93,7 @@ func TestData_GetStates(t *testing.T) {
 	dataJSON, ok := states[0].DeprecatedExtraInfo["data"]
 	assert.True(t, ok)
 
-	var parsedData Data
+	var parsedData checkResult
 	err := json.Unmarshal([]byte(dataJSON), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, successData.ClockSpeeds, parsedData.ClockSpeeds)
@@ -102,17 +102,17 @@ func TestData_GetStates(t *testing.T) {
 // TestData_String tests the String method of Data
 func TestData_String(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	str := nilData.String()
 	assert.Empty(t, str)
 
 	// Test empty data
-	emptyData := &Data{}
+	emptyData := &checkResult{}
 	str = emptyData.String()
 	assert.Equal(t, "no data", str)
 
 	// Test with clock speeds data
-	dataWithClockSpeeds := &Data{
+	dataWithClockSpeeds := &checkResult{
 		ClockSpeeds: []nvidianvml.ClockSpeed{
 			{
 				UUID:                   "test-uuid-1",
@@ -143,12 +143,12 @@ func TestData_String(t *testing.T) {
 // TestData_Summary tests the Summary method of Data
 func TestData_Summary(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	summary := nilData.Summary()
 	assert.Empty(t, summary)
 
 	// Test with reason
-	dataWithReason := &Data{
+	dataWithReason := &checkResult{
 		reason: "test reason",
 	}
 	summary = dataWithReason.Summary()
@@ -158,12 +158,12 @@ func TestData_Summary(t *testing.T) {
 // TestData_HealthState tests the HealthState method of Data
 func TestData_HealthState(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	health := nilData.HealthState()
 	assert.Empty(t, health)
 
 	// Test with health state
-	dataWithHealth := &Data{
+	dataWithHealth := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
 	health = dataWithHealth.HealthState()
@@ -259,7 +259,7 @@ func TestComponent_Start(t *testing.T) {
 func TestComponent_States(t *testing.T) {
 	ctx := context.Background()
 
-	// Test when lastData is nil
+	// Test when lastCheckResult is nil
 	c := &component{
 		ctx: ctx,
 	}
@@ -272,7 +272,7 @@ func TestComponent_States(t *testing.T) {
 		{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 	}
 
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		ClockSpeeds: clockSpeeds,
 	}
 
@@ -282,7 +282,7 @@ func TestComponent_States(t *testing.T) {
 	dataJSON, ok := states[0].DeprecatedExtraInfo["data"]
 	assert.True(t, ok)
 
-	var parsedData Data
+	var parsedData checkResult
 	err := json.Unmarshal([]byte(dataJSON), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, clockSpeeds, parsedData.ClockSpeeds)
@@ -317,17 +317,17 @@ func TestComponent_CheckOnce(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify that lastData was updated
-	require.NotNil(t, c.lastData)
-	assert.Len(t, c.lastData.ClockSpeeds, 1)
-	assert.Equal(t, "test-uuid", c.lastData.ClockSpeeds[0].UUID)
-	assert.Equal(t, uint32(1000), c.lastData.ClockSpeeds[0].GraphicsMHz)
-	assert.Equal(t, uint32(2000), c.lastData.ClockSpeeds[0].MemoryMHz)
-	assert.Nil(t, c.lastData.err)
-	assert.Equal(t, data, c.lastData)
+	// Verify that lastCheckResult was updated
+	require.NotNil(t, c.lastCheckResult)
+	assert.Len(t, c.lastCheckResult.ClockSpeeds, 1)
+	assert.Equal(t, "test-uuid", c.lastCheckResult.ClockSpeeds[0].UUID)
+	assert.Equal(t, uint32(1000), c.lastCheckResult.ClockSpeeds[0].GraphicsMHz)
+	assert.Equal(t, uint32(2000), c.lastCheckResult.ClockSpeeds[0].MemoryMHz)
+	assert.Nil(t, c.lastCheckResult.err)
+	assert.Equal(t, data, c.lastCheckResult)
 
 	// Test error case
 	testErr := errors.New("test error")
@@ -343,14 +343,14 @@ func TestComponent_CheckOnce(t *testing.T) {
 	}
 
 	result = c.Check()
-	data, ok = result.(*Data)
+	data, ok = result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify that lastData contains the error
-	require.NotNil(t, c.lastData)
-	assert.Len(t, c.lastData.ClockSpeeds, 0)
-	assert.Equal(t, testErr, c.lastData.err)
-	assert.Equal(t, data, c.lastData)
+	// Verify that lastCheckResult contains the error
+	require.NotNil(t, c.lastCheckResult)
+	assert.Len(t, c.lastCheckResult.ClockSpeeds, 0)
+	assert.Equal(t, testErr, c.lastCheckResult.err)
+	assert.Equal(t, data, c.lastCheckResult)
 }
 
 // TestComponent_Check_NilNVML tests the Check method with nil NVML instance
@@ -362,7 +362,7 @@ func TestComponent_Check_NilNVML(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	// Verify health state when NVML is nil
@@ -382,7 +382,7 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	// Verify health state when NVML is not loaded
@@ -425,13 +425,13 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify that lastData was updated with both devices
-	require.NotNil(t, c.lastData)
-	assert.Len(t, c.lastData.ClockSpeeds, 2)
-	assert.Contains(t, c.lastData.reason, "2 GPU(s) were checked")
-	assert.Nil(t, c.lastData.err)
-	assert.Equal(t, data, c.lastData)
+	// Verify that lastCheckResult was updated with both devices
+	require.NotNil(t, c.lastCheckResult)
+	assert.Len(t, c.lastCheckResult.ClockSpeeds, 2)
+	assert.Contains(t, c.lastCheckResult.reason, "2 GPU(s) were checked")
+	assert.Nil(t, c.lastCheckResult.err)
+	assert.Equal(t, data, c.lastCheckResult)
 }

@@ -176,8 +176,8 @@ func TestCheck_Success(t *testing.T) {
 	result := component.Check()
 
 	// Verify the data was collected
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -220,8 +220,8 @@ func TestCheck_ECCModeError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -268,8 +268,8 @@ func TestCheck_ECCErrorsError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -288,8 +288,8 @@ func TestCheck_NoDevices(t *testing.T) {
 	result := component.Check()
 
 	// Verify handling of no devices
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -304,7 +304,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		ECCModes: []nvidianvml.ECCMode{
 			{
 				UUID:           "gpu-uuid-123",
@@ -347,7 +347,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test ECC error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting ECC mode for device gpu-uuid-123",
@@ -433,7 +433,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -443,14 +443,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -469,7 +469,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 		contains []string
 	}{
@@ -480,12 +480,12 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name:     "empty data",
-			data:     &Data{},
+			data:     &checkResult{},
 			expected: "no data",
 		},
 		{
 			name: "with data",
-			data: &Data{
+			data: &checkResult{
 				ECCModes: []nvidianvml.ECCMode{
 					{
 						UUID:           "gpu-uuid-123",
@@ -543,7 +543,7 @@ func TestData_String(t *testing.T) {
 func TestData_Summary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -553,7 +553,7 @@ func TestData_Summary(t *testing.T) {
 		},
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test summary reason",
 			},
 			expected: "test summary reason",
@@ -571,7 +571,7 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
@@ -581,14 +581,14 @@ func TestData_HealthState(t *testing.T) {
 		},
 		{
 			name: "healthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,
@@ -618,8 +618,8 @@ func TestCheck_NilNvmlInstance(t *testing.T) {
 
 	result := component.Check()
 
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
@@ -649,8 +649,8 @@ func TestCheck_NvmlNotLoaded(t *testing.T) {
 
 	result := component.Check()
 
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
@@ -716,8 +716,8 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
 	result := component.Check()
 
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "all 2 GPU(s) were checked, no ECC issue found", data.reason)

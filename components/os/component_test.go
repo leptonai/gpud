@@ -44,7 +44,7 @@ func (m *ErrorRebootEventStore) GetRebootEvents(ctx context.Context, since time.
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -54,14 +54,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: assert.AnError,
 			},
 			expected: "assert.AnError general error for testing",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
@@ -81,7 +81,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		validate func(*testing.T, []apiv1.HealthState)
 	}{
 		{
@@ -96,7 +96,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err:    assert.AnError,
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "failed to get os data -- assert.AnError general error for testing",
@@ -114,7 +114,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 		{
 			name: "with too many zombie processes",
-			data: &Data{
+			data: &checkResult{
 				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 1,
 				Kernel: Kernel{
 					Version: "5.15.0",
@@ -136,7 +136,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 		{
 			name: "healthy case",
-			data: &Data{
+			data: &checkResult{
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
@@ -246,12 +246,12 @@ func TestComponent(t *testing.T) {
 		c := comp.(*component)
 		_ = c.Check()
 
-		// Verify lastData is populated
+		// Verify lastCheckResult is populated
 		c.lastMu.RLock()
-		lastData := c.lastData
+		lastCheckResult := c.lastCheckResult
 		c.lastMu.RUnlock()
 
-		assert.NotNil(t, lastData)
+		assert.NotNil(t, lastCheckResult)
 
 		// Start the component (this starts a goroutine)
 		assert.NoError(t, comp.Start())
@@ -293,7 +293,7 @@ func TestComponent_States(t *testing.T) {
 		// Inject test data
 		c := comp.(*component)
 		c.lastMu.Lock()
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
@@ -314,7 +314,7 @@ func TestComponent_States(t *testing.T) {
 		// Inject error data
 		c := comp.(*component)
 		c.lastMu.Lock()
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			err:    errors.New("test error"),
 			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "failed to get os data -- test error",
@@ -335,7 +335,7 @@ func TestComponent_States(t *testing.T) {
 		c := comp.(*component)
 		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
 		c.lastMu.Lock()
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
@@ -409,7 +409,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 
 		// Verify error is captured
 		comp.lastMu.RLock()
-		data := comp.lastData
+		data := comp.lastCheckResult
 		comp.lastMu.RUnlock()
 
 		assert.NotNil(t, data)
@@ -442,7 +442,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 
 		// Verify data is healthy
 		comp.lastMu.RLock()
-		data := comp.lastData
+		data := comp.lastCheckResult
 		comp.lastMu.RUnlock()
 
 		assert.NotNil(t, data)
@@ -470,7 +470,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	comp := c.(*component)
 
 	// Directly set error data to simulate an uptime error
-	errorData := &Data{
+	errorData := &checkResult{
 		ts:     time.Now().UTC(),
 		err:    errors.New("uptime error"),
 		health: apiv1.HealthStateTypeUnhealthy,
@@ -479,7 +479,7 @@ func TestComponent_UptimeError(t *testing.T) {
 
 	// Inject the error data
 	comp.lastMu.Lock()
-	comp.lastData = errorData
+	comp.lastCheckResult = errorData
 	comp.lastMu.Unlock()
 
 	// Verify error handling through States
@@ -523,7 +523,7 @@ func TestZombieProcessCountThreshold(t *testing.T) {
 func TestData_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		validate func(*testing.T, string)
 	}{
 		{
@@ -535,7 +535,7 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name: "valid data",
-			data: &Data{
+			data: &checkResult{
 				VirtualizationEnvironment: pkghost.VirtualizationEnvironment{Type: "kvm"},
 				Kernel: Kernel{
 					Arch:    "x86_64",
@@ -576,19 +576,19 @@ func TestData_String(t *testing.T) {
 func TestData_Summary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test reason",
 			},
 			expected: "test reason",
 		},
 		{
 			name:     "empty reason",
-			data:     &Data{},
+			data:     &checkResult{},
 			expected: "",
 		},
 	}
@@ -605,7 +605,7 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
@@ -615,14 +615,14 @@ func TestData_HealthState(t *testing.T) {
 		},
 		{
 			name: "healthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,
@@ -657,7 +657,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 	comp := c.(*component)
 
 	// Inject test data directly (simulating a check)
-	testData := &Data{
+	testData := &checkResult{
 		VirtualizationEnvironment: pkghost.VirtualizationEnvironment{Type: "docker"},
 		Kernel: Kernel{
 			Arch:    "x86_64",
@@ -670,7 +670,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 	}
 
 	comp.lastMu.Lock()
-	comp.lastData = testData
+	comp.lastCheckResult = testData
 	comp.lastMu.Unlock()
 
 	// Get states and validate
@@ -695,7 +695,7 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	comp := c.(*component)
 
 	// Inject error data directly
-	errorData := &Data{
+	errorData := &checkResult{
 		err:    errors.New("mock uptime error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting uptime: mock uptime error",
@@ -703,7 +703,7 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	}
 
 	comp.lastMu.Lock()
-	comp.lastData = errorData
+	comp.lastCheckResult = errorData
 	comp.lastMu.Unlock()
 
 	// Verify the error is reflected in health states
@@ -737,7 +737,7 @@ func TestComponent_CheckWithProcessError(t *testing.T) {
 	result := comp.Check()
 
 	// Verify error handling
-	data := result.(*Data)
+	data := result.(*checkResult)
 	assert.NotNil(t, data.err)
 	assert.Equal(t, "process count error", data.err.Error())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
@@ -772,7 +772,7 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	result := comp.Check()
 
 	// Verify zombie process detection
-	data := result.(*Data)
+	data := result.(*checkResult)
 	assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
@@ -803,7 +803,7 @@ func TestComponent_SystemManufacturer(t *testing.T) {
 	result := comp.Check()
 
 	// Verify manufacturer info is captured
-	data := result.(*Data)
+	data := result.(*checkResult)
 	// We don't care about the specific value, just that it's set
 	assert.NotPanics(t, func() {
 		_ = data.SystemManufacturer
@@ -849,7 +849,7 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 	}
 
 	result := comp.Check()
-	data := result.(*Data)
+	data := result.(*checkResult)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 }
 
@@ -867,7 +867,7 @@ func TestComponent_StartTicker(t *testing.T) {
 	checkCalled := make(chan struct{}, 1)
 
 	// We need to manually track if the Check function was called
-	// Start a goroutine that watches for changes in lastData
+	// Start a goroutine that watches for changes in lastCheckResult
 	origComp := c.(*component)
 	go func() {
 		var lastUpdate time.Time
@@ -877,7 +877,7 @@ func TestComponent_StartTicker(t *testing.T) {
 				return
 			case <-time.After(100 * time.Millisecond):
 				origComp.lastMu.RLock()
-				currentData := origComp.lastData
+				currentData := origComp.lastCheckResult
 				origComp.lastMu.RUnlock()
 
 				if currentData != nil && currentData.ts.After(lastUpdate) {
@@ -974,7 +974,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 	defer c.Close()
 
 	// Simulate an uptime error by directly injecting data with an uptime error
-	testData := &Data{
+	testData := &checkResult{
 		err:    errors.New("simulated uptime error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting uptime: simulated uptime error",
@@ -984,7 +984,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 	// Inject the data
 	comp := c.(*component)
 	comp.lastMu.Lock()
-	comp.lastData = testData
+	comp.lastCheckResult = testData
 	comp.lastMu.Unlock()
 
 	// Verify health states reflect the uptime error
@@ -999,7 +999,7 @@ func TestComponent_CheckUptimeError(t *testing.T) {
 func TestData_SummaryComprehensive(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -1009,7 +1009,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 		},
 		{
 			name: "healthy with kernel version",
-			data: &Data{
+			data: &checkResult{
 				Kernel: Kernel{
 					Version: "5.15.0-generic",
 				},
@@ -1020,7 +1020,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 		},
 		{
 			name: "unhealthy with zombie processes",
-			data: &Data{
+			data: &checkResult{
 				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 10,
 				reason:                      fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
 				health:                      apiv1.HealthStateTypeUnhealthy,
@@ -1029,7 +1029,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 		},
 		{
 			name: "unhealthy with uptime error",
-			data: &Data{
+			data: &checkResult{
 				err:    errors.New("uptime error"),
 				reason: "error getting uptime: uptime error",
 				health: apiv1.HealthStateTypeUnhealthy,
@@ -1038,7 +1038,7 @@ func TestData_SummaryComprehensive(t *testing.T) {
 		},
 		{
 			name:     "empty reason",
-			data:     &Data{},
+			data:     &checkResult{},
 			expected: "",
 		},
 	}

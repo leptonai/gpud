@@ -137,7 +137,7 @@ func TestComponent_States_NoData(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := comp.(*component)
-	c.lastData = nil
+	c.lastCheckResult = nil
 
 	states := c.LastHealthStates()
 
@@ -157,7 +157,7 @@ func TestComponent_States_WithData(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := comp.(*component)
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		Driver: Driver{
 			Version: "123.45",
 		},
@@ -187,7 +187,7 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := comp.(*component)
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error occurred",
 		err:    errors.New("something went wrong"),
@@ -244,15 +244,15 @@ func TestCheckOnce_Success(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.health)
-	assert.Equal(t, "530.82.01", d.Driver.Version)
-	assert.Equal(t, "12.7", d.CUDA.Version)
-	assert.Equal(t, 1, d.GPU.DeviceCount)
-	assert.Equal(t, 0, d.GPU.Attached) // No devices in our mock
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "530.82.01", cr.Driver.Version)
+	assert.Equal(t, "12.7", cr.CUDA.Version)
+	assert.Equal(t, 1, cr.GPU.DeviceCount)
+	assert.Equal(t, 0, cr.GPU.Attached) // No devices in our mock
 }
 
 func TestCheckOnce_WithDevices(t *testing.T) {
@@ -314,20 +314,20 @@ func TestCheckOnce_WithDevices(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.health)
-	assert.Equal(t, "530.82.01", d.Driver.Version)
-	assert.Equal(t, "12.7", d.CUDA.Version)
-	assert.Equal(t, 1, d.GPU.DeviceCount)
-	assert.Equal(t, 1, d.GPU.Attached)
-	assert.Equal(t, uint64(16*1024*1024*1024), d.Memory.TotalBytes)
-	assert.Equal(t, "16GB", d.Memory.TotalHumanized)
-	assert.Equal(t, "NVIDIA A100", d.Product.Name)
-	assert.Equal(t, "Ampere", d.Product.Architecture)
-	assert.Equal(t, "NVIDIA", d.Product.Brand)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "530.82.01", cr.Driver.Version)
+	assert.Equal(t, "12.7", cr.CUDA.Version)
+	assert.Equal(t, 1, cr.GPU.DeviceCount)
+	assert.Equal(t, 1, cr.GPU.Attached)
+	assert.Equal(t, uint64(16*1024*1024*1024), cr.Memory.TotalBytes)
+	assert.Equal(t, "16GB", cr.Memory.TotalHumanized)
+	assert.Equal(t, "NVIDIA A100", cr.Product.Name)
+	assert.Equal(t, "Ampere", cr.Product.Architecture)
+	assert.Equal(t, "NVIDIA", cr.Product.Brand)
 }
 
 func TestCheckOnce_MemoryError(t *testing.T) {
@@ -375,13 +375,13 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting memory: memory error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting memory: memory error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_ProductNameError(t *testing.T) {
@@ -435,13 +435,13 @@ func TestCheckOnce_ProductNameError(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting product name: product name error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting product name: product name error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_ArchitectureError(t *testing.T) {
@@ -499,13 +499,13 @@ func TestCheckOnce_ArchitectureError(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting architecture: architecture error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting architecture: architecture error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_BrandError(t *testing.T) {
@@ -567,13 +567,13 @@ func TestCheckOnce_BrandError(t *testing.T) {
 
 	// Call the function
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
 	// Verify the results
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting brand: brand error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting brand: brand error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_DriverVersionError(t *testing.T) {
@@ -592,12 +592,12 @@ func TestCheckOnce_DriverVersionError(t *testing.T) {
 	}
 
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting driver version: driver error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting driver version: driver error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_EmptyDriverVersion(t *testing.T) {
@@ -616,12 +616,12 @@ func TestCheckOnce_EmptyDriverVersion(t *testing.T) {
 	}
 
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "driver version is empty", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "driver version is empty", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_CUDAVersionError(t *testing.T) {
@@ -644,12 +644,12 @@ func TestCheckOnce_CUDAVersionError(t *testing.T) {
 	}
 
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting CUDA version: cuda error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting CUDA version: cuda error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
@@ -672,12 +672,12 @@ func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
 	}
 
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "CUDA version is empty", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "CUDA version is empty", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestCheckOnce_DeviceCountError(t *testing.T) {
@@ -704,24 +704,24 @@ func TestCheckOnce_DeviceCountError(t *testing.T) {
 	}
 
 	result := c.Check()
-	d := result.(*Data)
+	cr := result.(*checkResult)
 
-	assert.NotNil(t, d)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health)
-	assert.Equal(t, "error getting device count: device count error", d.reason)
-	assert.Error(t, d.err)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting device count: device count error", cr.reason)
+	assert.Error(t, cr.err)
 }
 
 func TestData_GetHealthStates(t *testing.T) {
 	// Test with nil data
-	var nilData *Data
+	var nilData *checkResult
 	states := nilData.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with healthy data
-	healthyData := &Data{
+	healthyData := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "all good",
 	}
@@ -730,7 +730,7 @@ func TestData_GetHealthStates(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Test with unhealthy data
-	unhealthyData := &Data{
+	unhealthyData := &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "problems found",
 		err:    errors.New("test error"),
@@ -743,17 +743,17 @@ func TestData_GetHealthStates(t *testing.T) {
 
 func TestData_GetError(t *testing.T) {
 	// Test with nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.getError())
 
 	// Test with nil error
-	noErrorData := &Data{
+	noErrorData := &checkResult{
 		err: nil,
 	}
 	assert.Equal(t, "", noErrorData.getError())
 
 	// Test with error
-	withErrorData := &Data{
+	withErrorData := &checkResult{
 		err: errors.New("test error"),
 	}
 	assert.Equal(t, "test error", withErrorData.getError())
@@ -761,11 +761,11 @@ func TestData_GetError(t *testing.T) {
 
 func TestData_StringAndUtilityMethods(t *testing.T) {
 	// Test String() with nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.String())
 
 	// Test with populated data
-	data := &Data{
+	data := &checkResult{
 		Driver: Driver{
 			Version: "530.82.01",
 		},

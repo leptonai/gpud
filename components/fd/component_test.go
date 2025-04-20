@@ -18,8 +18,8 @@ import (
 
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
-	var d *Data
-	states := d.getLastHealthStates()
+	var cr *checkResult
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -28,7 +28,7 @@ func TestDataGetStatesNil(t *testing.T) {
 
 func TestDataGetStatesWithError(t *testing.T) {
 	testError := errors.New("file descriptor retrieval error")
-	d := &Data{
+	cr := &checkResult{
 		AllocatedFileHandles: 1000,
 		Usage:                500,
 		Limit:                10000,
@@ -36,7 +36,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		health:               apiv1.HealthStateTypeUnhealthy,
 	}
 
-	states := d.getLastHealthStates()
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testError.Error(), states[0].Error)
@@ -124,7 +124,7 @@ func TestComponentStates(t *testing.T) {
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
-	testData := &Data{
+	testData := &checkResult{
 		AllocatedFileHandles:        1000,
 		RunningPIDs:                 500,
 		Usage:                       800,
@@ -137,7 +137,7 @@ func TestComponentStates(t *testing.T) {
 		health:                      apiv1.HealthStateTypeHealthy,
 		reason:                      "current file descriptors: 800, threshold: 10000000, used_percent: 0.01",
 	}
-	c.lastData = testData
+	c.lastCheckResult = testData
 
 	states = c.LastHealthStates()
 	assert.Len(t, states, 1)
@@ -245,14 +245,14 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, uint64(1000), c.lastData.AllocatedFileHandles)
-	assert.Equal(t, uint64(500), c.lastData.RunningPIDs)
-	assert.Equal(t, uint64(800), c.lastData.Usage)
-	assert.Equal(t, uint64(10000), c.lastData.Limit)
-	assert.True(t, c.lastData.FileHandlesSupported)
-	assert.True(t, c.lastData.FDLimitSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, uint64(1000), c.lastCheckResult.AllocatedFileHandles)
+	assert.Equal(t, uint64(500), c.lastCheckResult.RunningPIDs)
+	assert.Equal(t, uint64(800), c.lastCheckResult.Usage)
+	assert.Equal(t, uint64(10000), c.lastCheckResult.Limit)
+	assert.True(t, c.lastCheckResult.FileHandlesSupported)
+	assert.True(t, c.lastCheckResult.FDLimitSupported)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
 }
 
 func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
@@ -277,10 +277,10 @@ func TestComponentCheckOnceWithFileHandlesError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error getting file handles")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error getting file handles")
 }
 
 func TestComponentCheckOnceWithPIDsError(t *testing.T) {
@@ -310,10 +310,10 @@ func TestComponentCheckOnceWithPIDsError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error getting running pids")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error getting running pids")
 }
 
 func TestComponentCheckOnceWithUsageError(t *testing.T) {
@@ -348,10 +348,10 @@ func TestComponentCheckOnceWithUsageError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error getting usage")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error getting usage")
 }
 
 func TestComponentCheckOnceWithLimitError(t *testing.T) {
@@ -391,10 +391,10 @@ func TestComponentCheckOnceWithLimitError(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastData.health)
-	assert.Equal(t, testError, c.lastData.err)
-	assert.Contains(t, c.lastData.reason, "error getting limit")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, testError, c.lastCheckResult.err)
+	assert.Contains(t, c.lastCheckResult.reason, "error getting limit")
 }
 
 func TestComponentCheckOnceWithHighFileHandlesAllocation(t *testing.T) {
@@ -445,9 +445,9 @@ func TestComponentCheckOnceWithHighFileHandlesAllocation(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastData.health)
-	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastCheckResult.health)
+	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastCheckResult.reason)
 }
 
 func TestComponentCheckOnceWithHighRunningPIDs(t *testing.T) {
@@ -498,9 +498,9 @@ func TestComponentCheckOnceWithHighRunningPIDs(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastData.health)
-	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastCheckResult.health)
+	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastCheckResult.reason)
 }
 
 func TestComponentCheckOnceWithBothHighValues(t *testing.T) {
@@ -551,10 +551,10 @@ func TestComponentCheckOnceWithBothHighValues(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastData.health)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, c.lastCheckResult.health)
 	// Should contain both warnings
-	assert.Contains(t, c.lastData.reason, "file handles")
+	assert.Contains(t, c.lastCheckResult.reason, "file handles")
 }
 
 func TestComponentCheckOnceWhenFileHandlesNotSupported(t *testing.T) {
@@ -604,10 +604,10 @@ func TestComponentCheckOnceWhenFileHandlesNotSupported(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.False(t, c.lastData.FileHandlesSupported)
-	assert.True(t, c.lastData.FDLimitSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.False(t, c.lastCheckResult.FileHandlesSupported)
+	assert.True(t, c.lastCheckResult.FDLimitSupported)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
 }
 
 func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
@@ -657,10 +657,10 @@ func TestComponentCheckOnceWhenFDLimitNotSupported(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.True(t, c.lastData.FileHandlesSupported)
-	assert.False(t, c.lastData.FDLimitSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.True(t, c.lastCheckResult.FileHandlesSupported)
+	assert.False(t, c.lastCheckResult.FDLimitSupported)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
 }
 
 func TestComponentClose(t *testing.T) {
@@ -778,9 +778,9 @@ func TestComponentCheckOnceWithHighUsage(t *testing.T) {
 	_ = c.Check()
 
 	// Verify
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, "95.00", c.lastData.UsedPercent)
-	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastData.reason)
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, "95.00", c.lastCheckResult.UsedPercent)
+	assert.Equal(t, ErrFileHandlesAllocationExceedsWarning, c.lastCheckResult.reason)
 }
 
 // Helper function to format float as percent string (only needed for tests)
@@ -930,15 +930,15 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			_ = c.Check()
 
 			// Verify
-			assert.NotNil(t, c.lastData)
-			assert.Equal(t, tc.expectedHealth, c.lastData.health)
+			assert.NotNil(t, c.lastCheckResult)
+			assert.Equal(t, tc.expectedHealth, c.lastCheckResult.health)
 
 			// If the text is the full error message, use exact equality.
 			// Otherwise use contains for more flexible matching.
 			if tc.expectReasonContainsText == ErrFileHandlesAllocationExceedsWarning {
-				assert.Equal(t, tc.expectReasonContainsText, c.lastData.reason)
+				assert.Equal(t, tc.expectReasonContainsText, c.lastCheckResult.reason)
 			} else {
-				assert.Contains(t, c.lastData.reason, tc.expectReasonContainsText)
+				assert.Contains(t, c.lastCheckResult.reason, tc.expectReasonContainsText)
 			}
 		})
 	}
@@ -946,7 +946,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 
 func TestDataString(t *testing.T) {
 	// Test with data
-	d := &Data{
+	cr := &checkResult{
 		AllocatedFileHandles:        1000,
 		RunningPIDs:                 500,
 		Usage:                       800,
@@ -961,7 +961,7 @@ func TestDataString(t *testing.T) {
 	}
 
 	// Test
-	result := d.String()
+	result := cr.String()
 
 	// Verify
 	assert.Contains(t, result, "Allocated File Handles")
@@ -973,7 +973,7 @@ func TestDataString(t *testing.T) {
 
 func TestDataJSON(t *testing.T) {
 	// Test with data
-	d := &Data{
+	cr := &checkResult{
 		AllocatedFileHandles:        1000,
 		RunningPIDs:                 500,
 		Usage:                       800,
@@ -988,7 +988,7 @@ func TestDataJSON(t *testing.T) {
 	}
 
 	// Test
-	jsonBytes, err := json.Marshal(d)
+	jsonBytes, err := json.Marshal(cr)
 
 	// Verify
 	assert.NoError(t, err)
@@ -1094,7 +1094,7 @@ func TestStartAndClose(t *testing.T) {
 
 	// Verify data was collected
 	c.lastMu.RLock()
-	assert.NotNil(t, c.lastData)
+	assert.NotNil(t, c.lastCheckResult)
 	c.lastMu.RUnlock()
 
 	// Test Close

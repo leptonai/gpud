@@ -191,7 +191,7 @@ func TestCheck(t *testing.T) {
 	result := c.Check()
 
 	// Verify result is correct
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, 1, len(data.Processes))
@@ -236,7 +236,7 @@ func TestCheckError(t *testing.T) {
 	result := c.Check()
 
 	// Verify result is correct
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Equal(t, testErr, data.err)
@@ -255,10 +255,10 @@ func TestLastHealthStates(t *testing.T) {
 	comp, err := New(gpudInstance)
 	assert.NoError(t, err)
 
-	// Cast to component to access internal lastData
+	// Cast to component to access internal lastCheckResult
 	c := comp.(*component)
 
-	// At this point, lastData should be nil
+	// At this point, lastCheckResult should be nil
 	states := c.LastHealthStates()
 	assert.Equal(t, 1, len(states))
 
@@ -270,7 +270,7 @@ func TestLastHealthStates(t *testing.T) {
 
 func TestDataGetLastHealthStates(t *testing.T) {
 	// Test healthy data
-	healthyData := &Data{
+	healthyData := &checkResult{
 		Processes: []nvidianvml.Processes{
 			{
 				UUID: "gpu-uuid-1",
@@ -289,7 +289,7 @@ func TestDataGetLastHealthStates(t *testing.T) {
 
 	// Test unhealthy data
 	testErr := errors.New("test error")
-	unhealthyData := &Data{
+	unhealthyData := &checkResult{
 		err:    testErr,
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "GPU issue detected",
@@ -303,31 +303,31 @@ func TestDataGetLastHealthStates(t *testing.T) {
 
 func TestDataGetError(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.getError())
 
 	// Test nil error
-	noErrorData := &Data{}
+	noErrorData := &checkResult{}
 	assert.Equal(t, "", noErrorData.getError())
 
 	// Test with error
 	testErr := errors.New("test error")
-	errorData := &Data{err: testErr}
+	errorData := &checkResult{err: testErr}
 	assert.Equal(t, testErr.Error(), errorData.getError())
 }
 
 // Test Data.String() method
 func TestDataString(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.String())
 
 	// Test empty data
-	emptyData := &Data{}
+	emptyData := &checkResult{}
 	assert.Equal(t, "no data", emptyData.String())
 
 	// Test data with processes
-	dataWithProcesses := &Data{
+	dataWithProcesses := &checkResult{
 		Processes: []nvidianvml.Processes{
 			{
 				UUID: "gpu-uuid-1",
@@ -347,11 +347,11 @@ func TestDataString(t *testing.T) {
 // Test Data.Summary() method
 func TestDataSummary(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, "", nilData.Summary())
 
 	// Test data with reason
-	dataWithReason := &Data{
+	dataWithReason := &checkResult{
 		reason: "test reason",
 	}
 	assert.Equal(t, "test reason", dataWithReason.Summary())
@@ -360,17 +360,17 @@ func TestDataSummary(t *testing.T) {
 // Test Data.HealthState() method
 func TestDataHealthState(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
 
 	// Test data with health state
-	dataWithHealth := &Data{
+	dataWithHealth := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, dataWithHealth.HealthState())
 
 	// Test data with unhealthy state
-	dataUnhealthy := &Data{
+	dataUnhealthy := &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, dataUnhealthy.HealthState())
@@ -392,7 +392,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		c := comp.(*component)
 		result := c.Check()
 
-		data, ok := result.(*Data)
+		data, ok := result.(*checkResult)
 		require.True(t, ok)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
@@ -414,7 +414,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		c := comp.(*component)
 		result := c.Check()
 
-		data, ok := result.(*Data)
+		data, ok := result.(*checkResult)
 		require.True(t, ok)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
@@ -474,7 +474,7 @@ func TestCheckEdgeCases(t *testing.T) {
 
 		result := c.Check()
 
-		data, ok := result.(*Data)
+		data, ok := result.(*checkResult)
 		require.True(t, ok)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Equal(t, 2, len(data.Processes))

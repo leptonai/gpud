@@ -37,8 +37,8 @@ type component struct {
 	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]*procs.Process, error)
 	zombieProcessCountThreshold int
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -72,9 +72,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -95,7 +95,7 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking os")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 
 		VirtualizationEnvironment: pkghost.VirtualizationEnv(),
@@ -112,7 +112,7 @@ func (c *component) Check() components.CheckResult {
 
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
@@ -120,13 +120,13 @@ func (c *component) Check() components.CheckResult {
 	uptime, err := host.UptimeWithContext(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting uptime: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting uptime: %s", err)
+		return cr
 	}
 
-	d.Uptimes = Uptimes{
+	cr.Uptimes = Uptimes{
 		Seconds:             uptime,
 		BootTimeUnixSeconds: pkghost.BootTimeUnixSeconds(),
 	}
@@ -135,33 +135,33 @@ func (c *component) Check() components.CheckResult {
 	allProcs, err := c.countProcessesByStatusFunc(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting process count: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting process count: %s", err)
+		return cr
 	}
 
 	for status, procsWithStatus := range allProcs {
 		if status == procs.Zombie {
-			d.ProcessCountZombieProcesses = len(procsWithStatus)
+			cr.ProcessCountZombieProcesses = len(procsWithStatus)
 			break
 		}
 	}
-	if d.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", d.ProcessCountZombieProcesses, c.zombieProcessCountThreshold)
-		return d
+	if cr.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", cr.ProcessCountZombieProcesses, c.zombieProcessCountThreshold)
+		return cr
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("os kernel version %s", d.Kernel.Version)
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("os kernel version %s", cr.Kernel.Version)
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	VirtualizationEnvironment   pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
 	SystemManufacturer          string                            `json:"system_manufacturer"`
 	MachineMetadata             MachineMetadata                   `json:"machine_metadata"`
@@ -208,71 +208,73 @@ type Uptimes struct {
 	BootTimeUnixSeconds uint64 `json:"boot_time_unix_seconds"`
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.Append([]string{"VM Type", d.VirtualizationEnvironment.Type})
-	table.Append([]string{"Kernel Arch", d.Kernel.Arch})
-	table.Append([]string{"Kernel Version", d.Kernel.Version})
-	table.Append([]string{"Platform Name", d.Platform.Name})
-	table.Append([]string{"Platform Version", d.Platform.Version})
+	table.Append([]string{"VM Type", cr.VirtualizationEnvironment.Type})
+	table.Append([]string{"Kernel Arch", cr.Kernel.Arch})
+	table.Append([]string{"Kernel Version", cr.Kernel.Version})
+	table.Append([]string{"Platform Name", cr.Platform.Name})
+	table.Append([]string{"Platform Version", cr.Platform.Version})
 
-	boottimeTS := time.Unix(int64(d.Uptimes.BootTimeUnixSeconds), 0)
+	boottimeTS := time.Unix(int64(cr.Uptimes.BootTimeUnixSeconds), 0)
 	nowUTC := time.Now().UTC()
 	uptimeHumanized := humanize.RelTime(boottimeTS, nowUTC, "ago", "from now")
 	table.Append([]string{"Uptime", uptimeHumanized})
 
-	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", d.ProcessCountZombieProcesses)})
+	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", cr.ProcessCountZombieProcesses)})
 	table.Render()
 
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.HealthState(),
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

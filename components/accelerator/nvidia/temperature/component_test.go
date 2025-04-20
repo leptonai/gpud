@@ -142,8 +142,8 @@ func TestCheck_Success(t *testing.T) {
 	result := component.Check()
 
 	// Verify the data was collected
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -178,8 +178,8 @@ func TestCheck_TemperatureError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -196,8 +196,8 @@ func TestCheck_NoDevices(t *testing.T) {
 	result := component.Check()
 
 	// Verify handling of no devices
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -244,8 +244,8 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling for GetUsedPercentSlowdown failure
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -260,7 +260,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		Temperatures: []nvidianvml.Temperature{
 			{
 				UUID:                     "gpu-uuid-123",
@@ -298,7 +298,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test temperature error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting temperature for device gpu-uuid-123",
@@ -401,7 +401,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -411,14 +411,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -511,8 +511,8 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 			result := component.Check()
 
 			// Verify the data was collected
-			data, ok := result.(*Data)
-			require.True(t, ok, "result should be of type *Data")
+			data, ok := result.(*checkResult)
+			require.True(t, ok, "result should be of type *checkResult")
 
 			require.NotNil(t, data, "data should not be nil")
 			assert.Equal(t, tt.expectHealthy, data.health, "health state mismatch")

@@ -38,8 +38,8 @@ type component struct {
 
 	eventBucket eventstore.Bucket
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -101,9 +101,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -128,13 +128,13 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking pci")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
@@ -143,16 +143,16 @@ func (c *component) Check() components.CheckResult {
 	//
 	// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
 	if c.currentVirtEnv.IsKVM {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "host virt env is KVM (no need to check ACS)"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "host virt env is KVM (no need to check ACS)"
+		return cr
 	}
 
 	// unknown virtualization environment
 	if c.currentVirtEnv.Type == "" {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "unknown virtualization environment (no need to check ACS)"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "unknown virtualization environment (no need to check ACS)"
+		return cr
 	}
 
 	// in linux, and not in VM
@@ -168,46 +168,46 @@ func (c *component) Check() components.CheckResult {
 	//
 	// ref. https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#pci-access-control-services-acs
 	cctx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
-	d.Devices, d.err = c.getPCIDevicesFunc(cctx)
+	cr.Devices, cr.err = c.getPCIDevicesFunc(cctx)
 	cancel()
-	if d.err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error listing devices: %s", d.err)
-		return d
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error listing devices: %s", cr.err)
+		return cr
 	}
 
-	acsEnabledDevices := c.findACSEnabledDeviceUUIDsFunc(d.Devices)
+	acsEnabledDevices := c.findACSEnabledDeviceUUIDsFunc(cr.Devices)
 	if len(acsEnabledDevices) == 0 {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "non-KVM host env, no acs enabled device found (no need to disable)"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "non-KVM host env, no acs enabled device found (no need to disable)"
+		return cr
 	}
 
 	if c.eventBucket != nil {
 		cctx, cancel = context.WithTimeout(c.ctx, 15*time.Second)
-		d.err = c.eventBucket.Insert(cctx, apiv1.Event{
+		cr.err = c.eventBucket.Insert(cctx, apiv1.Event{
 			Time:    metav1.Time{Time: time.Now().UTC()},
 			Name:    "acs_enabled",
 			Type:    apiv1.EventTypeWarning,
 			Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s (needs to be disabled)", c.currentVirtEnv.Type, strings.Join(acsEnabledDevices, ", ")),
 		})
 		cancel()
-		if d.err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error creating event: %s", d.err)
-			return d
+		if cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error creating event: %s", cr.err)
+			return cr
 		}
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("found %d acs enabled devices (needs to be disabled, out of %d total)", len(acsEnabledDevices), len(d.Devices))
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("found %d acs enabled devices (needs to be disabled, out of %d total)", len(acsEnabledDevices), len(cr.Devices))
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	Devices []pci.Device `json:"devices,omitempty"`
 
 	// timestamp of the last check
@@ -221,8 +221,8 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
@@ -231,7 +231,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"Device ID", "Device Name", "ACS Enabled"})
-	for _, dev := range d.Devices {
+	for _, dev := range cr.Devices {
 		acsEnabled := dev.AccessControlService != nil && dev.AccessControlService.ACSCtl.SrcValid
 		if acsEnabled {
 			cnt++
@@ -247,46 +247,48 @@ func (d *Data) String() string {
 	return "no devices with ACS enabled (ok)"
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

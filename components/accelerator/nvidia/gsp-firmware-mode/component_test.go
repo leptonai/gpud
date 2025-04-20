@@ -138,19 +138,19 @@ func TestCheck_Success(t *testing.T) {
 
 	// Verify the data was collected
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
-	assert.Len(t, lastData.GSPFirmwareModes, 1)
-	assert.Equal(t, gspMode, lastData.GSPFirmwareModes[0])
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.GSPFirmwareModes, 1)
+	assert.Equal(t, gspMode, lastCheckResult.GSPFirmwareModes[0])
 
 	// Also check the returned result
-	d, ok := result.(*Data)
+	cr, ok := result.(*checkResult)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 }
 
 func TestCheck_Error(t *testing.T) {
@@ -182,13 +182,13 @@ func TestCheck_Error(t *testing.T) {
 
 	// Verify error handling
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -203,13 +203,13 @@ func TestCheck_NoDevices(t *testing.T) {
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no GSP firmware mode issue found", lastData.reason)
-	assert.Empty(t, lastData.GSPFirmwareModes)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no GSP firmware mode issue found", lastCheckResult.reason)
+	assert.Empty(t, lastCheckResult.GSPFirmwareModes)
 }
 
 func TestLastHealthStates_WithData(t *testing.T) {
@@ -218,7 +218,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		GSPFirmwareModes: []nvidianvml.GSPFirmwareMode{
 			{
 				UUID:      "gpu-uuid-123",
@@ -248,7 +248,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test GSP firmware mode error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting GSP firmware mode for device gpu-uuid-123",
@@ -334,7 +334,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -344,14 +344,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},

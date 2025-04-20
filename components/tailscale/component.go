@@ -26,8 +26,8 @@ type component struct {
 	checkDependencyInstalled func() bool
 	checkServiceActiveFunc   func() (bool, error)
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -66,9 +66,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -86,41 +86,41 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking tailscale")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "tailscaled is not installed"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "tailscaled is not installed"
+		return cr
 	}
 
 	// below are the checks in case "tailscaled" is installed, thus requires activeness checks
 	if c.checkServiceActiveFunc != nil {
-		d.TailscaledServiceActive, d.err = c.checkServiceActiveFunc()
-		if !d.TailscaledServiceActive || d.err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", d.err)
-			return d
+		cr.TailscaledServiceActive, cr.err = c.checkServiceActiveFunc()
+		if !cr.TailscaledServiceActive || cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", cr.err)
+			return cr
 		}
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = "tailscaled service is active/running"
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "tailscaled service is active/running"
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// TailscaledServiceActive is true if the tailscaled service is active.
 	TailscaledServiceActive bool `json:"tailscaled_service_active"`
 
@@ -135,53 +135,55 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

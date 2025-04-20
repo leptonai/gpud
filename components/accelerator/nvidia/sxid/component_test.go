@@ -360,8 +360,8 @@ func TestSXIDComponent_Check(t *testing.T) {
 	result := component.Check()
 
 	// Verify the result
-	data, ok := result.(*Data)
-	assert.True(t, ok, "Result should be of type *Data")
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "matched")
 }
@@ -389,8 +389,8 @@ func TestSXIDComponent_Check_Error(t *testing.T) {
 	result := component.Check()
 
 	// Verify the result
-	data, ok := result.(*Data)
-	assert.True(t, ok, "Result should be of type *Data")
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to read kmsg")
 }
@@ -410,8 +410,8 @@ func TestSXIDComponent_Check_NoNVML(t *testing.T) {
 	result := component.Check()
 
 	// Verify the result
-	data, ok := result.(*Data)
-	assert.True(t, ok, "Result should be of type *Data")
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Contains(t, data.reason, "NVIDIA NVML instance is nil")
 }
@@ -444,12 +444,12 @@ func TestSXIDComponent_Name(t *testing.T) {
 func TestDataString(t *testing.T) {
 	tests := []struct {
 		name        string
-		data        *Data
+		data        *checkResult
 		shouldMatch []string
 	}{
 		{
 			name: "data with errors",
-			data: &Data{
+			data: &checkResult{
 				FoundErrors: []FoundError{
 					{
 						Kmsg: kmsg.Message{
@@ -476,7 +476,7 @@ func TestDataString(t *testing.T) {
 		},
 		{
 			name: "empty data",
-			data: &Data{
+			data: &checkResult{
 				FoundErrors: []FoundError{},
 				health:      apiv1.HealthStateTypeHealthy,
 				reason:      "no errors found",
@@ -503,12 +503,12 @@ func TestDataString(t *testing.T) {
 func TestDataSummary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test reason",
 			},
 			expected: "test reason",
@@ -531,19 +531,19 @@ func TestDataSummary(t *testing.T) {
 func TestDataHealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
 			name: "healthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,

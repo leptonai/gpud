@@ -238,16 +238,16 @@ func TestClose(t *testing.T) {
 
 func TestDataGetError(t *testing.T) {
 	// Test with nil Data
-	var d *checkResult
-	assert.Empty(t, d.getError())
+	var cr *checkResult
+	assert.Empty(t, cr.getError())
 
 	// Test with nil error
-	d = &checkResult{}
-	assert.Empty(t, d.getError())
+	cr = &checkResult{}
+	assert.Empty(t, cr.getError())
 
 	// Test with actual error
-	d = &checkResult{err: assert.AnError}
-	assert.Equal(t, assert.AnError.Error(), d.getError())
+	cr = &checkResult{err: assert.AnError}
+	assert.Equal(t, assert.AnError.Error(), cr.getError())
 }
 
 func TestPeriodicCheck(t *testing.T) {
@@ -281,7 +281,7 @@ func TestPeriodicCheck(t *testing.T) {
 func TestDataWithMultipleBadEnvs(t *testing.T) {
 	// Create data with multiple bad environments and set a valid reason
 	reason := "CUDA_PROFILE: Enables CUDA profiling.; COMPUTE_PROFILE: Enables compute profiling."
-	d := &checkResult{
+	cr := &checkResult{
 		FoundBadEnvsForCUDA: map[string]string{
 			"CUDA_PROFILE":    "Enables CUDA profiling.",
 			"COMPUTE_PROFILE": "Enables compute profiling.",
@@ -292,7 +292,7 @@ func TestDataWithMultipleBadEnvs(t *testing.T) {
 	}
 
 	// Check the reason string contains both env vars
-	states := d.getLastHealthStates()
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")
 	assert.Contains(t, states[0].Reason, "COMPUTE_PROFILE")

@@ -41,8 +41,8 @@ type component struct {
 	dbRO        *sql.DB
 	gatherer    prometheus.Gatherer
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -79,9 +79,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -104,111 +104,111 @@ var (
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking info")
 
-	d := &Data{
+	cr := &checkResult{
 		DaemonVersion: version.Version,
 		Annotations:   c.annotations,
 		ts:            time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting interfaces: %v", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting interfaces: %v", err)
+		return cr
 	}
 
 	for _, iface := range interfaces {
 		macAddress := iface.HardwareAddr.String()
 		if macAddress != "" {
-			d.MacAddress = macAddress
+			cr.MacAddress = macAddress
 			break
 		}
 	}
 
 	if gpud_manager.GlobalController != nil {
 		cctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
-		d.Packages, d.err = gpud_manager.GlobalController.Status(cctx)
+		cr.Packages, cr.err = gpud_manager.GlobalController.Status(cctx)
 		cancel()
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting package status: %v", err)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting package status: %v", err)
+			return cr
 		}
 	}
 
-	d.GPUdPID = os.Getpid()
-	d.GPUdUsageFileDescriptors, d.err = file.GetCurrentProcessUsage()
+	cr.GPUdPID = os.Getpid()
+	cr.GPUdUsageFileDescriptors, cr.err = file.GetCurrentProcessUsage()
 	if err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting current process usage: %v", err)
-		return d
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting current process usage: %v", err)
+		return cr
 	}
 
-	d.GPUdUsageMemoryInBytes, d.err = memory.GetCurrentProcessRSSInBytes()
+	cr.GPUdUsageMemoryInBytes, cr.err = memory.GetCurrentProcessRSSInBytes()
 	if err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting current process RSS: %v", err)
-		return d
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting current process RSS: %v", err)
+		return cr
 	}
-	d.GPUdUsageMemoryHumanized = humanize.Bytes(d.GPUdUsageMemoryInBytes)
+	cr.GPUdUsageMemoryHumanized = humanize.Bytes(cr.GPUdUsageMemoryInBytes)
 
 	if c.dbRO != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-		d.GPUdUsageDBInBytes, d.err = sqlite.ReadDBSize(cctx, c.dbRO)
+		cr.GPUdUsageDBInBytes, cr.err = sqlite.ReadDBSize(cctx, c.dbRO)
 		ccancel()
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting DB size: %v", err)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting DB size: %v", err)
+			return cr
 		}
-		d.GPUdUsageDBHumanized = humanize.Bytes(d.GPUdUsageDBInBytes)
+		cr.GPUdUsageDBHumanized = humanize.Bytes(cr.GPUdUsageDBInBytes)
 	}
 
 	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting SQLite metrics: %v", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting SQLite metrics: %v", err)
+		return cr
 	}
 
-	d.GPUdUsageInsertUpdateTotal = curMetrics.InsertUpdateTotal
-	d.GPUdUsageInsertUpdateAvgLatencyInSeconds = curMetrics.InsertUpdateSecondsAvg
+	cr.GPUdUsageInsertUpdateTotal = curMetrics.InsertUpdateTotal
+	cr.GPUdUsageInsertUpdateAvgLatencyInSeconds = curMetrics.InsertUpdateSecondsAvg
 
-	d.GPUdUsageDeleteTotal = curMetrics.DeleteTotal
-	d.GPUdUsageDeleteAvgLatencyInSeconds = curMetrics.DeleteSecondsAvg
+	cr.GPUdUsageDeleteTotal = curMetrics.DeleteTotal
+	cr.GPUdUsageDeleteAvgLatencyInSeconds = curMetrics.DeleteSecondsAvg
 
-	d.GPUdUsageSelectTotal = curMetrics.SelectTotal
-	d.GPUdUsageSelectAvgLatencyInSeconds = curMetrics.SelectSecondsAvg
+	cr.GPUdUsageSelectTotal = curMetrics.SelectTotal
+	cr.GPUdUsageSelectAvgLatencyInSeconds = curMetrics.SelectSecondsAvg
 
 	lastSQLiteMetricsMu.Lock()
-	d.GPUdUsageInsertUpdateAvgQPS, d.GPUdUsageDeleteAvgQPS, d.GPUdUsageSelectAvgQPS = lastSQLiteMetrics.QPS(curMetrics)
+	cr.GPUdUsageInsertUpdateAvgQPS, cr.GPUdUsageDeleteAvgQPS, cr.GPUdUsageSelectAvgQPS = lastSQLiteMetrics.QPS(curMetrics)
 	lastSQLiteMetrics = curMetrics
 	lastSQLiteMetricsMu.Unlock()
 
-	d.GPUdStartTimeInUnixTime, d.err = uptime.GetCurrentProcessStartTimeInUnixTime()
-	if d.err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting GPUd start time: %v", err)
-		return d
+	cr.GPUdStartTimeInUnixTime, cr.err = uptime.GetCurrentProcessStartTimeInUnixTime()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting GPUd start time: %v", err)
+		return cr
 	}
-	d.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(d.GPUdStartTimeInUnixTime), 0))
+	cr.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(cr.GPUdStartTimeInUnixTime), 0))
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, d.MacAddress)
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("daemon version: %s, mac address: %s", version.Version, cr.MacAddress)
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// Daemon information
 	DaemonVersion string                   `json:"daemon_version"`
 	MacAddress    string                   `json:"mac_address"`
@@ -257,8 +257,8 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
@@ -266,71 +266,73 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-	table.Append([]string{"Daemon Version", d.DaemonVersion})
-	table.Append([]string{"Mac Address", d.MacAddress})
+	table.Append([]string{"Daemon Version", cr.DaemonVersion})
+	table.Append([]string{"Mac Address", cr.MacAddress})
 
-	table.Append([]string{"GPUd File Descriptors", fmt.Sprintf("%d", d.GPUdUsageFileDescriptors)})
-	table.Append([]string{"GPUd Memory", d.GPUdUsageMemoryHumanized})
-	table.Append([]string{"GPUd DB Size", d.GPUdUsageDBHumanized})
+	table.Append([]string{"GPUd File Descriptors", fmt.Sprintf("%d", cr.GPUdUsageFileDescriptors)})
+	table.Append([]string{"GPUd Memory", cr.GPUdUsageMemoryHumanized})
+	table.Append([]string{"GPUd DB Size", cr.GPUdUsageDBHumanized})
 
-	table.Append([]string{"DB Insert/Update Total", fmt.Sprintf("%d", d.GPUdUsageInsertUpdateTotal)})
-	table.Append([]string{"DB Insert/Update Avg QPS", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgQPS)})
-	table.Append([]string{"DB Insert/Update Avg Latency", fmt.Sprintf("%f", d.GPUdUsageInsertUpdateAvgLatencyInSeconds)})
+	table.Append([]string{"DB Insert/Update Total", fmt.Sprintf("%d", cr.GPUdUsageInsertUpdateTotal)})
+	table.Append([]string{"DB Insert/Update Avg QPS", fmt.Sprintf("%f", cr.GPUdUsageInsertUpdateAvgQPS)})
+	table.Append([]string{"DB Insert/Update Avg Latency", fmt.Sprintf("%f", cr.GPUdUsageInsertUpdateAvgLatencyInSeconds)})
 
-	table.Append([]string{"DB Delete Total", fmt.Sprintf("%d", d.GPUdUsageDeleteTotal)})
-	table.Append([]string{"DB Delete Avg QPS", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgQPS)})
-	table.Append([]string{"DB Delete Avg Latency", fmt.Sprintf("%f", d.GPUdUsageDeleteAvgLatencyInSeconds)})
+	table.Append([]string{"DB Delete Total", fmt.Sprintf("%d", cr.GPUdUsageDeleteTotal)})
+	table.Append([]string{"DB Delete Avg QPS", fmt.Sprintf("%f", cr.GPUdUsageDeleteAvgQPS)})
+	table.Append([]string{"DB Delete Avg Latency", fmt.Sprintf("%f", cr.GPUdUsageDeleteAvgLatencyInSeconds)})
 
-	table.Append([]string{"DB Select Total", fmt.Sprintf("%d", d.GPUdUsageSelectTotal)})
-	table.Append([]string{"DB Select Avg QPS", fmt.Sprintf("%f", d.GPUdUsageSelectAvgQPS)})
-	table.Append([]string{"DB Select Avg Latency", fmt.Sprintf("%f", d.GPUdUsageSelectAvgLatencyInSeconds)})
+	table.Append([]string{"DB Select Total", fmt.Sprintf("%d", cr.GPUdUsageSelectTotal)})
+	table.Append([]string{"DB Select Avg QPS", fmt.Sprintf("%f", cr.GPUdUsageSelectAvgQPS)})
+	table.Append([]string{"DB Select Avg Latency", fmt.Sprintf("%f", cr.GPUdUsageSelectAvgLatencyInSeconds)})
 
-	table.Append([]string{"GPUd Start Time", d.GPUdStartTimeHumanized})
+	table.Append([]string{"GPUd Start Time", cr.GPUdStartTimeHumanized})
 
 	table.Render()
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",
