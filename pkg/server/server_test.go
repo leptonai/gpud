@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/x509"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -96,7 +95,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 
 func TestWriteToken(t *testing.T) {
 	// Create a temporary directory for the test
-	tempDir, err := ioutil.TempDir("", "gpud-test")
+	tempDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
