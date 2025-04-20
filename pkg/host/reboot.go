@@ -45,7 +45,7 @@ func WithSystemctl(b bool) OpOption {
 
 var ErrNotRoot = errors.New("must be run as sudo/root")
 
-// Reboots the system.
+// Reboot reboots the system.
 func Reboot(ctx context.Context, opts ...OpOption) error {
 	options := &Op{}
 	if err := options.applyOpts(opts); err != nil {
