@@ -74,21 +74,19 @@ func (s *Session) serve() {
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		if payload.Method == "reboot" {
-			rerr := pkghost.Reboot(ctx, pkghost.WithDelaySeconds(0))
-
-			if rerr != nil {
-				log.Logger.Errorf("failed to trigger reboot machine: %v", rerr)
-			}
-
-			cancel()
-			continue
-		}
 
 		needExit := -1
 		response := &Response{}
 
 		switch payload.Method {
+		case "reboot":
+			// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
+			err := pkghost.Reboot(s.ctx, pkghost.WithDelaySeconds(10))
+			if err != nil {
+				log.Logger.Errorf("failed to trigger reboot machine: %v", err)
+				response.Error = err.Error()
+			}
+
 		case "metrics":
 			metrics, err := s.getMetrics(ctx, payload)
 			if err != nil {
