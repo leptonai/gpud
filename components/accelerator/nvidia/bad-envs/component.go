@@ -32,8 +32,8 @@ type component struct {
 	// returns true if the specified environment variable is set
 	checkEnvFunc func(key string) bool
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -71,7 +71,7 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastData := c.lastCheckResult
 	c.lastMu.RUnlock()
 	return lastData.getLastHealthStates()
 }
@@ -107,24 +107,24 @@ var BAD_CUDA_ENV_KEYS = map[string]string{
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu bad env variables")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML instance is nil"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML is not loaded"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
 	}
 
 	foundBadEnvsForCUDA := make(map[string]string)
@@ -134,26 +134,26 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 	if len(foundBadEnvsForCUDA) > 0 {
-		d.FoundBadEnvsForCUDA = foundBadEnvsForCUDA
+		cr.FoundBadEnvsForCUDA = foundBadEnvsForCUDA
 	}
 
 	if len(foundBadEnvsForCUDA) == 0 {
-		d.reason = "no bad envs found"
+		cr.reason = "no bad envs found"
 	} else {
-		kvs := make([]string, 0, len(d.FoundBadEnvsForCUDA))
-		for k, v := range d.FoundBadEnvsForCUDA {
+		kvs := make([]string, 0, len(cr.FoundBadEnvsForCUDA))
+		for k, v := range cr.FoundBadEnvsForCUDA {
 			kvs = append(kvs, fmt.Sprintf("%s: %s", k, v))
 		}
-		d.reason = strings.Join(kvs, "; ")
+		cr.reason = strings.Join(kvs, "; ")
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	return d
+	cr.health = apiv1.HealthStateTypeHealthy
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// FoundBadEnvsForCUDA is a map of environment variables that are known to hurt CUDA.
 	// that is set globally for the host.
 	// This implements "DCGM_FR_BAD_CUDA_ENV" logic in DCGM.
@@ -170,11 +170,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.FoundBadEnvsForCUDA) == 0 {
+	if len(cr.FoundBadEnvsForCUDA) == 0 {
 		return "no bad envs found"
 	}
 
@@ -182,7 +182,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"Found Env Key", "Description"})
-	for k, v := range d.FoundBadEnvsForCUDA {
+	for k, v := range cr.FoundBadEnvsForCUDA {
 		table.Append([]string{k, v})
 	}
 	table.Render()
@@ -190,29 +190,29 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
 				Name:   Name,
@@ -224,12 +224,12 @@ func (d *Data) getLastHealthStates() apiv1.HealthStates {
 
 	state := apiv1.HealthState{
 		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Reason: cr.reason,
+		Error:  cr.getError(),
+		Health: cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",
