@@ -20,11 +20,11 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/leptonai/gpud/pkg/accelerator"
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
-	latency_edge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -56,14 +56,15 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("error parsing cpu: %w", err)
 	}
 
-	_, productName, err := accelerator.DetectTypeAndProductName()
+	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
 		return err
 	}
+	productName := nvmlInstance.ProductName()
 
 	// network section
 	region := "unknown"
-	latencies, _ := latency_edge.Measure(rootCtx)
+	latencies, _ := latencyedge.Measure(rootCtx)
 	if len(latencies) > 0 {
 		closest := latencies.Closest()
 		region = closest.RegionCode

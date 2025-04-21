@@ -8,8 +8,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/log"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
 	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
@@ -107,7 +105,6 @@ func printSummary(result components.CheckResult) {
 
 // Runs the scan operations.
 func Scan(ctx context.Context, opts ...OpOption) error {
-
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return err
@@ -115,19 +112,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
 
-	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
+	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
-		log.Logger.Warnw("error checking nvidia gpu installation", "error", err)
 		return err
-	}
-
-	var nvmlInstance nvidianvml.Instance
-	if nvidiaInstalled {
-		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
-		nvmlInstance, err = nvidianvml.New()
-		if err != nil {
-			return err
-		}
 	}
 
 	gpudInstance := &components.GPUdInstance{
