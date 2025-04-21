@@ -43,7 +43,8 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("gpud binary not found at %s (you may run 'cp %s %s' to fix the installation)", systemd.DefaultBinPath, bin, systemd.DefaultBinPath)
 	}
 
-	if err := systemdInit(); err != nil {
+	endpoint := cliContext.String("endpoint")
+	if err := systemdInit(endpoint); err != nil {
 		fmt.Printf("%s failed to initialize systemd files\n", warningSign)
 		return err
 	}
@@ -62,8 +63,8 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 	return nil
 }
 
-func systemdInit() error {
-	if err := systemd.CreateDefaultEnvFile(); err != nil {
+func systemdInit(endpoint string) error {
+	if err := systemd.CreateDefaultEnvFile(endpoint); err != nil {
 		return err
 	}
 	systemdUnitFileData := systemd.GPUDService

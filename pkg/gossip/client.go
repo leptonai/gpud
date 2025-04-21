@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -65,5 +66,10 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 
 // createURL creates a URL for the gossip endpoint
 func createURL(endpoint string) string {
-	return fmt.Sprintf("https://%s/api/v1/gossip", endpoint)
+	host := endpoint
+	url, _ := url.Parse(endpoint)
+	if url.Host != "" {
+		host = url.Host
+	}
+	return fmt.Sprintf("https://%s/api/v1/gossip", host)
 }

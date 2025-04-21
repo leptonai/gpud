@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/urfave/cli"
@@ -60,7 +61,7 @@ func notification(ctx context.Context, endpoint string, req payload) error {
 		Status string `json:"status"`
 	}
 	rawPayload, _ := json.Marshal(&req)
-	response, err := http.Post(fmt.Sprintf("https://%s/api/v1/notification", endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	response, err := http.Post(createNotificationURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
@@ -78,4 +79,14 @@ func notification(ctx context.Context, endpoint string, req payload) error {
 		return fmt.Errorf("failed to send notification: %v", errorResponse)
 	}
 	return nil
+}
+
+// createNotificationURL creates a URL for the notification endpoint
+func createNotificationURL(endpoint string) string {
+	host := endpoint
+	url, _ := url.Parse(endpoint)
+	if url.Host != "" {
+		host = url.Host
+	}
+	return fmt.Sprintf("https://%s/api/v1/notification", host)
 }
