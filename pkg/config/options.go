@@ -5,9 +5,6 @@ import (
 )
 
 type Op struct {
-	KernelModulesToCheck         []string
-	DockerIgnoreConnectionErrors bool
-
 	nvidia_common.ToolOverwrites
 }
 
@@ -23,18 +20,6 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 	}
 
 	return nil
-}
-
-func WithKernelModulesToCheck(modules ...string) OpOption {
-	return func(op *Op) {
-		op.KernelModulesToCheck = append(op.KernelModulesToCheck, modules...)
-	}
-}
-
-func WithDockerIgnoreConnectionErrors(b bool) OpOption {
-	return func(op *Op) {
-		op.DockerIgnoreConnectionErrors = b
-	}
 }
 
 // Specifies the ibstat binary path to overwrite the default path.

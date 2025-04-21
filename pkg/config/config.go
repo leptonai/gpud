@@ -21,9 +21,6 @@ type Config struct {
 	// Address for the server to listen on.
 	Address string `json:"address"`
 
-	// Component specific configurations.
-	Components map[string]any `json:"components,omitempty"`
-
 	// State file that persists the latest status.
 	// If empty, the states are not persisted to file.
 	State string `json:"state"`
@@ -38,9 +35,6 @@ type Config struct {
 	// Set true to enable profiler.
 	Pprof bool `json:"pprof"`
 
-	// Overwrites the tool binaries for testing.
-	ToolOverwriteOptions ToolOverwriteOptions `json:"tool_overwrite_options"`
-
 	// Set false to disable auto update
 	EnableAutoUpdate bool `json:"enable_auto_update"`
 
@@ -49,18 +43,8 @@ type Config struct {
 	// Set -1 to disable the auto update by exit code.
 	AutoUpdateExitCode int `json:"auto_update_exit_code"`
 
-	// Set false to disable the docker connection errors
-	DockerIgnoreConnectionErrors bool `json:"docker_ignore_connection_errors"`
-
-	// A list of kernel modules to check for its existence.
-	KernelModulesToCheck []string `json:"kernel_modules_to_check"`
-
 	// A list of nvidia tool command paths to overwrite the default paths.
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
-}
-
-type ToolOverwriteOptions struct {
-	IbstatCommand string `json:"ibstat_command"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

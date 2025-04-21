@@ -5,28 +5,12 @@ import (
 	"fmt"
 	stdos "os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	componentscontainerdpod "github.com/leptonai/gpud/components/containerd/pod"
-	"github.com/leptonai/gpud/components/cpu"
-	"github.com/leptonai/gpud/components/disk"
-	componentsdockercontainer "github.com/leptonai/gpud/components/docker/container"
-	"github.com/leptonai/gpud/components/fd"
-	"github.com/leptonai/gpud/components/fuse"
-	"github.com/leptonai/gpud/components/info"
-	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
-	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
-	"github.com/leptonai/gpud/components/memory"
-	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
-	"github.com/leptonai/gpud/components/os"
-	componentspci "github.com/leptonai/gpud/components/pci"
-	"github.com/leptonai/gpud/components/tailscale"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -55,63 +39,17 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 	cfg := &Config{
 		APIVersion: DefaultAPIVersion,
-
 		Annotations: map[string]string{
 			"version": version.Version,
 		},
-
-		Address: fmt.Sprintf(":%d", DefaultGPUdPort),
-
-		// default components that work both in mac/linux
-		Components: map[string]any{
-			cpu.Name:                    nil,
-			disk.Name:                   nil,
-			fuse.Name:                   nil,
-			fd.Name:                     nil,
-			info.Name:                   nil,
-			memory.Name:                 nil,
-			os.Name:                     nil,
-			componentskernelmodule.Name: nil,
-		},
-
-		RetentionPeriod: DefaultRetentionPeriod,
-		CompactPeriod:   DefaultCompactPeriod,
-
-		Pprof: false,
-
-		ToolOverwriteOptions: ToolOverwriteOptions{
-			IbstatCommand: options.IbstatCommand,
-		},
-
+		Address:          fmt.Sprintf(":%d", DefaultGPUdPort),
+		RetentionPeriod:  DefaultRetentionPeriod,
+		CompactPeriod:    DefaultCompactPeriod,
+		Pprof:            false,
 		EnableAutoUpdate: true,
-
-		DockerIgnoreConnectionErrors: options.DockerIgnoreConnectionErrors,
-
-		KernelModulesToCheck: options.KernelModulesToCheck,
-
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			IbstatCommand: options.IbstatCommand,
 		},
-	}
-
-	if len(cfg.KernelModulesToCheck) > 0 {
-		cfg.Components[componentskernelmodule.Name] = cfg.KernelModulesToCheck
-	}
-
-	// regardless of its dependency activeness, we always enable these components
-	// and dynamically checks its activeness
-	cfg.Components[componentsdockercontainer.Name] = nil
-	cfg.Components[componentscontainerdpod.Name] = nil
-	cfg.Components[componentskubeletpod.Name] = nil
-
-	cfg.Components[componentsnetworklatency.Name] = nil
-
-	cfg.Components[componentspci.Name] = nil
-
-	if runtime.GOOS == "linux" {
-		cfg.Components[tailscale.Name] = nil
-	} else {
-		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
 
 	if cfg.State == "" {
