@@ -15,7 +15,7 @@ var _ Instance = &instance{}
 
 // Instance is the interface for the NVML library connector.
 type Instance interface {
-	// NVMLExists returns true if NVML is installed.
+	// NVMLExists returns true if the NVML library is installed.
 	NVMLExists() bool
 
 	// Library returns the NVML library.
@@ -26,6 +26,8 @@ type Instance interface {
 	Devices() map[string]device.Device
 
 	// ProductName returns the product name of the GPU.
+	// Note that some machines have nvml library but the driver is not installed,
+	// returning empty value for the GPU product name.
 	ProductName() string
 
 	// Architecture returns the architecture of the GPU.

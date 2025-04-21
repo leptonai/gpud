@@ -159,6 +159,7 @@ func TestCheck(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
@@ -176,6 +177,7 @@ func TestCheck(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
@@ -199,6 +201,7 @@ func TestCheck(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
@@ -226,6 +229,7 @@ func TestCheck(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 

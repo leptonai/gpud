@@ -1109,12 +1109,13 @@ func TestCheckEdgeCases(t *testing.T) {
 				nvmlExists: false,
 			},
 			expectHealthy: true,
-			expectReason:  "NVIDIA NVML is not loaded",
+			expectReason:  "NVIDIA NVML library is not loaded",
 		},
 		{
 			name: "driver version error",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{
@@ -1135,7 +1136,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		{
 			name: "parse driver version error",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{
@@ -1159,7 +1161,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		{
 			name: "driver version does not support clock events",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{
@@ -1186,7 +1189,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		{
 			name: "clock events not supported for device",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{
@@ -1216,7 +1220,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		{
 			name: "error getting clock events supported",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{
@@ -1246,7 +1251,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		{
 			name: "error getting clock events",
 			nvmlInstance: &mockNVMLInstance{
-				nvmlExists: true,
+				nvmlExists:  true,
+				productName: "Test GPU",
 				devices: map[string]device.Device{
 					"gpu-0": testutil.NewMockDevice(
 						&mock.Device{

@@ -105,7 +105,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return ""
+	return "test"
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -404,7 +404,7 @@ func TestCheckWithNVMLNotExisting(t *testing.T) {
 	result := comp.Check()
 	checkResult := result.(*checkResult)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", checkResult.reason)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", checkResult.reason)
 }
 
 func TestCheckAllEnvVarsForCoverage(t *testing.T) {

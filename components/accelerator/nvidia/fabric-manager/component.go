@@ -139,9 +139,15 @@ func (c *component) Check() components.CheckResult {
 	}
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "NVIDIA NVML is not loaded"
+		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
+	if c.nvmlInstance.ProductName() == "" {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+		return cr
+	}
+
 	if !c.nvmlInstance.FabricManagerSupported() {
 		cr.FabricManagerActive = false
 		cr.health = apiv1.HealthStateTypeHealthy

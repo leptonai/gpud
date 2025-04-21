@@ -686,7 +686,7 @@ func (m *mockNVMLInstance) Library() nvmllib.Library {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return ""
+	return "test"
 }
 
 func (m *mockNVMLInstance) Architecture() string {

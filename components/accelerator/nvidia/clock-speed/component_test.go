@@ -411,7 +411,7 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 
 	// Verify health state when NVML is not loaded
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
 	assert.Nil(t, data.err)
 }
 

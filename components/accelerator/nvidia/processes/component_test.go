@@ -423,7 +423,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		data, ok := result.(*checkResult)
 		require.True(t, ok)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-		assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+		assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
 	})
 
 	t.Run("multiple devices", func(t *testing.T) {

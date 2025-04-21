@@ -668,5 +668,5 @@ func TestCheckOnce_NvmlNotExists(t *testing.T) {
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
-	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
 }
