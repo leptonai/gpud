@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	stdos "os"
 	"strings"
 	"syscall"
@@ -140,10 +141,20 @@ type Server struct {
 	autoUpdateExitCode int
 }
 
+func createURL(endpoint string) string {
+	host := endpoint
+	url, _ := url.Parse(endpoint)
+	if url.Host != "" {
+		host = url.Host
+	}
+	return fmt.Sprintf("https://%s", host)
+}
+
 func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
+	endpoint = createURL(endpoint)
 
 	stateFile := ":memory:"
 	if config.State != "" {
