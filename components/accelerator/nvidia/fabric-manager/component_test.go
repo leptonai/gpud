@@ -44,7 +44,7 @@ func TestComponentEvents(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 
@@ -197,7 +197,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 		checkFMExistsFunc: func() bool { return false },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -281,7 +281,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	comp := &component{
 		ctx:               context.Background(),
 		cancel:            func() {},
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -410,7 +410,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
@@ -476,7 +476,7 @@ func TestCheckAllBranches(t *testing.T) {
 			comp := &component{
 				ctx:               context.Background(),
 				cancel:            func() {},
-				nvmlInstance:      &mockNVMLInstance{exists: true},
+				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 				checkFMExistsFunc: func() bool { return tc.fmExists },
 				checkFMActiveFunc: func() bool { return tc.fmActive },
 			}
@@ -499,7 +499,9 @@ func TestCheckAllBranches(t *testing.T) {
 
 // mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
-	exists bool
+	exists      bool
+	supportsFM  bool
+	productName string
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -515,7 +517,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return ""
+	return m.productName
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -539,7 +541,7 @@ func (m *mockNVMLInstance) CUDAVersion() string {
 }
 
 func (m *mockNVMLInstance) FabricManagerSupported() bool {
-	return true
+	return m.supportsFM
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
@@ -569,15 +571,23 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml does not exist",
-			nvmlInstance:      &mockNVMLInstance{exists: false},
+			nvmlInstance:      &mockNVMLInstance{exists: false, supportsFM: true},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "NVIDIA NVML is not loaded",
 			checkFMExistsFunc: func() bool { return false },
 			checkFMActiveFunc: func() bool { return false },
 		},
 		{
+			name:              "fabric manager not supported",
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: false, productName: "Test GPU"},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReason:    "Test GPU does not support fabric manager",
+			checkFMExistsFunc: func() bool { return false },
+			checkFMActiveFunc: func() bool { return false },
+		},
+		{
 			name:              "nvml exists but FM executable not found",
-			nvmlInstance:      &mockNVMLInstance{exists: true},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "nv-fabricmanager executable not found",
 			checkFMExistsFunc: func() bool { return false },
@@ -585,7 +595,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists, FM executable found but not active",
-			nvmlInstance:      &mockNVMLInstance{exists: true},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
 			expectedReason:    "nv-fabricmanager found but fabric manager service is not active",
 			checkFMExistsFunc: func() bool { return true },
@@ -593,7 +603,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists, FM executable found and active",
-			nvmlInstance:      &mockNVMLInstance{exists: true},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "fabric manager found and active",
 			checkFMExistsFunc: func() bool { return true },
@@ -635,4 +645,43 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheck_FabricManagerNotSupported(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock NVML instance that doesn't support fabric manager
+	mockInstance := &mockNVMLInstance{
+		exists:      true,
+		supportsFM:  false,
+		productName: "Test GPU",
+	}
+
+	// Create the component with our mock instance
+	comp := &component{
+		ctx:               context.Background(),
+		cancel:            func() {},
+		nvmlInstance:      mockInstance,
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
+	}
+
+	// Call Check method
+	result := comp.Check()
+
+	// Verify the result
+	checkResult, ok := result.(*checkResult)
+	assert.True(t, ok, "Expected result to be of type *checkResult")
+
+	// Verify all expected values
+	assert.False(t, checkResult.FabricManagerActive)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+	assert.Equal(t, "Test GPU does not support fabric manager", checkResult.reason)
+
+	// Also verify the health states output
+	states := comp.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, Name, states[0].Name)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Equal(t, "Test GPU does not support fabric manager", states[0].Reason)
 }
