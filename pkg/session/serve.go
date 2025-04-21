@@ -15,6 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -38,6 +39,11 @@ type Request struct {
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
 	Bootstrap     *BootstrapRequest `json:"bootstrap,omitempty"`
+
+	// CustomPluginSpec is the spec for the custom plugin to register or update.
+	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
+	// CustomPluginName is the name of the custom plugin to deregister.
+	CustomPluginName string `json:"custom_plugin_name,omitempty"`
 }
 
 type Response struct {
@@ -214,6 +220,101 @@ func (s *Session) serve() {
 				if err != nil {
 					response.Error = err.Error()
 				}
+			}
+
+		case "registerPlugin":
+			if payload.CustomPluginSpec != nil {
+				if err := payload.CustomPluginSpec.Validate(); err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				initFunc := payload.CustomPluginSpec.NewInitFunc()
+				if initFunc == nil {
+					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
+					break
+				}
+
+				comp, err := s.componentsRegistry.Register(initFunc)
+				if err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				if err := comp.Start(); err != nil {
+					response.Error = err.Error()
+					break
+				}
+				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
+			}
+
+		case "updatePlugin":
+			if payload.CustomPluginSpec != nil {
+				if err := payload.CustomPluginSpec.Validate(); err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				prevComp := s.componentsRegistry.Get(payload.CustomPluginSpec.ComponentName())
+				if prevComp == nil {
+					response.Error = fmt.Sprintf("plugin %s not found", payload.CustomPluginSpec.ComponentName())
+					break
+				}
+
+				initFunc := payload.CustomPluginSpec.NewInitFunc()
+				if initFunc == nil {
+					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
+					break
+				}
+
+				// now that we know the component is registered, we can deregister and register it
+				prevComp = s.componentsRegistry.Deregister(prevComp.Name())
+				_ = prevComp.Close()
+
+				comp, err := s.componentsRegistry.Register(initFunc)
+				if err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				if err := comp.Start(); err != nil {
+					response.Error = err.Error()
+					break
+				}
+
+				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
+			}
+
+		case "deregisterPlugin":
+			if payload.CustomPluginName != "" {
+				comp := s.componentsRegistry.Get(payload.CustomPluginName)
+				if comp == nil {
+					log.Logger.Warnw("plugin not found", "name", payload.CustomPluginName)
+					break
+				}
+
+				deregisterable, ok := comp.(components.Deregisterable)
+				if !ok {
+					log.Logger.Warnw("plugin is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
+					response.Error = "plugin is not deregisterable"
+					break
+				}
+
+				if !deregisterable.CanDeregister() {
+					log.Logger.Warnw("plugin is not deregisterable", "name", comp.Name())
+					response.Error = "plugin is not deregisterable"
+					break
+				}
+
+				cerr := comp.Close()
+				if cerr != nil {
+					log.Logger.Errorw("failed to close component", "error", cerr)
+					response.Error = cerr.Error()
+					break
+				}
+
+				// only deregister if the component is successfully closed
+				_ = s.componentsRegistry.Deregister(payload.CustomPluginName)
 			}
 		}
 

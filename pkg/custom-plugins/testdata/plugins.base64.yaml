@@ -1,0 +1,13 @@
+- plugin_name: "nvidia-smi"
+
+  state_plugin:
+    steps:
+      - name: "Run nvidia-smi"
+        run_bash_script:
+          content_type: base64
+          script: bnZpZGlhLXNtaQo=
+
+  dry_run: true
+
+  timeout: 10s
+  interval: 1m
