@@ -20,44 +20,56 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// mockInstanceV2 implements the nvidianvml.Instance interface for testing
-type mockInstanceV2 struct {
+// mockInstance implements the nvidianvml.Instance interface for testing
+type mockInstance struct {
 	devices map[string]device.Device
 }
 
-func (m *mockInstanceV2) NVMLExists() bool {
+func (m *mockInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *mockInstanceV2) Library() nvml_lib.Library {
+func (m *mockInstance) Library() nvml_lib.Library {
 	return nil
 }
 
-func (m *mockInstanceV2) Devices() map[string]device.Device {
+func (m *mockInstance) Devices() map[string]device.Device {
 	return m.devices
 }
 
-func (m *mockInstanceV2) ProductName() string {
+func (m *mockInstance) ProductName() string {
 	return "Test GPU"
 }
 
-func (m *mockInstanceV2) DriverVersion() string {
+func (m *mockInstance) Architecture() string {
+	return "Test Architecture"
+}
+
+func (m *mockInstance) Brand() string {
+	return "Test Brand"
+}
+
+func (m *mockInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *mockInstanceV2) DriverMajor() int {
+func (m *mockInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *mockInstanceV2) CUDAVersion() string {
+func (m *mockInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *mockInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockInstance) FabricManagerSupported() bool {
+	return true
+}
+
+func (m *mockInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *mockInstanceV2) Shutdown() error {
+func (m *mockInstance) Shutdown() error {
 	return nil
 }
 
@@ -69,7 +81,7 @@ func MockUtilizationComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
-	mockInstance := &mockInstanceV2{
+	mockInstance := &mockInstance{
 		devices: make(map[string]device.Device),
 	}
 
@@ -93,14 +105,14 @@ func MockUtilizationComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockNvmlInstance := &mockInstanceV2{
+	mockNVMLInstance := &mockInstance{
 		devices: map[string]device.Device{},
 	}
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:      ctx,
-		NVMLInstance: mockNvmlInstance,
+		NVMLInstance: mockNVMLInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -525,7 +537,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 	// Create a custom mock instance with NVMLExists returning false
 	mockInstance := &mockInstanceV2WithNVMLExists{
-		mockInstanceV2: &mockInstanceV2{
+		mockInstance: &mockInstance{
 			devices: map[string]device.Device{},
 		},
 		nvmlExists: false,
@@ -551,7 +563,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 // mockInstanceV2WithNVMLExists is a mock that allows setting NVMLExists result
 type mockInstanceV2WithNVMLExists struct {
-	*mockInstanceV2
+	*mockInstance
 	nvmlExists bool
 }
 

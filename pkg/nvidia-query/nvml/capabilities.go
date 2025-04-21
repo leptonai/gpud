@@ -20,7 +20,33 @@ var (
 		"h200": memMgmtCapAllSupported,
 		"a10":  memMgmtCapOnlyRowRemappingSupported,
 	}
+
+	gpuProductToFMSupported = map[string]bool{
+		"a100": true,
+		"b100": true,
+		"b200": true,
+		"h100": true,
+		"h200": true,
+		"a10":  false,
+	}
 )
+
+// SupportedFMByGPUProduct returns the GPU fabric manager support status
+// based on the GPU product name.
+func SupportedFMByGPUProduct(gpuProductName string) bool {
+	p := strings.ToLower(gpuProductName)
+	longestName, supported := "", false
+	for k, v := range gpuProductToFMSupported {
+		if !strings.Contains(p, k) {
+			continue
+		}
+		if len(longestName) < len(k) {
+			longestName = k
+			supported = v
+		}
+	}
+	return supported
+}
 
 // SupportedMemoryMgmtCapsByGPUProduct returns the GPU memory error management capabilities
 // based on the GPU product name.

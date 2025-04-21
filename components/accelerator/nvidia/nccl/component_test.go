@@ -18,22 +18,22 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-// MockEventBucket implements a mock for eventstore.Bucket
-type MockEventBucket struct {
+// mockEventBucket implements a mock for eventstore.Bucket
+type mockEventBucket struct {
 	mock.Mock
 }
 
-func (m *MockEventBucket) Name() string {
+func (m *mockEventBucket) Name() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -41,12 +41,12 @@ func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.E
 	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	args := m.Called(ctx, since)
 	return args.Get(0).(apiv1.Events), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -54,12 +54,12 @@ func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	return args.Get(0).(*apiv1.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	args := m.Called(ctx, beforeTimestamp)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockEventBucket) Close() {
+func (m *mockEventBucket) Close() {
 	m.Called()
 }
 
@@ -74,16 +74,16 @@ func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (event
 }
 
 // Complete implementation of nvidianvml.Instance for testing
-type mockNvmlInstance struct {
+type mockNVMLInstance struct {
 	mock.Mock
 }
 
-func (m *mockNvmlInstance) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	args := m.Called()
 	return args.Bool(0)
 }
 
-func (m *mockNvmlInstance) Library() nvmllib.Library {
+func (m *mockNVMLInstance) Library() nvmllib.Library {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
@@ -91,37 +91,52 @@ func (m *mockNvmlInstance) Library() nvmllib.Library {
 	return args.Get(0).(nvmllib.Library)
 }
 
-func (m *mockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	args := m.Called()
 	return args.Get(0).(map[string]device.Device)
 }
 
-func (m *mockNvmlInstance) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *mockNvmlInstance) DriverVersion() string {
+func (m *mockNVMLInstance) Architecture() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *mockNvmlInstance) DriverMajor() int {
+func (m *mockNVMLInstance) Brand() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
 	args := m.Called()
 	return args.Int(0)
 }
 
-func (m *mockNvmlInstance) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	args := m.Called()
 	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)
 }
 
-func (m *mockNvmlInstance) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	args := m.Called()
 	return args.Error(0)
 }
@@ -142,7 +157,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("nil readAllKmsg", func(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
-		mockNvml := new(mockNvmlInstance)
+		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
@@ -159,7 +174,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("readAllKmsg returns error", func(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
-		mockNvml := new(mockNvmlInstance)
+		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
@@ -182,7 +197,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("no matching messages", func(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
-		mockNvml := new(mockNvmlInstance)
+		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
@@ -209,7 +224,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("with matching messages", func(t *testing.T) {
 		// Mock nvmlInstance that returns true for NVMLExists
-		mockNvml := new(mockNvmlInstance)
+		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
@@ -309,7 +324,7 @@ func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
 	// Create mock event bucket
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	testTime := metav1.Now()
 	testEvents := apiv1.Events{
 		{
@@ -348,7 +363,7 @@ func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
 	// Create mock event bucket
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	mockEventBucket.On("Close").Return()
 
 	comp := &component{

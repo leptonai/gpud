@@ -28,6 +28,12 @@ type Instance interface {
 	// ProductName returns the product name of the GPU.
 	ProductName() string
 
+	// Architecture returns the architecture of the GPU.
+	Architecture() string
+
+	// Brand returns the brand of the GPU.
+	Brand() string
+
 	// DriverVersion returns the driver version of the GPU.
 	DriverVersion() string
 
@@ -36,6 +42,9 @@ type Instance interface {
 
 	// CUDAVersion returns the CUDA version of the GPU.
 	CUDAVersion() string
+
+	// FabricManagerSupported returns true if the fabric manager is supported.
+	FabricManagerSupported() bool
 
 	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
@@ -86,6 +95,8 @@ func New() (Instance, error) {
 	log.Logger.Infow("got devices from device library", "numDevices", len(devices))
 
 	productName := ""
+	architecture := ""
+	brand := ""
 	dm := make(map[string]device.Device)
 	if len(devices) > 0 {
 		name, ret := devices[0].GetName()
@@ -93,6 +104,16 @@ func New() (Instance, error) {
 			return nil, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 		}
 		productName = name
+
+		var err error
+		architecture, err = GetArchitecture(devices[0])
+		if err != nil {
+			return nil, err
+		}
+		brand, err = GetBrand(devices[0])
+		if err != nil {
+			return nil, err
+		}
 
 		for _, dev := range devices {
 			uuid, ret := dev.GetUUID()
@@ -102,18 +123,23 @@ func New() (Instance, error) {
 			dm[uuid] = dev
 		}
 	}
+
+	fmSupported := SupportedFMByGPUProduct(productName)
 	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instance{
-		nvmlLib:       nvmlLib,
-		nvmlExists:    nvmlExists,
-		nvmlExistsMsg: nvmlExistsMsg,
-		driverVersion: driverVersion,
-		driverMajor:   driverMajor,
-		cudaVersion:   cudaVersion,
-		devices:       dm,
-		productName:   productName,
-		memMgmtCaps:   memMgmtCaps,
+		nvmlLib:            nvmlLib,
+		nvmlExists:         nvmlExists,
+		nvmlExistsMsg:      nvmlExistsMsg,
+		driverVersion:      driverVersion,
+		driverMajor:        driverMajor,
+		cudaVersion:        cudaVersion,
+		devices:            dm,
+		productName:        productName,
+		architecture:       architecture,
+		brand:              brand,
+		fabricMgrSupported: fmSupported,
+		memMgmtCaps:        memMgmtCaps,
 	}, nil
 }
 
@@ -131,8 +157,12 @@ type instance struct {
 
 	devices map[string]device.Device
 
-	productName string
-	memMgmtCaps MemoryErrorManagementCapabilities
+	productName  string
+	architecture string
+	brand        string
+
+	fabricMgrSupported bool
+	memMgmtCaps        MemoryErrorManagementCapabilities
 }
 
 func (inst *instance) NVMLExists() bool {
@@ -151,6 +181,14 @@ func (inst *instance) ProductName() string {
 	return inst.productName
 }
 
+func (inst *instance) Architecture() string {
+	return inst.architecture
+}
+
+func (inst *instance) Brand() string {
+	return inst.brand
+}
+
 func (inst *instance) DriverVersion() string {
 	return inst.driverVersion
 }
@@ -161,6 +199,10 @@ func (inst *instance) DriverMajor() int {
 
 func (inst *instance) CUDAVersion() string {
 	return inst.cudaVersion
+}
+
+func (inst *instance) FabricManagerSupported() bool {
+	return inst.fabricMgrSupported
 }
 
 func (inst *instance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
@@ -187,9 +229,12 @@ func (inst *noOpInstance) NVMLExists() bool                  { return false }
 func (inst *noOpInstance) Library() nvmllib.Library          { return nil }
 func (inst *noOpInstance) Devices() map[string]device.Device { return nil }
 func (inst *noOpInstance) ProductName() string               { return "" }
+func (inst *noOpInstance) Architecture() string              { return "" }
+func (inst *noOpInstance) Brand() string                     { return "" }
 func (inst *noOpInstance) DriverVersion() string             { return "" }
 func (inst *noOpInstance) DriverMajor() int                  { return 0 }
 func (inst *noOpInstance) CUDAVersion() string               { return "" }
+func (inst *noOpInstance) FabricManagerSupported() bool      { return false }
 func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return MemoryErrorManagementCapabilities{}
 }

@@ -34,12 +34,24 @@ func (m *MockNvmlInstance) Devices() map[string]device.Device {
 	return nil
 }
 
+func (m *MockNvmlInstance) FabricManagerSupported() bool {
+	return true
+}
+
 func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
 func (m *MockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
+}
+
+func (m *MockNvmlInstance) Architecture() string {
+	return ""
+}
+
+func (m *MockNvmlInstance) Brand() string {
+	return ""
 }
 
 func (m *MockNvmlInstance) DriverVersion() string {
@@ -76,12 +88,24 @@ func (m *CustomMockNvmlInstance) Devices() map[string]device.Device {
 	return m.devs
 }
 
+func (m *CustomMockNvmlInstance) FabricManagerSupported() bool {
+	return true
+}
+
 func (m *CustomMockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
 func (m *CustomMockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
+}
+
+func (m *CustomMockNvmlInstance) Architecture() string {
+	return ""
+}
+
+func (m *CustomMockNvmlInstance) Brand() string {
+	return ""
 }
 
 func (m *CustomMockNvmlInstance) DriverVersion() string {

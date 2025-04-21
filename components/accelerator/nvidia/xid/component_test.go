@@ -690,6 +690,14 @@ func (m *mockNVMLInstance) ProductName() string {
 	return "Test GPU"
 }
 
+func (m *mockNVMLInstance) Architecture() string {
+	return "Test Architecture"
+}
+
+func (m *mockNVMLInstance) Brand() string {
+	return "Test Brand"
+}
+
 func (m *mockNVMLInstance) DriverVersion() string {
 	return "test-driver-version"
 }
@@ -700,6 +708,10 @@ func (m *mockNVMLInstance) DriverMajor() int {
 
 func (m *mockNVMLInstance) CUDAVersion() string {
 	return "test-cuda-version"
+}
+
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
+	return true
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {

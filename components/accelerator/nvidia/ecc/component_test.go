@@ -20,19 +20,23 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvml.InstanceV2 interface for testing
-type MockNvmlInstance struct {
+// mockNVMLInstance implements the nvml.InstanceV2 interface for testing
+type mockNVMLInstance struct {
 	devicesFunc func() map[string]device.Device
 }
 
-func (m *MockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	if m.devicesFunc != nil {
 		return m.devicesFunc()
 	}
 	return nil
 }
 
-func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
+	return true
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{
 		ErrorContainment:     true,
 		DynamicPageOfflining: true,
@@ -40,37 +44,45 @@ func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.Mem
 	}
 }
 
-func (m *MockNvmlInstance) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
-func (m *MockNvmlInstance) DriverVersion() string {
+func (m *mockNVMLInstance) Architecture() string {
+	return "test-architecture"
+}
+
+func (m *mockNVMLInstance) Brand() string {
+	return "test-brand"
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
 	return "test-driver-version"
 }
 
-func (m *MockNvmlInstance) DriverMajor() int {
+func (m *mockNVMLInstance) DriverMajor() int {
 	return 1
 }
 
-func (m *MockNvmlInstance) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	return "test-cuda-version"
 }
 
-func (m *MockNvmlInstance) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) Library() lib.Library {
+func (m *mockNVMLInstance) Library() lib.Library {
 	return nil
 }
 
-func (m *MockNvmlInstance) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
 // MockNvmlInstanceNVMLNotLoaded is a special mock implementation that always returns false for NVMLExists
 type MockNvmlInstanceNVMLNotLoaded struct {
-	*MockNvmlInstance
+	*mockNVMLInstance
 }
 
 func (m *MockNvmlInstanceNVMLNotLoaded) NVMLExists() bool {
@@ -86,7 +98,7 @@ func MockECCComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: devicesFunc,
 	}
 
@@ -101,7 +113,7 @@ func MockECCComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
 
@@ -641,13 +653,13 @@ func TestCheck_NvmlNotLoaded(t *testing.T) {
 	ctx := context.Background()
 
 	// Create base mock instance
-	baseMock := &MockNvmlInstance{
+	baseMock := &mockNVMLInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
 
 	// Wrap it with our special mock that overrides NVMLExists
 	mockInstance := &MockNvmlInstanceNVMLNotLoaded{
-		MockNvmlInstance: baseMock,
+		mockNVMLInstance: baseMock,
 	}
 
 	cctx, cancel := context.WithCancel(ctx)

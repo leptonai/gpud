@@ -37,12 +37,15 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 // Override other InstanceV2 methods to return empty values
-func (m *mockNVMLInstance) NVMLExists() bool         { return m.nvmlExists }
-func (m *mockNVMLInstance) Library() nvmllib.Library { return nil }
-func (m *mockNVMLInstance) ProductName() string      { return "Test GPU" }
-func (m *mockNVMLInstance) DriverVersion() string    { return "1.0" }
-func (m *mockNVMLInstance) DriverMajor() int         { return 1 }
-func (m *mockNVMLInstance) CUDAVersion() string      { return "1.0" }
+func (m *mockNVMLInstance) NVMLExists() bool             { return m.nvmlExists }
+func (m *mockNVMLInstance) Library() nvmllib.Library     { return nil }
+func (m *mockNVMLInstance) ProductName() string          { return "Test GPU" }
+func (m *mockNVMLInstance) Architecture() string         { return "" }
+func (m *mockNVMLInstance) Brand() string                { return "" }
+func (m *mockNVMLInstance) DriverVersion() string        { return "1.0" }
+func (m *mockNVMLInstance) DriverMajor() int             { return 1 }
+func (m *mockNVMLInstance) CUDAVersion() string          { return "1.0" }
+func (m *mockNVMLInstance) FabricManagerSupported() bool { return true }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
