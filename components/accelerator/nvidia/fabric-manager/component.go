@@ -44,7 +44,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		nvmlInstance:      gpudInstance.NVMLInstance,
+		nvmlInstance: gpudInstance.NVMLInstance,
+
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
 	}
@@ -58,7 +59,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 	}
 
-	if checkFMExists() && c.eventBucket != nil {
+	if c.checkFMExistsFunc() && c.eventBucket != nil {
 		w, err := newWatcher(defaultWatchCommands)
 		if err != nil {
 			ccancel()
@@ -139,6 +140,12 @@ func (c *component) Check() components.CheckResult {
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
+	}
+	if !c.nvmlInstance.FabricManagerSupported() {
+		cr.FabricManagerActive = false
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = c.nvmlInstance.ProductName() + " does not support fabric manager"
 		return cr
 	}
 
