@@ -163,57 +163,49 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	allocatedFileHandles, _, err := c.getFileHandlesFunc()
-	if err != nil {
-		cr.err = err
+	cr.AllocatedFileHandles, _, cr.err = c.getFileHandlesFunc()
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting file handles -- %s", err)
+		cr.reason = fmt.Sprintf("error getting file handles -- %s", cr.err)
 		return cr
 	}
-	cr.AllocatedFileHandles = allocatedFileHandles
-	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(allocatedFileHandles))
+	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(cr.AllocatedFileHandles))
 
-	runningPIDs, err := c.countRunningPIDsFunc()
-	if err != nil {
-		cr.err = err
+	cr.RunningPIDs, cr.err = c.countRunningPIDsFunc()
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting running pids -- %s", err)
+		cr.reason = fmt.Sprintf("error getting running pids -- %s", cr.err)
 		return cr
 	}
-	cr.RunningPIDs = runningPIDs
-	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(runningPIDs))
+	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(cr.RunningPIDs))
 
 	// may fail for mac
 	// e.g.,
 	// stat /proc: no such file or directory
-	usage, uerr := c.getUsageFunc()
-	if uerr != nil {
-		cr.err = uerr
+	cr.Usage, cr.err = c.getUsageFunc()
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting usage -- %s", uerr)
+		cr.reason = fmt.Sprintf("error getting usage -- %s", cr.err)
 		return cr
 	}
-	cr.Usage = usage
 
-	limit, err := c.getLimitFunc()
-	if err != nil {
-		cr.err = err
+	cr.Limit, cr.err = c.getLimitFunc()
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting limit -- %s", err)
+		cr.reason = fmt.Sprintf("error getting limit -- %s", cr.err)
 		return cr
 	}
-	cr.Limit = limit
-	metricLimit.With(prometheus.Labels{}).Set(float64(limit))
+	metricLimit.With(prometheus.Labels{}).Set(float64(cr.Limit))
 
-	allocatedFileHandlesPct := calcUsagePct(allocatedFileHandles, limit)
+	allocatedFileHandlesPct := calcUsagePct(cr.AllocatedFileHandles, cr.Limit)
 	cr.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
 	metricAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(allocatedFileHandlesPct)
 
-	usageVal := runningPIDs // for mac
-	if usage > 0 {
-		usageVal = usage
+	usageVal := cr.RunningPIDs // for mac
+	if cr.Usage > 0 {
+		usageVal = cr.Usage
 	}
-	usedPct := calcUsagePct(usageVal, limit)
+	usedPct := calcUsagePct(usageVal, cr.Limit)
 	cr.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 
@@ -225,7 +217,7 @@ func (c *component) Check() components.CheckResult {
 
 	var thresholdRunningPIDsPct float64
 	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
-		thresholdRunningPIDsPct = calcUsagePct(usage, c.thresholdRunningPIDs)
+		thresholdRunningPIDsPct = calcUsagePct(cr.Usage, c.thresholdRunningPIDs)
 	}
 	cr.ThresholdRunningPIDs = c.thresholdRunningPIDs
 	cr.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
@@ -234,7 +226,7 @@ func (c *component) Check() components.CheckResult {
 
 	var thresholdAllocatedFileHandlesPct float64
 	if c.thresholdAllocatedFileHandles > 0 {
-		thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(c.thresholdAllocatedFileHandles, limit))
+		thresholdAllocatedFileHandlesPct = calcUsagePct(cr.Usage, min(c.thresholdAllocatedFileHandles, cr.Limit))
 	}
 	cr.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
 	cr.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
@@ -246,11 +238,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
-			cr.Usage,
-			cr.ThresholdAllocatedFileHandles,
-			cr.ThresholdAllocatedFileHandlesPercent,
-		)
+		cr.reason = "no issue found (file descriptor usage is within the threshold)"
 	}
 	return cr
 }

@@ -813,7 +813,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			expectedHealth:           apiv1.HealthStateTypeHealthy,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         true,
-			expectReasonContainsText: "current file descriptors",
+			expectReasonContainsText: "no issue found (file descriptor usage is within the threshold)",
 		},
 		{
 			name:                     "high file handles",
@@ -852,7 +852,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			expectedHealth:           apiv1.HealthStateTypeHealthy,
 			fileHandlesSupported:     false,
 			fdLimitSupported:         true,
-			expectReasonContainsText: "current file descriptors",
+			expectReasonContainsText: "no issue found (file descriptor usage is within the threshold)",
 		},
 		{
 			name:                     "fd limit not supported",
@@ -865,7 +865,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			expectedHealth:           apiv1.HealthStateTypeHealthy,
 			fileHandlesSupported:     true,
 			fdLimitSupported:         false,
-			expectReasonContainsText: "current file descriptors",
+			expectReasonContainsText: "no issue found (file descriptor usage is within the threshold)",
 		},
 		{
 			name:                     "high usage",
@@ -938,7 +938,7 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			if tc.expectReasonContainsText == ErrFileHandlesAllocationExceedsWarning {
 				assert.Equal(t, tc.expectReasonContainsText, c.lastCheckResult.reason)
 			} else {
-				assert.Contains(t, c.lastCheckResult.reason, tc.expectReasonContainsText)
+				assert.Equal(t, tc.expectReasonContainsText, c.lastCheckResult.reason)
 			}
 		})
 	}
