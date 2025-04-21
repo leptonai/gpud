@@ -35,9 +35,7 @@ var (
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	kernelModulesToCheck         cli.StringSlice
-	dockerIgnoreConnectionErrors bool
-	ibstatCommand                string
+	ibstatCommand string
 )
 
 const (
@@ -203,16 +201,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
 					Destination: &autoUpdateExitCode,
 					Value:       -1,
-				},
-				&cli.StringSliceFlag{
-					Name:  "kernel-modules-to-check",
-					Usage: "enable 'kernel-module' component that returns healthy if and only if all the kernel modules are loaded (default: [], use '--kernel-modules-to-check=a --kernel-modules-to-check=b' for multiple modules)",
-					Value: &kernelModulesToCheck,
-				},
-				&cli.BoolFlag{
-					Name:        "docker-ignore-connection-errors",
-					Usage:       "ignore connection errors to docker daemon, useful when docker daemon is not running (default: false)",
-					Destination: &dockerIgnoreConnectionErrors,
 				},
 
 				// only for testing
