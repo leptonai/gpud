@@ -1,4 +1,4 @@
-package container
+package docker
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 )
 
 func Test_checkDockerInstalled(t *testing.T) {
-	t.Logf("%v", checkDockerInstalled())
+	t.Logf("%v", CheckDockerInstalled())
 }
 
 func Test_checkDockerRunning(t *testing.T) {
-	t.Logf("%v", checkDockerRunning(context.Background()))
+	t.Logf("%v", CheckDockerRunning(context.Background()))
 }
 
 func TestIsErrDockerClientVersionNewerThanDaemon(t *testing.T) {
@@ -53,7 +53,7 @@ func TestIsErrDockerClientVersionNewerThanDaemon(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isErrDockerClientVersionNewerThanDaemon(tt.err)
+			result := IsErrDockerClientVersionNewerThanDaemon(tt.err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -18,6 +18,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 )
 
 func Test_componentStart(t *testing.T) {
@@ -49,52 +50,6 @@ func TestComponentBasics(t *testing.T) {
 	assert.Empty(t, events)
 }
 
-func TestParseUnixEndpoint(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		want     string
-		wantErr  bool
-	}{
-		{
-			name:     "valid unix endpoint",
-			endpoint: "unix:///run/containerd/containerd.sock",
-			want:     "/run/containerd/containerd.sock",
-			wantErr:  false,
-		},
-		{
-			name:     "invalid scheme",
-			endpoint: "http://localhost:8080",
-			want:     "",
-			wantErr:  true,
-		},
-		{
-			name:     "invalid url",
-			endpoint: "://invalid",
-			want:     "",
-			wantErr:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseUnixEndpoint(tt.endpoint)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
-}
-
-func TestDefaultDialOptions(t *testing.T) {
-	opts := defaultDialOptions()
-	assert.NotEmpty(t, opts)
-	assert.Greater(t, len(opts), 0)
-}
-
 func TestDataFunctions(t *testing.T) {
 	t.Run("empty data", func(t *testing.T) {
 		cr := checkResult{
@@ -118,7 +73,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("data with error", func(t *testing.T) {
 		cr := checkResult{
-			Pods:   []PodSandbox{{ID: "pod1"}},
+			Pods:   []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 			err:    errors.New("test error"),
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
@@ -131,7 +86,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("data with gRPC unimplemented error", func(t *testing.T) {
 		cr := checkResult{
-			Pods:   []PodSandbox{{ID: "pod1"}},
+			Pods:   []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 			err:    status.Error(codes.Unimplemented, "test unimplemented"),
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
@@ -145,7 +100,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("empty data with error - empty pods takes precedence", func(t *testing.T) {
 		cr := checkResult{
-			Pods: []PodSandbox{},
+			Pods: []pkgcontainerd.PodSandbox{},
 			err:  errors.New("test error"),
 			// Set explicit reason
 			reason: "empty pods with error reason",
@@ -159,7 +114,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("data with pods", func(t *testing.T) {
 		cr := checkResult{
-			Pods: []PodSandbox{
+			Pods: []pkgcontainerd.PodSandbox{
 				{
 					ID:   "pod1",
 					Name: "test-pod",
@@ -182,7 +137,7 @@ func TestComponentStates(t *testing.T) {
 		ctx:    ctx,
 		cancel: func() {},
 		lastCheckResult: &checkResult{
-			Pods: []PodSandbox{
+			Pods: []pkgcontainerd.PodSandbox{
 				{
 					ID:   "pod1",
 					Name: "test-pod",
@@ -382,7 +337,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 						cr.reason = fmt.Sprintf("error listing pod sandbox status: %v", cr.err)
 					}
 				} else {
-					cr.Pods = []PodSandbox{}
+					cr.Pods = []pkgcontainerd.PodSandbox{}
 					cr.health = apiv1.HealthStateTypeHealthy
 					cr.reason = fmt.Sprintf("found %d pod sandbox(es)", len(cr.Pods))
 				}
@@ -420,13 +375,13 @@ func TestNew(t *testing.T) {
 // Test component with mock listSandboxStatus returning pods
 func TestCheckOnceWithPods(t *testing.T) {
 	// Create mocked pods
-	mockPods := []PodSandbox{
+	mockPods := []pkgcontainerd.PodSandbox{
 		{
 			ID:        "pod1",
 			Name:      "test-pod-1",
 			Namespace: "default",
 			State:     "SANDBOX_READY",
-			Containers: []PodSandboxContainerStatus{
+			Containers: []pkgcontainerd.PodSandboxContainerStatus{
 				{
 					ID:    "container1",
 					Name:  "container-1",
@@ -496,7 +451,7 @@ func TestComponentEvents(t *testing.T) {
 		endpoint:                     "unix:///nonexistent/socket",
 		lastCheckResult: &checkResult{
 			ts: time.Now().Add(-1 * time.Hour),
-			Pods: []PodSandbox{
+			Pods: []pkgcontainerd.PodSandbox{
 				{
 					ID:   "pod1",
 					Name: "test-pod",
@@ -548,13 +503,13 @@ func TestDataMarshalJSON(t *testing.T) {
 
 	t.Run("data with pods", func(t *testing.T) {
 		cr := checkResult{
-			Pods: []PodSandbox{
+			Pods: []pkgcontainerd.PodSandbox{
 				{
 					ID:        "pod-123",
 					Namespace: "default",
 					Name:      "test-pod",
 					State:     "SANDBOX_READY",
-					Containers: []PodSandboxContainerStatus{
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
 						{
 							ID:    "container-456",
 							Name:  "test-container",
@@ -579,13 +534,13 @@ func TestDataMarshalJSON(t *testing.T) {
 
 	t.Run("data with marshaling error", func(t *testing.T) {
 		// Create a pod with a channel which cannot be marshaled to JSON
-		badPod := PodSandbox{
+		badPod := pkgcontainerd.PodSandbox{
 			ID:   "bad-pod",
 			Name: "bad-pod",
 		}
 
 		cr := checkResult{
-			Pods: []PodSandbox{badPod},
+			Pods: []pkgcontainerd.PodSandbox{badPod},
 		}
 
 		// This is expected to either return an error or escape the invalid UTF-8
@@ -673,7 +628,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 
 	t.Run("data with pods and error", func(t *testing.T) {
 		cr := checkResult{
-			Pods:   []PodSandbox{{ID: "pod1"}},
+			Pods:   []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 			err:    errors.New("grpc connection error"),
 			reason: "pods with error edge case",
 			health: apiv1.HealthStateTypeUnhealthy,
@@ -688,9 +643,9 @@ func TestGetStatesEdgeCases(t *testing.T) {
 
 	t.Run("data with many pods", func(t *testing.T) {
 		// Create data with multiple pods
-		pods := make([]PodSandbox, 10)
+		pods := make([]pkgcontainerd.PodSandbox, 10)
 		for i := 0; i < 10; i++ {
-			pods[i] = PodSandbox{
+			pods[i] = pkgcontainerd.PodSandbox{
 				ID:        fmt.Sprintf("pod-%d", i),
 				Name:      fmt.Sprintf("test-pod-%d", i),
 				Namespace: "default",
@@ -720,13 +675,13 @@ func TestGetStatesEdgeCases(t *testing.T) {
 
 	t.Run("data with JSON marshaling issue", func(t *testing.T) {
 		// Create a pod with fields that might cause JSON issues
-		badPod := PodSandbox{
+		badPod := pkgcontainerd.PodSandbox{
 			ID:   "bad-pod",
 			Name: "bad-pod",
 		}
 
 		cr := checkResult{
-			Pods: []PodSandbox{badPod},
+			Pods: []pkgcontainerd.PodSandbox{badPod},
 		}
 
 		states := cr.getLastHealthStates()
@@ -754,7 +709,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "empty data no error",
 			data: checkResult{
-				Pods: []PodSandbox{},
+				Pods: []pkgcontainerd.PodSandbox{},
 				err:  nil,
 			},
 			explicitReason: "empty data reason",
@@ -762,7 +717,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "empty pods with connection error",
 			data: checkResult{
-				Pods: []PodSandbox{},
+				Pods: []pkgcontainerd.PodSandbox{},
 				err:  errors.New("connection refused"),
 			},
 			explicitReason: "empty pods with error reason",
@@ -770,7 +725,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "single pod no error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:   "pod1",
 						Name: "test-pod",
@@ -783,7 +738,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "multiple pods no error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 					{ID: "pod3", Name: "test-pod-3"},
@@ -795,7 +750,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "generic error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1"},
 				},
 				err: errors.New("generic error"),
@@ -805,7 +760,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "unimplemented error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1"},
 				},
 				err: status.Error(codes.Unimplemented, "unknown service"),
@@ -815,7 +770,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "pods with unimplemented error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
@@ -826,7 +781,7 @@ func TestData_Reason(t *testing.T) {
 		{
 			name: "other status error",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1"},
 				},
 				err: status.Error(codes.Unavailable, "service unavailable"),
@@ -862,21 +817,21 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		{
 			name: "context canceled error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  context.Canceled,
 			},
 		},
 		{
 			name: "context deadline exceeded error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  context.DeadlineExceeded,
 			},
 		},
 		{
 			name: "network dial error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err: &net.OpError{
 					Op:  "dial",
 					Err: errors.New("connection refused"),
@@ -886,7 +841,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		{
 			name: "network connect error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err: &net.OpError{
 					Op:  "connect",
 					Err: errors.New("connection reset by peer"),
@@ -896,7 +851,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		{
 			name: "permission denied error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err: &os.PathError{
 					Op:   "open",
 					Path: "/run/containerd/containerd.sock",
@@ -907,7 +862,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		{
 			name: "no such file error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err: &os.PathError{
 					Op:   "stat",
 					Path: "/run/containerd/containerd.sock",
@@ -918,35 +873,35 @@ func TestData_ReasonWithErrors(t *testing.T) {
 		{
 			name: "grpc internal error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.Internal, "internal error"),
 			},
 		},
 		{
 			name: "grpc not found error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.NotFound, "not found"),
 			},
 		},
 		{
 			name: "grpc resource exhausted error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  status.Error(codes.ResourceExhausted, "resource exhausted"),
 			},
 		},
 		{
 			name: "wrapped error",
 			data: checkResult{
-				Pods: []PodSandbox{{ID: "pod1"}},
+				Pods: []pkgcontainerd.PodSandbox{{ID: "pod1"}},
 				err:  fmt.Errorf("could not connect: %w", errors.New("underlying error")),
 			},
 		},
 		{
 			name: "error take precedence over empty pod",
 			data: checkResult{
-				Pods: []PodSandbox{},
+				Pods: []pkgcontainerd.PodSandbox{},
 				err:  errors.New("this error"),
 			},
 		},
@@ -982,7 +937,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "empty data with explicit healthy",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    nil,
 				health: apiv1.HealthStateTypeHealthy,
 			},
@@ -992,7 +947,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with pods and explicit healthy",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
@@ -1005,7 +960,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with generic error",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    errors.New("generic error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
@@ -1015,7 +970,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with gRPC unimplemented error",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    status.Error(codes.Unimplemented, "unknown service"),
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
@@ -1025,7 +980,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with context canceled error",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    context.Canceled,
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
@@ -1035,7 +990,7 @@ func TestData_HealthStates(t *testing.T) {
 		{
 			name: "data with network error",
 			data: &checkResult{
-				Pods: []PodSandbox{},
+				Pods: []pkgcontainerd.PodSandbox{},
 				err: &net.OpError{
 					Op:  "dial",
 					Err: errors.New("connection refused"),
@@ -1081,7 +1036,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with explicit values",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    nil,
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "test reason",
@@ -1094,7 +1049,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with pods and explicit values",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 				},
@@ -1110,7 +1065,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with error and explicit values",
 			data: &checkResult{
-				Pods:   []PodSandbox{},
+				Pods:   []pkgcontainerd.PodSandbox{},
 				err:    errors.New("generic error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "test reason with error",
@@ -1123,7 +1078,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with gRPC unimplemented error and explicit values",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 				},
 				err:    status.Error(codes.Unimplemented, "unknown service"),
@@ -1138,7 +1093,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "data with many pods and JSON extraInfo",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod-1"},
 					{ID: "pod2", Name: "test-pod-2"},
 					{ID: "pod3", Name: "test-pod-3"},
@@ -1267,7 +1222,7 @@ func TestConcurrentAccess(t *testing.T) {
 		lastCheckResult: &checkResult{
 			ts:     time.Now(),
 			health: apiv1.HealthStateTypeHealthy,
-			Pods:   []PodSandbox{{ID: "pod1", Name: "test-pod"}},
+			Pods:   []pkgcontainerd.PodSandbox{{ID: "pod1", Name: "test-pod"}},
 		},
 	}
 
@@ -1315,70 +1270,13 @@ func TestComponentWithEmptyEndpoint(t *testing.T) {
 	}
 
 	// Set a default endpoint value since that's what the component does
-	comp.endpoint = defaultContainerRuntimeEndpoint
+	comp.endpoint = pkgcontainerd.DefaultContainerRuntimeEndpoint
 
 	err := comp.Start()
 	assert.NoError(t, err)
 
 	// Verify the endpoint now has a value
 	assert.NotEmpty(t, comp.endpoint)
-}
-
-// TestParseUnixEndpointEdgeCases tests edge cases for the parseUnixEndpoint function
-func TestParseUnixEndpointEdgeCases(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		want     string
-		wantErr  bool
-	}{
-		{
-			name:     "empty endpoint",
-			endpoint: "",
-			want:     "",
-			wantErr:  true,
-		},
-		{
-			name:     "unix scheme with no path",
-			endpoint: "unix://",
-			want:     "",
-			wantErr:  true, // This should be an error in most implementations
-		},
-		{
-			name:     "unix endpoint with query params",
-			endpoint: "unix:///path/to/socket?param=value",
-			want:     "/path/to/socket",
-			wantErr:  false,
-		},
-		{
-			name:     "unix endpoint with fragment",
-			endpoint: "unix:///path/to/socket#fragment",
-			want:     "/path/to/socket",
-			wantErr:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// For the unix:// test case, we'll skip the error check since the implementation may vary
-			if tt.endpoint == "unix://" {
-				got, _ := parseUnixEndpoint(tt.endpoint)
-				// Just check that we get an empty string or a "/" path
-				if got != "" && got != "/" {
-					t.Errorf("parseUnixEndpoint(%q) = %q, want empty or '/'", tt.endpoint, got)
-				}
-				return
-			}
-
-			got, err := parseUnixEndpoint(tt.endpoint)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
 }
 
 // TestDataWithReason tests setting reason directly in the Data struct
@@ -1421,7 +1319,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 
 	// Data with empty pods and explicit reason
 	cr = &checkResult{
-		Pods:   []PodSandbox{},
+		Pods:   []pkgcontainerd.PodSandbox{},
 		reason: "explicit reason for data with empty pods",
 	}
 	states = cr.getLastHealthStates()
@@ -1485,14 +1383,14 @@ func TestCheckContainerdInstalled(t *testing.T) {
 	}
 }
 
-// TestPodSandboxMarshalJSON tests JSON marshaling of PodSandbox
+// TestPodSandboxMarshalJSON tests JSON marshaling of pkgcontainerd.PodSandbox
 func TestPodSandboxMarshalJSON(t *testing.T) {
-	pod := PodSandbox{
+	pod := pkgcontainerd.PodSandbox{
 		ID:        "pod123",
 		Name:      "test-pod",
 		Namespace: "default",
 		State:     "SANDBOX_READY",
-		Containers: []PodSandboxContainerStatus{
+		Containers: []pkgcontainerd.PodSandboxContainerStatus{
 			{
 				ID:    "container123",
 				Name:  "container1",
@@ -1505,7 +1403,7 @@ func TestPodSandboxMarshalJSON(t *testing.T) {
 	jsonData, err := json.Marshal(pod)
 	assert.NoError(t, err)
 
-	var decodedPod PodSandbox
+	var decodedPod pkgcontainerd.PodSandbox
 	err = json.Unmarshal(jsonData, &decodedPod)
 	assert.NoError(t, err)
 
@@ -1551,7 +1449,7 @@ func TestDataMarshalJSONMethod(t *testing.T) {
 			name: "with pods",
 			data: checkResult{
 				ContainerdServiceActive: true,
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod-1",
 						Name:      "test-pod",
@@ -1579,7 +1477,7 @@ func TestDataMarshalJSONMethod(t *testing.T) {
 			name: "with multiple pods",
 			data: checkResult{
 				ContainerdServiceActive: true,
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod-1",
 						Name:      "test-pod-1",
@@ -1606,12 +1504,12 @@ func TestDataMarshalJSONMethod(t *testing.T) {
 		{
 			name: "with containers",
 			data: checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod-1",
 						Name:      "test-pod",
 						Namespace: "default",
-						Containers: []PodSandboxContainerStatus{
+						Containers: []pkgcontainerd.PodSandboxContainerStatus{
 							{
 								ID:    "container-1",
 								Name:  "test-container",
@@ -1661,13 +1559,13 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	// Create a data object with various populated fields
 	cr := checkResult{
 		ContainerdServiceActive: true,
-		Pods: []PodSandbox{
+		Pods: []pkgcontainerd.PodSandbox{
 			{
 				ID:        "pod-1",
 				Name:      "test-pod",
 				Namespace: "default",
 				State:     "READY",
-				Containers: []PodSandboxContainerStatus{
+				Containers: []pkgcontainerd.PodSandboxContainerStatus{
 					{
 						ID:    "container-1",
 						Name:  "test-container",
@@ -1830,7 +1728,7 @@ func TestDataWithComplexErrors(t *testing.T) {
 			cr := checkResult{
 				ts:  time.Now(),
 				err: tt.err,
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{ID: "pod1", Name: "test-pod"},
 				},
 			}
@@ -1886,7 +1784,7 @@ func TestNewInitialization(t *testing.T) {
 	assert.NotNil(t, comp.checkContainerdRunningFunc)
 	assert.NotNil(t, comp.listAllSandboxesFunc) // Covers initialization at lines 49-66
 
-	assert.Equal(t, defaultContainerRuntimeEndpoint, comp.endpoint) // Covers initialization at line 68
+	assert.Equal(t, pkgcontainerd.DefaultContainerRuntimeEndpoint, comp.endpoint) // Covers initialization at line 68
 
 	// Close the component
 	assert.NoError(t, comp.Close())
@@ -1913,7 +1811,7 @@ func TestCheckOnceListSandboxGrpcError(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return true // Assume containerd is running
 		},
-		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, testGrpcError // Simulate gRPC error
 		},
 		endpoint: "unix:///mock/containerd.sock",
@@ -1977,7 +1875,7 @@ func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return false // This shouldn't be called
 		},
-		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, nil // This shouldn't be called
 		},
 		endpoint: "unix:///nonexistent/socket",
@@ -2013,7 +1911,7 @@ func Test_checkContainerdRunningFunc(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return false
 		},
-		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, nil // This shouldn't be called
 		},
 		endpoint: "unix:///nonexistent/socket",
@@ -2047,14 +1945,14 @@ func Test_listAllSandboxesFunc(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return true
 		},
-		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
-			return []PodSandbox{
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+			return []pkgcontainerd.PodSandbox{
 				{
 					ID:        "pod1",
 					Name:      "test-pod",
 					Namespace: "default",
 					State:     "SANDBOX_READY",
-					Containers: []PodSandboxContainerStatus{
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
 						{
 							ID:    "container1",
 							Name:  "test-container",
@@ -2098,7 +1996,7 @@ func Test_listAllSandboxesFunc_with_error(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return true
 		},
-		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, errors.New("test error")
 		},
 		endpoint: "unix:///nonexistent/socket",
@@ -2132,7 +2030,7 @@ func TestDataString(t *testing.T) {
 		{
 			name: "empty pods",
 			data: &checkResult{
-				Pods: []PodSandbox{},
+				Pods: []pkgcontainerd.PodSandbox{},
 			},
 			expectedResult: "no pod found",
 			expectEmpty:    false,
@@ -2140,7 +2038,7 @@ func TestDataString(t *testing.T) {
 		{
 			name: "single pod without containers",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod1",
 						Name:      "test-pod",
@@ -2161,13 +2059,13 @@ func TestDataString(t *testing.T) {
 		{
 			name: "single pod with containers",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod1",
 						Name:      "test-pod",
 						Namespace: "default",
 						State:     "READY",
-						Containers: []PodSandboxContainerStatus{
+						Containers: []pkgcontainerd.PodSandboxContainerStatus{
 							{
 								ID:    "container1",
 								Name:  "container-1",
@@ -2186,13 +2084,13 @@ func TestDataString(t *testing.T) {
 		{
 			name: "multiple pods with multiple containers",
 			data: &checkResult{
-				Pods: []PodSandbox{
+				Pods: []pkgcontainerd.PodSandbox{
 					{
 						ID:        "pod1",
 						Name:      "test-pod-1",
 						Namespace: "default",
 						State:     "READY",
-						Containers: []PodSandboxContainerStatus{
+						Containers: []pkgcontainerd.PodSandboxContainerStatus{
 							{
 								ID:    "container1",
 								Name:  "container-1",
@@ -2210,7 +2108,7 @@ func TestDataString(t *testing.T) {
 						Name:      "test-pod-2",
 						Namespace: "kube-system",
 						State:     "READY",
-						Containers: []PodSandboxContainerStatus{
+						Containers: []pkgcontainerd.PodSandboxContainerStatus{
 							{
 								ID:    "container3",
 								Name:  "container-3",
@@ -2283,7 +2181,7 @@ func TestDataSummary(t *testing.T) {
 			name: "data with explicit reason and pods",
 			data: &checkResult{
 				reason: "found 3 pods",
-				Pods:   []PodSandbox{{ID: "pod1"}, {ID: "pod2"}, {ID: "pod3"}},
+				Pods:   []pkgcontainerd.PodSandbox{{ID: "pod1"}, {ID: "pod2"}, {ID: "pod3"}},
 			},
 			expectedResult: "found 3 pods",
 		},
@@ -2349,7 +2247,7 @@ func TestCheckWithNilFunctions(t *testing.T) {
 		checkSocketExistsFunc         func() bool
 		checkServiceActiveFunc        func(context.Context) (bool, error)
 		checkContainerdRunningFunc    func(context.Context) bool
-		listAllSandboxesFunc          func(context.Context, string) ([]PodSandbox, error)
+		listAllSandboxesFunc          func(context.Context, string) ([]pkgcontainerd.PodSandbox, error)
 		expectedHealth                apiv1.HealthStateType
 		expectServiceChecked          bool
 		expectContainerdRunningChecks bool

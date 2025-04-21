@@ -1,10 +1,12 @@
 package host
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/leptonai/gpud/pkg/file"
@@ -107,4 +109,62 @@ func getOSMachineID(files []string) (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return "", nil
+}
+
+// GetOSName reads the os name from the /etc/os-release file.
+func GetOSName() (string, error) {
+	return getOSName("/etc/os-release")
+}
+
+func getOSName(file string) (string, error) {
+	if _, err := os.Stat(file); err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	name := ""
+	prettyName := ""
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "NAME=") {
+			name = strings.TrimSpace(strings.TrimPrefix(line, "NAME="))
+			name = strings.TrimSpace(strings.Trim(name, "\""))
+		}
+		if strings.HasPrefix(line, "PRETTY_NAME=") {
+			prettyName = strings.TrimSpace(strings.TrimPrefix(line, "PRETTY_NAME="))
+			prettyName = strings.TrimSpace(strings.Trim(prettyName, "\""))
+		}
+	}
+	if prettyName != "" {
+		return prettyName, nil
+	}
+	return name, nil
+}
+
+const (
+	dmiDir       = "/sys/class/dmi"
+	ppcDevTree   = "/proc/device-tree"
+	s390xDevTree = "/etc" // s390/s390x changes
+)
+
+// GetSystemUUID returns the system UUID of the machine.
+// ref. https://github.com/google/cadvisor/blob/master/utils/sysfs/sysfs.go#L442
+func GetSystemUUID() (string, error) {
+	if id, err := os.ReadFile(path.Join(dmiDir, "id", "product_uuid")); err == nil {
+		return strings.TrimSpace(string(id)), nil
+	} else if id, err = os.ReadFile(path.Join(ppcDevTree, "system-id")); err == nil {
+		return strings.TrimSpace(strings.TrimRight(string(id), "\000")), nil
+	} else if id, err = os.ReadFile(path.Join(ppcDevTree, "vm,uuid")); err == nil {
+		return strings.TrimSpace(strings.TrimRight(string(id), "\000")), nil
+	} else if id, err = os.ReadFile(path.Join(s390xDevTree, "machine-id")); err == nil {
+		return strings.TrimSpace(string(id)), nil
+	} else {
+		return "", err
+	}
 }

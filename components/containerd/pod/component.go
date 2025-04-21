@@ -15,6 +15,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -32,7 +33,7 @@ type component struct {
 	checkSocketExistsFunc        func() bool
 	checkServiceActiveFunc       func(context.Context) (bool, error)
 	checkContainerdRunningFunc   func(context.Context) bool
-	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]PodSandbox, error)
+	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error)
 
 	endpoint string
 
@@ -46,16 +47,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalledFunc: checkContainerdInstalled,
-		checkSocketExistsFunc:        checkSocketExists,
+		checkDependencyInstalledFunc: pkgcontainerd.CheckContainerdInstalled,
+		checkSocketExistsFunc:        pkgcontainerd.CheckSocketExists,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
-		checkContainerdRunningFunc: checkContainerdRunning,
+		checkContainerdRunningFunc: pkgcontainerd.CheckContainerdRunning,
 
-		listAllSandboxesFunc: listAllSandboxes,
+		listAllSandboxesFunc: pkgcontainerd.ListAllSandboxes,
 
-		endpoint: defaultContainerRuntimeEndpoint,
+		endpoint: pkgcontainerd.DefaultContainerRuntimeEndpoint,
 	}
 	return c, nil
 }
@@ -184,7 +185,7 @@ type checkResult struct {
 	ContainerdServiceActive bool `json:"containerd_service_active"`
 
 	// Pods is the list of pods on the node.
-	Pods []PodSandbox `json:"pods,omitempty"`
+	Pods []pkgcontainerd.PodSandbox `json:"pods,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

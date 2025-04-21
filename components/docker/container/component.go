@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgdocker "github.com/leptonai/gpud/pkg/docker"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -30,7 +31,7 @@ type component struct {
 	checkDependencyInstalledFunc func() bool
 	checkServiceActiveFunc       func() (bool, error)
 	checkDockerRunningFunc       func(context.Context) bool
-	listContainersFunc           func(context.Context) ([]DockerContainer, error)
+	listContainersFunc           func(context.Context) ([]pkgdocker.DockerContainer, error)
 
 	// In case the docker daemon is not running, we ignore such errors as
 	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
@@ -46,12 +47,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalledFunc: checkDockerInstalled,
+		checkDependencyInstalledFunc: pkgdocker.CheckDockerInstalled,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("docker")
 		},
-		checkDockerRunningFunc: checkDockerRunning,
-		listContainersFunc:     listContainers,
+		checkDockerRunningFunc: pkgdocker.CheckDockerRunning,
+		listContainersFunc:     pkgdocker.ListContainers,
 
 		ignoreConnectionErrors: true,
 	}
@@ -142,7 +143,7 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("error listing containers -- %s", cr.err)
 
-		if isErrDockerClientVersionNewerThanDaemon(cr.err) {
+		if pkgdocker.IsErrDockerClientVersionNewerThanDaemon(cr.err) {
 			cr.reason = fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", cr.err)
 		}
 
@@ -171,7 +172,7 @@ type checkResult struct {
 	DockerServiceActive bool `json:"docker_service_active"`
 
 	// Containers is the list of containers.
-	Containers []DockerContainer `json:"containers,omitempty"`
+	Containers []pkgdocker.DockerContainer `json:"containers,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

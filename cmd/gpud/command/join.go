@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	"github.com/leptonai/gpud/pkg/netutil"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -44,16 +43,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	cmd := exec.Command("nproc", "--all")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("executing nproc: %w", err)
-	}
-
-	totalCPU, err := strconv.ParseInt(strings.TrimSpace(out.String()), 10, 64)
+	_, totalCPU, err := pkgmachineinfo.GetSystemResourceLogicalCores()
 	if err != nil {
-		return fmt.Errorf("error parsing cpu: %w", err)
+		return fmt.Errorf("failed to get system resource logical cores: %w", err)
 	}
 
 	nvmlInstance, err := nvidianvml.New()

@@ -121,3 +121,13 @@ func TestGetOSMachineIDWithTestData(t *testing.T) {
 		t.Errorf("getOSMachineID() = %q, want %q", id, expected)
 	}
 }
+
+func Test_getOSName(t *testing.T) {
+	name, err := getOSName("testdata/etc-os-release")
+	if err != nil {
+		t.Fatalf("Failed to get OS name: %v", err)
+	}
+	if name != "Ubuntu 22.04.5 LTS" {
+		t.Errorf("getOSName() = %q, want %q", name, "Ubuntu 22.04.5 LTS")
+	}
+}

@@ -1,4 +1,4 @@
-package pod
+package containerd
 
 import (
 	"context"
@@ -15,13 +15,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	pkg_file "github.com/leptonai/gpud/pkg/file"
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 const (
 	defaultSocketFile               = "/run/containerd/containerd.sock"
-	defaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
+	DefaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
 )
 
 // NOTE
@@ -155,8 +155,8 @@ func createClient(ctx context.Context, conn *grpc.ClientConn) (runtimeapi.Runtim
 	return runtimeClient, imageClient, nil
 }
 
-func checkContainerdInstalled() bool {
-	p, err := pkg_file.LocateExecutable("containerd")
+func CheckContainerdInstalled() bool {
+	p, err := pkgfile.LocateExecutable("containerd")
 	if err == nil {
 		log.Logger.Debugw("containerd found in PATH", "path", p)
 		return true
@@ -165,7 +165,7 @@ func checkContainerdInstalled() bool {
 	return false
 }
 
-func checkSocketExists() bool {
+func CheckSocketExists() bool {
 	// if containerd is disabled or aborted (due to invalid config), the socket file will not exist
 	// vice versa, if the socket file exists, containerd is running
 	if _, err := os.Stat(defaultSocketFile); err != nil {
@@ -181,17 +181,17 @@ func checkSocketExists() bool {
 	return true
 }
 
-func checkContainerdRunning(ctx context.Context) bool {
+func CheckContainerdRunning(ctx context.Context) bool {
 	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
 	defer ccancel()
 
 	containerdRunning := false
-	if conn, err := connect(cctx, defaultContainerRuntimeEndpoint); err == nil {
-		log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", defaultContainerRuntimeEndpoint)
+	if conn, err := connect(cctx, DefaultContainerRuntimeEndpoint); err == nil {
+		log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", DefaultContainerRuntimeEndpoint)
 		containerdRunning = true
 		_ = conn.Close()
 	} else {
-		log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", defaultContainerRuntimeEndpoint, "error", err)
+		log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", DefaultContainerRuntimeEndpoint, "error", err)
 	}
 
 	if containerdRunning {
@@ -201,7 +201,26 @@ func checkContainerdRunning(ctx context.Context) bool {
 	return false
 }
 
-func listAllSandboxes(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+// CheckVersion checks the version of the containerd runtime.
+func CheckVersion(ctx context.Context, endpoint string) (string, error) {
+	conn, err := connect(ctx, endpoint)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	// ref. https://github.com/kubernetes/kubernetes/blob/v1.32.0-alpha.0/staging/src/k8s.io/cri-client/pkg/remote_runtime.go
+	runtimeClient := runtimeapi.NewRuntimeServiceClient(conn)
+	version, err := runtimeClient.Version(ctx, &runtimeapi.VersionRequest{})
+	if err != nil {
+		return "", err
+	}
+
+	return version.RuntimeVersion, nil
+}
+
+// ListAllSandboxes lists all sandboxes from the containerd runtime.
+func ListAllSandboxes(ctx context.Context, endpoint string) ([]PodSandbox, error) {
 	conn, err := connect(ctx, endpoint)
 	if err != nil {
 		return nil, err
