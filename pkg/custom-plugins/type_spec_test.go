@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,8 +115,7 @@ func TestValidate(t *testing.T) {
 					},
 				},
 			},
-			expectError: true,
-			errorType:   ErrTimeoutRequired,
+			expectError: false,
 		},
 		{
 			name: "invalid base64 in state script",
@@ -261,13 +261,13 @@ func TestComponentName(t *testing.T) {
 	plugin := Spec{
 		PluginName: "test-plugin",
 	}
-	assert.Equal(t, "custom-plugin-test-plugin", plugin.ComponentName())
+	assert.Equal(t, "test-plugin", plugin.ComponentName())
 
 	// Test when component name is derived from Name
 	plugin = Spec{
 		PluginName: "test plugin",
 	}
-	assert.Equal(t, "custom-plugin-test-plugin", plugin.ComponentName())
+	assert.Equal(t, "test-plugin", plugin.ComponentName())
 }
 
 func TestLoadPlaintextPlugins(t *testing.T) {
@@ -601,27 +601,27 @@ func TestComponentNameWithSpecialChars(t *testing.T) {
 	}{
 		{
 			name:     "simple-name",
-			expected: "custom-plugin-simple-name",
+			expected: "simple-name",
 		},
 		{
 			name:     "name with spaces",
-			expected: "custom-plugin-name-with-spaces",
+			expected: "name-with-spaces",
 		},
 		{
 			name:     "name_with_underscores",
-			expected: "custom-plugin-name_with_underscores",
+			expected: "name_with_underscores",
 		},
 		{
 			name:     "name-with-dashes",
-			expected: "custom-plugin-name-with-dashes",
+			expected: "name-with-dashes",
 		},
 		{
 			name:     "name.with.dots",
-			expected: "custom-plugin-name.with.dots",
+			expected: "name.with.dots",
 		},
 		{
 			name:     "name@with!special#chars",
-			expected: "custom-plugin-name@with!special#chars",
+			expected: "name@with!special#chars",
 		},
 	}
 
@@ -1308,8 +1308,7 @@ func TestValidateComprehensive(t *testing.T) {
 				},
 				Timeout: metav1.Duration{Duration: 0}, // Zero timeout
 			},
-			expectError: true,
-			errorType:   ErrTimeoutRequired,
+			expectError: false,
 		},
 		{
 			name: "negative timeout",
@@ -1505,6 +1504,329 @@ func TestValidateComprehensive(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestMaxPluginNameLength(t *testing.T) {
+	// Create a valid state plugin for reuse
+	validStatePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "test-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'test'",
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name        string
+		pluginName  string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "empty name",
+			pluginName:  "",
+			expectError: true,
+			errorMsg:    ErrComponentNameRequired.Error(),
+		},
+		{
+			name:        "name at max length",
+			pluginName:  strings.Repeat("a", MaxPluginNameLength),
+			expectError: false,
+		},
+		{
+			name:        "name one character over max length",
+			pluginName:  strings.Repeat("a", MaxPluginNameLength+1),
+			expectError: true,
+			errorMsg:    "plugin name is too long",
+		},
+		{
+			name:        "name significantly over max length",
+			pluginName:  strings.Repeat("a", MaxPluginNameLength*2),
+			expectError: true,
+			errorMsg:    "plugin name is too long",
+		},
+		{
+			name:        "name with special characters but within length",
+			pluginName:  strings.Repeat("a-b", MaxPluginNameLength/3),
+			expectError: false,
+		},
+		{
+			name:        "name just below max length",
+			pluginName:  strings.Repeat("a", MaxPluginNameLength-1),
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := Spec{
+				PluginName:  tc.pluginName,
+				StatePlugin: validStatePlugin,
+				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+			}
+
+			err := spec.Validate()
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
+	// This test checks the interaction between MaxPluginNameLength validation and other validations
+
+	validStatePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "test-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'test'",
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name        string
+		spec        Spec
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "too long name and missing state plugin",
+			spec: Spec{
+				PluginName:  strings.Repeat("a", MaxPluginNameLength+10),
+				StatePlugin: nil,
+				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+			},
+			expectError: true,
+			errorMsg:    "plugin name is too long",
+		},
+		{
+			name: "too long name and interval too short",
+			spec: Spec{
+				PluginName:  strings.Repeat("a", MaxPluginNameLength+10),
+				StatePlugin: validStatePlugin,
+				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Interval:    metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
+			},
+			expectError: true,
+			errorMsg:    "plugin name is too long",
+		},
+		{
+			name: "valid name and interval too short",
+			spec: Spec{
+				PluginName:  "valid-name",
+				StatePlugin: validStatePlugin,
+				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Interval:    metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
+			},
+			expectError: true,
+			errorMsg:    ErrIntervalTooShort.Error(),
+		},
+		{
+			name: "valid name with max length and valid interval",
+			spec: Spec{
+				PluginName:  strings.Repeat("a", MaxPluginNameLength),
+				StatePlugin: validStatePlugin,
+				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+				Interval:    metav1.Duration{Duration: 1 * time.Minute}, // Exactly 1 minute
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.spec.Validate()
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDefaultTimeout(t *testing.T) {
+	// Create a valid state plugin for reuse
+	validStatePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "test-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'test'",
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name               string
+		initialTimeout     time.Duration
+		expectedTimeout    time.Duration
+		timeoutShouldMatch bool
+	}{
+		{
+			name:               "zero timeout gets default value",
+			initialTimeout:     0,
+			expectedTimeout:    DefaultTimeout,
+			timeoutShouldMatch: true,
+		},
+		{
+			name:               "non-zero timeout remains unchanged",
+			initialTimeout:     30 * time.Second,
+			expectedTimeout:    30 * time.Second,
+			timeoutShouldMatch: true,
+		},
+		{
+			name:               "very small timeout remains unchanged",
+			initialTimeout:     1 * time.Millisecond,
+			expectedTimeout:    1 * time.Millisecond,
+			timeoutShouldMatch: true,
+		},
+		{
+			name:               "negative timeout remains unchanged",
+			initialTimeout:     -10 * time.Second,
+			expectedTimeout:    -10 * time.Second,
+			timeoutShouldMatch: true,
+		},
+		{
+			name:               "timeout equal to default remains unchanged",
+			initialTimeout:     DefaultTimeout,
+			expectedTimeout:    DefaultTimeout,
+			timeoutShouldMatch: true,
+		},
+		{
+			name:               "very large timeout remains unchanged",
+			initialTimeout:     100 * time.Hour,
+			expectedTimeout:    100 * time.Hour,
+			timeoutShouldMatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := Spec{
+				PluginName:  "test-plugin",
+				StatePlugin: validStatePlugin,
+				Timeout:     metav1.Duration{Duration: tc.initialTimeout},
+			}
+
+			// Validate the spec which should set default timeout if needed
+			err := spec.Validate()
+			assert.NoError(t, err)
+
+			if tc.timeoutShouldMatch {
+				assert.Equal(t, tc.expectedTimeout, spec.Timeout.Duration,
+					"Timeout should be %v but got %v", tc.expectedTimeout, spec.Timeout.Duration)
+			}
+		})
+	}
+}
+
+func TestDefaultTimeoutWithValidationErrors(t *testing.T) {
+	// This test checks how DefaultTimeout works in conjunction with validation errors
+	// Based on the Spec.Validate implementation, the default timeout is only set
+	// after passing the earlier validations like plugin name length and StatePlugin existence
+
+	testCases := []struct {
+		name            string
+		spec            Spec
+		expectError     bool
+		errorMsg        string
+		timeoutExpected time.Duration // The expected timeout after validation attempts
+	}{
+		{
+			name: "zero timeout with missing StatePlugin",
+			spec: Spec{
+				PluginName:  "test-plugin",
+				StatePlugin: nil,
+				Timeout:     metav1.Duration{Duration: 0},
+			},
+			expectError:     true,
+			errorMsg:        ErrMissingStatePlugin.Error(),
+			timeoutExpected: 0, // Won't be set because validation fails before timeout code
+		},
+		{
+			name: "zero timeout with plugin name too long",
+			spec: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength+10),
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 0},
+			},
+			expectError:     true,
+			errorMsg:        "plugin name is too long",
+			timeoutExpected: 0, // Won't be set because validation fails before timeout code
+		},
+		{
+			name: "zero timeout with interval too short",
+			spec: Spec{
+				PluginName: "test-plugin",
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout:  metav1.Duration{Duration: 0},
+				Interval: metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
+			},
+			expectError:     true,
+			errorMsg:        ErrIntervalTooShort.Error(),
+			timeoutExpected: DefaultTimeout, // Will be set before interval validation
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a copy to check if the timeout is updated
+			specCopy := tc.spec
+
+			// Call Validate which should set the timeout
+			err := specCopy.Validate()
+
+			// Check the error
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Check if the timeout was updated as expected based on validation order
+			assert.Equal(t, tc.timeoutExpected, specCopy.Timeout.Duration,
+				"Timeout should be %v but got %v", tc.timeoutExpected, specCopy.Timeout.Duration)
 		})
 	}
 }

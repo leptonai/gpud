@@ -26,9 +26,10 @@ type Spec struct {
 
 	// DryRun is set to true to allow non-zero exit code on the script
 	// useful for dry runs.
-	DryRun bool `json:"dry_run"`
+	DryRun bool `json:"dry_run,omitempty"`
 
 	// Timeout is the timeout for the script execution.
+	// If zero, it uses the default timeout (1-minute).
 	Timeout metav1.Duration `json:"timeout"`
 
 	// Interval is the interval for the script execution.
@@ -39,8 +40,9 @@ type Spec struct {
 // Plugin represents a plugin spec.
 type Plugin struct {
 	// Steps is a sequence of steps to run for this plugin.
-	// The steps are executed in order.
+	// Multiple steps are executed in order.
 	// If a step fails, the execution stops and the error is returned.
+	// Which means, the final success requires all steps to succeed.
 	Steps []Step `json:"steps,omitempty"`
 }
 

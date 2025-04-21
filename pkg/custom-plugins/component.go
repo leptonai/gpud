@@ -3,6 +3,7 @@ package customplugins
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -111,7 +112,6 @@ func (c *component) Check() components.CheckResult {
 	defer ccancel()
 
 	cr.Output, cr.ExitCode, cr.err = c.spec.StatePlugin.executeAllSteps(cctx)
-
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.Output))
@@ -202,6 +202,27 @@ func (cr *checkResult) getLastHealthStates(componentName string, pluginName stri
 				Reason:    "no data yet",
 			},
 		}
+	}
+
+	if len(cr.Output) > 0 {
+		parsedHealthStateType, parsedHealthStateReason, err := ReadHealthStateFromLines(strings.Split(string(cr.Output), "\n"))
+		if err != nil {
+			log.Logger.Errorw("error reading health state", "error", err)
+		}
+
+		if parsedHealthStateType != "" {
+			return apiv1.HealthStates{
+				{
+					Component: componentName,
+					Name:      pluginName,
+					Health:    parsedHealthStateType,
+					Reason:    parsedHealthStateReason,
+				},
+			}
+		}
+
+		// if no health state is found, return the default health state
+		// based on the exit code
 	}
 
 	state := apiv1.HealthState{
