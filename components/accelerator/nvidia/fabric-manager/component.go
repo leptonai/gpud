@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 const Name = "accelerator-nvidia-fabric-manager"
@@ -24,6 +25,8 @@ var _ components.Component = &component{}
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	nvmlInstance nvidianvml.InstanceV2
 
 	checkFMExistsFunc func() bool
 	checkFMActiveFunc func() bool
@@ -41,6 +44,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
+		nvmlInstance:      gpudInstance.NVMLInstance,
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
 	}
@@ -126,6 +130,17 @@ func (c *component) Check() components.CheckResult {
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
+
+	if c.nvmlInstance == nil {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
+	}
 
 	if !c.checkFMExistsFunc() {
 		cr.FabricManagerActive = false

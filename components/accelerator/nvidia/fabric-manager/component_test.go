@@ -9,9 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -486,6 +489,122 @@ func TestCheckAllBranches(t *testing.T) {
 
 			assert.Equal(t, tc.expectedState, data.health)
 			assert.Equal(t, tc.expectedReason, data.reason)
+		})
+	}
+}
+
+// mockNVMLInstance implements nvidianvml.InstanceV2 for testing
+type mockNVMLInstance struct {
+	exists bool
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return m.exists
+}
+
+func (m *mockNVMLInstance) Library() nvmllib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return nil
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+func TestComponentCheck_NVMLInstance(t *testing.T) {
+	tests := []struct {
+		name              string
+		nvmlInstance      nvidianvml.InstanceV2
+		expectedHealth    apiv1.HealthStateType
+		expectedReason    string
+		checkFMExistsFunc func() bool
+		checkFMActiveFunc func() bool
+	}{
+		{
+			name:              "nil nvml instance",
+			nvmlInstance:      nil,
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReason:    "NVIDIA NVML instance is nil",
+			checkFMExistsFunc: func() bool { return false },
+			checkFMActiveFunc: func() bool { return false },
+		},
+		{
+			name:              "nvml does not exist",
+			nvmlInstance:      &mockNVMLInstance{exists: false},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReason:    "NVIDIA NVML is not loaded",
+			checkFMExistsFunc: func() bool { return false },
+			checkFMActiveFunc: func() bool { return false },
+		},
+		{
+			name:              "nvml exists but FM executable not found",
+			nvmlInstance:      &mockNVMLInstance{exists: true},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReason:    "nv-fabricmanager executable not found",
+			checkFMExistsFunc: func() bool { return false },
+			checkFMActiveFunc: func() bool { return false },
+		},
+		{
+			name:              "nvml exists, FM executable found but not active",
+			nvmlInstance:      &mockNVMLInstance{exists: true},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReason:    "nv-fabricmanager found but fabric manager service is not active",
+			checkFMExistsFunc: func() bool { return true },
+			checkFMActiveFunc: func() bool { return false },
+		},
+		{
+			name:              "nvml exists, FM executable found and active",
+			nvmlInstance:      &mockNVMLInstance{exists: true},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReason:    "fabric manager found and active",
+			checkFMExistsFunc: func() bool { return true },
+			checkFMActiveFunc: func() bool { return true },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:               ctx,
+				cancel:            cancel,
+				nvmlInstance:      tt.nvmlInstance,
+				checkFMExistsFunc: tt.checkFMExistsFunc,
+				checkFMActiveFunc: tt.checkFMActiveFunc,
+			}
+
+			result := c.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok, "Expected result to be of type *checkResult")
+
+			assert.Equal(t, tt.expectedHealth, checkResult.health)
+			assert.Equal(t, tt.expectedReason, checkResult.reason)
+
+			// Additional checks for specific states
+			if tt.nvmlInstance != nil && tt.nvmlInstance.NVMLExists() {
+				if tt.checkFMExistsFunc() {
+					if tt.checkFMActiveFunc() {
+						assert.True(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be true")
+					} else {
+						assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false")
+					}
+				} else {
+					assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false")
+				}
+			}
 		})
 	}
 }

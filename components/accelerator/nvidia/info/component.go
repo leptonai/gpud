@@ -109,6 +109,17 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	if c.nvmlInstance == nil {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
+	}
+	if !c.nvmlInstance.NVMLExists() {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
+	}
+
 	driverVersion, err := c.getDriverVersionFunc()
 	if err != nil {
 		cr.err = err
