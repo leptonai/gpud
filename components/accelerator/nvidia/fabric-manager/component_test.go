@@ -573,7 +573,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			name:              "nvml does not exist",
 			nvmlInstance:      &mockNVMLInstance{exists: false, supportsFM: true},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "NVIDIA NVML is not loaded",
+			expectedReason:    "NVIDIA NVML library is not loaded",
 			checkFMExistsFunc: func() bool { return false },
 			checkFMActiveFunc: func() bool { return false },
 		},

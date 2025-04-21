@@ -895,7 +895,7 @@ func TestCheckOnce_NVMLNotExists(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", cr.reason)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", cr.reason)
 	assert.Nil(t, cr.err)
 
 	// Verify the mock was called

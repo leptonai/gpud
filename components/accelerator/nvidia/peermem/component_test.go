@@ -35,7 +35,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return ""
+	return "test"
 }
 
 func (m *mockNVMLInstance) Architecture() string {

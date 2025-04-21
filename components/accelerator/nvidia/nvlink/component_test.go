@@ -567,7 +567,7 @@ func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, "NVIDIA NVML is not loaded", data.reason)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
 }
 
 func TestData_getLastHealthStates(t *testing.T) {

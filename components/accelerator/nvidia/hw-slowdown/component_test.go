@@ -1109,7 +1109,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				nvmlExists: false,
 			},
 			expectHealthy: true,
-			expectReason:  "NVIDIA NVML is not loaded",
+			expectReason:  "NVIDIA NVML library is not loaded",
 		},
 		{
 			name: "driver version error",
