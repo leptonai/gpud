@@ -44,6 +44,7 @@ func TestComponentEvents(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
+		nvmlInstance:      &mockNVMLInstance{exists: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 
@@ -196,6 +197,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
+		nvmlInstance:      &mockNVMLInstance{exists: true},
 		checkFMExistsFunc: func() bool { return false },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -408,6 +410,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
+		nvmlInstance:      &mockNVMLInstance{exists: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
@@ -473,6 +476,7 @@ func TestCheckAllBranches(t *testing.T) {
 			comp := &component{
 				ctx:               context.Background(),
 				cancel:            func() {},
+				nvmlInstance:      &mockNVMLInstance{exists: true},
 				checkFMExistsFunc: func() bool { return tc.fmExists },
 				checkFMActiveFunc: func() bool { return tc.fmActive },
 			}
