@@ -41,6 +41,14 @@ func (m *mockInstanceV2) ProductName() string {
 	return "test-product"
 }
 
+func (m *mockInstanceV2) Architecture() string {
+	return "test-architecture"
+}
+
+func (m *mockInstanceV2) Brand() string {
+	return "test-brand"
+}
+
 func (m *mockInstanceV2) DriverVersion() string {
 	return "test-driver-version"
 }

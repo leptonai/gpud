@@ -42,6 +42,14 @@ func (m *MockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
+func (m *MockNvmlInstance) Architecture() string {
+	return ""
+}
+
+func (m *MockNvmlInstance) Brand() string {
+	return ""
+}
+
 func (m *MockNvmlInstance) DriverVersion() string {
 	return ""
 }
@@ -82,6 +90,14 @@ func (m *CustomMockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianv
 
 func (m *CustomMockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
+}
+
+func (m *CustomMockNvmlInstance) Architecture() string {
+	return ""
+}
+
+func (m *CustomMockNvmlInstance) Brand() string {
+	return ""
 }
 
 func (m *CustomMockNvmlInstance) DriverVersion() string {

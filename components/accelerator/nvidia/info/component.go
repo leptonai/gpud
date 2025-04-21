@@ -28,14 +28,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance         nvidianvml.Instance
-	getDriverVersionFunc func() (string, error)
-	getCUDAVersionFunc   func() (string, error)
-	getDeviceCountFunc   func() (int, error)
-	getMemoryFunc        func(uuid string, dev device.Device) (nvidianvml.Memory, error)
-	getProductNameFunc   func(dev device.Device) (string, error)
-	getArchitectureFunc  func(dev device.Device) (string, error)
-	getBrandFunc         func(dev device.Device) (string, error)
+	nvmlInstance       nvidianvml.Instance
+	getDeviceCountFunc func() (int, error)
+	getMemoryFunc      func(uuid string, dev device.Device) (nvidianvml.Memory, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -44,16 +39,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                  cctx,
-		cancel:               ccancel,
-		nvmlInstance:         gpudInstance.NVMLInstance,
-		getDriverVersionFunc: nvidianvml.GetDriverVersion,
-		getCUDAVersionFunc:   nvidianvml.GetCUDAVersion,
-		getDeviceCountFunc:   nvidiaquery.CountAllDevicesFromDevDir,
-		getMemoryFunc:        nvidianvml.GetMemory,
-		getProductNameFunc:   nvidianvml.GetProductName,
-		getArchitectureFunc:  nvidianvml.GetArchitecture,
-		getBrandFunc:         nvidianvml.GetBrand,
+		ctx:                cctx,
+		cancel:             ccancel,
+		nvmlInstance:       gpudInstance.NVMLInstance,
+		getDeviceCountFunc: nvidiaquery.CountAllDevicesFromDevDir,
+		getMemoryFunc:      nvidianvml.GetMemory,
 	}
 	return c, nil
 }
@@ -120,35 +110,25 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	driverVersion, err := c.getDriverVersionFunc()
-	if err != nil {
-		cr.err = err
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting driver version: %s", err)
-		return cr
-	}
-	if driverVersion == "" {
+	cr.Product.Name = c.nvmlInstance.ProductName()
+	cr.Product.Architecture = c.nvmlInstance.Architecture()
+	cr.Product.Brand = c.nvmlInstance.Brand()
+
+	cr.Driver.Version = c.nvmlInstance.DriverVersion()
+	if cr.Driver.Version == "" {
 		cr.err = fmt.Errorf("driver version is empty")
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "driver version is empty"
 		return cr
 	}
-	cr.Driver.Version = driverVersion
 
-	cudaVersion, err := c.getCUDAVersionFunc()
-	if err != nil {
-		cr.err = err
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting CUDA version: %s", err)
-		return cr
-	}
-	if cudaVersion == "" {
+	cr.CUDA.Version = c.nvmlInstance.CUDAVersion()
+	if cr.CUDA.Version == "" {
 		cr.err = fmt.Errorf("CUDA version is empty")
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "CUDA version is empty"
 		return cr
 	}
-	cr.CUDA.Version = cudaVersion
 
 	deviceCount, err := c.getDeviceCountFunc()
 	if err != nil {
@@ -172,33 +152,6 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Memory.TotalBytes = mem.TotalBytes
 		cr.Memory.TotalHumanized = mem.TotalHumanized
-
-		productName, err := c.getProductNameFunc(dev)
-		if err != nil {
-			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting product name: %s", err)
-			return cr
-		}
-		cr.Product.Name = productName
-
-		architecture, err := c.getArchitectureFunc(dev)
-		if err != nil {
-			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting architecture: %s", err)
-			return cr
-		}
-		cr.Product.Architecture = architecture
-
-		brand, err := c.getBrandFunc(dev)
-		if err != nil {
-			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting brand: %s", err)
-			return cr
-		}
-		cr.Product.Brand = brand
 		break
 	}
 

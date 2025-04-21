@@ -57,6 +57,14 @@ func (m *mockNvmlInstance) ProductName() string {
 	return "Test GPU"
 }
 
+func (m *mockNvmlInstance) Architecture() string {
+	return ""
+}
+
+func (m *mockNvmlInstance) Brand() string {
+	return ""
+}
+
 func (m *mockNvmlInstance) DriverVersion() string {
 	return ""
 }

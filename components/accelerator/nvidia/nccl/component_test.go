@@ -101,6 +101,16 @@ func (m *mockNvmlInstance) ProductName() string {
 	return args.String(0)
 }
 
+func (m *mockNvmlInstance) Architecture() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNvmlInstance) Brand() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 func (m *mockNvmlInstance) DriverVersion() string {
 	args := m.Called()
 	return args.String(0)

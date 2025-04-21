@@ -120,6 +120,14 @@ func (m *mockNVMLInstance) ProductName() string {
 	return m.getProductNameFunc()
 }
 
+func (m *mockNVMLInstance) Architecture() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) Brand() string {
+	return ""
+}
+
 func (m *mockNVMLInstance) DriverVersion() string {
 	return ""
 }
