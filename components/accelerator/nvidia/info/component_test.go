@@ -48,6 +48,21 @@ func (m *MockNVMLInstanceV2) ProductName() string {
 	return args.String(0)
 }
 
+func (m *MockNVMLInstanceV2) DriverVersion() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *MockNVMLInstanceV2) DriverMajor() int {
+	args := m.Called()
+	return args.Int(0)
+}
+
+func (m *MockNVMLInstanceV2) CUDAVersion() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 func (m *MockNVMLInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	args := m.Called()
 	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)
@@ -58,7 +73,7 @@ func (m *MockNVMLInstanceV2) Shutdown() error {
 	return args.Error(0)
 }
 
-func createMockGPUdInstance(ctx context.Context, nvmlInstance nvidianvml.InstanceV2) *components.GPUdInstance {
+func createMockGPUdInstance(ctx context.Context, nvmlInstance nvidianvml.Instance) *components.GPUdInstance {
 	return &components.GPUdInstance{
 		RootCtx:              ctx,
 		KernelModulesToCheck: []string{},

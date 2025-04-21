@@ -121,10 +121,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		return err
 	}
 
-	var nvmlInstance nvidianvml.InstanceV2
+	var nvmlInstance nvidianvml.Instance
 	if nvidiaInstalled {
 		fmt.Printf("\n%s scanning nvidia accelerators\n", inProgress)
-		nvmlInstance, err = nvidianvml.NewInstanceV2()
+		nvmlInstance, err = nvidianvml.New()
 		if err != nil {
 			return err
 		}

@@ -41,7 +41,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance                  nvidianvml.InstanceV2
+	nvmlInstance                  nvidianvml.Instance
 	getClockEventsSupportedFunc   func(dev device.Device) (bool, error)
 	getClockEventsFunc            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
 	getSystemDriverVersionFunc    func() (string, error)

@@ -42,6 +42,18 @@ func (m *MockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
+func (m *MockNvmlInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *MockNvmlInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *MockNvmlInstance) CUDAVersion() string {
+	return ""
+}
+
 func (m *MockNvmlInstance) NVMLExists() bool {
 	return true
 }
@@ -70,6 +82,18 @@ func (m *CustomMockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianv
 
 func (m *CustomMockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
+}
+
+func (m *CustomMockNvmlInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *CustomMockNvmlInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *CustomMockNvmlInstance) CUDAVersion() string {
+	return ""
 }
 
 func (m *CustomMockNvmlInstance) NVMLExists() bool {

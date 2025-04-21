@@ -28,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.InstanceV2
+	nvmlInstance nvidianvml.Instance
 	getPowerFunc func(uuid string, dev device.Device) (nvidianvml.Power, error)
 
 	lastMu          sync.RWMutex

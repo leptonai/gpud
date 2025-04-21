@@ -57,6 +57,18 @@ func (m *mockNvmlInstance) ProductName() string {
 	return "Test GPU"
 }
 
+func (m *mockNvmlInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNvmlInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNvmlInstance) CUDAVersion() string {
+	return ""
+}
+
 func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

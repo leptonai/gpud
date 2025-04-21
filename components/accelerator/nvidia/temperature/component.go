@@ -29,7 +29,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance       nvidianvml.InstanceV2
+	nvmlInstance       nvidianvml.Instance
 	getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error)
 
 	lastMu          sync.RWMutex

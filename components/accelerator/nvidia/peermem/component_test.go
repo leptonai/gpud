@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// mockNVMLInstance is a mock implementation of nvidianvml.InstanceV2
+// mockNVMLInstance is a mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
 	exists bool
 }
@@ -35,6 +35,18 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
 	return ""
 }
 

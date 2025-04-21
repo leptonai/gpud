@@ -28,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance          nvidianvml.InstanceV2
+	nvmlInstance          nvidianvml.Instance
 	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error)
 	getECCErrorsFunc      func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error)
 

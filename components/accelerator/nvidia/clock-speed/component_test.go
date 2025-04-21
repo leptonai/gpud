@@ -19,7 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// mockInstanceV2 implements the nvidianvml.InstanceV2 interface for testing
+// mockInstanceV2 implements the nvidianvml.Instance interface for testing
 type mockInstanceV2 struct {
 	devices    map[string]device.Device
 	nvmlExists bool
@@ -39,6 +39,18 @@ func (m *mockInstanceV2) Devices() map[string]device.Device {
 
 func (m *mockInstanceV2) ProductName() string {
 	return "test-product"
+}
+
+func (m *mockInstanceV2) DriverVersion() string {
+	return "test-driver-version"
+}
+
+func (m *mockInstanceV2) DriverMajor() int {
+	return 1
+}
+
+func (m *mockInstanceV2) CUDAVersion() string {
+	return "test-cuda-version"
 }
 
 func (m *mockInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {

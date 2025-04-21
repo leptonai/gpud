@@ -73,7 +73,7 @@ func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (event
 	return args.Get(0).(eventstore.Bucket), args.Error(1)
 }
 
-// Complete implementation of nvidianvml.InstanceV2 for testing
+// Complete implementation of nvidianvml.Instance for testing
 type mockNvmlInstance struct {
 	mock.Mock
 }
@@ -97,6 +97,21 @@ func (m *mockNvmlInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNvmlInstance) ProductName() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNvmlInstance) DriverVersion() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNvmlInstance) DriverMajor() int {
+	args := m.Called()
+	return args.Int(0)
+}
+
+func (m *mockNvmlInstance) CUDAVersion() string {
 	args := m.Called()
 	return args.String(0)
 }

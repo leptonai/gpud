@@ -23,7 +23,7 @@ import (
 // Override the metricRunningProcesses for testing
 var _ = prometheus.Register(metricRunningProcesses) // This will fail silently if metrics are already registered
 
-// mockNVMLInstance is a mock implementation of nvidianvml.InstanceV2
+// mockNVMLInstance is a mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
 	devicesFunc func() map[string]device.Device
 	nvmlExists  bool
@@ -40,6 +40,9 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 func (m *mockNVMLInstance) NVMLExists() bool         { return m.nvmlExists }
 func (m *mockNVMLInstance) Library() nvmllib.Library { return nil }
 func (m *mockNVMLInstance) ProductName() string      { return "Test GPU" }
+func (m *mockNVMLInstance) DriverVersion() string    { return "1.0" }
+func (m *mockNVMLInstance) DriverMajor() int         { return 1 }
+func (m *mockNVMLInstance) CUDAVersion() string      { return "1.0" }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

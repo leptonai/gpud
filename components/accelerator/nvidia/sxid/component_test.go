@@ -683,7 +683,7 @@ func (m *MockEventBucket) Purge(ctx context.Context, beforeUnixTime int64) (int,
 	return 0, nil
 }
 
-// MockNVMLInstance implements nvidianvml.InstanceV2 for testing
+// MockNVMLInstance implements nvidianvml.Instance for testing
 type MockNVMLInstance struct {
 	exists bool
 }
@@ -710,6 +710,18 @@ func (m *MockNVMLInstance) Library() nvmllib.Library {
 
 func (m *MockNVMLInstance) ProductName() string {
 	return "Test GPU"
+}
+
+func (m *MockNVMLInstance) DriverVersion() string {
+	return "test-driver-version"
+}
+
+func (m *MockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *MockNVMLInstance) CUDAVersion() string {
+	return "test-cuda-version"
 }
 
 func (m *MockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {

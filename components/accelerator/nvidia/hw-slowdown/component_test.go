@@ -21,7 +21,7 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-// Mock implementation of nvidianvml.InstanceV2
+// Mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
 	devices     map[string]device.Device
 	productName string
@@ -34,6 +34,18 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 
 func (m *mockNVMLInstance) ProductName() string {
 	return m.productName
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
+	return ""
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
@@ -992,7 +1004,7 @@ func TestNewComponent(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		nvmlInstance    nvidianvml.InstanceV2
+		nvmlInstance    nvidianvml.Instance
 		eventStore      eventstore.Store
 		expectErr       bool
 		expectErrMsg    string
@@ -1064,7 +1076,7 @@ func TestCheckEdgeCases(t *testing.T) {
 
 	tests := []struct {
 		name                          string
-		nvmlInstance                  nvidianvml.InstanceV2
+		nvmlInstance                  nvidianvml.Instance
 		mockGetClockEventsSupported   func(dev device.Device) (bool, error)
 		mockGetClockEvents            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
 		mockGetSystemDriverVersion    func() (string, error)

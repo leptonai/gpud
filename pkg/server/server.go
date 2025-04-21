@@ -209,9 +209,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		return nil, err
 	}
 
-	var nvmlInstanceV2 nvidianvml.InstanceV2
+	var nvmlInstanceV2 nvidianvml.Instance
 	if runtime.GOOS == "linux" && nvidiaInstalled {
-		nvmlInstanceV2, err = nvidianvml.NewInstanceV2()
+		nvmlInstanceV2, err = nvidianvml.New()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 		}
@@ -394,7 +394,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
 
-	go func(nvmlInstance nvidianvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
+	go func(nvmlInstance nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
 			if nvmlInstance != nil {
 				if err := nvmlInstance.Shutdown(); err != nil {

@@ -65,7 +65,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance        nvidianvml.InstanceV2
+	nvmlInstance        nvidianvml.Instance
 	getGPMSupportedFunc func(dev device.Device) (bool, error)
 	getGPMMetricsFunc   func(ctx context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error)
 
