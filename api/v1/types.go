@@ -209,3 +209,48 @@ func EventTypeFromString(s string) EventType {
 		return EventTypeUnknown
 	}
 }
+
+type MachineInfo struct {
+	// GPUDriverVersion represents the current version of GPU driver installed
+	GPUDriverVersion string `json:"gpuDriverVersion,omitempty"`
+	// CUDAVersion represents the current version of cuda library.
+	CUDAVersion string `json:"cudaVersion,omitempty"`
+	// ContainerRuntime Version reported by the node through runtime remote API (e.g. containerd://1.4.2).
+	ContainerRuntimeVersion string `json:"containerRuntimeVersion,omitempty"`
+	// Kernel Version reported by the node from 'uname -r' (e.g. 3.16.0-0.bpo.4-amd64).
+	KernelVersion string `json:"kernelVersion,omitempty"`
+	// OS Image reported by the node from /etc/os-release (e.g. Debian GNU/Linux 7 (wheezy)).
+	OSImage string `json:"osImage,omitempty"`
+	// The Operating System reported by the node
+	OperatingSystem string `json:"operatingSystem,omitempty"`
+	// SystemUUID comes from https://github.com/google/cadvisor/blob/master/utils/sysfs/sysfs.go#L442
+	SystemUUID string `json:"systemUUID,omitempty"`
+	// MachineID is collected by GPUd. It comes from /etc/machine-id or /var/lib/dbus/machine-id
+	MachineID string `json:"machineID,omitempty"`
+	// BootID is collected by GPUd.
+	BootID string `json:"bootID,omitempty"`
+	// Uptime represents when the machine up
+	Uptime metav1.Time `json:"uptime,omitempty"`
+}
+
+type MachineCPUInfo struct {
+	Type         string `json:"type,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Architecture string `json:"architecture,omitempty"`
+}
+
+type MachineGPUInfo struct {
+	Product      string `json:"product,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Memory       string `json:"memory,omitempty"`
+}
+
+type MachineNetwork struct {
+	PublicIP  string `json:"publicIP,omitempty"`
+	PrivateIP string `json:"privateIP,omitempty"`
+}
+
+type MachineLocation struct {
+	Region string `json:"region,omitempty"`
+	Zone   string `json:"zone,omitempty"`
+}

@@ -39,8 +39,8 @@ func DaemonReload(ctx context.Context) ([]byte, error) {
 	return cmd.Output()
 }
 
-// CheckVersion returns the systemd version by running `systemd --version`.
-func CheckVersion() (string, []string, error) {
+// GetVersion returns the systemd version by running `systemd --version`.
+func GetVersion() (string, []string, error) {
 	systemdPath, err := file.LocateExecutable("systemd")
 	if err != nil {
 		return "", nil, err

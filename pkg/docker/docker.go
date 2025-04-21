@@ -1,22 +1,23 @@
-package container
+package docker
 
 import (
 	"context"
 	"encoding/json"
 	"strings"
 
-	docker_types "github.com/docker/docker/api/types"
-	docker_container "github.com/docker/docker/api/types/container"
-	docker_client "github.com/docker/docker/client"
+	dockerapitypes "github.com/docker/docker/api/types"
+	dockerapitypescontainer "github.com/docker/docker/api/types/container"
+	dockerclient "github.com/docker/docker/client"
 
-	pkg_file "github.com/leptonai/gpud/pkg/file"
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// ListContainers lists all containers from the docker daemon.
 // If docker daemon is not running, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
-func listContainers(ctx context.Context) ([]DockerContainer, error) {
-	cli, err := docker_client.NewClientWithOpts(docker_client.FromEnv)
+func ListContainers(ctx context.Context) ([]DockerContainer, error) {
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +27,7 @@ func listContainers(ctx context.Context) ([]DockerContainer, error) {
 		}
 	}()
 
-	cs, err := cli.ContainerList(ctx, docker_container.ListOptions{
+	cs, err := cli.ContainerList(ctx, dockerapitypescontainer.ListOptions{
 		All: true,
 	})
 	if err != nil {
@@ -46,7 +47,7 @@ const (
 	podNamespaceLabel = "io.kubernetes.pod.namespace"
 )
 
-func convertToDockerContainer(resp docker_types.Container) DockerContainer {
+func convertToDockerContainer(resp dockerapitypes.Container) DockerContainer {
 	ret := DockerContainer{
 		ID:           resp.ID,
 		Name:         strings.Join(resp.Names, ","),
@@ -65,8 +66,8 @@ func convertToDockerContainer(resp docker_types.Container) DockerContainer {
 	return ret
 }
 
-func checkDockerInstalled() bool {
-	p, err := pkg_file.LocateExecutable("docker")
+func CheckDockerInstalled() bool {
+	p, err := pkgfile.LocateExecutable("docker")
 	if err == nil {
 		log.Logger.Debugw("docker found in PATH", "path", p)
 		return true
@@ -75,10 +76,11 @@ func checkDockerInstalled() bool {
 	return false
 }
 
+// CheckDockerRunning checks if the docker daemon is running.
 // If not run, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
-func checkDockerRunning(ctx context.Context) bool {
-	cli, err := docker_client.NewClientWithOpts(docker_client.FromEnv)
+func CheckDockerRunning(ctx context.Context) bool {
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
 	if err != nil {
 		return false
 	}
@@ -106,10 +108,10 @@ type DockerContainer struct {
 	PodNamespace string `json:"pod_namespace,omitempty"`
 }
 
-// isErrDockerClientVersionNewerThanDaemon returns true if the docker client version is newer than the daemon version.
+// IsErrDockerClientVersionNewerThanDaemon returns true if the docker client version is newer than the daemon version.
 // e.g.,
 // "Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"
-func isErrDockerClientVersionNewerThanDaemon(err error) bool {
+func IsErrDockerClientVersionNewerThanDaemon(err error) bool {
 	if err == nil {
 		return false
 	}

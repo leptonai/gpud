@@ -12,6 +12,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgdocker "github.com/leptonai/gpud/pkg/docker"
 )
 
 func TestData_getStates(t *testing.T) {
@@ -23,7 +24,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "No error with containers",
 			data: checkResult{
-				Containers: []DockerContainer{{}, {}, {}},
+				Containers: []pkgdocker.DockerContainer{{}, {}, {}},
 				err:        nil,
 				health:     apiv1.HealthStateTypeHealthy,
 				reason:     "total 3 container(s)",
@@ -33,7 +34,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Empty containers",
 			data: checkResult{
-				Containers: []DockerContainer{},
+				Containers: []pkgdocker.DockerContainer{},
 				err:        nil,
 				health:     apiv1.HealthStateTypeHealthy,
 				reason:     "total 0 container(s)",
@@ -53,7 +54,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Docker client version newer than daemon",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "not supported; Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43 (needs upgrading docker daemon in the host)",
@@ -63,7 +64,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Connection error",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Cannot connect to the Docker daemon"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "connection error to docker daemon -- Cannot connect to the Docker daemon",
@@ -73,7 +74,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "General error",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("some general error"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- some general error",
@@ -84,7 +85,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Connection refusal",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("connection refused"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- connection refused",
@@ -94,7 +95,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Daemon not running",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("Is the docker daemon running?"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "connection error to docker daemon -- Is the docker daemon running?",
@@ -104,7 +105,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Permission denied error",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("permission denied"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- permission denied",
@@ -114,7 +115,7 @@ func TestData_getStates(t *testing.T) {
 		{
 			name: "Docker network error",
 			data: checkResult{
-				Containers: []DockerContainer{{ID: "test-id"}},
+				Containers: []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:        errors.New("network error communicating with Docker daemon"),
 				health:     apiv1.HealthStateTypeUnhealthy,
 				reason:     "error listing containers -- network error communicating with Docker daemon",
@@ -241,7 +242,7 @@ func TestDataGetStates(t *testing.T) {
 			name: "No containers",
 			data: checkResult{
 				DockerServiceActive: true,
-				Containers:          []DockerContainer{},
+				Containers:          []pkgdocker.DockerContainer{},
 				err:                 nil,
 				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "no container found",
@@ -253,7 +254,7 @@ func TestDataGetStates(t *testing.T) {
 			name: "With containers",
 			data: checkResult{
 				DockerServiceActive: true,
-				Containers:          []DockerContainer{{ID: "test-id"}},
+				Containers:          []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:                 nil,
 				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "total 1 container(s)",
@@ -265,7 +266,7 @@ func TestDataGetStates(t *testing.T) {
 			name: "With error not ignored",
 			data: checkResult{
 				DockerServiceActive: true,
-				Containers:          []DockerContainer{{ID: "test-id"}},
+				Containers:          []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("test error"),
 				health:              apiv1.HealthStateTypeUnhealthy,
 				reason:              "error listing containers -- test error",
@@ -277,7 +278,7 @@ func TestDataGetStates(t *testing.T) {
 			name: "With connection error ignored",
 			data: checkResult{
 				DockerServiceActive: true,
-				Containers:          []DockerContainer{{ID: "test-id"}},
+				Containers:          []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
 				health:              apiv1.HealthStateTypeHealthy,
 				reason:              "connection error but ignored",
@@ -289,7 +290,7 @@ func TestDataGetStates(t *testing.T) {
 			name: "With connection error not ignored",
 			data: checkResult{
 				DockerServiceActive: true,
-				Containers:          []DockerContainer{{ID: "test-id"}},
+				Containers:          []pkgdocker.DockerContainer{{ID: "test-id"}},
 				err:                 errors.New("connection error"),
 				health:              apiv1.HealthStateTypeUnhealthy,
 				reason:              "connection error not ignored",
@@ -394,7 +395,7 @@ func TestComponentStates(t *testing.T) {
 	// Test with empty data
 	comp.lastCheckResult = &checkResult{
 		DockerServiceActive: true,
-		Containers:          []DockerContainer{},
+		Containers:          []pkgdocker.DockerContainer{},
 		ts:                  time.Now(),
 		err:                 nil,
 		health:              apiv1.HealthStateTypeHealthy,
@@ -409,7 +410,7 @@ func TestComponentStates(t *testing.T) {
 	// Test with containers
 	comp.lastCheckResult = &checkResult{
 		DockerServiceActive: true,
-		Containers: []DockerContainer{
+		Containers: []pkgdocker.DockerContainer{
 			{ID: "test-id", Name: "test-name"},
 		},
 		ts:     time.Now(),
@@ -425,7 +426,7 @@ func TestComponentStates(t *testing.T) {
 	// Test with error but ignoreConnectionErrors is true
 	comp.lastCheckResult = &checkResult{
 		DockerServiceActive: false,
-		Containers:          []DockerContainer{},
+		Containers:          []pkgdocker.DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon"),
 		health:              apiv1.HealthStateTypeHealthy,
@@ -447,7 +448,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	// Test with connection error
 	mockData := &checkResult{
 		DockerServiceActive: false,
-		Containers:          []DockerContainer{},
+		Containers:          []pkgdocker.DockerContainer{},
 		ts:                  time.Now(),
 		err:                 errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
 		health:              apiv1.HealthStateTypeHealthy,
@@ -481,7 +482,7 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	// Test with client version newer than daemon error
 	mockData = &checkResult{
 		DockerServiceActive: false,
-		Containers: []DockerContainer{
+		Containers: []pkgdocker.DockerContainer{
 			{ID: "test-id"},
 		},
 		ts:     time.Now(),
@@ -516,8 +517,8 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkDockerRunningFunc: func(context.Context) bool {
 				return true
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
-				return []DockerContainer{{ID: "container1", Name: "test-container-1"}}, nil
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+				return []pkgdocker.DockerContainer{{ID: "container1", Name: "test-container-1"}}, nil
 			},
 			lastCheckResult: &checkResult{},
 		}
@@ -598,7 +599,7 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkServiceActiveFunc: func() (bool, error) {
 				return true, nil
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
 				return nil, errors.New("listing error")
 			},
 			lastCheckResult: &checkResult{},
@@ -630,7 +631,7 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkServiceActiveFunc: func() (bool, error) {
 				return true, nil
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
 				return nil, versionErr
 			},
 			lastCheckResult: &checkResult{},
@@ -663,7 +664,7 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkServiceActiveFunc: func() (bool, error) {
 				return true, nil
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
 				return nil, connErr
 			},
 			ignoreConnectionErrors: true,
@@ -696,7 +697,7 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkServiceActiveFunc: func() (bool, error) {
 				return true, nil
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
 				return nil, connErr
 			},
 			ignoreConnectionErrors: false,
@@ -715,7 +716,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 	// Test case 8: Successful container list
 	t.Run("Successful container list", func(t *testing.T) {
-		containers := []DockerContainer{
+		containers := []pkgdocker.DockerContainer{
 			{ID: "container1", Name: "test-container-1"},
 			{ID: "container2", Name: "test-container-2"},
 		}
@@ -732,7 +733,7 @@ func TestDirectCheckOnce(t *testing.T) {
 			checkServiceActiveFunc: func() (bool, error) {
 				return true, nil
 			},
-			listContainersFunc: func(context.Context) ([]DockerContainer, error) {
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
 				return containers, nil
 			},
 			lastCheckResult: &checkResult{},
@@ -753,7 +754,7 @@ func TestDirectCheckOnce(t *testing.T) {
 func TestDataMarshalJSON(t *testing.T) {
 	cr := &checkResult{
 		DockerServiceActive: true,
-		Containers: []DockerContainer{
+		Containers: []pkgdocker.DockerContainer{
 			{
 				ID:    "test-id",
 				Name:  "test-name",

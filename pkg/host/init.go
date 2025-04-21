@@ -29,6 +29,8 @@ var (
 	currentVirtEnv             VirtualizationEnvironment
 	currentSystemManufacturer  string
 	currentOSMachineID         string
+	currentOSName              string
+	currentSystemUUID          string
 )
 
 func init() {
@@ -128,6 +130,16 @@ func loadInfo() {
 	if err != nil {
 		log.Logger.Errorw("failed to get machine id", "error", err)
 	}
+
+	currentOSName, err = GetOSName()
+	if err != nil {
+		log.Logger.Errorw("failed to get os name", "error", err)
+	}
+
+	currentSystemUUID, err = GetSystemUUID()
+	if err != nil {
+		log.Logger.Errorw("failed to get system uuid", "error", err)
+	}
 }
 
 func HostID() string {
@@ -196,4 +208,12 @@ func SystemManufacturer() string {
 
 func OSMachineID() string {
 	return currentOSMachineID
+}
+
+func OSName() string {
+	return currentOSName
+}
+
+func SystemUUID() string {
+	return currentSystemUUID
 }

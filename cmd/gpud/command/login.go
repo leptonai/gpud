@@ -6,16 +6,14 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
-	corev1 "k8s.io/api/core/v1"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	client "github.com/leptonai/gpud/client/v1"
+	clientv1 "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
-	pkgcpu "github.com/leptonai/gpud/pkg/cpu"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
-	pkgmemory "github.com/leptonai/gpud/pkg/memory"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -35,7 +33,7 @@ func cmdLogin(cliContext *cli.Context) error {
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 
-	if err := client.BlockUntilServerReady(
+	if err := clientv1.BlockUntilServerReady(
 		rootCtx,
 		fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort),
 	); err != nil {
@@ -63,32 +61,24 @@ func cmdLogin(cliContext *cli.Context) error {
 
 	endpoint := cliContext.String("endpoint")
 
-	req := apiv1.LoginRequest{
-		Token:        token,
-		ResourceSpec: map[string]string{},
-	}
-
-	cpu, err := pkgcpu.GetSystemResourceLogicalCores()
+	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
-		return fmt.Errorf("failed to get system resource logical cores: %w", err)
+		return fmt.Errorf("failed to create nvml instance: %w", err)
 	}
-	req.ResourceSpec[string(corev1.ResourceCPU)] = cpu
+	defer func() {
+		if err := nvmlInstance.Shutdown(); err != nil {
+			log.Logger.Debugw("failed to shutdown nvml instance", "error", err)
+		}
+	}()
 
-	memory, err := pkgmemory.GetSystemResourceMemoryTotal()
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance)
 	if err != nil {
-		return fmt.Errorf("failed to get system resource memory total: %w", err)
+		return fmt.Errorf("failed to create login request: %w", err)
 	}
-	req.ResourceSpec[string(corev1.ResourceMemory)] = memory
-
-	gpuCnt, err := nvidiaquery.GetSystemResourceGPUCount()
-	if err != nil {
-		return fmt.Errorf("failed to get system resource gpu count: %w", err)
-	}
-	req.ResourceSpec["nvidia.com/gpu"] = gpuCnt
 
 	// machine ID has not been assigned yet
 	// thus request one and blocks until the login request is processed
-	loginResp, err := login.SendRequest(rootCtx, endpoint, req)
+	loginResp, err := login.SendRequest(rootCtx, endpoint, *req)
 	if err != nil {
 		return err
 	}

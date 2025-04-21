@@ -28,7 +28,6 @@ import (
 	swaggerfiles "github.com/swaggo/files"
 	ginswagger "github.com/swaggo/gin-swagger"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
@@ -40,6 +39,7 @@ import (
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
@@ -47,7 +47,6 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
-	"github.com/leptonai/gpud/version"
 
 	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	componentsacceleratornvidiaclockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
@@ -424,22 +423,20 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}(nvmlInstance, syncer)
 
-	ghler.componentNamesMu.RLock()
-	currComponents := ghler.componentNames
-	ghler.componentNamesMu.RUnlock()
-
 	go func() {
-		gossipReq := apiv1.GossipRequest{
-			MachineID:     uid,
-			DaemonVersion: version.Version,
-			Components:    currComponents,
-		}
-
 		ticker := time.NewTicker(2 * time.Minute)
 		defer ticker.Stop()
+
 		for {
-			if _, err = gossip.SendRequest(ctx, endpoint, gossipReq); err != nil {
-				log.Logger.Errorw("failed to gossip", "error", err)
+			gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance)
+			if err != nil {
+				log.Logger.Errorw("failed to create gossip request", "error", err)
+			} else {
+				if _, err = gossip.SendRequest(ctx, endpoint, *gossipReq); err != nil {
+					log.Logger.Errorw("failed to gossip", "error", err)
+				} else {
+					log.Logger.Debugw("successfully sent gossip")
+				}
 			}
 
 			select {

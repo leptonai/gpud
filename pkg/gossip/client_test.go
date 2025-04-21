@@ -49,9 +49,7 @@ func TestSendRequest_Success(t *testing.T) {
 	// Execute test
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1", "component2"},
+		MachineID: "test-machine-id",
 	}
 
 	// Ensure GPUD_NO_USAGE_STATS is not set to "true"
@@ -79,9 +77,7 @@ func TestSendRequest_NoUsageStats(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -98,9 +94,7 @@ func TestSendRequest_HttpError(t *testing.T) {
 	// Setup invalid server URL to cause HTTP error
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, "http://invalid-server-url.that.does.not.exist", req)
@@ -127,9 +121,7 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 	// Execute test
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -154,9 +146,7 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 	// Execute test
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -184,9 +174,7 @@ func TestSendRequest_ContextCancellation(t *testing.T) {
 	cancel() // Cancel the context immediately
 
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -218,9 +206,7 @@ func TestSendRequestWithTimeout(t *testing.T) {
 	defer cancel()
 
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -237,9 +223,7 @@ func TestSendRequestWithInvalidURL(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, "://invalid-url", req)
@@ -264,9 +248,7 @@ func TestSendRequest_ServerError(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -299,9 +281,7 @@ func TestSendRequest_ReadError(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -323,11 +303,6 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 
 		// Verify all fields are correctly sent
 		assert.Equal(t, "test-machine-id", receivedReq.MachineID)
-		assert.Equal(t, "2.0.0", receivedReq.DaemonVersion)
-		assert.Equal(t, 3, len(receivedReq.Components))
-		assert.Contains(t, receivedReq.Components, "component1")
-		assert.Contains(t, receivedReq.Components, "component2")
-		assert.Contains(t, receivedReq.Components, "component3")
 
 		// Return successful response
 		w.WriteHeader(http.StatusOK)
@@ -340,9 +315,7 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "2.0.0",
-		Components:    []string{"component1", "component2", "component3"},
+		MachineID: "test-machine-id",
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)
@@ -376,9 +349,7 @@ func TestSendRequest_PublicWrapper(t *testing.T) {
 
 	ctx := context.Background()
 	req := apiv1.GossipRequest{
-		MachineID:     "test-machine-id",
-		DaemonVersion: "1.0.0",
-		Components:    []string{"component1"},
+		MachineID: "test-machine-id",
 	}
 
 	// Use the public function which should call createURL
