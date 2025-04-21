@@ -277,9 +277,9 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	t.Parallel()
 
 	comp := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-
+		ctx:               context.Background(),
+		cancel:            func() {},
+		nvmlInstance:      &mockNVMLInstance{exists: true},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return false },
 	}
