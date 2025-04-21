@@ -437,6 +437,20 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				ContentType: "plaintext",
 			},
 		})
+		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+			Name: "fourth-step",
+			RunBashScript: &pkgcustomplugins.RunBashScript{
+				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixType + ` Degraded'`,
+				ContentType: "plaintext",
+			},
+		})
+		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+			Name: "fifth-step",
+			RunBashScript: &pkgcustomplugins.RunBashScript{
+				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixReason + ` test'`,
+				ContentType: "plaintext",
+			},
+		})
 
 		It("updates the custom plugin with non-dry-run mode", func() {
 			rerr := clientv1.UpdateCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
@@ -464,6 +478,27 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			_, err := os.Stat(fileToWrite)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			fmt.Println("/v1/states RESPONSE BODY:", string(body))
+
+			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(testPluginSpec.ComponentName()))
+			Expect(err).NotTo(HaveOccurred(), "failed to get states")
+			GinkgoLogr.Info("got states", "states", states)
+			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
+			Expect(states[0].States).To(HaveLen(1), "expected states to have 1 state")
+			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeDegraded), "expected health state to be degraded")
+			Expect(states[0].States[0].Reason).To(Equal("test"), "expected reason to be test")
 		})
 
 		It("deregister the custom plugin", func() {

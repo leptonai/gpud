@@ -50,7 +50,6 @@ func LoadSpecs(path string) (Specs, error) {
 
 var (
 	ErrComponentNameRequired = errors.New("component name is required")
-	ErrTimeoutRequired       = errors.New("timeout is required")
 	ErrStepNameRequired      = errors.New("step name is required")
 	ErrMissingPluginStep     = errors.New("plugin step cannot be empty")
 	ErrMissingStatePlugin    = errors.New("state plugin is required")
@@ -58,8 +57,16 @@ var (
 	ErrIntervalTooShort      = errors.New("interval is too short")
 )
 
+const (
+	MaxPluginNameLength = 32
+	DefaultTimeout      = 1 * time.Minute
+)
+
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
+	if len(spec.PluginName) > MaxPluginNameLength {
+		return fmt.Errorf("plugin name is too long: %s", spec.PluginName)
+	}
 	if spec.ComponentName() == "" {
 		return ErrComponentNameRequired
 	}
@@ -72,7 +79,7 @@ func (spec *Spec) Validate() error {
 	}
 
 	if spec.Timeout.Duration == 0 {
-		return ErrTimeoutRequired
+		spec.Timeout.Duration = DefaultTimeout
 	}
 
 	if spec.Interval.Duration > 0 && spec.Interval.Duration < time.Minute {

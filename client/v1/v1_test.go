@@ -532,7 +532,7 @@ func TestDeregisterComponent(t *testing.T) {
 
 func TestGetCustomPlugins(t *testing.T) {
 	testPlugins := map[string]pkgcustomplugins.Spec{
-		"custom-plugin-test": {
+		"test": {
 			PluginName: "test",
 			StatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
@@ -642,7 +642,7 @@ func TestGetCustomPlugins(t *testing.T) {
 
 func TestReadCustomPluginSpecs(t *testing.T) {
 	testPlugins := map[string]pkgcustomplugins.Spec{
-		"custom-plugin-test": {
+		"test": {
 			PluginName: "test",
 			StatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{

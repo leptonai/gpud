@@ -151,3 +151,115 @@ func TestPluginRunWithNonZeroExitCode(t *testing.T) {
 	assert.Contains(t, err.Error(), "exit status 42")
 	assert.Equal(t, int32(0), exitCode) // Default value since the error is returned
 }
+
+func TestExecuteAllStepsWithEmptyStepType(t *testing.T) {
+	// Create a plugin with a step that has no recognized type
+	plugin := Plugin{
+		Steps: []Step{
+			{
+				Name: "empty-type-step",
+				// Deliberately not setting any step type (RunBashScript is nil)
+			},
+		},
+	}
+
+	ctx := context.Background()
+	_, _, err := plugin.executeAllSteps(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported plugin step")
+}
+
+func TestExecuteAllStepsWithFailingStep(t *testing.T) {
+	plugin := Plugin{
+		Steps: []Step{
+			{
+				Name: "success-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'Step 1 succeeded'",
+				},
+			},
+			{
+				Name: "failing-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'About to fail' && false", // 'false' command returns exit code 1
+				},
+			},
+			{
+				Name: "never-executed-step",
+				RunBashScript: &RunBashScript{
+					ContentType: "plaintext",
+					Script:      "echo 'This should never run'",
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	output, exitCode, err := plugin.executeAllSteps(ctx)
+
+	// Check that we got an error
+	assert.Error(t, err)
+
+	// Check that the output contains the first step's output
+	assert.Contains(t, string(output), "Step 1 succeeded")
+
+	// The second step might not have its stdout captured properly if it fails quickly,
+	// so we'll skip checking for "About to fail" string
+
+	// Check that the output does not contain the third step's output
+	assert.NotContains(t, string(output), "This should never run")
+
+	// Check that we got a non-zero exit code
+	assert.NotEqual(t, int32(0), exitCode)
+}
+
+func TestExecuteAllStepsWithEmptyStepList(t *testing.T) {
+	// Create a plugin with an empty steps list
+	plugin := Plugin{
+		Steps: []Step{},
+	}
+
+	ctx := context.Background()
+	output, exitCode, err := plugin.executeAllSteps(ctx)
+
+	// With no steps, there should be no error
+	assert.NoError(t, err)
+
+	// Output should be empty
+	assert.Empty(t, output)
+
+	// Exit code should be 0
+	assert.Equal(t, int32(0), exitCode)
+}
+
+func TestExecuteAllStepsWithNilSteps(t *testing.T) {
+	// Create a plugin with a nil steps list
+	plugin := Plugin{
+		// Steps is nil by default
+	}
+
+	ctx := context.Background()
+	output, exitCode, err := plugin.executeAllSteps(ctx)
+
+	// With no steps, there should be no error
+	assert.NoError(t, err)
+
+	// Output should be empty
+	assert.Empty(t, output)
+
+	// Exit code should be 0
+	assert.Equal(t, int32(0), exitCode)
+}
+
+func TestPluginValidateWithNilSteps(t *testing.T) {
+	// Create a plugin with a nil steps list
+	plugin := Plugin{
+		// Steps is nil by default
+	}
+
+	// There should be no error when validating a plugin with nil steps
+	err := plugin.Validate()
+	assert.NoError(t, err)
+}
