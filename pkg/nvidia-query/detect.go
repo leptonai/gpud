@@ -22,7 +22,7 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 	if len(pciDevices) == 0 {
 		return false, nil
 	}
-	log.Logger.Debugw("nvidia PCI devices found", "devices", len(pciDevices))
+	log.Logger.Infow("nvidia PCI devices found", "devices", len(pciDevices))
 
 	// now that we have the NVIDIA PCI devices,
 	// call NVML C-based API for NVML API
@@ -34,9 +34,9 @@ func GPUsInstalled(ctx context.Context) (bool, error) {
 		}
 		return false, err
 	}
-	log.Logger.Debugw("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
+	log.Logger.Infow("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
 
-	return true, nil
+	return gpuDeviceName != "", nil
 }
 
 // Lists all PCI devices that are compatible with NVIDIA.
