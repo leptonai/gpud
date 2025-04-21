@@ -21,10 +21,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	client_v1 "github.com/leptonai/gpud/client/v1"
+	clientv1 "github.com/leptonai/gpud/client/v1"
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/server"
 )
 
@@ -54,8 +54,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	gCtx, gCancel := context.WithTimeout(context.Background(), time.Minute*8)
 
 	BeforeAll(func() {
-		err = os.Setenv(nvml_lib.EnvMockAllSuccess, "true")
-		Expect(err).NotTo(HaveOccurred(), "failed to set "+nvml_lib.EnvMockAllSuccess)
+		err = os.Setenv(nvmllib.EnvMockAllSuccess, "true")
+		Expect(err).NotTo(HaveOccurred(), "failed to set "+nvmllib.EnvMockAllSuccess)
 
 		By("mock lspci")
 		err = mocklspci.Mock(mocklspci.NormalOutput)
@@ -135,13 +135,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
 	})
 
-	var ctx context.Context
-	var cancel context.CancelFunc
+	var rootCtx context.Context
+	var rootCancel context.CancelFunc
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
+		rootCtx, rootCancel = context.WithTimeout(context.Background(), 3*time.Minute)
 	})
 	AfterEach(func() {
-		cancel()
+		rootCancel()
 	})
 
 	Describe("/v1/states requests", func() {
@@ -318,7 +318,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	Describe("states with client/v1", func() {
 
 		It("get disk states", func() {
-			states, err := client_v1.GetHealthStates(ctx, "https://"+ep, client_v1.WithComponent("disk"))
+			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent("disk"))
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
 			for _, ss := range states {
 				for _, s := range ss.States {
@@ -327,18 +327,18 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			}
 		})
 
-		for _, opts := range [][]client_v1.OpOption{
-			{client_v1.WithRequestContentTypeJSON()},
-			{client_v1.WithRequestContentTypeYAML()},
-			{client_v1.WithRequestContentTypeJSON(), client_v1.WithAcceptEncodingGzip()},
-			{client_v1.WithRequestContentTypeYAML(), client_v1.WithAcceptEncodingGzip()},
+		for _, opts := range [][]clientv1.OpOption{
+			{clientv1.WithRequestContentTypeJSON()},
+			{clientv1.WithRequestContentTypeYAML()},
+			{clientv1.WithRequestContentTypeJSON(), clientv1.WithAcceptEncodingGzip()},
+			{clientv1.WithRequestContentTypeYAML(), clientv1.WithAcceptEncodingGzip()},
 		} {
 			It("get states with options", func() {
-				components, err := client_v1.GetHealthStates(ctx, "https://"+ep, opts...)
+				components, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, opts...)
 				Expect(err).NotTo(HaveOccurred(), "failed to get states")
 				GinkgoLogr.Info("got components", "components", components)
 
-				info, err := client_v1.GetInfo(ctx, "https://"+ep, opts...)
+				info, err := clientv1.GetInfo(rootCtx, "https://"+ep, opts...)
 				Expect(err).NotTo(HaveOccurred(), "failed to get info")
 				GinkgoLogr.Info("got info", "info", info)
 
@@ -356,7 +356,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					}
 				}
 
-				_, err = client_v1.GetHealthStates(ctx, "https://"+ep, append(opts, client_v1.WithComponent("unknown!!!"))...)
+				_, err = clientv1.GetHealthStates(rootCtx, "https://"+ep, append(opts, clientv1.WithComponent("unknown!!!"))...)
 				Expect(err).To(Equal(errdefs.ErrNotFound), "expected ErrNotFound")
 			})
 		}
