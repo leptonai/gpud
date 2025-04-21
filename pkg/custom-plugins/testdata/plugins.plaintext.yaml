@@ -1,0 +1,42 @@
+- plugin_name: test plugin 1
+
+  state_plugin:
+    steps:
+      - name: "Install Python"
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            sudo apt-get update
+            sudo apt-get install -y python3
+
+      - name: "Run nvidia-smi"
+        run_bash_script:
+          content_type: plaintext
+          script: echo 'State script'
+
+  dry_run: true
+
+  timeout: 10s
+  interval: 1m
+
+- plugin_name: test plugin 2
+
+  state_plugin:
+    steps:
+      - name: "Install Python"
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            sudo apt-get update
+            sudo apt-get install -y python3
+
+      - name: "Run python scripts"
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            python3 test.py
+
+  dry_run: true
+
+  timeout: 10s
+  interval: 1m

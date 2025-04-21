@@ -13,16 +13,19 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	clientv1 "github.com/leptonai/gpud/client/v1"
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/server"
@@ -360,6 +363,120 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Expect(err).To(Equal(errdefs.ErrNotFound), "expected ErrNotFound")
 			})
 		}
+	})
+
+	Describe("register custom plugin with client/v1", func() {
+
+		It("list custom plugins", func() {
+			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
+			Expect(csPlugins).To(BeEmpty(), "expected no custom plugins")
+		})
+
+		pluginName, err := randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand str")
+
+		// register with dry-run mode first
+		testPluginSpec := pkgcustomplugins.Spec{
+			PluginName: pluginName,
+			DryRun:     true,
+			StatePlugin: &pkgcustomplugins.Plugin{
+				Steps: []pkgcustomplugins.Step{
+					{
+						Name: "first-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							Script:      "echo 'hello'",
+							ContentType: "plaintext",
+						},
+					},
+					{
+						Name: "second-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							Script:      "echo 'world'",
+							ContentType: "plaintext",
+						},
+					},
+				},
+			},
+			Timeout:  metav1.Duration{Duration: 30 * time.Second},
+			Interval: metav1.Duration{Duration: 0},
+		}
+
+		It("register a custom plugin with dry-run mode", func() {
+			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
+			Expect(rerr).NotTo(HaveOccurred(), "failed to register custom plugin")
+		})
+
+		It("list custom plugins and make sure the plugin is registered even with dry-run mode", func() {
+			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
+			for componentName, spec := range csPlugins {
+				Expect(componentName).Should(Equal(spec.ComponentName()))
+				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+
+				b, err := json.Marshal(spec)
+				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
+				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
+			}
+			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
+		})
+
+		randSfx, err := randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
+		fileToWrite := filepath.Join(os.TempDir(), "testplugin"+randSfx)
+		defer os.Remove(fileToWrite)
+
+		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
+		testPluginSpec.DryRun = false
+		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+			Name: "third-step",
+			RunBashScript: &pkgcustomplugins.RunBashScript{
+				Script:      "echo 111 > " + fileToWrite,
+				ContentType: "plaintext",
+			},
+		})
+
+		It("updates the custom plugin with non-dry-run mode", func() {
+			rerr := clientv1.UpdateCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
+			Expect(rerr).NotTo(HaveOccurred(), "failed to update custom plugin")
+		})
+
+		It("list custom plugins and make sure the plugin is registered with non-dry-run mode", func() {
+			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
+			for componentName, spec := range csPlugins {
+				Expect(componentName).Should(Equal(spec.ComponentName()))
+				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+
+				b, err := json.Marshal(spec)
+				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
+				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
+			}
+			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
+		})
+
+		It("make sure the plugin has been run once by checking the file exists when the dry mode is disabled", func() {
+			// wait for the plugin to run
+			time.Sleep(3 * time.Second)
+
+			_, err := os.Stat(fileToWrite)
+			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
+		})
+
+		It("deregister the custom plugin", func() {
+			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, testPluginSpec.ComponentName())
+			Expect(derr).NotTo(HaveOccurred(), "failed to deregister custom plugin")
+		})
+
+		It("list custom plugins and make sure the plugin has been de-registered", func() {
+			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
+			Expect(csPlugins).To(BeEmpty(), "expected no custom plugins")
+		})
 	})
 })
 

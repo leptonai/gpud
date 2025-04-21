@@ -9,6 +9,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -26,16 +28,20 @@ const (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
+	r.DELETE(URLPathComponents, g.deregisterComponent)
+
+	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
+	r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
+	r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
+
 	r.GET(URLPathStates, g.getHealthStates)
 	r.GET(URLPathEvents, g.getEvents)
 	r.GET(URLPathInfo, g.getInfo)
 	r.GET(URLPathMetrics, g.getMetrics)
 }
 
-const (
-	URLPathComponents     = "/components"
-	URLPathComponentsDesc = "Get the list of all components"
-)
+// URLPathComponents is for getting the list of all gpud components
+const URLPathComponents = "/components"
 
 // getComponents godoc
 // @Summary Fetch all components in gpud
@@ -72,10 +78,178 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 	}
 }
 
-const (
-	URLPathStates     = "/states"
-	URLPathStatesDesc = "Get the states of all gpud components"
-)
+// deregisterComponent godoc
+// @Summary Deregisters a component in gpud
+// @Description deregister a component in gpud
+// @ID deregisterComponent
+// @Produce  json
+// @Success 200 {object}
+// @Router /v1/components [delete]
+func (g *globalHandler) deregisterComponent(c *gin.Context) {
+	componentName := c.Query("componentName")
+	if componentName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component name is required"})
+		return
+	}
+
+	comp := g.componentsRegistry.Get(componentName)
+	if comp == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
+		return
+	}
+
+	deregisterable, ok := comp.(components.Deregisterable)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component is not deregisterable"})
+		return
+	}
+
+	if !deregisterable.CanDeregister() {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component is not deregisterable"})
+		return
+	}
+
+	if err := comp.Close(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to deregister component: " + err.Error()})
+		return
+	}
+
+	// only deregister if the component is successfully closed
+	_ = g.componentsRegistry.Deregister(componentName)
+
+	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component deregistered", "component": comp.Name()})
+}
+
+const URLPathComponentsCustomPlugins = "/components/custom-plugin"
+
+// getComponentsCustomPlugins godoc
+// @Summary Lists all custom plugins in gpud
+// @Description list all custom plugins in gpud
+// @ID getComponentsCustomPlugins
+// @Produce  json
+// @Success 200 {object} map[string]pkgcustomplugins.Spec
+// @Router /v1/components/custom-plugin [get]
+func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
+	cs := make(map[string]pkgcustomplugins.Spec, 0)
+	for _, c := range g.componentsRegistry.All() {
+		if customPluginRegisteree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok {
+			if customPluginRegisteree.IsCustomPlugin() {
+				cs[c.Name()] = customPluginRegisteree.Spec()
+			}
+		}
+	}
+
+	switch c.GetHeader(RequestHeaderContentType) {
+	case RequestHeaderYAML:
+		yb, err := yaml.Marshal(cs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal custom plugins " + err.Error()})
+			return
+		}
+		c.String(http.StatusOK, string(yb))
+
+	case RequestHeaderJSON, "":
+		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+			c.IndentedJSON(http.StatusOK, cs)
+			return
+		}
+		c.JSON(http.StatusOK, cs)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
+	}
+}
+
+// registerComponentsCustomPlugin godoc
+// @Summary Registers a new component in gpud
+// @Description register a new component in gpud
+// @ID registerComponentsCustomPlugin
+// @Produce  json
+// @Success 200 {object}
+// @Router /v1/components [post]
+func (g *globalHandler) registerComponentsCustomPlugin(c *gin.Context) {
+	var spec pkgcustomplugins.Spec
+	if err := c.BindJSON(&spec); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
+		return
+	}
+
+	if err := spec.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to validate custom plugin: " + err.Error()})
+		return
+	}
+
+	initFunc := spec.NewInitFunc()
+	if initFunc == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to create init function"})
+		return
+	}
+
+	comp, err := g.componentsRegistry.Register(initFunc)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to register component: " + err.Error()})
+		return
+	}
+
+	if err := comp.Start(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to start component: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component registered and started", "component": comp.Name()})
+}
+
+// updateComponentsCustomPlugin godoc
+// @Summary Registers a new component in gpud
+// @Description register a new component in gpud
+// @ID updateComponentsCustomPlugin
+// @Produce  json
+// @Success 200 {object}
+// @Router /v1/components [put]
+func (g *globalHandler) updateComponentsCustomPlugin(c *gin.Context) {
+	var spec pkgcustomplugins.Spec
+	if err := c.BindJSON(&spec); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
+		return
+	}
+
+	if err := spec.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to validate custom plugin: " + err.Error()})
+		return
+	}
+
+	initFunc := spec.NewInitFunc()
+	if initFunc == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to create init function"})
+		return
+	}
+
+	prevComp := g.componentsRegistry.Get(spec.ComponentName())
+	if prevComp == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component not found"})
+		return
+	}
+
+	// now that we know the component is registered, we can deregister and register it
+	prevComp = g.componentsRegistry.Deregister(prevComp.Name())
+	_ = prevComp.Close()
+
+	comp, err := g.componentsRegistry.Register(initFunc)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to register component: " + err.Error()})
+		return
+	}
+
+	if err := comp.Start(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to start component: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component updated and started", "component": comp.Name()})
+}
+
+// URLPathStates is for getting the states of all gpud components
+const URLPathStates = "/states"
 
 // getHealthStates godoc
 // @Summary Query component States interface in gpud
@@ -142,10 +316,8 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 	}
 }
 
-const (
-	URLPathEvents     = "/events"
-	URLPathEventsDesc = "Get the events of all gpud components"
-)
+// URLPathEvents is for getting the events of all gpud components
+const URLPathEvents = "/events"
 
 // getEvents godoc
 // @Summary Query component Events interface in gpud
@@ -224,10 +396,8 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 
 const DefaultQuerySince = 30 * time.Minute
 
-const (
-	URLPathInfo     = "/info"
-	URLPathInfoDesc = "Get the information of all gpud components"
-)
+// URLPathInfo is for getting the information of all gpud components
+const URLPathInfo = "/info"
 
 // getInfo godoc
 // @Summary Query component Events/Metrics/States interface in gpud
@@ -346,10 +516,8 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 	}
 }
 
-const (
-	URLPathMetrics     = "/metrics"
-	URLPathMetricsDesc = "Get the metrics of all gpud components"
-)
+// URLPathMetrics is for getting the metrics of all gpud components
+const URLPathMetrics = "/metrics"
 
 // getMetrics godoc
 // @Summary Query component Metrics interface in gpud
