@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -45,6 +46,9 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error)
 		if err != nil {
 			log.Logger.Warnw("failed to check containerd version", "error", err)
 		} else {
+			if !strings.HasPrefix(version, "containerd://") {
+				version = "containerd://" + version
+			}
 			info.ContainerRuntimeVersion = version
 		}
 	}
