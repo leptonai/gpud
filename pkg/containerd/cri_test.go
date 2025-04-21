@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
@@ -678,4 +681,105 @@ func TestListAllSandboxesWithMocks(t *testing.T) {
 		// Compare the result with expected value
 		assert.Equal(t, expected, result)
 	})
+}
+
+func TestIsErrUnimplemented(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "unimplemented gRPC error",
+			err:  status.Error(codes.Unimplemented, "unknown service runtime.v1.RuntimeService"),
+			want: true,
+		},
+		{
+			name: "different gRPC error",
+			err:  status.Error(codes.Internal, "internal error"),
+			want: false,
+		},
+		{
+			name: "non-gRPC error",
+			err:  errors.New("standard error"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsErrUnimplemented(tt.err); got != tt.want {
+				t.Errorf("IsErrUnimplemented() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseContainerdVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "standard containerd version output",
+			input:   "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb",
+			want:    "1.7.25",
+			wantErr: false,
+		},
+		{
+			name:    "different version number",
+			input:   "containerd containerd.io 1.6.21 abc123def456",
+			want:    "1.6.21",
+			wantErr: false,
+		},
+		{
+			name:    "version with additional spaces",
+			input:   "containerd  containerd.io   1.8.2   abc123def456",
+			want:    "1.8.2",
+			wantErr: false,
+		},
+		{
+			name:    "simplified format",
+			input:   "containerd 1.7.25",
+			want:    "1.7.25",
+			wantErr: false,
+		},
+		{
+			name:    "different version format with 4 components",
+			input:   "containerd containerd.io 1.7.25.0 abc123def456",
+			want:    "",
+			wantErr: true, // Our regex matches exactly 3 version components
+		},
+		{
+			name:    "missing version",
+			input:   "containerd containerd.io",
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			want:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseContainerdVersion(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
 }

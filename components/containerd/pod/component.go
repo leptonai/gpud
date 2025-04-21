@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -152,22 +150,13 @@ func (c *component) Check() components.CheckResult {
 		cr.Pods, cr.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
 		if cr.err != nil {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-
-			st, ok := status.FromError(cr.err)
-			if ok {
-				// this is the error from "ListSandboxStatus"
-				// e.g.,
-				// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
-				if st.Code() == codes.Unimplemented {
-					cr.reason = "containerd didn't enable CRI"
-				} else {
-					cr.reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
-				}
+			if pkgcontainerd.IsErrUnimplemented(cr.err) {
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = "containerd installed and active but containerd CRI is not enabled"
 			} else {
+				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = fmt.Sprintf("error listing pod sandbox status: %v", cr.err)
 			}
-
 			return cr
 		}
 	}

@@ -1823,12 +1823,10 @@ func TestCheckOnceListSandboxGrpcError(t *testing.T) {
 	assert.NotNil(t, comp.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastCheckResult.health) // Should be unhealthy due to the error
 	assert.NotNil(t, comp.lastCheckResult.err)
-	fmt.Println("comp.lastCheckResult.err", comp.lastCheckResult.reason, comp.lastCheckResult.err)
 
-	assert.Equal(t, testGrpcError, comp.lastCheckResult.err)
-	// Check the specific reason set for gRPC errors (lines 165-167)
-	assert.Contains(t, comp.lastCheckResult.reason, "failed gRPC call to the containerd socket")
-	assert.Contains(t, comp.lastCheckResult.reason, "service temporary unavailable")
+	// Based on the component.go implementation (lines 151-156), non-Unimplemented errors
+	// will have a reason message format like "error listing pod sandbox status: %v"
+	assert.Contains(t, comp.lastCheckResult.reason, "error listing pod sandbox status")
 }
 
 // TestCheckOnceSocketNotExists tests the socket existence check in CheckOnce
@@ -2457,4 +2455,42 @@ func TestComponentCheckWithContextDeadline(t *testing.T) {
 	// Verify result
 	assert.NotNil(t, result)
 	// The check should still complete, but may have partial results
+}
+
+func TestCheckWhenContainerdCRINotEnabled(t *testing.T) {
+	// Create a component with mocked dependencies
+	c := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		// Mock containerd as installed
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		// Mock socket as existing
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		// Mock service as active
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		// Mock containerd as running
+		checkContainerdRunningFunc: func(context.Context) bool {
+			return true
+		},
+		// Mock listing sandboxes to return an Unimplemented error
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+			return nil, status.Error(codes.Unimplemented, "unknown service runtime.v1.RuntimeService")
+		},
+	}
+
+	// Call the Check method
+	cr := c.Check()
+
+	// Assert the result
+	checkResult, ok := cr.(*checkResult)
+	assert.True(t, ok, "Expected checkResult type")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+	assert.Equal(t, "containerd installed and active but containerd CRI is not enabled", checkResult.reason)
 }

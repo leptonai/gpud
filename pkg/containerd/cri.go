@@ -6,13 +6,17 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
+	"regexp"
 	"sort"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
@@ -201,8 +205,8 @@ func CheckContainerdRunning(ctx context.Context) bool {
 	return false
 }
 
-// CheckVersion checks the version of the containerd runtime.
-func CheckVersion(ctx context.Context, endpoint string) (string, error) {
+// GetVersion gets the version of the containerd runtime.
+func GetVersion(ctx context.Context, endpoint string) (string, error) {
 	conn, err := connect(ctx, endpoint)
 	if err != nil {
 		return "", err
@@ -213,10 +217,44 @@ func CheckVersion(ctx context.Context, endpoint string) (string, error) {
 	runtimeClient := runtimeapi.NewRuntimeServiceClient(conn)
 	version, err := runtimeClient.Version(ctx, &runtimeapi.VersionRequest{})
 	if err != nil {
-		return "", err
+		if !IsErrUnimplemented(err) {
+			return "", err
+		}
+		return GetVersionFromCli(ctx)
 	}
 
 	return version.RuntimeVersion, nil
+}
+
+// GetVersionFromCli reads the containerd version from the command "containerd --version".
+// e.g.,
+// "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
+func GetVersionFromCli(ctx context.Context) (string, error) {
+	containerdPath, err := pkgfile.LocateExecutable("containerd")
+	if err != nil {
+		return "", err
+	}
+
+	out, err := exec.CommandContext(ctx, containerdPath, "--version").Output()
+	if err != nil {
+		return "", err
+	}
+	return parseContainerdVersion(string(out))
+}
+
+// only matches "1.7.25" when "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
+const regexContainerdVersion = `\s+(\d+\.\d+\.\d+)(?:\s+|$)`
+
+var reContainerdVersion = regexp.MustCompile(regexContainerdVersion)
+
+// parseContainerdVersion parses the containerd version from the output of "containerd --version".
+// Returns "1.7.25" when given the input "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb".
+func parseContainerdVersion(out string) (string, error) {
+	matches := reContainerdVersion.FindStringSubmatch(out)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("invalid containerd version output: %s", out)
+	}
+	return matches[1], nil
 }
 
 // ListAllSandboxes lists all sandboxes from the containerd runtime.
@@ -326,4 +364,15 @@ type PodSandboxContainerStatus struct {
 	Image     string `json:"image,omitempty"`
 	CreatedAt int64  `json:"created_at,omitempty"`
 	State     string `json:"state,omitempty"`
+}
+
+// IsErrUnimplemented checks if the error is due to the unimplemented service.
+// e.g.,
+// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
+func IsErrUnimplemented(err error) bool {
+	st, ok := status.FromError(err)
+	if ok {
+		return st.Code() == codes.Unimplemented
+	}
+	return false
 }
