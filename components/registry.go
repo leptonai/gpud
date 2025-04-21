@@ -43,12 +43,24 @@ type Registry interface {
 	// It panics if the initialization function returns an error.
 	MustRegister(initFunc InitFunc)
 
+	// Register registers a component with the given initialization function.
+	// It returns an error if the component is already registered.
+	// It returns an error if the initialization function returns an error.
+	Register(initFunc InitFunc) (Component, error)
+
 	// All returns all registered components.
 	All() []Component
 
 	// Get returns a component by name.
 	// It returns nil if the component is not registered.
 	Get(name string) Component
+
+	// Deregister deregisters a component by name, and returns the
+	// underlying component if it is registered.
+	// It returns nil if the component is not registered.
+	// Meaning, it is safe to call it multiple times,
+	// and it is also safe to call it with a non-registered name.
+	Deregister(name string) Component
 }
 
 var _ Registry = &registry{}
@@ -71,9 +83,28 @@ func NewRegistry(gpudInstance *GPUdInstance) Registry {
 // It panics if the component is already registered.
 // It panics if the initialization function returns an error.
 func (r *registry) MustRegister(initFunc InitFunc) {
-	if err := r.registerInit(initFunc); err != nil {
+	if _, err := r.Register(initFunc); err != nil {
 		panic(err)
 	}
+}
+
+// registerInit registers an initialization function for a component with the given name.
+func (r *registry) Register(initFunc InitFunc) (Component, error) {
+	c, err := initFunc(r.gpudInstance)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.hasRegistered(c.Name()) {
+		return nil, fmt.Errorf("component %s already registered", c.Name())
+	}
+	gpudmetrics.SetRegistered(c.Name())
+
+	r.mu.Lock()
+	r.components[c.Name()] = c
+	r.mu.Unlock()
+
+	return c, nil
 }
 
 // hasRegistered checks if a component with the given name is already registered.
@@ -83,25 +114,6 @@ func (r *registry) hasRegistered(name string) bool {
 
 	_, ok := r.components[name]
 	return ok
-}
-
-// registerInit registers an initialization function for a component with the given name.
-func (r *registry) registerInit(initFunc InitFunc) error {
-	c, err := initFunc(r.gpudInstance)
-	if err != nil {
-		return err
-	}
-
-	if r.hasRegistered(c.Name()) {
-		return fmt.Errorf("component %s already registered", c.Name())
-	}
-	gpudmetrics.SetRegistered(c.Name())
-
-	r.mu.Lock()
-	r.components[c.Name()] = c
-	r.mu.Unlock()
-
-	return nil
 }
 
 // All returns all registered components.
@@ -130,4 +142,15 @@ func (r *registry) Get(name string) Component {
 	defer r.mu.RUnlock()
 
 	return r.components[name]
+}
+
+func (r *registry) Deregister(name string) Component {
+	r.mu.Lock()
+	c := r.components[name]
+	if c != nil {
+		delete(r.components, name)
+	}
+	r.mu.Unlock()
+
+	return c
 }

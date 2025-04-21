@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,17 +103,17 @@ func TestRegisterInitFunc(t *testing.T) {
 	reg := r.(*registry)
 
 	// Test registering a component successfully
-	err := reg.registerInit(mockInitFuncSuccess)
+	_, err := reg.Register(mockInitFuncSuccess)
 	assert.NoError(t, err)
 	assert.True(t, reg.hasRegistered("test-component"))
 
 	// Test registering a component that already exists
-	err = reg.registerInit(mockInitFuncSuccess)
+	_, err = reg.Register(mockInitFuncSuccess)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already registered")
 
 	// Test registering a component with an initialization function that returns an error
-	err = reg.registerInit(mockInitFuncError)
+	_, err = reg.Register(mockInitFuncError)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "mock init error")
 
@@ -265,4 +266,173 @@ func TestNewRegistry(t *testing.T) {
 	// Check that the components map is initialized and empty
 	assert.NotNil(t, reg.components)
 	assert.Empty(t, reg.components)
+}
+
+func TestDeregister(t *testing.T) {
+	// Create a new registry
+	r := NewRegistry(&GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	reg := r.(*registry)
+
+	// Test deregistering a component that doesn't exist
+	component := r.Deregister("non-existent")
+	assert.Nil(t, component, "Expected nil for deregistering non-existent component")
+
+	// Register components for testing
+	compA := newMockComponent("comp-a")
+	compB := newMockComponent("comp-b")
+	reg.mu.Lock()
+	reg.components["comp-a"] = compA
+	reg.components["comp-b"] = compB
+	reg.mu.Unlock()
+
+	// Test deregistering an existing component
+	component = r.Deregister("comp-a")
+	assert.NotNil(t, component, "Expected non-nil for deregistering existing component")
+	assert.Equal(t, "comp-a", component.Name())
+
+	// Verify component was removed
+	assert.Nil(t, r.Get("comp-a"), "Component should be removed after deregistering")
+	assert.NotNil(t, r.Get("comp-b"), "Other component should remain registered")
+
+	// Test deregistering the same component again (should be safe)
+	component = r.Deregister("comp-a")
+	assert.Nil(t, component, "Expected nil for deregistering already removed component")
+}
+
+func TestRegisterMetrics(t *testing.T) {
+	// Create a new registry
+	r := NewRegistry(&GPUdInstance{
+		RootCtx: context.Background(),
+	})
+
+	// Create a test component registration function
+	compName := "metrics-test-component"
+	initFunc := func(instance *GPUdInstance) (Component, error) {
+		return newMockComponent(compName), nil
+	}
+
+	// Register the component
+	_, err := r.(*registry).Register(initFunc)
+	assert.NoError(t, err)
+
+	// Verify the component was registered in metrics
+	// This is a basic verification that the code path is executed
+	// A more thorough test would need to mock the metrics package
+	assert.True(t, r.(*registry).hasRegistered(compName))
+}
+
+func TestConcurrentRegistryOperations(t *testing.T) {
+	// Create a new registry
+	r := NewRegistry(&GPUdInstance{
+		RootCtx: context.Background(),
+	})
+
+	// Number of concurrent operations
+	concurrency := 10
+
+	// Use wait groups to coordinate goroutines
+	var wg sync.WaitGroup
+	wg.Add(concurrency * 3) // register, get, and deregister operations
+
+	// Create a unique component for each goroutine
+	for i := 0; i < concurrency; i++ {
+		compName := fmt.Sprintf("concurrent-comp-%d", i)
+
+		// Test concurrent registration
+		go func(name string) {
+			defer wg.Done()
+			initFunc := func(instance *GPUdInstance) (Component, error) {
+				return newMockComponent(name), nil
+			}
+			_, err := r.(*registry).Register(initFunc)
+			assert.NoError(t, err)
+		}(compName)
+
+		// Test concurrent get operations
+		go func(name string) {
+			defer wg.Done()
+			// Try getting the component multiple times
+			for j := 0; j < 5; j++ {
+				comp := r.Get(name)
+				if comp != nil {
+					assert.Equal(t, name, comp.Name())
+				}
+				// Small sleep to increase likelihood of concurrent access
+				time.Sleep(time.Millisecond)
+			}
+		}(compName)
+
+		// Test concurrent deregistration
+		go func(name string) {
+			defer wg.Done()
+			// Wait a bit to ensure the component has time to be registered
+			time.Sleep(5 * time.Millisecond)
+			comp := r.Deregister(name)
+			if comp != nil {
+				assert.Equal(t, name, comp.Name())
+			}
+		}(compName)
+	}
+
+	// Wait for all operations to complete
+	wg.Wait()
+
+	// Verify final state
+	// Some components may or may not be registered depending on the race between
+	// registration and deregistration
+	components := r.All()
+	t.Logf("Final number of components: %d", len(components))
+}
+
+func TestRegistryErrorCases(t *testing.T) {
+	// Create a new registry
+	r := NewRegistry(&GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	reg := r.(*registry)
+
+	// Test case 1: Init function returns error
+	errorMsg := "initialization failed error"
+	initFuncWithError := func(instance *GPUdInstance) (Component, error) {
+		return nil, fmt.Errorf("%s", errorMsg)
+	}
+
+	_, err := reg.Register(initFuncWithError)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), errorMsg)
+
+	// Test case 2: Duplicate component registration
+	compName := "duplicate-component"
+	initFunc := func(instance *GPUdInstance) (Component, error) {
+		return newMockComponent(compName), nil
+	}
+
+	// First registration should succeed
+	_, err = reg.Register(initFunc)
+	assert.NoError(t, err)
+	assert.True(t, reg.hasRegistered(compName))
+
+	// Second registration with same name should fail
+	_, err = reg.Register(initFunc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already registered")
+
+	// Test case 3: Check that MustRegister panics with appropriate error message
+	panicked := false
+	panicMsg := ""
+
+	defer func() {
+		if r := recover(); r != nil {
+			panicked = true
+			panicMsg = fmt.Sprintf("%v", r)
+		}
+	}()
+
+	r.MustRegister(initFunc)
+
+	// Verify panic occurred with expected message
+	assert.True(t, panicked, "MustRegister should have panicked")
+	assert.Contains(t, panicMsg, "already registered")
 }

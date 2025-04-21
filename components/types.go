@@ -47,6 +47,14 @@ type Component interface {
 	Close() error
 }
 
+// Deregisterable is an interface that allows a custom plugin to be deregistered.
+// By default, the regular/built-in components are not allowed to be deregistered,
+// unless it implements this interface.
+type Deregisterable interface {
+	// CanDeregister returns true if the custom plugin can be deregistered.
+	CanDeregister() bool
+}
+
 // HealthSettable is an optional interface that can be implemented by components
 // to allow setting the health state.
 type HealthSettable interface {
