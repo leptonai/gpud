@@ -147,6 +147,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
 	}
+
 	if !c.nvmlInstance.FabricManagerSupported() {
 		cr.FabricManagerActive = false
 		cr.health = apiv1.HealthStateTypeHealthy
