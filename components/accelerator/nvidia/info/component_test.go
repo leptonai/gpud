@@ -73,6 +73,11 @@ func (m *MockNVMLInstanceV2) Brand() string {
 	return args.String(0)
 }
 
+func (m *MockNVMLInstanceV2) FabricManagerSupported() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 func (m *MockNVMLInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	args := m.Called()
 	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)

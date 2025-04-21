@@ -32,6 +32,10 @@ func (m *MockNvmlInstance) Devices() map[string]device.Device {
 	return nil
 }
 
+func (m *MockNvmlInstance) FabricManagerSupported() bool {
+	return true
+}
+
 func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{
 		ErrorContainment:     true,

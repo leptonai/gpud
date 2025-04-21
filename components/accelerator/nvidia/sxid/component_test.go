@@ -732,6 +732,10 @@ func (m *MockNVMLInstance) CUDAVersion() string {
 	return "test-cuda-version"
 }
 
+func (m *MockNVMLInstance) FabricManagerSupported() bool {
+	return true
+}
+
 func (m *MockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

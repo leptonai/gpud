@@ -19,53 +19,57 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// mockInstanceV2 implements the nvidianvml.Instance interface for testing
-type mockInstanceV2 struct {
+// mockInstance implements the nvidianvml.Instance interface for testing
+type mockInstance struct {
 	devices    map[string]device.Device
 	nvmlExists bool
 }
 
-func (m *mockInstanceV2) NVMLExists() bool {
+func (m *mockInstance) NVMLExists() bool {
 	return m.nvmlExists
 }
 
-func (m *mockInstanceV2) Library() nvmllib.Library {
+func (m *mockInstance) Library() nvmllib.Library {
 	return nil
 }
 
-func (m *mockInstanceV2) Devices() map[string]device.Device {
+func (m *mockInstance) Devices() map[string]device.Device {
 	return m.devices
 }
 
-func (m *mockInstanceV2) ProductName() string {
+func (m *mockInstance) ProductName() string {
 	return "test-product"
 }
 
-func (m *mockInstanceV2) Architecture() string {
+func (m *mockInstance) Architecture() string {
 	return "test-architecture"
 }
 
-func (m *mockInstanceV2) Brand() string {
+func (m *mockInstance) Brand() string {
 	return "test-brand"
 }
 
-func (m *mockInstanceV2) DriverVersion() string {
+func (m *mockInstance) DriverVersion() string {
 	return "test-driver-version"
 }
 
-func (m *mockInstanceV2) DriverMajor() int {
+func (m *mockInstance) DriverMajor() int {
 	return 1
 }
 
-func (m *mockInstanceV2) CUDAVersion() string {
+func (m *mockInstance) CUDAVersion() string {
 	return "test-cuda-version"
 }
 
-func (m *mockInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockInstance) FabricManagerSupported() bool {
+	return true
+}
+
+func (m *mockInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *mockInstanceV2) Shutdown() error {
+func (m *mockInstance) Shutdown() error {
 	return nil
 }
 
@@ -226,7 +230,7 @@ func TestNew(t *testing.T) {
 	mockDevices := map[string]device.Device{
 		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
 	}
-	mockInstance := &mockInstanceV2{
+	mockInstance := &mockInstance{
 		devices:    mockDevices,
 		nvmlExists: true,
 	}
@@ -254,7 +258,7 @@ func TestComponent_Start(t *testing.T) {
 	mockDevices := map[string]device.Device{
 		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
 	}
-	mockInstance := &mockInstanceV2{
+	mockInstance := &mockInstance{
 		devices:    mockDevices,
 		nvmlExists: true,
 	}
@@ -323,7 +327,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 	// Test successful case
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockInstanceV2{
+		nvmlInstance: &mockInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
@@ -353,7 +357,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 	testErr := errors.New("test error")
 	c = &component{
 		ctx: ctx,
-		nvmlInstance: &mockInstanceV2{
+		nvmlInstance: &mockInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
@@ -396,7 +400,7 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 	ctx := context.Background()
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockInstanceV2{
+		nvmlInstance: &mockInstance{
 			nvmlExists: false,
 		},
 	}
@@ -429,7 +433,7 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockInstanceV2{
+		nvmlInstance: &mockInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},

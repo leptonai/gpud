@@ -43,6 +43,9 @@ type Instance interface {
 	// CUDAVersion returns the CUDA version of the GPU.
 	CUDAVersion() string
 
+	// FabricManagerSupported returns true if the fabric manager is supported.
+	FabricManagerSupported() bool
+
 	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
 
@@ -120,20 +123,23 @@ func New() (Instance, error) {
 			dm[uuid] = dev
 		}
 	}
+
+	fmSupported := SupportedFMByGPUProduct(productName)
 	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instance{
-		nvmlLib:       nvmlLib,
-		nvmlExists:    nvmlExists,
-		nvmlExistsMsg: nvmlExistsMsg,
-		driverVersion: driverVersion,
-		driverMajor:   driverMajor,
-		cudaVersion:   cudaVersion,
-		devices:       dm,
-		productName:   productName,
-		architecture:  architecture,
-		brand:         brand,
-		memMgmtCaps:   memMgmtCaps,
+		nvmlLib:            nvmlLib,
+		nvmlExists:         nvmlExists,
+		nvmlExistsMsg:      nvmlExistsMsg,
+		driverVersion:      driverVersion,
+		driverMajor:        driverMajor,
+		cudaVersion:        cudaVersion,
+		devices:            dm,
+		productName:        productName,
+		architecture:       architecture,
+		brand:              brand,
+		fabricMgrSupported: fmSupported,
+		memMgmtCaps:        memMgmtCaps,
 	}, nil
 }
 
@@ -155,7 +161,8 @@ type instance struct {
 	architecture string
 	brand        string
 
-	memMgmtCaps MemoryErrorManagementCapabilities
+	fabricMgrSupported bool
+	memMgmtCaps        MemoryErrorManagementCapabilities
 }
 
 func (inst *instance) NVMLExists() bool {
@@ -194,6 +201,10 @@ func (inst *instance) CUDAVersion() string {
 	return inst.cudaVersion
 }
 
+func (inst *instance) FabricManagerSupported() bool {
+	return inst.fabricMgrSupported
+}
+
 func (inst *instance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return inst.memMgmtCaps
 }
@@ -223,6 +234,7 @@ func (inst *noOpInstance) Brand() string                     { return "" }
 func (inst *noOpInstance) DriverVersion() string             { return "" }
 func (inst *noOpInstance) DriverMajor() int                  { return 0 }
 func (inst *noOpInstance) CUDAVersion() string               { return "" }
+func (inst *noOpInstance) FabricManagerSupported() bool      { return false }
 func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return MemoryErrorManagementCapabilities{}
 }

@@ -65,6 +65,10 @@ func (m *MockNvmlInstance) CUDAVersion() string {
 	return ""
 }
 
+func (m *MockNvmlInstance) FabricManagerSupported() bool {
+	return true
+}
+
 func (m *MockNvmlInstance) NVMLExists() bool {
 	return m.nvmlExists
 }
