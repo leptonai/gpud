@@ -27,23 +27,32 @@ func DefaultBinExists() bool {
 
 // CreateDefaultEnvFile creates the default environment file for gpud systemd service.
 // Assume systemdctl is already installed, and runs on the linux system.
-func CreateDefaultEnvFile() error {
-	return writeEnvFile(DefaultEnvFile)
+func CreateDefaultEnvFile(endpoint string) error {
+	return writeEnvFile(DefaultEnvFile, endpoint)
 }
 
 const defaultEnvFileContent = `# gpud environment variables are set here
 FLAGS="--log-level=info --log-file=/var/log/gpud.log"
 `
 
-func writeEnvFile(file string) error {
-	if _, err := os.Stat(file); err == nil {
-		return addLogFileFlagIfExists(file)
+func createDefaultEnvFileContent(endpoint string) string {
+	if endpoint == "" {
+		return defaultEnvFileContent
 	}
-	return atomicfile.WriteFile(file, []byte(defaultEnvFileContent), 0644)
+	return fmt.Sprintf(`# gpud environment variables are set here
+FLAGS="--log-level=info --log-file=/var/log/gpud.log --endpoint=%s"
+`, endpoint)
 }
 
-func addLogFileFlagIfExists(file string) error {
-	lines, err := processEnvFileLines(file)
+func writeEnvFile(file string, endpoint string) error {
+	if _, err := os.Stat(file); err == nil {
+		return updateFlagsFromExistingEnvFile(file, endpoint)
+	}
+	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint)), 0644)
+}
+
+func updateFlagsFromExistingEnvFile(file string, endpoint string) error {
+	lines, err := processEnvFileLines(file, endpoint)
 	if err != nil {
 		return err
 	}
@@ -52,7 +61,7 @@ func addLogFileFlagIfExists(file string) error {
 
 // processEnvFileLines reads all lines from the environment file and processes each line,
 // adding the log-file flag to the FLAGS variable if it doesn't already exist.
-func processEnvFileLines(file string) ([]string, error) {
+func processEnvFileLines(file string, endpoint string) ([]string, error) {
 	readFile, err := os.OpenFile(file, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
@@ -70,15 +79,22 @@ func processEnvFileLines(file string) ([]string, error) {
 			continue
 		}
 
-		// FLAGS already contains --log-file flag
-		if strings.Contains(line, "--log-file=") {
+		// FLAGS already contains --log-file flag and --endpoint flag
+		if strings.Contains(line, "--log-file=") && (endpoint != "" && strings.Contains(line, "--endpoint=")) {
 			lines = append(lines, line)
 			continue
 		}
 
 		// remove the trailing " character
 		line = strings.TrimSuffix(line, "\"")
-		line = fmt.Sprintf("%s --log-file=/var/log/gpud.log\"", line)
+
+		if !strings.Contains(line, "--log-file=") {
+			line = fmt.Sprintf("%s --log-file=/var/log/gpud.log\"", line)
+		}
+
+		if endpoint != "" && !strings.Contains(line, "--endpoint=") {
+			line = fmt.Sprintf("%s --endpoint=%s\"", line, endpoint)
+		}
 
 		lines = append(lines, line)
 	}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
@@ -67,5 +68,10 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 
 // createURL creates a URL for the login endpoint
 func createURL(endpoint string) string {
-	return fmt.Sprintf("https://%s/api/v1/login", endpoint)
+	host := endpoint
+	url, _ := url.Parse(endpoint)
+	if url.Host != "" {
+		host = url.Host
+	}
+	return fmt.Sprintf("https://%s/api/v1/login", host)
 }

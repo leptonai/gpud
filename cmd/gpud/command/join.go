@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 func cmdJoin(cliContext *cli.Context) (retErr error) {
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
+
 	endpoint := cliContext.String("endpoint")
 	clusterName := cliContext.String("cluster-name")
 	provider := cliContext.String("provider")
@@ -174,7 +176,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 	}
 	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
-	response, err := http.Post(fmt.Sprintf("%s/api/v1/join", endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
@@ -290,4 +292,14 @@ func runCommand(ctx context.Context, script string, result *string) error {
 		return err
 	}
 	return nil
+}
+
+// createJoinURL creates a URL for the join endpoint
+func createJoinURL(endpoint string) string {
+	host := endpoint
+	url, _ := url.Parse(endpoint)
+	if url.Host != "" {
+		host = url.Host
+	}
+	return fmt.Sprintf("https://%s/api/v1/join", host)
 }

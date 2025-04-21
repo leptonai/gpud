@@ -19,6 +19,7 @@ func TestCreateURL(t *testing.T) {
 		endpoint string
 		expected string
 	}{
+		{"https://example.com", "https://example.com/api/v1/login"},
 		{"example.com", "https://example.com/api/v1/login"},
 		{"api.leptonai.com", "https://api.leptonai.com/api/v1/login"},
 	}
