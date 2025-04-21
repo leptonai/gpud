@@ -94,12 +94,12 @@ func MockMemoryComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockNvmlInstance := &MockNvmlInstance{}
+	mockNVMLInstance := &MockNvmlInstance{}
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:      ctx,
-		NVMLInstance: mockNvmlInstance,
+		NVMLInstance: mockNVMLInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -138,7 +138,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -168,7 +168,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		return memory, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
 	result := component.Check()
 
 	// Verify the data was collected
@@ -197,7 +197,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -209,7 +209,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 		return nvidianvml.Memory{}, errExpected
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
 	result := component.Check()
 
 	// Verify error handling
@@ -225,14 +225,14 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 func TestCheckOnce_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{} // Empty map
 		},
 		nvmlExists: true,
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, nil).(*component)
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -260,7 +260,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -283,7 +283,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		return invalidMemory, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, getMemoryFunc).(*component)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
 	result := component.Check()
 
 	// Verify error handling for GetUsedPercent failure
@@ -388,7 +388,7 @@ func TestStart(t *testing.T) {
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			callCount.Add(1)
 			return map[string]device.Device{}
@@ -396,7 +396,7 @@ func TestStart(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, nil)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, nil)
 
 	// Start should be non-blocking
 	err := component.Start()
@@ -652,14 +652,14 @@ func TestCheckOnce_NvmlNotExists(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a mock NVML instance where NVMLExists returns false
-	mockNvmlInstance := &MockNvmlInstance{
+	mockNVMLInstance := &MockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{}
 		},
 		nvmlExists: false,
 	}
 
-	component := MockMemoryComponent(ctx, mockNvmlInstance, nil).(*component)
+	component := MockMemoryComponent(ctx, mockNVMLInstance, nil).(*component)
 	result := component.Check()
 
 	// Verify data when NVML doesn't exist

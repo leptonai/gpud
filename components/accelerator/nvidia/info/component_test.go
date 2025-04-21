@@ -23,67 +23,67 @@ import (
 // Ensure we have access to the New function - it should be in the same package
 var _ = New
 
-// MockNVMLInstanceV2 implements nvml.InstanceV2 for testing
-type MockNVMLInstanceV2 struct {
+// mockNVMLInstance implements nvml.InstanceV2 for testing
+type mockNVMLInstance struct {
 	testifymock.Mock
 }
 
-func (m *MockNVMLInstanceV2) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	args := m.Called()
 	return args.Bool(0)
 }
 
-func (m *MockNVMLInstanceV2) Library() nvmllib.Library {
+func (m *mockNVMLInstance) Library() nvmllib.Library {
 	args := m.Called()
 	return args.Get(0).(nvmllib.Library)
 }
 
-func (m *MockNVMLInstanceV2) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	args := m.Called()
 	return args.Get(0).(map[string]device.Device)
 }
 
-func (m *MockNVMLInstanceV2) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) Architecture() string {
+func (m *mockNVMLInstance) Architecture() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) DriverVersion() string {
+func (m *mockNVMLInstance) DriverVersion() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) DriverMajor() int {
+func (m *mockNVMLInstance) DriverMajor() int {
 	args := m.Called()
 	return args.Int(0)
 }
 
-func (m *MockNVMLInstanceV2) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) Brand() string {
+func (m *mockNVMLInstance) Brand() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockNVMLInstanceV2) FabricManagerSupported() bool {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	args := m.Called()
 	return args.Bool(0)
 }
 
-func (m *MockNVMLInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	args := m.Called()
 	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)
 }
 
-func (m *MockNVMLInstanceV2) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	args := m.Called()
 	return args.Error(0)
 }
@@ -113,7 +113,7 @@ type ExtendedComponent struct {
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
@@ -126,7 +126,7 @@ func TestNew(t *testing.T) {
 
 func TestComponent_Start(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	// Setup all required mock expectations
 	mockInstance.On("NVMLExists").Return(true).Maybe()
@@ -159,7 +159,7 @@ func TestComponent_Start(t *testing.T) {
 
 func TestComponent_Close(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	// Setup all required mock expectations
 	mockInstance.On("NVMLExists").Return(true).Maybe()
@@ -196,7 +196,7 @@ func TestComponent_Close(t *testing.T) {
 
 func TestComponent_States_NoData(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
@@ -216,7 +216,7 @@ func TestComponent_States_NoData(t *testing.T) {
 
 func TestComponent_States_WithData(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
@@ -246,7 +246,7 @@ func TestComponent_States_WithData(t *testing.T) {
 
 func TestComponent_States_Unhealthy(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
@@ -271,7 +271,7 @@ func TestComponent_States_Unhealthy(t *testing.T) {
 
 func TestComponent_Events(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
 
@@ -286,7 +286,7 @@ func TestComponent_Events(t *testing.T) {
 
 func TestCheckOnce_Success(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("Devices").Return(make(map[string]device.Device))
 	mockInstance.On("DriverVersion").Return("530.82.01")
@@ -322,7 +322,7 @@ func TestCheckOnce_Success(t *testing.T) {
 
 func TestCheckOnce_WithDevices(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 
 	// Create mock device with proper architecture and brand methods
@@ -401,7 +401,7 @@ func TestCheckOnce_WithDevices(t *testing.T) {
 
 func TestCheckOnce_MemoryError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 
 	// Create mock device with proper architecture and brand methods
@@ -462,7 +462,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 
 func TestCheckOnce_ProductNameError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("ProductName").Return("NVIDIA A100")
 	mockInstance.On("DriverVersion").Return("530.82.01")
@@ -527,7 +527,7 @@ func TestCheckOnce_ProductNameError(t *testing.T) {
 
 func TestCheckOnce_ArchitectureError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 
 	// Create mock device with proper architecture and brand methods
@@ -584,7 +584,7 @@ func TestCheckOnce_ArchitectureError(t *testing.T) {
 
 func TestCheckOnce_BrandError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 
 	// Create mock device with proper architecture and brand methods
@@ -641,7 +641,7 @@ func TestCheckOnce_BrandError(t *testing.T) {
 
 func TestCheckOnce_DriverVersionError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("DriverVersion").Return("")
 	mockInstance.On("ProductName").Return("NVIDIA A100")
@@ -665,7 +665,7 @@ func TestCheckOnce_DriverVersionError(t *testing.T) {
 
 func TestCheckOnce_EmptyDriverVersion(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("DriverVersion").Return("")
 	mockInstance.On("ProductName").Return("NVIDIA A100")
@@ -689,7 +689,7 @@ func TestCheckOnce_EmptyDriverVersion(t *testing.T) {
 
 func TestCheckOnce_CUDAVersionError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("DriverVersion").Return("530.82.01")
 	mockInstance.On("CUDAVersion").Return("")
@@ -714,7 +714,7 @@ func TestCheckOnce_CUDAVersionError(t *testing.T) {
 
 func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("DriverVersion").Return("530.82.01")
 	mockInstance.On("CUDAVersion").Return("")
@@ -739,7 +739,7 @@ func TestCheckOnce_EmptyCUDAVersion(t *testing.T) {
 
 func TestCheckOnce_DeviceCountError(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 	mockInstance.On("NVMLExists").Return(true)
 	mockInstance.On("DriverVersion").Return("530.82.01")
 	mockInstance.On("CUDAVersion").Return("12.7")
@@ -878,7 +878,7 @@ func TestCheckOnce_NilNVMLInstance(t *testing.T) {
 
 func TestCheckOnce_NVMLNotExists(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := new(MockNVMLInstanceV2)
+	mockInstance := new(mockNVMLInstance)
 
 	// Mock the NVMLExists method to return false
 	mockInstance.On("NVMLExists").Return(false)

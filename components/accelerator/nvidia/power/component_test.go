@@ -24,74 +24,74 @@ import (
 // MockPowerComponent creates a component with mocked functions for testing
 func MockPowerComponent(
 	ctx context.Context,
-	mockNvmlInstance *mockNvmlInstance,
+	mockNVMLInstance *mockNVMLInstance,
 	getPowerFunc func(uuid string, dev device.Device) (nvidianvml.Power, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
 		ctx:          cctx,
 		cancel:       cancel,
-		nvmlInstance: mockNvmlInstance,
+		nvmlInstance: mockNVMLInstance,
 		getPowerFunc: getPowerFunc,
 	}
 }
 
-// mockNvmlInstance implements InstanceV2 interface for testing
-type mockNvmlInstance struct {
+// mockNVMLInstance implements InstanceV2 interface for testing
+type mockNVMLInstance struct {
 	devices map[string]device.Device
 }
 
-func (m *mockNvmlInstance) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *mockNvmlInstance) Library() nvml_lib.Library {
+func (m *mockNVMLInstance) Library() nvml_lib.Library {
 	return nil
 }
 
-func (m *mockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	return m.devices
 }
 
-func (m *mockNvmlInstance) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	return "Test GPU"
 }
 
-func (m *mockNvmlInstance) Architecture() string {
+func (m *mockNVMLInstance) Architecture() string {
 	return ""
 }
 
-func (m *mockNvmlInstance) Brand() string {
+func (m *mockNVMLInstance) Brand() string {
 	return ""
 }
 
-func (m *mockNvmlInstance) DriverVersion() string {
+func (m *mockNVMLInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *mockNvmlInstance) DriverMajor() int {
+func (m *mockNVMLInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *mockNvmlInstance) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *mockNvmlInstance) FabricManagerSupported() bool {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
-func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *mockNvmlInstance) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &mockNvmlInstance{devices: make(map[string]device.Device)}
+	mockInstance := &mockNVMLInstance{devices: make(map[string]device.Device)}
 
 	// Create a mock GPUdInstance
 	gpudInstance := &components.GPUdInstance{
@@ -135,7 +135,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvml := &mockNvmlInstance{
+	mockNvml := &mockNVMLInstance{
 		devices: devs,
 	}
 
@@ -182,7 +182,7 @@ func TestCheckOnce_PowerError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvml := &mockNvmlInstance{
+	mockNvml := &mockNVMLInstance{
 		devices: devs,
 	}
 
@@ -206,7 +206,7 @@ func TestCheckOnce_PowerError(t *testing.T) {
 func TestCheckOnce_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
-	mockNvml := &mockNvmlInstance{
+	mockNvml := &mockNVMLInstance{
 		devices: map[string]device.Device{}, // Empty map
 	}
 
@@ -237,7 +237,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNvml := &mockNvmlInstance{
+	mockNvml := &mockNVMLInstance{
 		devices: devs,
 	}
 
@@ -359,7 +359,7 @@ func TestStart(t *testing.T) {
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
-	mockNvml := &mockNvmlInstance{
+	mockNvml := &mockNVMLInstance{
 		devices: map[string]device.Device{
 			"gpu-uuid-123": testutil.NewMockDevice(nil, "test-arch", "test-brand", "test-cuda", "test-pci"),
 		},

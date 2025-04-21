@@ -105,14 +105,14 @@ func MockUtilizationComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockNvmlInstance := &mockInstance{
+	mockNVMLInstance := &mockInstance{
 		devices: map[string]device.Device{},
 	}
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:      ctx,
-		NVMLInstance: mockNvmlInstance,
+		NVMLInstance: mockNVMLInstance,
 	}
 
 	c, err := New(gpudInstance)

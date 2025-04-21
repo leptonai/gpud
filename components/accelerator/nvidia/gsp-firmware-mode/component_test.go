@@ -20,59 +20,59 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvidianvml.Instance interface for testing
-type MockNvmlInstance struct {
+// mockNVMLInstance implements the nvidianvml.Instance interface for testing
+type mockNVMLInstance struct {
 	devicesFunc func() map[string]device.Device
 }
 
-func (m *MockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	if m.devicesFunc != nil {
 		return m.devicesFunc()
 	}
 	return nil
 }
 
-func (m *MockNvmlInstance) FabricManagerSupported() bool {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *MockNvmlInstance) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
-func (m *MockNvmlInstance) Architecture() string {
+func (m *mockNVMLInstance) Architecture() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) Brand() string {
+func (m *mockNVMLInstance) Brand() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverVersion() string {
+func (m *mockNVMLInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverMajor() int {
+func (m *mockNVMLInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *MockNvmlInstance) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) Library() nvml_lib.Library {
+func (m *mockNVMLInstance) Library() nvml_lib.Library {
 	return nil
 }
 
-func (m *MockNvmlInstance) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
@@ -84,7 +84,7 @@ func MockGSPFirmwareModeComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: devicesFunc,
 	}
 
@@ -98,7 +98,7 @@ func MockGSPFirmwareModeComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
 
