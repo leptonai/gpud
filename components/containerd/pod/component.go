@@ -160,7 +160,8 @@ func (c *component) Check() components.CheckResult {
 				// e.g.,
 				// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
 				if st.Code() == codes.Unimplemented {
-					cr.reason = "containerd didn't enable CRI"
+					cr.health = apiv1.HealthStateTypeHealthy
+					cr.reason = "containerd installed and active but containerd CRI is not enabled"
 				} else {
 					cr.reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
 				}

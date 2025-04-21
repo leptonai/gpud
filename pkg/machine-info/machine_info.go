@@ -41,7 +41,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error)
 	defer cancel()
 
 	if pkgcontainerd.CheckContainerdInstalled() && pkgcontainerd.CheckContainerdRunning(ctx) {
-		version, err := pkgcontainerd.CheckVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
+		version, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
 		if err != nil {
 			log.Logger.Warnw("failed to check containerd version", "error", err)
 		} else {

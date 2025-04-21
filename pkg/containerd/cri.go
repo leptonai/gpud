@@ -201,8 +201,8 @@ func CheckContainerdRunning(ctx context.Context) bool {
 	return false
 }
 
-// CheckVersion checks the version of the containerd runtime.
-func CheckVersion(ctx context.Context, endpoint string) (string, error) {
+// GetVersion gets the version of the containerd runtime.
+func GetVersion(ctx context.Context, endpoint string) (string, error) {
 	conn, err := connect(ctx, endpoint)
 	if err != nil {
 		return "", err
