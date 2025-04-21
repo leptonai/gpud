@@ -43,8 +43,8 @@ type component struct {
 	getIbstatOutputFunc func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error)
 	getThresholdsFunc   func() infiniband.ExpectedPortStates
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -100,9 +100,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -130,75 +130,75 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu infiniband")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML instance is nil"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML is not loaded"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
 	}
 	if c.getIbstatOutputFunc == nil {
-		d.reason = "ibstat checker not found"
-		d.health = apiv1.HealthStateTypeHealthy
-		return d
+		cr.reason = "ibstat checker not found"
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
 	}
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	d.IbstatOutput, d.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
+	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
 	ccancel()
-	if d.err != nil {
-		if errors.Is(d.err, infiniband.ErrNoIbstatCommand) {
-			d.reason = "ibstat command not found"
-			d.health = apiv1.HealthStateTypeHealthy
+	if cr.err != nil {
+		if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
+			cr.reason = "ibstat command not found"
+			cr.health = apiv1.HealthStateTypeHealthy
 		} else {
-			d.reason = fmt.Sprintf("ibstat command failed: %v", d.err)
-			d.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("ibstat command failed: %v", cr.err)
+			cr.health = apiv1.HealthStateTypeUnhealthy
 		}
-		return d
+		return cr
 	}
 
-	if d.IbstatOutput == nil {
-		d.reason = reasonMissingIbstatOutput
-		d.health = apiv1.HealthStateTypeHealthy
-		return d
+	if cr.IbstatOutput == nil {
+		cr.reason = reasonMissingIbstatOutput
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
 	}
 
 	// no event bucket, no need for timeseries data checks
 	// (e.g., "gpud scan" one-off checks)
 	if c.eventBucket == nil {
-		d.reason = reasonMissingEventBucket
-		d.health = apiv1.HealthStateTypeHealthy
-		return d
+		cr.reason = reasonMissingEventBucket
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
 	}
 
 	thresholds := c.getThresholdsFunc()
-	d.reason, d.health = evaluateIbstatOutputAgainstThresholds(d.IbstatOutput, thresholds)
+	cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
 
 	// we only care about unhealthy events, no need to persist healthy events
-	if d.health == apiv1.HealthStateTypeHealthy {
-		return d
+	if cr.health == apiv1.HealthStateTypeHealthy {
+		return cr
 	}
 
 	// now that event store/bucket is set
 	// now that ibstat output has some issues with its thresholds (unhealthy state)
 	// we persist such unhealthy state event
 	ev := apiv1.Event{
-		Time:    metav1.Time{Time: d.ts},
+		Time:    metav1.Time{Time: cr.ts},
 		Name:    "ibstat",
 		Type:    apiv1.EventTypeWarning,
-		Message: d.reason,
+		Message: cr.reason,
 
 		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
@@ -215,14 +215,14 @@ func (c *component) Check() components.CheckResult {
 	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
-		d.reason = fmt.Sprintf("failed to find ibstat event: %v", err)
-		d.health = apiv1.HealthStateTypeUnhealthy
-		return d
+		cr.reason = fmt.Sprintf("failed to find ibstat event: %v", err)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		return cr
 	}
 
 	// already exists, no need to insert
 	if found != nil {
-		return d
+		return cr
 	}
 
 	// insert event
@@ -230,12 +230,12 @@ func (c *component) Check() components.CheckResult {
 	err = c.eventBucket.Insert(cctx, ev)
 	ccancel()
 	if err != nil {
-		d.reason = fmt.Sprintf("failed to insert ibstat event: %v", err)
-		d.health = apiv1.HealthStateTypeUnhealthy
-		return d
+		cr.reason = fmt.Sprintf("failed to insert ibstat event: %v", err)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		return cr
 	}
 
-	return d
+	return cr
 }
 
 var (
@@ -262,9 +262,9 @@ func evaluateIbstatOutputAgainstThresholds(o *infiniband.IbstatOutput, threshold
 	return reasonNoIbIssueFound, apiv1.HealthStateTypeHealthy
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	IbstatOutput *infiniband.IbstatOutput `json:"ibstat_output"`
 
 	// timestamp of the last check
@@ -278,11 +278,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if d.IbstatOutput == nil {
+	if cr.IbstatOutput == nil {
 		return "no data"
 	}
 
@@ -290,7 +290,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"Port Name", "Port1 State", "Port1 Physical State", "Port1 Rate"})
-	for _, card := range d.IbstatOutput.Parsed {
+	for _, card := range cr.IbstatOutput.Parsed {
 		table.Append([]string{
 			card.Name,
 			card.Port1.State,
@@ -303,46 +303,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

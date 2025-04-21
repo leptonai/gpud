@@ -28,8 +28,8 @@ type component struct {
 	getAllModulesFunc func() ([]string, error)
 	modulesToCheck    []string
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -66,9 +66,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -86,50 +86,50 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking kernel modules")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
-	d.LoadedModules, d.err = c.getAllModulesFunc()
-	if d.err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting all modules: %v", d.err)
-		return d
+	cr.LoadedModules, cr.err = c.getAllModulesFunc()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting all modules: %v", cr.err)
+		return cr
 	}
 
-	if len(d.LoadedModules) > 0 {
-		d.loadedModules = make(map[string]struct{})
-		for _, module := range d.LoadedModules {
-			d.loadedModules[module] = struct{}{}
+	if len(cr.LoadedModules) > 0 {
+		cr.loadedModules = make(map[string]struct{})
+		for _, module := range cr.LoadedModules {
+			cr.loadedModules[module] = struct{}{}
 		}
 	}
 
 	missingModules := []string{}
 	for _, module := range c.modulesToCheck {
-		if _, ok := d.loadedModules[module]; !ok {
+		if _, ok := cr.loadedModules[module]; !ok {
 			missingModules = append(missingModules, module)
 		}
 	}
 	sort.Strings(missingModules)
 
 	if len(missingModules) == 0 {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "all modules are loaded"
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "all modules are loaded"
 	} else {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("missing modules: %q", missingModules)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("missing modules: %q", missingModules)
 	}
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	LoadedModules []string `json:"loaded_modules"`
 	loadedModules map[string]struct{}
 
@@ -144,58 +144,60 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
-	b, err := yaml.Marshal(d)
+	b, err := yaml.Marshal(cr)
 	if err != nil {
 		return fmt.Sprintf("error marshaling data: %v", err)
 	}
 	return string(b)
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

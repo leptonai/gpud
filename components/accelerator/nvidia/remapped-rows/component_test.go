@@ -452,9 +452,9 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	c.eventBucket = eventBucket // Ensure eventBucket is set directly
 
 	// Instead of trying to modify c.Check, which isn't assignable,
-	// we'll directly set the lastData to simulate an error condition
+	// we'll directly set the lastCheckResult to simulate an error condition
 	c.lastMu.Lock()
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		ProductName: "NVIDIA Test GPU",
 		MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
@@ -467,13 +467,13 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	c.lastMu.Unlock()
 
 	// Get the data directly
-	d := c.lastData
+	cr := c.lastCheckResult
 
 	// Verify the component's data contains the error
-	assert.NotNil(t, d.err, "Expected an error in the component's data")
-	assert.Contains(t, d.err.Error(), "nvml error")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.health, "Expected health state to be Unhealthy when error occurs")
-	assert.Contains(t, d.reason, "error getting remapped rows", "Reason should indicate error getting remapped rows")
+	assert.NotNil(t, cr.err, "Expected an error in the component's data")
+	assert.Contains(t, cr.err.Error(), "nvml error")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health, "Expected health state to be Unhealthy when error occurs")
+	assert.Contains(t, cr.reason, "error getting remapped rows", "Reason should indicate error getting remapped rows")
 
 	// Get the health states through the LastHealthStates method
 	states := c.LastHealthStates()
@@ -678,7 +678,7 @@ func TestComponentStates(t *testing.T) {
 
 			// Set the data directly
 			c.lastMu.Lock()
-			c.lastData = &Data{
+			c.lastCheckResult = &checkResult{
 				ProductName:                       "NVIDIA Test GPU",
 				MemoryErrorManagementCapabilities: getMemoryErrorManagementCapabilitiesFunc(),
 				RemappedRows:                      tt.remappedRows,
@@ -687,11 +687,11 @@ func TestComponentStates(t *testing.T) {
 
 			// Calculate the reason and health based on the data
 			if !tt.rowRemappingSupported {
-				c.lastData.health = apiv1.HealthStateTypeHealthy
-				c.lastData.reason = fmt.Sprintf("%q does not support row remapping", c.lastData.ProductName)
+				c.lastCheckResult.health = apiv1.HealthStateTypeHealthy
+				c.lastCheckResult.reason = fmt.Sprintf("%q does not support row remapping", c.lastCheckResult.ProductName)
 			} else if len(tt.remappedRows) == 0 {
-				c.lastData.health = apiv1.HealthStateTypeHealthy
-				c.lastData.reason = "no issue detected"
+				c.lastCheckResult.health = apiv1.HealthStateTypeHealthy
+				c.lastCheckResult.reason = "no issue detected"
 			} else {
 				issues := make([]string, 0)
 				for _, row := range tt.remappedRows {
@@ -704,11 +704,11 @@ func TestComponentStates(t *testing.T) {
 				}
 
 				if len(issues) > 0 {
-					c.lastData.health = apiv1.HealthStateTypeUnhealthy
-					c.lastData.reason = strings.Join(issues, ", ")
+					c.lastCheckResult.health = apiv1.HealthStateTypeUnhealthy
+					c.lastCheckResult.reason = strings.Join(issues, ", ")
 				} else {
-					c.lastData.health = apiv1.HealthStateTypeHealthy
-					c.lastData.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(tt.remappedRows))
+					c.lastCheckResult.health = apiv1.HealthStateTypeHealthy
+					c.lastCheckResult.reason = fmt.Sprintf("%d devices support remapped rows and found no issue", len(tt.remappedRows))
 				}
 			}
 			c.lastMu.Unlock()
@@ -771,7 +771,7 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	// Set error in the data
 	c.lastMu.Lock()
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		ProductName:                       "NVIDIA Test GPU",
 		MemoryErrorManagementCapabilities: getMemoryErrorManagementCapabilitiesFunc(),
 		RemappedRows:                      []nvml.RemappedRows{},
@@ -830,7 +830,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
 	// No need to access the underlying component in this test
-	// since we're just checking the default behavior when lastData is nil
+	// since we're just checking the default behavior when lastCheckResult is nil
 
 	// Get states and check default values
 	states := comp.(*component).LastHealthStates()
@@ -1181,7 +1181,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 
 	// Run the check
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	// Verify component state
@@ -1314,7 +1314,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 	// Test different data states
 	tests := []struct {
 		name                 string
-		data                 *Data
+		data                 *checkResult
 		expectedStringPrefix string
 		expectedSummary      string
 	}{
@@ -1326,7 +1326,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 		},
 		{
 			name: "Empty rows",
-			data: &Data{
+			data: &checkResult{
 				RemappedRows: []nvml.RemappedRows{},
 				reason:       "no issue detected",
 			},
@@ -1335,7 +1335,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 		},
 		{
 			name: "With rows",
-			data: &Data{
+			data: &checkResult{
 				RemappedRows: []nvml.RemappedRows{
 					{
 						UUID:                             "GPU1",
@@ -1417,7 +1417,7 @@ func TestComponentWithNoNVML(t *testing.T) {
 	// Run the check
 	c := comp.(*component)
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	// Verify the component reports healthy since NVML is not available

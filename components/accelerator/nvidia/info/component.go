@@ -37,8 +37,8 @@ type component struct {
 	getArchitectureFunc  func(dev device.Device) (string, error)
 	getBrandFunc         func(dev device.Device) (string, error)
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -80,9 +80,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -100,106 +100,106 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu info")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	driverVersion, err := c.getDriverVersionFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting driver version: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting driver version: %s", err)
+		return cr
 	}
 	if driverVersion == "" {
-		d.err = fmt.Errorf("driver version is empty")
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = "driver version is empty"
-		return d
+		cr.err = fmt.Errorf("driver version is empty")
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "driver version is empty"
+		return cr
 	}
-	d.Driver.Version = driverVersion
+	cr.Driver.Version = driverVersion
 
 	cudaVersion, err := c.getCUDAVersionFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting CUDA version: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting CUDA version: %s", err)
+		return cr
 	}
 	if cudaVersion == "" {
-		d.err = fmt.Errorf("CUDA version is empty")
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = "CUDA version is empty"
-		return d
+		cr.err = fmt.Errorf("CUDA version is empty")
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "CUDA version is empty"
+		return cr
 	}
-	d.CUDA.Version = cudaVersion
+	cr.CUDA.Version = cudaVersion
 
 	deviceCount, err := c.getDeviceCountFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting device count: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting device count: %s", err)
+		return cr
 	}
-	d.GPU.DeviceCount = deviceCount
+	cr.GPU.DeviceCount = deviceCount
 
 	devs := c.nvmlInstance.Devices()
-	d.GPU.Attached = len(devs)
+	cr.GPU.Attached = len(devs)
 
 	for uuid, dev := range devs {
 		mem, err := c.getMemoryFunc(uuid, dev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting memory: %s", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting memory: %s", err)
+			return cr
 		}
-		d.Memory.TotalBytes = mem.TotalBytes
-		d.Memory.TotalHumanized = mem.TotalHumanized
+		cr.Memory.TotalBytes = mem.TotalBytes
+		cr.Memory.TotalHumanized = mem.TotalHumanized
 
 		productName, err := c.getProductNameFunc(dev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting product name: %s", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting product name: %s", err)
+			return cr
 		}
-		d.Product.Name = productName
+		cr.Product.Name = productName
 
 		architecture, err := c.getArchitectureFunc(dev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting architecture: %s", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting architecture: %s", err)
+			return cr
 		}
-		d.Product.Architecture = architecture
+		cr.Product.Architecture = architecture
 
 		brand, err := c.getBrandFunc(dev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting brand: %s", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting brand: %s", err)
+			return cr
 		}
-		d.Product.Brand = brand
+		cr.Product.Brand = brand
 		break
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("all %d GPU(s) were checked", len(devs))
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("all %d GPU(s) were checked", len(devs))
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	Driver  Driver  `json:"driver"`
 	CUDA    CUDA    `json:"cuda"`
 	GPU     GPU     `json:"gpu"`
@@ -250,67 +250,69 @@ type Product struct {
 	Architecture string `json:"architecture"`
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.Append([]string{"Product", d.Product.Name})
-	table.Append([]string{"Brand", d.Product.Brand})
-	table.Append([]string{"Architecture", d.Product.Architecture})
-	table.Append([]string{"Driver Version", d.Driver.Version})
-	table.Append([]string{"CUDA Version", d.CUDA.Version})
-	table.Append([]string{"GPU Count", fmt.Sprintf("%d", d.GPU.DeviceCount)})
-	table.Append([]string{"GPU Attached", fmt.Sprintf("%d", d.GPU.Attached)})
-	table.Append([]string{"GPU Memory", d.Memory.TotalHumanized})
+	table.Append([]string{"Product", cr.Product.Name})
+	table.Append([]string{"Brand", cr.Product.Brand})
+	table.Append([]string{"Architecture", cr.Product.Architecture})
+	table.Append([]string{"Driver Version", cr.Driver.Version})
+	table.Append([]string{"CUDA Version", cr.CUDA.Version})
+	table.Append([]string{"GPU Count", fmt.Sprintf("%d", cr.GPU.DeviceCount)})
+	table.Append([]string{"GPU Attached", fmt.Sprintf("%d", cr.GPU.Attached)})
+	table.Append([]string{"GPU Memory", cr.Memory.TotalHumanized})
 	table.Render()
 
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

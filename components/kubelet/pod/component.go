@@ -38,8 +38,8 @@ type component struct {
 	failedCount          int
 	failedCountThreshold int
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -82,9 +82,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -102,56 +102,56 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking kubelet pods")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "kubelet is not installed"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "kubelet is not installed"
+		return cr
 	}
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "kubelet is installed but not running"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "kubelet is installed but not running"
+		return cr
 	}
 
 	// below are the checks in case "kubelet" is installed and running, thus requires activeness checks
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	d.NodeName, d.Pods, d.err = listPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
+	cr.NodeName, cr.Pods, cr.err = listPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
 	ccancel()
 
-	if d.err != nil {
+	if cr.err != nil {
 		c.failedCount++
 	} else {
 		c.failedCount = 0
 	}
 
-	if d.err == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = fmt.Sprintf("total %d pods (node %s)", len(d.Pods), d.NodeName)
+	if cr.err == nil {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("total %d pods (node %s)", len(cr.Pods), cr.NodeName)
 	}
 
 	if c.failedCount >= c.failedCountThreshold {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
 	}
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// KubeletServiceActive is true if the kubelet service is active.
 	KubeletServiceActive bool `json:"kubelet_service_active"`
 	// NodeName is the name of the node.
@@ -170,11 +170,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.Pods) == 0 {
+	if len(cr.Pods) == 0 {
 		return "no pod found"
 	}
 
@@ -183,7 +183,7 @@ func (d *Data) String() string {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
 	table.SetHeader([]string{"Namespace", "Pod", "Container", "State"})
-	for _, pod := range d.Pods {
+	for _, pod := range cr.Pods {
 		for _, container := range pod.ContainerStatuses {
 			state := "unknown"
 			if container.State.Running != nil {
@@ -201,50 +201,52 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	if len(d.Pods) == 0 { // no pod found yet
+	if len(cr.Pods) == 0 { // no pod found yet
 		return apiv1.HealthStates{state}
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

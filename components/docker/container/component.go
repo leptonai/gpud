@@ -36,8 +36,8 @@ type component struct {
 	// 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?'.
 	ignoreConnectionErrors bool
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -80,9 +80,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -99,20 +99,20 @@ func (c *component) Close() error {
 
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking docker containers")
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	// assume "docker" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "docker not installed"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "docker not installed"
+		return cr
 	}
 
 	// below are the checks in case "docker" is installed, thus requires activeness checks
@@ -120,53 +120,53 @@ func (c *component) Check() components.CheckResult {
 	running := c.checkDockerRunningFunc(cctx)
 	ccancel()
 	if !running {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = "docker installed but docker is not running"
-		return d
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "docker installed but docker is not running"
+		return cr
 	}
 
 	if c.checkServiceActiveFunc != nil {
-		d.DockerServiceActive, d.err = c.checkServiceActiveFunc()
-		if !d.DockerServiceActive || d.err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", d.err)
-			return d
+		cr.DockerServiceActive, cr.err = c.checkServiceActiveFunc()
+		if !cr.DockerServiceActive || cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", cr.err)
+			return cr
 		}
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-	d.Containers, d.err = c.listContainersFunc(cctx)
+	cr.Containers, cr.err = c.listContainersFunc(cctx)
 	ccancel()
 
-	if d.err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error listing containers -- %s", d.err)
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error listing containers -- %s", cr.err)
 
-		if isErrDockerClientVersionNewerThanDaemon(d.err) {
-			d.reason = fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", d.err)
+		if isErrDockerClientVersionNewerThanDaemon(cr.err) {
+			cr.reason = fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", cr.err)
 		}
 
 		// e.g.,
 		// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-		if strings.Contains(d.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(d.err.Error(), "the docker daemon running") {
+		if strings.Contains(cr.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(cr.err.Error(), "the docker daemon running") {
 			if c.ignoreConnectionErrors {
-				d.health = apiv1.HealthStateTypeHealthy
+				cr.health = apiv1.HealthStateTypeHealthy
 			} else {
-				d.health = apiv1.HealthStateTypeUnhealthy
+				cr.health = apiv1.HealthStateTypeUnhealthy
 			}
-			d.reason = fmt.Sprintf("connection error to docker daemon -- %s", d.err)
+			cr.reason = fmt.Sprintf("connection error to docker daemon -- %s", cr.err)
 		}
 	} else {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = fmt.Sprintf("total %d container(s)", len(d.Containers))
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("total %d container(s)", len(cr.Containers))
 	}
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// DockerServiceActive is true if the docker service is active.
 	DockerServiceActive bool `json:"docker_service_active"`
 
@@ -184,11 +184,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.Containers) == 0 {
+	if len(cr.Containers) == 0 {
 		return "no container found"
 	}
 
@@ -196,7 +196,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"ID", "Name", "Image", "State"})
-	for _, container := range d.Containers {
+	for _, container := range cr.Containers {
 		table.Append([]string{container.ID, container.Name, container.Image, container.State})
 	}
 	table.Render()
@@ -204,46 +204,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

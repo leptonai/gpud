@@ -235,9 +235,9 @@ func TestComponentStart(t *testing.T) {
 	// Allow time for the goroutine to do first check
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify lastData was updated
+	// Verify lastCheckResult was updated
 	comp.lastMu.RLock()
-	assert.NotNil(t, comp.lastData)
+	assert.NotNil(t, comp.lastCheckResult)
 	comp.lastMu.RUnlock()
 }
 
@@ -296,37 +296,37 @@ func TestDataGetError(t *testing.T) {
 	t.Parallel()
 
 	// Test nil Data
-	var d *Data
-	assert.Equal(t, "", d.getError())
+	var cr *checkResult
+	assert.Equal(t, "", cr.getError())
 
 	// Test nil error
-	d = &Data{}
-	assert.Equal(t, "", d.getError())
+	cr = &checkResult{}
+	assert.Equal(t, "", cr.getError())
 
 	// Test with error
 	testErr := assert.AnError
-	d = &Data{err: testErr}
-	assert.Equal(t, testErr.Error(), d.getError())
+	cr = &checkResult{err: testErr}
+	assert.Equal(t, testErr.Error(), cr.getError())
 }
 
 func TestDataGetLastHealthStates(t *testing.T) {
 	t.Parallel()
 
 	// Test nil Data
-	var d *Data
-	states := d.getLastHealthStates()
+	var cr *checkResult
+	states := cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test unhealthy state
-	d = &Data{
+	cr = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test unhealthy reason",
 		err:    assert.AnError,
 	}
-	states = d.getLastHealthStates()
+	states = cr.getLastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
@@ -354,48 +354,48 @@ func TestDataString(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.String())
+	var cr *checkResult
+	assert.Equal(t, "", cr.String())
 
 	// Test with active fabric manager
-	d = &Data{
+	cr = &checkResult{
 		FabricManagerActive: true,
 	}
-	assert.Equal(t, "fabric manager is active", d.String())
+	assert.Equal(t, "fabric manager is active", cr.String())
 
 	// Test with inactive fabric manager
-	d = &Data{
+	cr = &checkResult{
 		FabricManagerActive: false,
 	}
-	assert.Equal(t, "fabric manager is not active", d.String())
+	assert.Equal(t, "fabric manager is not active", cr.String())
 }
 
 func TestDataSummary(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.Summary())
+	var cr *checkResult
+	assert.Equal(t, "", cr.Summary())
 
 	// Test with reason
-	d = &Data{
+	cr = &checkResult{
 		reason: "test reason",
 	}
-	assert.Equal(t, "test reason", d.Summary())
+	assert.Equal(t, "test reason", cr.Summary())
 }
 
 func TestDataHealthState(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
+	var cr *checkResult
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
 
 	// Test with health state
-	d = &Data{
+	cr = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
 }
 
 func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
@@ -413,7 +413,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Type assertion to access Data methods
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, data.FabricManagerActive)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
@@ -435,7 +435,7 @@ func TestCheckAllBranches(t *testing.T) {
 		name           string
 		fmExists       bool
 		fmActive       bool
-		expectedData   *Data
+		expectedData   *checkResult
 		expectedState  apiv1.HealthStateType
 		expectedReason string
 	}{
@@ -475,7 +475,7 @@ func TestCheckAllBranches(t *testing.T) {
 			}
 
 			result := comp.Check()
-			data, ok := result.(*Data)
+			data, ok := result.(*checkResult)
 			assert.True(t, ok)
 
 			if tc.fmExists && tc.fmActive {

@@ -44,8 +44,8 @@ type component struct {
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -104,9 +104,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -140,7 +140,7 @@ var (
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking cpu")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 
 		Info: getInfo(),
@@ -151,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
@@ -159,20 +159,20 @@ func (c *component) Check() components.CheckResult {
 	curStat, err := c.getTimeStatFunc(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return cr
 	}
 
 	cctx, ccancel = context.WithTimeout(c.ctx, 5*time.Second)
 	usedPct, err := c.getUsedPctFunc(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		return cr
 	}
 
 	if c.getPrevTimeStatFunc != nil && c.setPrevTimeStatFunc != nil {
@@ -183,9 +183,9 @@ func (c *component) Check() components.CheckResult {
 		)
 		c.setPrevTimeStatFunc(curStat)
 
-		d.Usage = Usage{}
-		d.Usage.usedPercent = usedPct
-		d.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
+		cr.Usage = Usage{}
+		cr.Usage.usedPercent = usedPct
+		cr.Usage.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 		metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 	}
 
@@ -193,29 +193,29 @@ func (c *component) Check() components.CheckResult {
 	loadAvg, err := c.getLoadAvgStatFunc(cctx)
 	ccancel()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error calculating load average -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error calculating load average -- %s", err)
+		return cr
 	}
-	d.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
-	d.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
-	d.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
+	cr.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
+	cr.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
+	cr.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
-		d.Info.Arch, d.Info.CPU, d.Info.Family, d.Info.Model, d.Info.ModelName)
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
+		cr.Info.Arch, cr.Info.CPU, cr.Info.Family, cr.Info.Model, cr.Info.ModelName)
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	Info  Info  `json:"info"`
 	Cores Cores `json:"cores"`
 	Usage Usage `json:"usage"`
@@ -260,68 +260,70 @@ type Usage struct {
 	LoadAvg15Min string `json:"load_avg_15min"`
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.Append([]string{"Arch", d.Info.Arch})
-	table.Append([]string{"CPU", d.Info.CPU})
-	table.Append([]string{"Family", d.Info.Family})
-	table.Append([]string{"Model", d.Info.Model})
-	table.Append([]string{"Model Name", d.Info.ModelName})
-	table.Append([]string{"Logical Cores", fmt.Sprintf("%d", d.Cores.Logical)})
-	table.Append([]string{"Avg Load 1-min", d.Usage.LoadAvg1Min})
-	table.Append([]string{"Avg Load 5-min", d.Usage.LoadAvg5Min})
-	table.Append([]string{"Avg Load 15-min", d.Usage.LoadAvg15Min})
+	table.Append([]string{"Arch", cr.Info.Arch})
+	table.Append([]string{"CPU", cr.Info.CPU})
+	table.Append([]string{"Family", cr.Info.Family})
+	table.Append([]string{"Model", cr.Info.Model})
+	table.Append([]string{"Model Name", cr.Info.ModelName})
+	table.Append([]string{"Logical Cores", fmt.Sprintf("%d", cr.Cores.Logical)})
+	table.Append([]string{"Avg Load 1-min", cr.Usage.LoadAvg1Min})
+	table.Append([]string{"Avg Load 5-min", cr.Usage.LoadAvg5Min})
+	table.Append([]string{"Avg Load 15-min", cr.Usage.LoadAvg15Min})
 	table.Render()
 
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

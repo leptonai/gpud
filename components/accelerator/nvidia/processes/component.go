@@ -31,8 +31,8 @@ type component struct {
 	nvmlInstance     nvidianvml.InstanceV2
 	getProcessesFunc func(uuid string, dev device.Device) (nvidianvml.Processes, error)
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -68,9 +68,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -88,50 +88,50 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu processes")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML instance is nil"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML is not loaded"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
 	}
 
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		procs, err := c.getProcessesFunc(uuid, dev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
+			return cr
 		}
 
-		d.Processes = append(d.Processes, procs)
+		cr.Processes = append(cr.Processes, procs)
 
 		metricRunningProcesses.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(len(procs.RunningProcesses)))
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	Processes []nvidianvml.Processes `json:"processes,omitempty"`
 
 	// timestamp of the last check
@@ -145,11 +145,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.Processes) == 0 {
+	if len(cr.Processes) == 0 {
 		return "no data"
 	}
 
@@ -157,7 +157,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"GPU UUID", "Processes"})
-	for _, proc := range d.Processes {
+	for _, proc := range cr.Processes {
 		table.Append([]string{
 			proc.UUID,
 			fmt.Sprintf("%d", len(proc.RunningProcesses)),
@@ -168,46 +168,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

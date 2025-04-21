@@ -476,7 +476,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "matched")
-		data := result.(*Data)
+		data := result.(*checkResult)
 		assert.Len(t, data.FoundErrors, 1)
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
 	})
@@ -706,7 +706,7 @@ func (m *mockNVMLInstance) Shutdown() error {
 func TestDataString(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -716,7 +716,7 @@ func TestDataString(t *testing.T) {
 		},
 		{
 			name: "no errors",
-			data: &Data{
+			data: &checkResult{
 				FoundErrors: []FoundError{},
 				ts:          time.Now(),
 				health:      apiv1.HealthStateTypeHealthy,
@@ -726,7 +726,7 @@ func TestDataString(t *testing.T) {
 		},
 		{
 			name: "with found errors",
-			data: &Data{
+			data: &checkResult{
 				FoundErrors: []FoundError{
 					{
 						Kmsg: kmsg.Message{
@@ -838,12 +838,12 @@ func TestResolveXIDEvent(t *testing.T) {
 
 func TestDataSummary(t *testing.T) {
 	// Test nil data
-	var nilData *Data
+	var nilData *checkResult
 	summary := nilData.Summary()
 	assert.Empty(t, summary)
 
 	// Test data with reason
-	data := &Data{
+	data := &checkResult{
 		reason: "test reason",
 		health: apiv1.HealthStateTypeHealthy,
 	}

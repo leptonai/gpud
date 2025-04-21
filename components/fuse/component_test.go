@@ -117,22 +117,22 @@ func TestEvents(t *testing.T) {
 func TestDataFunctions(t *testing.T) {
 	// Test the Data struct functions directly
 	t.Run("getError with nil", func(t *testing.T) {
-		var d *Data
-		errStr := d.getError()
+		var cr *checkResult
+		errStr := cr.getError()
 		assert.Equal(t, "", errStr)
 	})
 
 	t.Run("getError with error", func(t *testing.T) {
-		d := &Data{
+		cr := &checkResult{
 			err: errors.New("test error"),
 		}
-		errStr := d.getError()
+		errStr := cr.getError()
 		assert.Equal(t, "test error", errStr)
 	})
 
 	t.Run("getStates with nil", func(t *testing.T) {
-		var d *Data
-		states := d.getLastHealthStates()
+		var cr *checkResult
+		states := cr.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -140,11 +140,11 @@ func TestDataFunctions(t *testing.T) {
 	})
 
 	t.Run("getStates with healthy data", func(t *testing.T) {
-		d := &Data{
+		cr := &checkResult{
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "all good",
 		}
-		states := d.getLastHealthStates()
+		states := cr.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -152,12 +152,12 @@ func TestDataFunctions(t *testing.T) {
 	})
 
 	t.Run("getStates with unhealthy data", func(t *testing.T) {
-		d := &Data{
+		cr := &checkResult{
 			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "something wrong",
 			err:    errors.New("test error"),
 		}
-		states := d.getLastHealthStates()
+		states := cr.getLastHealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)

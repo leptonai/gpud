@@ -2,10 +2,8 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 
 	docker_types "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
@@ -159,27 +157,4 @@ func TestConvertToDockerContainer(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestDataMarshalJSON(t *testing.T) {
-	d := &Data{
-		DockerServiceActive: true,
-		Containers: []DockerContainer{
-			{
-				ID:    "test-id",
-				Name:  "test-name",
-				Image: "test-image",
-			},
-		},
-		ts:  time.Now(),
-		err: nil,
-	}
-
-	json, err := json.Marshal(d)
-	require.NoError(t, err)
-	assert.Contains(t, string(json), "test-id")
-	assert.Contains(t, string(json), "test-name")
-	assert.Contains(t, string(json), "test-image")
-	assert.Contains(t, string(json), "docker_service_active")
-	assert.Contains(t, string(json), "containers")
 }

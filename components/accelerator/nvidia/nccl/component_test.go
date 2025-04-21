@@ -221,7 +221,7 @@ func TestCheck(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
 		assert.Contains(t, result.Summary(), "matched 1 kmsg(s)")
 
-		data, ok := result.(*Data)
+		data, ok := result.(*checkResult)
 		assert.True(t, ok)
 		assert.Len(t, data.MatchedKmsgs, 1)
 		assert.Equal(t, "segfault at 123 in libnccl.so.2", data.MatchedKmsgs[0].Message)
@@ -233,24 +233,24 @@ func TestDataMethods(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil data", func(t *testing.T) {
-		var d *Data
-		assert.Equal(t, "", d.String())
-		assert.Equal(t, "", d.Summary())
-		assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
+		var cr *checkResult
+		assert.Equal(t, "", cr.String())
+		assert.Equal(t, "", cr.Summary())
+		assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
 	})
 
 	t.Run("empty data", func(t *testing.T) {
-		d := &Data{
+		cr := &checkResult{
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "test reason",
 		}
-		assert.Equal(t, "matched 0 kmsg(s)", d.String())
-		assert.Equal(t, "test reason", d.Summary())
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
+		assert.Equal(t, "matched 0 kmsg(s)", cr.String())
+		assert.Equal(t, "test reason", cr.Summary())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
 	})
 
 	t.Run("data with matched kmsg(s)", func(t *testing.T) {
-		d := &Data{
+		cr := &checkResult{
 			MatchedKmsgs: []kmsg.Message{
 				{Message: "test message 1"},
 				{Message: "test message 2"},
@@ -258,9 +258,9 @@ func TestDataMethods(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "matched kmsg(s)",
 		}
-		assert.Equal(t, "matched 2 kmsg(s)", d.String())
-		assert.Equal(t, "matched kmsg(s)", d.Summary())
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.HealthState())
+		assert.Equal(t, "matched 2 kmsg(s)", cr.String())
+		assert.Equal(t, "matched kmsg(s)", cr.Summary())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthState())
 	})
 }
 

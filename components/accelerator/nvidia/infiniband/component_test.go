@@ -426,7 +426,7 @@ func TestComponentCheck(t *testing.T) {
 
 	// Case 1: No NVML
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
@@ -435,7 +435,7 @@ func TestComponentCheck(t *testing.T) {
 	nvmlMock := &mockNVMLInstance{exists: true}
 	c.nvmlInstance = nvmlMock
 	result = c.Check()
-	data, ok = result.(*Data)
+	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.NotNil(t, data.IbstatOutput)
@@ -740,10 +740,10 @@ func TestComponentStart(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // Give a small time for the goroutine to run
 
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	assert.NotNil(t, lastData, "lastData should be populated by the background goroutine")
+	assert.NotNil(t, lastCheckResult, "lastCheckResult should be populated by the background goroutine")
 }
 
 func TestLastHealthStates(t *testing.T) {
@@ -758,13 +758,13 @@ func TestLastHealthStates(t *testing.T) {
 	assert.Equal(t, "no data yet", states[0].Reason)
 
 	// Test with data
-	mockData := &Data{
+	mockData := &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test reason",
 		err:    fmt.Errorf("test error"),
 	}
 	c.lastMu.Lock()
-	c.lastData = mockData
+	c.lastCheckResult = mockData
 	c.lastMu.Unlock()
 
 	states = c.LastHealthStates()
@@ -779,15 +779,15 @@ func TestDataString(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.String())
+	var cr *checkResult
+	assert.Equal(t, "", cr.String())
 
 	// Test with nil IbstatOutput
-	d = &Data{}
-	assert.Equal(t, "no data", d.String())
+	cr = &checkResult{}
+	assert.Equal(t, "no data", cr.String())
 
 	// Test with actual data
-	d = &Data{
+	cr = &checkResult{
 		IbstatOutput: &infiniband.IbstatOutput{
 			Parsed: infiniband.IBStatCards{
 				{
@@ -801,7 +801,7 @@ func TestDataString(t *testing.T) {
 			},
 		},
 	}
-	result := d.String()
+	result := cr.String()
 	assert.Contains(t, result, "PORT NAME")
 	assert.Contains(t, result, "PORT1 STATE")
 	assert.Contains(t, result, "mlx5_0")
@@ -812,40 +812,40 @@ func TestDataSummary(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.Summary())
+	var cr *checkResult
+	assert.Equal(t, "", cr.Summary())
 
 	// Test with reason
-	d = &Data{reason: "test reason"}
-	assert.Equal(t, "test reason", d.Summary())
+	cr = &checkResult{reason: "test reason"}
+	assert.Equal(t, "test reason", cr.Summary())
 }
 
 func TestDataHealthState(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
+	var cr *checkResult
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
 
 	// Test with health state
-	d = &Data{health: apiv1.HealthStateTypeUnhealthy}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, d.HealthState())
+	cr = &checkResult{health: apiv1.HealthStateTypeUnhealthy}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthState())
 }
 
 func TestDataGetError(t *testing.T) {
 	t.Parallel()
 
 	// Test nil data
-	var d *Data
-	assert.Equal(t, "", d.getError())
+	var cr *checkResult
+	assert.Equal(t, "", cr.getError())
 
 	// Test with nil error
-	d = &Data{}
-	assert.Equal(t, "", d.getError())
+	cr = &checkResult{}
+	assert.Equal(t, "", cr.getError())
 
 	// Test with error
-	d = &Data{err: errors.New("test error")}
-	assert.Equal(t, "test error", d.getError())
+	cr = &checkResult{err: errors.New("test error")}
+	assert.Equal(t, "test error", cr.getError())
 }
 
 func TestComponentCheckErrorCases(t *testing.T) {
@@ -866,7 +866,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "ibstat command failed")
@@ -883,7 +883,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	}
 
 	result = c.Check()
-	data, ok = result.(*Data)
+	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, reasonMissingIbstatOutput, data.reason)
@@ -900,7 +900,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	}
 
 	result = c.Check()
-	data, ok = result.(*Data)
+	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat command not found", data.reason)
@@ -931,7 +931,7 @@ func TestComponentCheckEventBucketOperations(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
@@ -1022,7 +1022,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to find ibstat event")
@@ -1031,7 +1031,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	errorBucket.findError = nil // Reset find error
 
 	result = c.Check()
-	data, ok = result.(*Data)
+	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "failed to insert ibstat event")
@@ -1103,7 +1103,7 @@ func TestCheckWithExistingEvent(t *testing.T) {
 
 	// When an event is found, it shouldn't try to insert a new one
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
@@ -1167,7 +1167,7 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 	}
 
 	result := c.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat checker not found", data.reason)

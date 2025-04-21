@@ -52,8 +52,8 @@ type component struct {
 
 	eventBucket eventstore.Bucket
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -102,9 +102,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -129,21 +129,21 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking fuse")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	infos, err := c.listConnectionsFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error listing fuse connections %v", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error listing fuse connections %v", err)
+		return cr
 	}
 
 	now := time.Now().UTC()
@@ -192,29 +192,29 @@ func (c *component) Check() components.CheckResult {
 
 		found, err := c.eventBucket.Find(c.ctx, ev)
 		if err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error finding event %v", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error finding event %v", err)
+			return cr
 		}
 		if found == nil {
 			continue
 		}
 		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
-			d.err = err
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error inserting event %v", err)
-			return d
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error inserting event %v", err)
+			return cr
 		}
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("found %d fuse connection(s)", len(d.ConnectionInfos))
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("found %d fuse connection(s)", len(cr.ConnectionInfos))
 
-	return d
+	return cr
 }
 
-type Data struct {
+type checkResult struct {
 	ConnectionInfos []fuse.ConnectionInfo `json:"connection_infos"`
 
 	// timestamp of the last check
@@ -228,11 +228,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.ConnectionInfos) == 0 {
+	if len(cr.ConnectionInfos) == 0 {
 		return "no FUSE connection found"
 	}
 
@@ -240,7 +240,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"Device", "FS Type", "Congested % %"})
-	for _, info := range d.ConnectionInfos {
+	for _, info := range cr.ConnectionInfos {
 		table.Append([]string{info.DeviceName, info.Fstype, fmt.Sprintf("%.2f %%", info.CongestedPercent), fmt.Sprintf("%.2f %%", info.MaxBackgroundPercent)})
 	}
 	table.Render()
@@ -248,46 +248,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

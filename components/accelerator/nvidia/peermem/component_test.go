@@ -253,15 +253,15 @@ func TestLastHealthStates(t *testing.T) {
 		lastMu: sync.RWMutex{},
 	}
 
-	// When lastData is nil
+	// When lastCheckResult is nil
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
-	// When lastData is healthy
-	c.lastData = &Data{
+	// When lastCheckResult is healthy
+	c.lastCheckResult = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "all good",
 		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
@@ -275,8 +275,8 @@ func TestLastHealthStates(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "all good", states[0].Reason)
 
-	// When lastData has error
-	c.lastData = &Data{
+	// When lastCheckResult has error
+	c.lastCheckResult = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error occurred",
 		err:    errors.New("something went wrong"),
@@ -325,50 +325,50 @@ func TestEvents(t *testing.T) {
 
 func TestDataMethods(t *testing.T) {
 	// Test with nil data
-	var d *Data
-	assert.Equal(t, "", d.String())
-	assert.Equal(t, "", d.Summary())
-	assert.Equal(t, apiv1.HealthStateType(""), d.HealthState())
-	assert.Equal(t, "", d.getError())
+	var cr *checkResult
+	assert.Equal(t, "", cr.String())
+	assert.Equal(t, "", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
+	assert.Equal(t, "", cr.getError())
 
 	// Test without peer mem module output
-	d = &Data{
+	cr = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "test reason",
 	}
-	assert.Equal(t, "no data", d.String())
-	assert.Equal(t, "test reason", d.Summary())
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
+	assert.Equal(t, "no data", cr.String())
+	assert.Equal(t, "test reason", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
 
 	// Test with peer mem module output (module loaded)
-	d = &Data{
+	cr = &checkResult{
 		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
 			IbcoreUsingPeermemModule: true,
 		},
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "test reason",
 	}
-	assert.Equal(t, "ibcore using peermem module: true", d.String())
-	assert.Equal(t, "test reason", d.Summary())
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, d.HealthState())
+	assert.Equal(t, "ibcore using peermem module: true", cr.String())
+	assert.Equal(t, "test reason", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
 
 	// Test with peer mem module output (module not loaded)
-	d = &Data{
+	cr = &checkResult{
 		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
 			IbcoreUsingPeermemModule: false,
 		},
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "test reason",
 	}
-	assert.Equal(t, "ibcore using peermem module: false", d.String())
+	assert.Equal(t, "ibcore using peermem module: false", cr.String())
 
 	// Test with error
-	d = &Data{
+	cr = &checkResult{
 		err:    errors.New("test error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error reason",
 	}
-	assert.Equal(t, "test error", d.getError())
+	assert.Equal(t, "test error", cr.getError())
 }
 
 func TestClose(t *testing.T) {

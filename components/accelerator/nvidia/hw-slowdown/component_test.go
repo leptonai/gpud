@@ -235,8 +235,8 @@ func TestCheckOnce(t *testing.T) {
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				eventBucket:      bucket,
 				nvmlInstance:     mockNVML,
-				// Initialize lastData to avoid nil pointer dereference
-				lastData: &Data{
+				// Initialize lastCheckResult to avoid nil pointer dereference
+				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
@@ -265,10 +265,10 @@ func TestCheckOnce(t *testing.T) {
 			c.Check()
 
 			// Verify the component's state
-			assert.NotNil(t, c.lastData)
+			assert.NotNil(t, c.lastCheckResult)
 
 			// Verify that clock events were collected correctly
-			assert.Equal(t, len(tc.mockDevices), len(c.lastData.ClockEvents))
+			assert.Equal(t, len(tc.mockDevices), len(c.lastCheckResult.ClockEvents))
 
 			// Get events from the bucket
 			events, err := bucket.Get(ctx, time.Now().UTC().Add(-time.Hour))
@@ -345,7 +345,7 @@ func TestComponentStates(t *testing.T) {
 		threshold:        0.1,
 		eventBucket:      bucket,
 		nvmlInstance:     mockNVML,
-		lastData: &Data{
+		lastCheckResult: &checkResult{
 			ts:     time.Now(),
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
@@ -494,7 +494,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				threshold:        tc.thresholdPerMinute,
 				eventBucket:      bucket,
 				nvmlInstance:     mockNVML,
-				lastData: &Data{
+				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
@@ -563,7 +563,7 @@ func TestComponentName(t *testing.T) {
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 		eventBucket:      bucket,
-		lastData: &Data{
+		lastCheckResult: &checkResult{
 			ts:     time.Now().UTC(),
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
@@ -637,7 +637,7 @@ func TestComponentStart(t *testing.T) {
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 		eventBucket:      bucket,
-		lastData: &Data{
+		lastCheckResult: &checkResult{
 			ts:     time.Now().UTC(),
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
@@ -851,13 +851,13 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		},
 	}
 
-	// Run Check - it should update lastData
+	// Run Check - it should update lastCheckResult
 	c.Check()
 
-	// Verify lastData was updated
+	// Verify lastCheckResult was updated
 	c.lastMu.RLock()
-	assert.NotNil(t, c.lastData)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastData.health, "Component should be healthy with no events")
+	assert.NotNil(t, c.lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health, "Component should be healthy with no events")
 	c.lastMu.RUnlock()
 
 	// Generate a high frequency of events that should trigger unhealthy state
@@ -901,7 +901,7 @@ func TestDataMethods(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		data           *Data
+		checkResult    *checkResult
 		expectString   string
 		expectSummary  string
 		expectHealth   apiv1.HealthStateType
@@ -911,7 +911,7 @@ func TestDataMethods(t *testing.T) {
 	}{
 		{
 			name:           "nil data",
-			data:           nil,
+			checkResult:    nil,
 			expectString:   "",
 			expectSummary:  "",
 			expectHealth:   "",
@@ -921,7 +921,7 @@ func TestDataMethods(t *testing.T) {
 		},
 		{
 			name: "empty clock events",
-			data: &Data{
+			checkResult: &checkResult{
 				ClockEvents: []nvidianvml.ClockEvents{},
 				ts:          time.Now().UTC(),
 				reason:      "test reason",
@@ -936,7 +936,7 @@ func TestDataMethods(t *testing.T) {
 		},
 		{
 			name: "data with error",
-			data: &Data{
+			checkResult: &checkResult{
 				ClockEvents: []nvidianvml.ClockEvents{
 					{
 						UUID:                 "gpu-0",
@@ -965,19 +965,19 @@ func TestDataMethods(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Test String method
-			assert.Equal(t, tc.expectString, tc.data.String())
+			assert.Equal(t, tc.expectString, tc.checkResult.String())
 
 			// Test Summary method
-			assert.Equal(t, tc.expectSummary, tc.data.Summary())
+			assert.Equal(t, tc.expectSummary, tc.checkResult.Summary())
 
 			// Test HealthState method
-			assert.Equal(t, tc.expectHealth, tc.data.HealthState())
+			assert.Equal(t, tc.expectHealth, tc.checkResult.HealthState())
 
 			// Test getError method
-			assert.Equal(t, tc.expectError, tc.data.getError())
+			assert.Equal(t, tc.expectError, tc.checkResult.getError())
 
 			// Test getLastHealthStates method
-			states := tc.data.getLastHealthStates()
+			states := tc.checkResult.getLastHealthStates()
 			assert.Equal(t, tc.expectStates, len(states))
 			if len(states) > 0 {
 				assert.Contains(t, states[0].Reason, tc.expectStateMsg)
@@ -1266,7 +1266,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				nvmlInstance:     tc.nvmlInstance,
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-				lastData: &Data{
+				lastCheckResult: &checkResult{
 					health: apiv1.HealthStateTypeHealthy, // Initialize with a default state
 				},
 			}
@@ -1292,7 +1292,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			}
 
 			result := c.Check()
-			data, ok := result.(*Data)
+			data, ok := result.(*checkResult)
 			assert.True(t, ok)
 
 			assert.NotNil(t, data)

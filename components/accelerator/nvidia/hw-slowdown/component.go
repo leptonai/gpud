@@ -53,8 +53,8 @@ type component struct {
 	evaluationWindow time.Duration
 	threshold        float64
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -113,9 +113,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -136,43 +136,43 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu clock events for hw slowdown")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	if c.nvmlInstance == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML instance is nil"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML instance is nil"
+		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "NVIDIA NVML is not loaded"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVIDIA NVML is not loaded"
+		return cr
 	}
 
 	if c.getSystemDriverVersionFunc != nil {
 		driverVersion, err := c.getSystemDriverVersionFunc()
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error getting driver version: %s", err)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting driver version: %s", err)
+			return cr
 		}
 		major, _, _, err := c.parseDriverVersionFunc(driverVersion)
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = fmt.Sprintf("error parsing driver version: %s", err)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error parsing driver version: %s", err)
+			return cr
 		}
 		if !c.checkClockEventsSupportedFunc(major) {
-			d.health = apiv1.HealthStateTypeHealthy
-			d.reason = fmt.Sprintf("clock events not supported for driver version %s", driverVersion)
-			return d
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = fmt.Sprintf("clock events not supported for driver version %s", driverVersion)
+			return cr
 		}
 	}
 
@@ -180,24 +180,24 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		supported, err := c.getClockEventsSupportedFunc(dev)
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.err = err
-			d.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.err = err
+			cr.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
+			return cr
 		}
 
 		if !supported {
-			d.health = apiv1.HealthStateTypeHealthy
-			d.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
-			return d
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
+			return cr
 		}
 
 		clockEvents, err := c.getClockEventsFunc(uuid, dev)
 		if err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.err = err
-			d.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.err = err
+			cr.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
+			return cr
 		}
 
 		if clockEvents.HWSlowdown {
@@ -218,7 +218,7 @@ func (c *component) Check() components.CheckResult {
 			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
 		}
 
-		d.ClockEvents = append(d.ClockEvents, clockEvents)
+		cr.ClockEvents = append(cr.ClockEvents, clockEvents)
 
 		ev := clockEvents.Event()
 		if ev == nil {
@@ -235,10 +235,10 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
 
-				d.health = apiv1.HealthStateTypeUnhealthy
-				d.err = err
-				d.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
-				return d
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = err
+				cr.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
+				return cr
 			}
 			if found != nil {
 				log.Logger.Infow("clock event already found in db", "gpu_uuid", uuid)
@@ -248,10 +248,10 @@ func (c *component) Check() components.CheckResult {
 			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
 				log.Logger.Errorw("failed to insert event", "error", err)
 
-				d.health = apiv1.HealthStateTypeUnhealthy
-				d.err = err
-				d.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
-				return d
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = err
+				cr.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
+				return cr
 			}
 			log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
 		}
@@ -259,15 +259,15 @@ func (c *component) Check() components.CheckResult {
 
 	if c.evaluationWindow == 0 {
 		// no time window to evaluate /state
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "no time window to evaluate states"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "no time window to evaluate states"
+		return cr
 	}
 
 	if c.eventBucket == nil {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "no event bucket"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "no event bucket"
+		return cr
 	}
 
 	since := time.Now().UTC().Add(-c.evaluationWindow)
@@ -277,16 +277,16 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		log.Logger.Errorw("failed to get clock events from db", "error", err)
 
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting clock events from db: %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting clock events from db: %s", err)
+		return cr
 	}
 
 	if len(latestEvents) == 0 {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "no clock events found"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "no clock events found"
+		return cr
 	}
 
 	eventsByMinute := make(map[int]struct{})
@@ -300,15 +300,15 @@ func (c *component) Check() components.CheckResult {
 
 	if freqPerMin < c.threshold {
 		// hw slowdown events happened but within its threshold
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+		return cr
 	}
 
 	// hw slowdown events happened and beyond its threshold
-	d.health = apiv1.HealthStateTypeUnhealthy
-	d.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-	d.suggestedActions = &apiv1.SuggestedActions{
+	cr.health = apiv1.HealthStateTypeUnhealthy
+	cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+	cr.suggestedActions = &apiv1.SuggestedActions{
 		RepairActions: []apiv1.RepairActionType{
 			apiv1.RepairActionTypeHardwareInspection,
 		},
@@ -317,12 +317,12 @@ func (c *component) Check() components.CheckResult {
 		},
 	}
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	ClockEvents []nvidianvml.ClockEvents `json:"clock_events,omitempty"`
 
 	// timestamp of the last check
@@ -338,11 +338,11 @@ type Data struct {
 	suggestedActions *apiv1.SuggestedActions
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.ClockEvents) == 0 {
+	if len(cr.ClockEvents) == 0 {
 		return "no data"
 	}
 
@@ -350,7 +350,7 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"GPU UUID", "HW Slowdown", "HW Slowdown Thermal", "HW Slowdown Power Brake", "Reasons"})
-	for _, event := range d.ClockEvents {
+	for _, event := range cr.ClockEvents {
 		table.Append([]string{event.UUID, fmt.Sprintf("%t", event.HWSlowdown), fmt.Sprintf("%t", event.HWSlowdownThermal), fmt.Sprintf("%t", event.HWSlowdownPowerBrake), strings.Join(event.Reasons, ", ")})
 	}
 	table.Render()
@@ -358,47 +358,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
 		Name:             Name,
-		Reason:           d.reason,
-		Error:            d.getError(),
-		Health:           d.health,
-		SuggestedActions: d.suggestedActions,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

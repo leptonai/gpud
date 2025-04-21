@@ -105,7 +105,7 @@ func TestLastHealthStates(t *testing.T) {
 	}
 
 	// Set data and check again
-	comp.lastData = &Data{
+	comp.lastCheckResult = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "test reason",
 	}
@@ -145,28 +145,28 @@ func TestStartAndClose(t *testing.T) {
 }
 
 func TestDataMethods(t *testing.T) {
-	d := &Data{
+	cr := &checkResult{
 		ResolvedLibraries: []string{"/lib/lib1.so", "/usr/lib/lib2.so"},
 		health:            apiv1.HealthStateTypeHealthy,
 		reason:            "all libraries exist",
 	}
 
-	if d.HealthState() != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", d.HealthState())
+	if cr.HealthState() != apiv1.HealthStateTypeHealthy {
+		t.Errorf("expected healthy state, got %s", cr.HealthState())
 	}
 
-	if d.Summary() != "all libraries exist" {
-		t.Errorf("expected summary 'all libraries exist', got %q", d.Summary())
+	if cr.Summary() != "all libraries exist" {
+		t.Errorf("expected summary 'all libraries exist', got %q", cr.Summary())
 	}
 
 	// Test String() outputs something
-	str := d.String()
+	str := cr.String()
 	if str == "" {
 		t.Error("String() returned empty string")
 	}
 
 	// Test nil data handling
-	var nilData *Data
+	var nilData *checkResult
 	if nilData.String() != "" {
 		t.Error("String() on nil Data should return empty string")
 	}

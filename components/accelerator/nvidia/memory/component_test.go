@@ -148,8 +148,8 @@ func TestCheckOnce_Success(t *testing.T) {
 	result := component.Check()
 
 	// Verify the data was collected
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -189,8 +189,8 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -212,8 +212,8 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	result := component.Check()
 
 	// Verify handling of no devices
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -263,8 +263,8 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	result := component.Check()
 
 	// Verify error handling for GetUsedPercent failure
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
@@ -278,7 +278,7 @@ func TestStates_WithData(t *testing.T) {
 
 	// Set test data
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		Memories: []nvidianvml.Memory{
 			{
 				UUID:              "gpu-uuid-123",
@@ -315,7 +315,7 @@ func TestStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test memory error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting memory for device gpu-uuid-123",
@@ -404,7 +404,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -414,14 +414,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -440,7 +440,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 		contains []string // For partial matching of table output
 	}{
@@ -451,14 +451,14 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name: "empty memories",
-			data: &Data{
+			data: &checkResult{
 				Memories: []nvidianvml.Memory{},
 			},
 			expected: "no data",
 		},
 		{
 			name: "with memory data",
-			data: &Data{
+			data: &checkResult{
 				Memories: []nvidianvml.Memory{
 					{
 						UUID:              "gpu-uuid-123",
@@ -491,7 +491,7 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name: "multiple memory entries",
-			data: &Data{
+			data: &checkResult{
 				Memories: []nvidianvml.Memory{
 					{
 						UUID:              "gpu-uuid-123",
@@ -548,7 +548,7 @@ func TestData_String(t *testing.T) {
 func TestData_Summary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -558,7 +558,7 @@ func TestData_Summary(t *testing.T) {
 		},
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test reason",
 			},
 			expected: "test reason",
@@ -576,7 +576,7 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
@@ -586,14 +586,14 @@ func TestData_HealthState(t *testing.T) {
 		},
 		{
 			name: "healthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,
@@ -616,8 +616,8 @@ func TestCheckOnce_NilNvmlInstance(t *testing.T) {
 	result := component.Check()
 
 	// Verify data when nvmlInstance is nil
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
@@ -639,8 +639,8 @@ func TestCheckOnce_NvmlNotExists(t *testing.T) {
 	result := component.Check()
 
 	// Verify data when NVML doesn't exist
-	data, ok := result.(*Data)
-	require.True(t, ok, "result should be of type *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")

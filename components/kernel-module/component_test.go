@@ -59,12 +59,12 @@ func TestCheckOnce(t *testing.T) {
 			c.lastMu.RLock()
 			defer c.lastMu.RUnlock()
 
-			require.NotNil(t, c.lastData)
-			assert.Equal(t, tt.wantModules, c.lastData.LoadedModules)
+			require.NotNil(t, c.lastCheckResult)
+			assert.Equal(t, tt.wantModules, c.lastCheckResult.LoadedModules)
 			if tt.wantError {
-				assert.Error(t, c.lastData.err)
+				assert.Error(t, c.lastCheckResult.err)
 			} else {
-				assert.NoError(t, c.lastData.err)
+				assert.NoError(t, c.lastCheckResult.err)
 			}
 		})
 	}
@@ -202,9 +202,9 @@ func TestGetReason(t *testing.T) {
 				require.NoError(t, err)
 				c := comp.(*component)
 
-				// Ensure lastData is nil
+				// Ensure lastCheckResult is nil
 				c.lastMu.Lock()
-				c.lastData = nil
+				c.lastCheckResult = nil
 				c.lastMu.Unlock()
 
 				states := c.LastHealthStates()
@@ -293,9 +293,9 @@ func TestGetHealth(t *testing.T) {
 				require.NoError(t, err)
 				c := comp.(*component)
 
-				// Ensure lastData is nil
+				// Ensure lastCheckResult is nil
 				c.lastMu.Lock()
-				c.lastData = nil
+				c.lastCheckResult = nil
 				c.lastMu.Unlock()
 
 				states := c.LastHealthStates()
@@ -330,7 +330,7 @@ func TestGetHealth(t *testing.T) {
 func TestDataGetStates(t *testing.T) {
 	tests := []struct {
 		name        string
-		data        *Data
+		data        *checkResult
 		wantHealthy bool
 		wantHealth  apiv1.HealthStateType
 		wantReason  string
@@ -346,7 +346,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name:        "with error",
-			data:        &Data{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
+			data:        &checkResult{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
 			wantHealthy: false,
 			wantHealth:  apiv1.HealthStateTypeUnhealthy,
 			wantReason:  "error getting all modules: assert.AnError general error for testing",
@@ -354,7 +354,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name: "no modules to check",
-			data: &Data{
+			data: &checkResult{
 				LoadedModules: []string{},
 				loadedModules: map[string]struct{}{},
 				health:        apiv1.HealthStateTypeHealthy,
@@ -367,7 +367,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name: "all modules present",
-			data: &Data{
+			data: &checkResult{
 				LoadedModules: []string{"module1", "module2"},
 				loadedModules: map[string]struct{}{"module1": {}, "module2": {}},
 				health:        apiv1.HealthStateTypeHealthy,
@@ -380,7 +380,7 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name: "missing modules",
-			data: &Data{
+			data: &checkResult{
 				LoadedModules: []string{"module1"},
 				loadedModules: map[string]struct{}{"module1": {}},
 				health:        apiv1.HealthStateTypeUnhealthy,
@@ -492,14 +492,14 @@ func TestCheckOnceLogic(t *testing.T) {
 			c.lastMu.RLock()
 			defer c.lastMu.RUnlock()
 
-			require.NotNil(t, c.lastData)
-			assert.Equal(t, tt.wantHealthy, c.lastData.health == apiv1.HealthStateTypeHealthy)
-			assert.Equal(t, tt.wantReason, c.lastData.reason)
+			require.NotNil(t, c.lastCheckResult)
+			assert.Equal(t, tt.wantHealthy, c.lastCheckResult.health == apiv1.HealthStateTypeHealthy)
+			assert.Equal(t, tt.wantReason, c.lastCheckResult.reason)
 
 			if tt.loadError != nil {
-				assert.Equal(t, tt.loadError, c.lastData.err)
+				assert.Equal(t, tt.loadError, c.lastCheckResult.err)
 			} else {
-				assert.NoError(t, c.lastData.err)
+				assert.NoError(t, c.lastCheckResult.err)
 			}
 		})
 	}
@@ -520,7 +520,7 @@ func TestDataTimestamp(t *testing.T) {
 	c.lastMu.RLock()
 	defer c.lastMu.RUnlock()
 
-	require.NotNil(t, c.lastData)
-	assert.True(t, !c.lastData.ts.Before(beforeCheck), "Timestamp should be after the check started")
-	assert.True(t, !c.lastData.ts.After(afterCheck), "Timestamp should be before the check ended")
+	require.NotNil(t, c.lastCheckResult)
+	assert.True(t, !c.lastCheckResult.ts.Before(beforeCheck), "Timestamp should be after the check started")
+	assert.True(t, !c.lastCheckResult.ts.After(afterCheck), "Timestamp should be before the check ended")
 }

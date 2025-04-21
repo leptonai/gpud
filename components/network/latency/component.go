@@ -43,8 +43,8 @@ type component struct {
 	// If at least one DERP latency is less than this threshold, the component will be marked as healthy.
 	globalMillisecondThreshold int64
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -79,9 +79,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -99,27 +99,27 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking network egress latency")
 
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	d.EgressLatencies, d.err = c.getEgressLatenciesFunc(cctx)
+	cr.EgressLatencies, cr.err = c.getEgressLatenciesFunc(cctx)
 	ccancel()
-	if d.err != nil {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error measuring egress latencies: %v", d.err)
-		return d
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error measuring egress latencies: %v", cr.err)
+		return cr
 	}
 
 	exceededMsgs := []string{}
-	for _, lat := range d.EgressLatencies {
+	for _, lat := range cr.EgressLatencies {
 		region := fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider)
 		metricEdgeInMilliseconds.With(prometheus.Labels{
 			pkgmetrics.MetricLabelKey: region,
@@ -131,19 +131,19 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(exceededMsgs) == 0 {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(d.EgressLatencies))
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(cr.EgressLatencies))
 	} else {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = strings.Join(exceededMsgs, "; ")
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = strings.Join(exceededMsgs, "; ")
 	}
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// EgressLatencies is the list of egress latencies to global edge servers.
 	EgressLatencies latency.Latencies `json:"egress_latencies"`
 
@@ -158,8 +158,8 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
@@ -168,7 +168,7 @@ func (d *Data) String() string {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
 	table.SetHeader([]string{"Region", "Latency"})
-	for _, lat := range d.EgressLatencies {
+	for _, lat := range cr.EgressLatencies {
 		table.Append([]string{
 			fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider),
 			lat.Latency.Duration.String(),
@@ -180,46 +180,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

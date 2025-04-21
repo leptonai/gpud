@@ -62,8 +62,8 @@ type component struct {
 	// And useful when the actual system fd-max is set to unlimited.
 	thresholdRunningPIDs uint64
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -125,9 +125,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -154,33 +154,33 @@ func (c *component) Close() error {
 
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking file descriptors")
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	allocatedFileHandles, _, err := c.getFileHandlesFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting file handles -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting file handles -- %s", err)
+		return cr
 	}
-	d.AllocatedFileHandles = allocatedFileHandles
+	cr.AllocatedFileHandles = allocatedFileHandles
 	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(allocatedFileHandles))
 
 	runningPIDs, err := c.countRunningPIDsFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting running pids -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting running pids -- %s", err)
+		return cr
 	}
-	d.RunningPIDs = runningPIDs
+	cr.RunningPIDs = runningPIDs
 	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(runningPIDs))
 
 	// may fail for mac
@@ -188,25 +188,25 @@ func (c *component) Check() components.CheckResult {
 	// stat /proc: no such file or directory
 	usage, uerr := c.getUsageFunc()
 	if uerr != nil {
-		d.err = uerr
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting usage -- %s", uerr)
-		return d
+		cr.err = uerr
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting usage -- %s", uerr)
+		return cr
 	}
-	d.Usage = usage
+	cr.Usage = usage
 
 	limit, err := c.getLimitFunc()
 	if err != nil {
-		d.err = err
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = fmt.Sprintf("error getting limit -- %s", err)
-		return d
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting limit -- %s", err)
+		return cr
 	}
-	d.Limit = limit
+	cr.Limit = limit
 	metricLimit.With(prometheus.Labels{}).Set(float64(limit))
 
 	allocatedFileHandlesPct := calcUsagePct(allocatedFileHandles, limit)
-	d.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
+	cr.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
 	metricAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(allocatedFileHandlesPct)
 
 	usageVal := runningPIDs // for mac
@@ -214,21 +214,21 @@ func (c *component) Check() components.CheckResult {
 		usageVal = usage
 	}
 	usedPct := calcUsagePct(usageVal, limit)
-	d.UsedPercent = fmt.Sprintf("%.2f", usedPct)
+	cr.UsedPercent = fmt.Sprintf("%.2f", usedPct)
 	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
 
 	fileHandlesSupported := c.checkFileHandlesSupportedFunc()
-	d.FileHandlesSupported = fileHandlesSupported
+	cr.FileHandlesSupported = fileHandlesSupported
 
 	fdLimitSupported := c.checkFDLimitSupportedFunc()
-	d.FDLimitSupported = fdLimitSupported
+	cr.FDLimitSupported = fdLimitSupported
 
 	var thresholdRunningPIDsPct float64
 	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
 		thresholdRunningPIDsPct = calcUsagePct(usage, c.thresholdRunningPIDs)
 	}
-	d.ThresholdRunningPIDs = c.thresholdRunningPIDs
-	d.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
+	cr.ThresholdRunningPIDs = c.thresholdRunningPIDs
+	cr.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
 	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
 
@@ -236,28 +236,28 @@ func (c *component) Check() components.CheckResult {
 	if c.thresholdAllocatedFileHandles > 0 {
 		thresholdAllocatedFileHandlesPct = calcUsagePct(usage, min(c.thresholdAllocatedFileHandles, limit))
 	}
-	d.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
-	d.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
+	cr.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
+	cr.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
 	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
 	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
 
 	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
-		d.health = apiv1.HealthStateTypeDegraded
-		d.reason = ErrFileHandlesAllocationExceedsWarning
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = ErrFileHandlesAllocationExceedsWarning
 	} else {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
-			d.Usage,
-			d.ThresholdAllocatedFileHandles,
-			d.ThresholdAllocatedFileHandlesPercent,
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("current file descriptors: %d, threshold: %d, used_percent: %s",
+			cr.Usage,
+			cr.ThresholdAllocatedFileHandles,
+			cr.ThresholdAllocatedFileHandlesPercent,
 		)
 	}
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// The number of file descriptors currently allocated on the host (not per process).
 	AllocatedFileHandles uint64 `json:"allocated_file_handles"`
 	// The number of running PIDs returned by https://pkg.go.dev/github.com/shirou/gopsutil/v4/process#Pids.
@@ -294,8 +294,8 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
 
@@ -303,65 +303,67 @@ func (d *Data) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-	table.Append([]string{"Running PIDs", fmt.Sprintf("%d", d.RunningPIDs)})
-	table.Append([]string{"Usage", fmt.Sprintf("%d", d.Usage)})
-	table.Append([]string{"Limit", fmt.Sprintf("%d", d.Limit)})
-	table.Append([]string{"Used %", d.UsedPercent})
+	table.Append([]string{"Running PIDs", fmt.Sprintf("%d", cr.RunningPIDs)})
+	table.Append([]string{"Usage", fmt.Sprintf("%d", cr.Usage)})
+	table.Append([]string{"Limit", fmt.Sprintf("%d", cr.Limit)})
+	table.Append([]string{"Used %", cr.UsedPercent})
 
-	table.Append([]string{"Allocated File Handles", fmt.Sprintf("%d", d.AllocatedFileHandles)})
-	table.Append([]string{"Allocated File Handles %", d.AllocatedFileHandlesPercent})
+	table.Append([]string{"Allocated File Handles", fmt.Sprintf("%d", cr.AllocatedFileHandles)})
+	table.Append([]string{"Allocated File Handles %", cr.AllocatedFileHandlesPercent})
 
-	table.Append([]string{"Threshold Alloc File Handles", fmt.Sprintf("%d", d.ThresholdAllocatedFileHandles)})
-	table.Append([]string{"Threshold Alloc File Handles %", d.ThresholdAllocatedFileHandlesPercent})
+	table.Append([]string{"Threshold Alloc File Handles", fmt.Sprintf("%d", cr.ThresholdAllocatedFileHandles)})
+	table.Append([]string{"Threshold Alloc File Handles %", cr.ThresholdAllocatedFileHandlesPercent})
 
-	table.Append([]string{"Threshold Running PIDs", fmt.Sprintf("%d", d.ThresholdRunningPIDs)})
-	table.Append([]string{"Threshold Running PIDs %", d.ThresholdRunningPIDsPercent})
+	table.Append([]string{"Threshold Running PIDs", fmt.Sprintf("%d", cr.ThresholdRunningPIDs)})
+	table.Append([]string{"Threshold Running PIDs %", cr.ThresholdRunningPIDsPercent})
 
 	table.Render()
 
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

@@ -233,10 +233,10 @@ func TestCheckOnce_VirtualMachine(t *testing.T) {
 
 	// Verify no data was collected
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	assert.NotNil(t, lastData)
-	assert.Nil(t, lastData.err)
+	assert.NotNil(t, lastCheckResult)
+	assert.Nil(t, lastCheckResult.err)
 }
 
 func TestCheckOnce_EventCreation(t *testing.T) {
@@ -291,10 +291,10 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 	// Since we're not mocking the pci.List function, we can't fully test device scanning
 	// but we can verify that the component didn't error out
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	assert.NotNil(t, lastData)
+	assert.NotNil(t, lastCheckResult)
 
 	// If pci.List fails, it will set an error, but we should skip asserting on that
 	// since not all systems will have this capability
@@ -303,7 +303,7 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -313,14 +313,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: assert.AnError,
 			},
 			expected: "assert.AnError general error for testing",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				Devices: []pci.Device{
 					{ID: "0000:00:00.0"},
 				},
@@ -340,7 +340,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_GetStates(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		validate func(*testing.T, []apiv1.HealthState)
 	}{
 		{
@@ -355,7 +355,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err:    assert.AnError,
 				ts:     time.Now().UTC(),
 				health: apiv1.HealthStateTypeUnhealthy,
@@ -373,7 +373,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 		{
 			name: "with devices",
-			data: &Data{
+			data: &checkResult{
 				Devices: []pci.Device{
 					{ID: "0000:00:00.0"},
 					{ID: "0000:00:01.0"},
@@ -433,7 +433,7 @@ func TestComponent_States(t *testing.T) {
 		// Inject test data
 		c := comp.(*component)
 		c.lastMu.Lock()
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			Devices: []pci.Device{
 				{ID: "0000:00:00.0"},
 			},
@@ -456,7 +456,7 @@ func TestComponent_States(t *testing.T) {
 		c := comp.(*component)
 		c.lastMu.Lock()
 		testError := errors.New("test error")
-		c.lastData = &Data{
+		c.lastCheckResult = &checkResult{
 			err:    testError,
 			ts:     time.Now().UTC(),
 			health: apiv1.HealthStateTypeUnhealthy,
@@ -523,11 +523,11 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 
 	// Verify the error was captured
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	assert.NotNil(t, lastData)
-	assert.Equal(t, testErr, lastData.err)
-	assert.Empty(t, lastData.Devices)
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, testErr, lastCheckResult.err)
+	assert.Empty(t, lastCheckResult.Devices)
 }
 
 func TestCheckOnce_ACSDevices(t *testing.T) {
@@ -577,10 +577,10 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 		return mockDevices, nil
 	}
 
-	// Create a function to manually set the lastData
+	// Create a function to manually set the lastCheckResult
 	now := time.Now().UTC()
 	c.lastMu.Lock()
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		Devices: mockDevices,
 		ts:      now,
 	}
@@ -595,12 +595,12 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 
 	// Verify the devices were captured
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	assert.NotNil(t, lastData)
-	assert.Nil(t, lastData.err)
+	assert.NotNil(t, lastCheckResult)
+	assert.Nil(t, lastCheckResult.err)
 	// We're now manually setting the devices, so this should pass
-	assert.Equal(t, mockDevices, lastData.Devices)
+	assert.Equal(t, mockDevices, lastCheckResult.Devices)
 
 	// With our mock implementation, we know we'll get an event here
 	events, err := mockBucket.Get(ctx, now.Add(-25*time.Hour))
@@ -663,11 +663,11 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 
 	// Verify the devices were captured
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	assert.NotNil(t, lastData)
-	assert.Nil(t, lastData.err)
-	assert.Equal(t, mockDevices, lastData.Devices)
+	assert.NotNil(t, lastCheckResult)
+	assert.Nil(t, lastCheckResult.err)
+	assert.Equal(t, mockDevices, lastCheckResult.Devices)
 
 	// Our mock should return empty events
 	events, err := mockBucket.Get(ctx, time.Now().Add(-1*time.Hour))
@@ -783,8 +783,8 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 	result := c.Check()
 
 	// Verify the error was captured
-	data, ok := result.(*Data)
-	require.True(t, ok, "Result should be a *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "Result should be a *checkResult")
 	assert.Equal(t, mockErr, data.err)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Contains(t, data.reason, "error creating event")
@@ -931,7 +931,7 @@ func TestData_CreateEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &Data{
+			cr := &checkResult{
 				Devices: tt.devices,
 			}
 
@@ -953,7 +953,7 @@ func TestData_CreateEvent(t *testing.T) {
 			defer comp.Close()
 
 			c := comp.(*component)
-			uuids := c.findACSEnabledDeviceUUIDsFunc(d.Devices)
+			uuids := c.findACSEnabledDeviceUUIDsFunc(cr.Devices)
 
 			if tt.wantNil {
 				assert.Nil(t, uuids)
@@ -991,13 +991,13 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	c.lastMu.Lock()
-	c.lastData = &Data{
+	c.lastCheckResult = &checkResult{
 		Devices: testDevices,
 		ts:      time.Now().UTC(),
 	}
 	c.lastMu.Unlock()
 
-	// Test concurrent access to lastData
+	// Test concurrent access to lastCheckResult
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -1050,10 +1050,10 @@ func TestKVMEnvironment(t *testing.T) {
 
 	// Verify the data reflects the KVM environment
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	assert.NotNil(t, lastData)
+	assert.NotNil(t, lastCheckResult)
 	// Don't try to access virtEnv on Data, it doesn't have this field
 }
 
@@ -1144,8 +1144,8 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 	result := c.Check()
 
 	// Verify the error was captured in the result
-	data, ok := result.(*Data)
-	require.True(t, ok, "Result should be a *Data")
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "Result should be a *checkResult")
 	assert.Equal(t, mockErr, data.err)
 }
 

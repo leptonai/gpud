@@ -36,8 +36,8 @@ type component struct {
 
 	endpoint string
 
-	lastMu   sync.RWMutex
-	lastData *Data
+	lastMu          sync.RWMutex
+	lastCheckResult *checkResult
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -82,9 +82,9 @@ func (c *component) Start() error {
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
-	lastData := c.lastData
+	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
-	return lastData.getLastHealthStates()
+	return lastCheckResult.getLastHealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -101,27 +101,27 @@ func (c *component) Close() error {
 
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
-	d := &Data{
+	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
 	defer func() {
 		c.lastMu.Lock()
-		c.lastData = d
+		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
 
 	// assume "containerd" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-		d.health = apiv1.HealthStateTypeHealthy
-		d.reason = "containerd not installed"
-		return d
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "containerd not installed"
+		return cr
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
 	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
-		d.health = apiv1.HealthStateTypeUnhealthy
-		d.reason = "containerd installed but socket file does not exist"
-		return d
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "containerd installed but socket file does not exist"
+		return cr
 	}
 
 	if c.checkContainerdRunningFunc != nil {
@@ -129,57 +129,57 @@ func (c *component) Check() components.CheckResult {
 		running := c.checkContainerdRunningFunc(cctx)
 		ccancel()
 		if !running {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = "containerd installed but not running"
-			return d
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but not running"
+			return cr
 		}
 	}
 
 	if c.checkServiceActiveFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-		d.ContainerdServiceActive, d.err = c.checkServiceActiveFunc(cctx)
+		cr.ContainerdServiceActive, cr.err = c.checkServiceActiveFunc(cctx)
 		ccancel()
-		if !d.ContainerdServiceActive || d.err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
-			d.reason = "containerd installed but service is not active"
-			return d
+		if !cr.ContainerdServiceActive || cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but service is not active"
+			return cr
 		}
 	}
 
 	if c.listAllSandboxesFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-		d.Pods, d.err = c.listAllSandboxesFunc(cctx, c.endpoint)
+		cr.Pods, cr.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
-		if d.err != nil {
-			d.health = apiv1.HealthStateTypeUnhealthy
+		if cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
 
-			st, ok := status.FromError(d.err)
+			st, ok := status.FromError(cr.err)
 			if ok {
 				// this is the error from "ListSandboxStatus"
 				// e.g.,
 				// rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService
 				if st.Code() == codes.Unimplemented {
-					d.reason = "containerd didn't enable CRI"
+					cr.reason = "containerd didn't enable CRI"
 				} else {
-					d.reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
+					cr.reason = fmt.Sprintf("failed gRPC call to the containerd socket %s", st.Message())
 				}
 			} else {
-				d.reason = fmt.Sprintf("error listing pod sandbox status: %v", d.err)
+				cr.reason = fmt.Sprintf("error listing pod sandbox status: %v", cr.err)
 			}
 
-			return d
+			return cr
 		}
 	}
 
-	d.health = apiv1.HealthStateTypeHealthy
-	d.reason = fmt.Sprintf("found %d pod sandbox(es)", len(d.Pods))
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = fmt.Sprintf("found %d pod sandbox(es)", len(cr.Pods))
 
-	return d
+	return cr
 }
 
-var _ components.CheckResult = &Data{}
+var _ components.CheckResult = &checkResult{}
 
-type Data struct {
+type checkResult struct {
 	// ContainerdServiceActive is true if the containerd service is active.
 	ContainerdServiceActive bool `json:"containerd_service_active"`
 
@@ -197,11 +197,11 @@ type Data struct {
 	reason string
 }
 
-func (d *Data) String() string {
-	if d == nil {
+func (cr *checkResult) String() string {
+	if cr == nil {
 		return ""
 	}
-	if len(d.Pods) == 0 {
+	if len(cr.Pods) == 0 {
 		return "no pod found"
 	}
 
@@ -210,7 +210,7 @@ func (d *Data) String() string {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
 	table.SetHeader([]string{"Namespace", "Pod", "Container", "State"})
-	for _, pod := range d.Pods {
+	for _, pod := range cr.Pods {
 		for _, container := range pod.Containers {
 			table.Append([]string{pod.Namespace, pod.Name, container.Name, container.State})
 		}
@@ -221,46 +221,48 @@ func (d *Data) String() string {
 	return buf.String()
 }
 
-func (d *Data) Summary() string {
-	if d == nil {
+func (cr *checkResult) Summary() string {
+	if cr == nil {
 		return ""
 	}
-	return d.reason
+	return cr.reason
 }
 
-func (d *Data) HealthState() apiv1.HealthStateType {
-	if d == nil {
+func (cr *checkResult) HealthState() apiv1.HealthStateType {
+	if cr == nil {
 		return ""
 	}
-	return d.health
+	return cr.health
 }
 
-func (d *Data) getError() string {
-	if d == nil || d.err == nil {
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
 		return ""
 	}
-	return d.err.Error()
+	return cr.err.Error()
 }
 
-func (d *Data) getLastHealthStates() apiv1.HealthStates {
-	if d == nil {
+func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
+	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Name:   Name,
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Name:   Name,
-		Reason: d.reason,
-		Error:  d.getError(),
-		Health: d.health,
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(d)
+	b, _ := json.Marshal(cr)
 	state.DeprecatedExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",

@@ -156,14 +156,14 @@ func TestCheckOnce_Success(t *testing.T) {
 
 	// Verify the data was collected
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", lastData.reason)
-	assert.Len(t, lastData.NVLinks, 1)
-	assert.Equal(t, nvLink, lastData.NVLinks[0])
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.NVLinks, 1)
+	assert.Equal(t, nvLink, lastCheckResult.NVLinks[0])
 }
 
 func TestCheckOnce_NVLinkError(t *testing.T) {
@@ -195,13 +195,13 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 
 	// Verify error handling
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastData.health, "data should be marked unhealthy")
-	assert.Equal(t, errExpected, lastData.err)
-	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", lastData.reason)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
+	assert.Equal(t, errExpected, lastCheckResult.err)
+	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", lastCheckResult.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -216,13 +216,13 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 
 	// Verify handling of no devices
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastData.reason)
-	assert.Empty(t, lastData.NVLinks)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastCheckResult.reason)
+	assert.Empty(t, lastCheckResult.NVLinks)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -239,7 +239,7 @@ func TestStates_WithData(t *testing.T) {
 	}
 
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		NVLinks: []nvidianvml.NVLink{
 			{
 				UUID:   "gpu-uuid-123",
@@ -268,7 +268,7 @@ func TestStates_WithError(t *testing.T) {
 
 	// Set test data with error
 	component.lastMu.Lock()
-	component.lastData = &Data{
+	component.lastCheckResult = &checkResult{
 		err:    errors.New("test NVLink error"),
 		health: apiv1.HealthStateTypeUnhealthy,
 		reason: "error getting nvlink for device gpu-uuid-123",
@@ -354,7 +354,7 @@ func TestClose(t *testing.T) {
 func TestData_GetError(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -364,14 +364,14 @@ func TestData_GetError(t *testing.T) {
 		},
 		{
 			name: "with error",
-			data: &Data{
+			data: &checkResult{
 				err: errors.New("test error"),
 			},
 			expected: "test error",
 		},
 		{
 			name: "no error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -390,7 +390,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 		contains string
 	}{
@@ -401,12 +401,12 @@ func TestData_String(t *testing.T) {
 		},
 		{
 			name:     "empty nvlinks",
-			data:     &Data{},
+			data:     &checkResult{},
 			expected: "no data",
 		},
 		{
 			name: "with nvlink data",
-			data: &Data{
+			data: &checkResult{
 				NVLinks: []nvidianvml.NVLink{
 					{
 						UUID:      "gpu-uuid-123",
@@ -441,7 +441,7 @@ func TestData_String(t *testing.T) {
 func TestData_Summary(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected string
 	}{
 		{
@@ -451,14 +451,14 @@ func TestData_Summary(t *testing.T) {
 		},
 		{
 			name: "with reason",
-			data: &Data{
+			data: &checkResult{
 				reason: "test reason",
 			},
 			expected: "test reason",
 		},
 		{
 			name:     "empty reason",
-			data:     &Data{},
+			data:     &checkResult{},
 			expected: "",
 		},
 	}
@@ -474,7 +474,7 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     *Data
+		data     *checkResult
 		expected apiv1.HealthStateType
 	}{
 		{
@@ -484,14 +484,14 @@ func TestData_HealthState(t *testing.T) {
 		},
 		{
 			name: "healthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 			},
 			expected: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "unhealthy state",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 			},
 			expected: apiv1.HealthStateTypeUnhealthy,
@@ -516,7 +516,7 @@ func TestCheckOnce_NilNVMLInstance(t *testing.T) {
 	}
 
 	result := component.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
@@ -539,7 +539,7 @@ func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
 	}
 
 	result := component.Check()
-	data, ok := result.(*Data)
+	data, ok := result.(*checkResult)
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
@@ -549,7 +549,7 @@ func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
 func TestData_getLastHealthStates(t *testing.T) {
 	tests := []struct {
 		name           string
-		data           *Data
+		data           *checkResult
 		expectedHealth apiv1.HealthStateType
 		expectedReason string
 		expectedError  string
@@ -562,7 +562,7 @@ func TestData_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "healthy data",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -571,7 +571,7 @@ func TestData_getLastHealthStates(t *testing.T) {
 		},
 		{
 			name: "unhealthy data with error",
-			data: &Data{
+			data: &checkResult{
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "something wrong",
 				err:    errors.New("test error"),
@@ -655,22 +655,22 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 
 	// Verify the data was collected
 	component.lastMu.RLock()
-	lastData := component.lastData
+	lastCheckResult := component.lastCheckResult
 	component.lastMu.RUnlock()
 
-	require.NotNil(t, lastData, "lastData should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastData.health, "data should be marked healthy")
-	assert.Len(t, lastData.NVLinks, 1)
+	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
+	assert.Len(t, lastCheckResult.NVLinks, 1)
 
 	// The actual metrics are set using prometheus counters which we can't directly test here
 	// without additional mocking, but we can at least ensure the right structure is in place
 	// and the feature enabled state is correctly determined
-	assert.False(t, lastData.NVLinks[0].States.AllFeatureEnabled(),
+	assert.False(t, lastCheckResult.NVLinks[0].States.AllFeatureEnabled(),
 		"AllFeatureEnabled should be false since not all links have FeatureEnabled=true")
-	assert.Equal(t, uint64(6), lastData.NVLinks[0].States.TotalRelayErrors(),
+	assert.Equal(t, uint64(6), lastCheckResult.NVLinks[0].States.TotalRelayErrors(),
 		"TotalRelayErrors should match the sum")
-	assert.Equal(t, uint64(5), lastData.NVLinks[0].States.TotalRecoveryErrors(),
+	assert.Equal(t, uint64(5), lastCheckResult.NVLinks[0].States.TotalRecoveryErrors(),
 		"TotalRecoveryErrors should match the sum")
-	assert.Equal(t, uint64(5), lastData.NVLinks[0].States.TotalCRCErrors(),
+	assert.Equal(t, uint64(5), lastCheckResult.NVLinks[0].States.TotalCRCErrors(),
 		"TotalCRCErrors should match the sum")
 }
