@@ -17,7 +17,7 @@ import (
 // ref. "CountDevEntry" in "nvvs/plugin_src/software/Software.cpp"
 // ref. https://github.com/NVIDIA/DCGM/blob/903d745504f50153be8293f8566346f9de3b3c93/nvvs/plugin_src/software/Software.cpp#L220-L249
 func GetSystemResourceGPUCount() (string, error) {
-	nvmlInstance, err := nvidianvml.NewInstanceV2()
+	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
 		return "", err
 	}

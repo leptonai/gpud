@@ -34,7 +34,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance   nvidianvml.InstanceV2
+	nvmlInstance   nvidianvml.Instance
 	toolOverwrites nvidia_common.ToolOverwrites
 
 	eventBucket eventstore.Bucket

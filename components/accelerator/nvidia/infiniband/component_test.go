@@ -689,6 +689,18 @@ func (m *mockNVMLInstance) ProductName() string {
 	return ""
 }
 
+func (m *mockNVMLInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
+	return ""
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

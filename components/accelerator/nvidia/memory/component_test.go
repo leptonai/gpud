@@ -20,7 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvidianvml.InstanceV2 interface for testing
+// MockNvmlInstance implements the nvidianvml.Instance interface for testing
 type MockNvmlInstance struct {
 	DevicesFunc func() map[string]device.Device
 	nvmlExists  bool
@@ -41,6 +41,18 @@ func (m *MockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
+func (m *MockNvmlInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *MockNvmlInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *MockNvmlInstance) CUDAVersion() string {
+	return ""
+}
+
 func (m *MockNvmlInstance) NVMLExists() bool {
 	return m.nvmlExists
 }
@@ -56,7 +68,7 @@ func (m *MockNvmlInstance) Shutdown() error {
 // MockMemoryComponent creates a component with mocked functions for testing
 func MockMemoryComponent(
 	ctx context.Context,
-	nvmlInstance nvidianvml.InstanceV2,
+	nvmlInstance nvidianvml.Instance,
 	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)

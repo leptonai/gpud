@@ -27,7 +27,6 @@ import (
 	"github.com/leptonai/gpud/components/tailscale"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -114,12 +113,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	} else {
 		log.Logger.Debugw("auto-detect tailscale not supported -- skipping", "os", runtime.GOOS)
 	}
-
-	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
-	if err != nil {
-		return nil, err
-	}
-	_ = nvidiaInstalled
 
 	if cfg.State == "" {
 		var err error

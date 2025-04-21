@@ -28,7 +28,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance         nvidianvml.InstanceV2
+	nvmlInstance         nvidianvml.Instance
 	getDriverVersionFunc func() (string, error)
 	getCUDAVersionFunc   func() (string, error)
 	getDeviceCountFunc   func() (int, error)

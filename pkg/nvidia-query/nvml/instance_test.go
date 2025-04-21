@@ -8,7 +8,7 @@ import (
 )
 
 func TestInstanceV2(t *testing.T) {
-	inst, err := NewInstanceV2()
+	inst, err := New()
 	if errors.Is(err, nvmllib.ErrNVMLNotFound) {
 		t.Skipf("nvml not installed, skipping")
 	}

@@ -11,24 +11,46 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-var _ InstanceV2 = &instanceV2{}
+var _ Instance = &instance{}
 
-type InstanceV2 interface {
+// Instance is the interface for the NVML library connector.
+type Instance interface {
+	// NVMLExists returns true if NVML is installed.
 	NVMLExists() bool
+
+	// Library returns the NVML library.
 	Library() nvmllib.Library
+
+	// Devices returns the current devices in the system.
+	// The key is the UUID of the GPU device.
 	Devices() map[string]device.Device
+
+	// ProductName returns the product name of the GPU.
 	ProductName() string
+
+	// DriverVersion returns the driver version of the GPU.
+	DriverVersion() string
+
+	// DriverMajor returns the major version of the driver.
+	DriverMajor() int
+
+	// CUDAVersion returns the CUDA version of the GPU.
+	CUDAVersion() string
+
+	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
+
+	// Shutdown shuts down the NVML library.
 	Shutdown() error
 }
 
-// NewInstanceV2 creates a new instance of the NVML library.
+// New creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
-func NewInstanceV2() (InstanceV2, error) {
+func New() (Instance, error) {
 	nvmlLib, err := nvmllib.New()
 	if err != nil {
 		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
-			return NewNoOpInstanceV2(), nil
+			return NewNoOp(), nil
 		}
 		return nil, err
 	}
@@ -82,7 +104,7 @@ func NewInstanceV2() (InstanceV2, error) {
 	}
 	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
-	return &instanceV2{
+	return &instance{
 		nvmlLib:       nvmlLib,
 		nvmlExists:    nvmlExists,
 		nvmlExistsMsg: nvmlExistsMsg,
@@ -95,9 +117,9 @@ func NewInstanceV2() (InstanceV2, error) {
 	}, nil
 }
 
-var _ InstanceV2 = &instanceV2{}
+var _ Instance = &instance{}
 
-type instanceV2 struct {
+type instance struct {
 	nvmlLib nvmllib.Library
 
 	nvmlExists    bool
@@ -113,27 +135,39 @@ type instanceV2 struct {
 	memMgmtCaps MemoryErrorManagementCapabilities
 }
 
-func (inst *instanceV2) NVMLExists() bool {
+func (inst *instance) NVMLExists() bool {
 	return inst.nvmlExists
 }
 
-func (inst *instanceV2) Library() nvmllib.Library {
+func (inst *instance) Library() nvmllib.Library {
 	return inst.nvmlLib
 }
 
-func (inst *instanceV2) Devices() map[string]device.Device {
+func (inst *instance) Devices() map[string]device.Device {
 	return inst.devices
 }
 
-func (inst *instanceV2) ProductName() string {
+func (inst *instance) ProductName() string {
 	return inst.productName
 }
 
-func (inst *instanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
+func (inst *instance) DriverVersion() string {
+	return inst.driverVersion
+}
+
+func (inst *instance) DriverMajor() int {
+	return inst.driverMajor
+}
+
+func (inst *instance) CUDAVersion() string {
+	return inst.cudaVersion
+}
+
+func (inst *instance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return inst.memMgmtCaps
 }
 
-func (inst *instanceV2) Shutdown() error {
+func (inst *instance) Shutdown() error {
 	ret := inst.nvmlLib.Shutdown()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to shutdown nvml library: %s", ret)
@@ -141,19 +175,22 @@ func (inst *instanceV2) Shutdown() error {
 	return nil
 }
 
-var _ InstanceV2 = &noOpInstanceV2{}
+var _ Instance = &noOpInstance{}
 
-func NewNoOpInstanceV2() InstanceV2 {
-	return &noOpInstanceV2{}
+func NewNoOp() Instance {
+	return &noOpInstance{}
 }
 
-type noOpInstanceV2 struct{}
+type noOpInstance struct{}
 
-func (inst *noOpInstanceV2) NVMLExists() bool                  { return false }
-func (inst *noOpInstanceV2) Library() nvmllib.Library          { return nil }
-func (inst *noOpInstanceV2) Devices() map[string]device.Device { return nil }
-func (inst *noOpInstanceV2) ProductName() string               { return "" }
-func (inst *noOpInstanceV2) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
+func (inst *noOpInstance) NVMLExists() bool                  { return false }
+func (inst *noOpInstance) Library() nvmllib.Library          { return nil }
+func (inst *noOpInstance) Devices() map[string]device.Device { return nil }
+func (inst *noOpInstance) ProductName() string               { return "" }
+func (inst *noOpInstance) DriverVersion() string             { return "" }
+func (inst *noOpInstance) DriverMajor() int                  { return 0 }
+func (inst *noOpInstance) CUDAVersion() string               { return "" }
+func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return MemoryErrorManagementCapabilities{}
 }
-func (inst *noOpInstanceV2) Shutdown() error { return nil }
+func (inst *noOpInstance) Shutdown() error { return nil }

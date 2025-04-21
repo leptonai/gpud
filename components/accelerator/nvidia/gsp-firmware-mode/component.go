@@ -26,7 +26,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance           nvidianvml.InstanceV2
+	nvmlInstance           nvidianvml.Instance
 	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error)
 
 	lastMu          sync.RWMutex

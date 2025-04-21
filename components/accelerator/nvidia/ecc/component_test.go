@@ -44,6 +44,18 @@ func (m *MockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
+func (m *MockNvmlInstance) DriverVersion() string {
+	return "test-driver-version"
+}
+
+func (m *MockNvmlInstance) DriverMajor() int {
+	return 1
+}
+
+func (m *MockNvmlInstance) CUDAVersion() string {
+	return "test-cuda-version"
+}
+
 func (m *MockNvmlInstance) NVMLExists() bool {
 	return true
 }

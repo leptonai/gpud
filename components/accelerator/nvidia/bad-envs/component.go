@@ -27,7 +27,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.InstanceV2
+	nvmlInstance nvidianvml.Instance
 
 	// returns true if the specified environment variable is set
 	checkEnvFunc func(key string) bool

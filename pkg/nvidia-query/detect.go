@@ -7,37 +7,8 @@ import (
 
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
-
-// Returns true if the local machine has NVIDIA GPUs installed.
-func GPUsInstalled(ctx context.Context) (bool, error) {
-	// now that nvidia-smi installed,
-	// check the NVIDIA GPU presence via PCI bus
-	pciDevices, err := ListNVIDIAPCIs(ctx)
-	if err != nil {
-		return false, err
-	}
-	if len(pciDevices) == 0 {
-		return false, nil
-	}
-	log.Logger.Debugw("nvidia PCI devices found", "devices", len(pciDevices))
-
-	// now that we have the NVIDIA PCI devices,
-	// call NVML C-based API for NVML API
-	gpuDeviceName, err := nvml.LoadGPUDeviceName()
-	if err != nil {
-		if IsErrDeviceHandleUnknownError(err) {
-			log.Logger.Warnw("nvidia device handler failed for unknown error -- likely GPU has fallen off the bus or other Xid error", "error", err)
-			return true, nil
-		}
-		return false, err
-	}
-	log.Logger.Debugw("detected nvidia gpu", "gpuDeviceName", gpuDeviceName)
-
-	return true, nil
-}
 
 // Lists all PCI devices that are compatible with NVIDIA.
 func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {

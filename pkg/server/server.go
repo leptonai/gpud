@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	stdos "os"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -44,7 +43,6 @@ import (
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -204,17 +202,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	nvidiaInstalled, err := nvidiaquery.GPUsInstalled(ctx)
+	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
-		return nil, err
-	}
-
-	var nvmlInstanceV2 nvidianvml.InstanceV2
-	if runtime.GOOS == "linux" && nvidiaInstalled {
-		nvmlInstanceV2, err = nvidianvml.NewInstanceV2()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-		}
+		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
 	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
@@ -257,7 +247,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
-		NVMLInstance:         nvmlInstanceV2,
+		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
 		Annotations: config.Annotations,
@@ -394,7 +384,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
 
-	go func(nvmlInstance nvidianvml.InstanceV2, metricsSyncer *pkgmetricssyncer.Syncer) {
+	go func(nvmlInstance nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer) {
 		defer func() {
 			if nvmlInstance != nil {
 				if err := nvmlInstance.Shutdown(); err != nil {
@@ -421,7 +411,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 			s.Stop()
 			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
 		}
-	}(nvmlInstanceV2, syncer)
+	}(nvmlInstance, syncer)
 
 	ghler.componentNamesMu.RLock()
 	currComponents := ghler.componentNames

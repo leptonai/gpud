@@ -21,7 +21,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockInstanceV2 is a simple mock implementation of nvidianvml.InstanceV2
+// MockInstanceV2 is a simple mock implementation of nvidianvml.Instance
 type MockInstanceV2 struct {
 	devices map[string]device.Device
 }
@@ -43,6 +43,18 @@ func (m *MockInstanceV2) ProductName() string {
 	return "Test GPU"
 }
 
+func (m *MockInstanceV2) DriverVersion() string {
+	return ""
+}
+
+func (m *MockInstanceV2) DriverMajor() int {
+	return 0
+}
+
+func (m *MockInstanceV2) CUDAVersion() string {
+	return ""
+}
+
 func (m *MockInstanceV2) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
@@ -54,7 +66,7 @@ func (m *MockInstanceV2) Shutdown() error {
 // MockTemperatureComponent creates a component with mocked functions for testing
 func MockTemperatureComponent(
 	ctx context.Context,
-	nvmlInstance nvidianvml.InstanceV2,
+	nvmlInstance nvidianvml.Instance,
 	getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)

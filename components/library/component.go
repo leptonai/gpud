@@ -64,7 +64,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.InstanceV2
+	nvmlInstance nvidianvml.Instance
 
 	libraries   map[string][]string
 	searchOpts  []file.OpOption

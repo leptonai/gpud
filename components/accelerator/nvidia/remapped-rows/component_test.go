@@ -105,7 +105,7 @@ func (m *mockLibrary) Shutdown() gonvml.Return {
 	return gonvml.SUCCESS
 }
 
-// Mock implementation of nvidianvml.InstanceV2
+// Mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
 	getDevicesFunc                           func() map[string]device.Device
 	getProductNameFunc                       func() string
@@ -118,6 +118,18 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 
 func (m *mockNVMLInstance) ProductName() string {
 	return m.getProductNameFunc()
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
+	return ""
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {

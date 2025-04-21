@@ -20,7 +20,7 @@ type GPUdInstance struct {
 
 	KernelModulesToCheck []string
 
-	NVMLInstance         nvidianvml.InstanceV2
+	NVMLInstance         nvidianvml.Instance
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
 	Annotations map[string]string

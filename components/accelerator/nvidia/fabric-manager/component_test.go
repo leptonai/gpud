@@ -497,7 +497,7 @@ func TestCheckAllBranches(t *testing.T) {
 	}
 }
 
-// mockNVMLInstance implements nvidianvml.InstanceV2 for testing
+// mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
 	exists bool
 }
@@ -518,6 +518,18 @@ func (m *mockNVMLInstance) ProductName() string {
 	return ""
 }
 
+func (m *mockNVMLInstance) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
+	return ""
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
@@ -529,7 +541,7 @@ func (m *mockNVMLInstance) Shutdown() error {
 func TestComponentCheck_NVMLInstance(t *testing.T) {
 	tests := []struct {
 		name              string
-		nvmlInstance      nvidianvml.InstanceV2
+		nvmlInstance      nvidianvml.Instance
 		expectedHealth    apiv1.HealthStateType
 		expectedReason    string
 		checkFMExistsFunc func() bool

@@ -34,7 +34,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance        nvidianvml.InstanceV2
+	nvmlInstance        nvidianvml.Instance
 	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
 	eventBucket eventstore.Bucket
