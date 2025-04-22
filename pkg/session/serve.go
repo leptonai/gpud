@@ -42,7 +42,7 @@ type Request struct {
 
 	Bootstrap *BootstrapRequest `json:"bootstrap,omitempty"`
 
-	// ComponentName is the name of the component to deregister.
+	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
 
 	// CustomPluginSpec is the spec for the custom plugin to register or update.
@@ -266,10 +266,19 @@ func (s *Session) serve() {
 
 		case "getPlugins":
 			cs := make(map[string]pkgcustomplugins.Spec, 0)
-			for _, c := range s.componentsRegistry.All() {
-				if customPluginRegisteree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok {
-					if customPluginRegisteree.IsCustomPlugin() {
-						cs[c.Name()] = customPluginRegisteree.Spec()
+			if payload.ComponentName != "" {
+				c := s.componentsRegistry.Get(payload.ComponentName)
+				if c == nil {
+					response.Error = fmt.Sprintf("component %s not found", payload.ComponentName)
+					break
+				}
+				if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
+					cs[c.Name()] = registeree.Spec()
+				}
+			} else {
+				for _, c := range s.componentsRegistry.All() {
+					if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
+						cs[c.Name()] = registeree.Spec()
 					}
 				}
 			}
