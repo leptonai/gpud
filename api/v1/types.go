@@ -211,6 +211,9 @@ func EventTypeFromString(s string) EventType {
 }
 
 type MachineInfo struct {
+	// GPUdVersion represents the current version of GPUd
+	GPUdVersion string `json:"gpudVersion,omitempty"`
+
 	// GPUDriverVersion represents the current version of GPU driver installed
 	GPUDriverVersion string `json:"gpuDriverVersion,omitempty"`
 	// CUDAVersion represents the current version of cuda library.

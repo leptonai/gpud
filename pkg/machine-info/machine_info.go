@@ -11,6 +11,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/asn"
@@ -21,11 +22,13 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/leptonai/gpud/version"
 )
 
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error) {
 	info := apiv1.MachineInfo{
+		GPUdVersion: version.Version,
+
 		GPUDriverVersion:        nvmlInstance.DriverVersion(),
 		CUDAVersion:             nvmlInstance.CUDAVersion(),
 		ContainerRuntimeVersion: "",
