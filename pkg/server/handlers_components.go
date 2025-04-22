@@ -28,11 +28,11 @@ const (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
-	r.DELETE(URLPathComponents, g.deregisterComponent)
 
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
 
 	if g.cfg.EnableAPIPluginRegistration {
+		r.DELETE(URLPathComponents, g.deregisterComponent)
 		r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
 		r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
 	}
