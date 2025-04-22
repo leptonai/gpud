@@ -36,6 +36,8 @@ var (
 	autoUpdateExitCode int
 
 	ibstatCommand string
+
+	enableAPIPluginRegistration bool
 )
 
 const (
@@ -209,6 +211,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
 					Hidden:      true,
+				},
+				&cli.BoolFlag{
+					Name:        "enable-api-plugin-registration",
+					Usage:       "enable api plugin registration (default: false)",
+					Destination: &enableAPIPluginRegistration,
 				},
 			},
 		},

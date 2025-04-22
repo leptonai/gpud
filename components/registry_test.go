@@ -2,6 +2,7 @@ package components
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -435,4 +436,38 @@ func TestRegistryErrorCases(t *testing.T) {
 	// Verify panic occurred with expected message
 	assert.True(t, panicked, "MustRegister should have panicked")
 	assert.Contains(t, panicMsg, "already registered")
+}
+
+func TestRegisterAlreadyRegisteredError(t *testing.T) {
+	// Create a new registry
+	r := NewRegistry(&GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	reg := r.(*registry)
+
+	// Create a test component name and init function
+	compName := "already-registered-test-component"
+	initFunc := func(instance *GPUdInstance) (Component, error) {
+		return newMockComponent(compName), nil
+	}
+
+	// First registration should succeed
+	comp1, err := reg.Register(initFunc)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp1)
+	assert.Equal(t, compName, comp1.Name())
+	assert.True(t, reg.hasRegistered(compName))
+
+	// Second registration with same name should fail with ErrAlreadyRegistered
+	comp2, err := reg.Register(initFunc)
+	assert.Error(t, err)
+	assert.Nil(t, comp2)
+
+	// Verify that the error is wrapped with ErrAlreadyRegistered using errors.Is
+	assert.True(t, errors.Is(err, ErrAlreadyRegistered),
+		"Expected error to be or wrap ErrAlreadyRegistered, got: %v", err)
+
+	// Also verify the error message contains component name
+	assert.Contains(t, err.Error(), compName)
+	assert.Contains(t, err.Error(), "already registered")
 }
