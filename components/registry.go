@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -12,6 +13,11 @@ import (
 	gpudmetrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+)
+
+var (
+	// ErrAlreadyRegistered is the error returned when a component is already registered.
+	ErrAlreadyRegistered = errors.New("component already registered")
 )
 
 // GPUdInstance is the instance of the GPUd dependencies.
@@ -96,7 +102,7 @@ func (r *registry) Register(initFunc InitFunc) (Component, error) {
 	}
 
 	if r.hasRegistered(c.Name()) {
-		return nil, fmt.Errorf("component %s already registered", c.Name())
+		return nil, fmt.Errorf("component %s already registered: %w", c.Name(), ErrAlreadyRegistered)
 	}
 	gpudmetrics.SetRegistered(c.Name())
 

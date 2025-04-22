@@ -92,6 +92,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			"--enable-auto-update=false",
 			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
 			fmt.Sprintf("--listen-address=%s", ep),
+
+			// to run e2e test with api plugin registration
+			"--enable-api-plugin-registration",
 		}
 
 		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), args...)
@@ -406,6 +409,11 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		It("register a custom plugin with dry-run mode", func() {
 			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).NotTo(HaveOccurred(), "failed to register custom plugin")
+		})
+
+		It("redundant registration request should fail", func() {
+			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
+			Expect(rerr).To(HaveOccurred(), "expected to fail with redundant registration")
 		})
 
 		It("list custom plugins and make sure the plugin is registered even with dry-run mode", func() {

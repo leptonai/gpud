@@ -31,8 +31,11 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.DELETE(URLPathComponents, g.deregisterComponent)
 
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
-	r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
-	r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
+
+	if g.cfg.EnableAPIPluginRegistration {
+		r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
+		r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
+	}
 
 	r.GET(URLPathStates, g.getHealthStates)
 	r.GET(URLPathEvents, g.getEvents)
@@ -187,12 +190,12 @@ func (g *globalHandler) registerComponentsCustomPlugin(c *gin.Context) {
 
 	comp, err := g.componentsRegistry.Register(initFunc)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to register component: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to register component: " + err.Error()})
 		return
 	}
 
 	if err := comp.Start(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to start component: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to start component: " + err.Error()})
 		return
 	}
 
@@ -226,7 +229,7 @@ func (g *globalHandler) updateComponentsCustomPlugin(c *gin.Context) {
 
 	prevComp := g.componentsRegistry.Get(spec.ComponentName())
 	if prevComp == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component not found"})
+		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
 		return
 	}
 
@@ -236,7 +239,7 @@ func (g *globalHandler) updateComponentsCustomPlugin(c *gin.Context) {
 
 	comp, err := g.componentsRegistry.Register(initFunc)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to register component: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to register component: " + err.Error()})
 		return
 	}
 

@@ -75,6 +75,8 @@ func cmdRun(cliContext *cli.Context) error {
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
 
+	cfg.EnableAPIPluginRegistration = enableAPIPluginRegistration
+
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

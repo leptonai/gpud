@@ -45,6 +45,9 @@ type Config struct {
 
 	// A list of nvidia tool command paths to overwrite the default paths.
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
+
+	// EnableAPIPluginRegistration enables the API plugin registration.
+	EnableAPIPluginRegistration bool `json:"enable_api_plugin_registration"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

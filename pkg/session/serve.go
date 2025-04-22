@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,17 +39,24 @@ type Request struct {
 	Since         time.Duration     `json:"since"`
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
-	Bootstrap     *BootstrapRequest `json:"bootstrap,omitempty"`
+
+	Bootstrap *BootstrapRequest `json:"bootstrap,omitempty"`
+
+	// ComponentName is the name of the component to deregister.
+	ComponentName string `json:"component_name,omitempty"`
 
 	// CustomPluginSpec is the spec for the custom plugin to register or update.
 	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
-	// CustomPluginName is the name of the custom plugin to deregister.
-	CustomPluginName string `json:"custom_plugin_name,omitempty"`
 }
 
 type Response struct {
+	// Error is the error message from session processor.
 	// don't use "error" type as it doesn't marshal/unmarshal well
 	Error string `json:"error,omitempty"`
+	// ErrorCode is the error code from session processor.
+	// It uses the same semantics as the HTTP status code.
+	// See: https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
+	ErrorCode int32 `json:"error_code,omitempty"`
 
 	States  apiv1.GPUdComponentHealthStates `json:"states,omitempty"`
 	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
@@ -222,6 +230,38 @@ func (s *Session) serve() {
 				}
 			}
 
+		case "deregisterComponent":
+			if payload.ComponentName != "" {
+				comp := s.componentsRegistry.Get(payload.ComponentName)
+				if comp == nil {
+					log.Logger.Warnw("component not found", "name", payload.ComponentName)
+					break
+				}
+
+				deregisterable, ok := comp.(components.Deregisterable)
+				if !ok {
+					log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
+					response.Error = "component is not deregisterable"
+					break
+				}
+
+				if !deregisterable.CanDeregister() {
+					log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
+					response.Error = "component is not deregisterable"
+					break
+				}
+
+				cerr := comp.Close()
+				if cerr != nil {
+					log.Logger.Errorw("failed to close component", "error", cerr)
+					response.Error = cerr.Error()
+					break
+				}
+
+				// only deregister if the component is successfully closed
+				_ = s.componentsRegistry.Deregister(payload.ComponentName)
+			}
+
 		case "registerPlugin":
 			if payload.CustomPluginSpec != nil {
 				if err := payload.CustomPluginSpec.Validate(); err != nil {
@@ -237,6 +277,9 @@ func (s *Session) serve() {
 
 				comp, err := s.componentsRegistry.Register(initFunc)
 				if err != nil {
+					if errors.Is(err, components.ErrAlreadyRegistered) {
+						response.ErrorCode = http.StatusConflict
+					}
 					response.Error = err.Error()
 					break
 				}
@@ -257,6 +300,7 @@ func (s *Session) serve() {
 
 				prevComp := s.componentsRegistry.Get(payload.CustomPluginSpec.ComponentName())
 				if prevComp == nil {
+					response.ErrorCode = http.StatusNotFound
 					response.Error = fmt.Sprintf("plugin %s not found", payload.CustomPluginSpec.ComponentName())
 					break
 				}
@@ -283,38 +327,6 @@ func (s *Session) serve() {
 				}
 
 				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
-			}
-
-		case "deregisterPlugin":
-			if payload.CustomPluginName != "" {
-				comp := s.componentsRegistry.Get(payload.CustomPluginName)
-				if comp == nil {
-					log.Logger.Warnw("plugin not found", "name", payload.CustomPluginName)
-					break
-				}
-
-				deregisterable, ok := comp.(components.Deregisterable)
-				if !ok {
-					log.Logger.Warnw("plugin is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
-					response.Error = "plugin is not deregisterable"
-					break
-				}
-
-				if !deregisterable.CanDeregister() {
-					log.Logger.Warnw("plugin is not deregisterable", "name", comp.Name())
-					response.Error = "plugin is not deregisterable"
-					break
-				}
-
-				cerr := comp.Close()
-				if cerr != nil {
-					log.Logger.Errorw("failed to close component", "error", cerr)
-					response.Error = cerr.Error()
-					break
-				}
-
-				// only deregister if the component is successfully closed
-				_ = s.componentsRegistry.Deregister(payload.CustomPluginName)
 			}
 		}
 
