@@ -63,6 +63,8 @@ type Response struct {
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
 
 	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
+
+	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -261,6 +263,17 @@ func (s *Session) serve() {
 				// only deregister if the component is successfully closed
 				_ = s.componentsRegistry.Deregister(payload.ComponentName)
 			}
+
+		case "getPlugins":
+			cs := make(map[string]pkgcustomplugins.Spec, 0)
+			for _, c := range s.componentsRegistry.All() {
+				if customPluginRegisteree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok {
+					if customPluginRegisteree.IsCustomPlugin() {
+						cs[c.Name()] = customPluginRegisteree.Spec()
+					}
+				}
+			}
+			response.Plugins = cs
 
 		case "registerPlugin":
 			if payload.CustomPluginSpec != nil {
