@@ -237,18 +237,21 @@ func (s *Session) serve() {
 				comp := s.componentsRegistry.Get(payload.ComponentName)
 				if comp == nil {
 					log.Logger.Warnw("component not found", "name", payload.ComponentName)
+					response.ErrorCode = http.StatusNotFound
 					break
 				}
 
 				deregisterable, ok := comp.(components.Deregisterable)
 				if !ok {
 					log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
+					response.ErrorCode = http.StatusBadRequest
 					response.Error = "component is not deregisterable"
 					break
 				}
 
 				if !deregisterable.CanDeregister() {
 					log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
+					response.ErrorCode = http.StatusBadRequest
 					response.Error = "component is not deregisterable"
 					break
 				}
