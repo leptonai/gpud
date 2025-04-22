@@ -117,8 +117,8 @@ func (s *Session) serve() {
 		case "delete":
 			go s.delete()
 
-		case "sethealthy":
-			log.Logger.Infow("sethealthy received", "components", payload.Components)
+		case "setHealthy":
+			log.Logger.Infow("setHealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {
 				comp := s.componentsRegistry.Get(componentName)
 				if comp == nil {
@@ -130,7 +130,7 @@ func (s *Session) serve() {
 						log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
 					}
 				} else {
-					log.Logger.Warnw("component does not implement HealthSettable, dropping sethealthy request", "component", componentName)
+					log.Logger.Warnw("component does not implement HealthSettable, dropping setHealthy request", "component", componentName)
 				}
 			}
 
