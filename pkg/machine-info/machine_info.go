@@ -21,11 +21,14 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error) {
 	info := apiv1.MachineInfo{
+		GPUdVersion: version.Version,
+
 		GPUDriverVersion:        nvmlInstance.DriverVersion(),
 		CUDAVersion:             nvmlInstance.CUDAVersion(),
 		ContainerRuntimeVersion: "",
