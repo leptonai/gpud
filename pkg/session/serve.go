@@ -269,6 +269,7 @@ func (s *Session) serve() {
 			if payload.ComponentName != "" {
 				c := s.componentsRegistry.Get(payload.ComponentName)
 				if c == nil {
+					response.ErrorCode = http.StatusNotFound
 					response.Error = fmt.Sprintf("component %s not found", payload.ComponentName)
 					break
 				}
