@@ -6,35 +6,32 @@ import (
 	"os"
 
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
-	pkg_update "github.com/leptonai/gpud/pkg/update"
+	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
+	pkgupdate "github.com/leptonai/gpud/pkg/update"
 
 	"github.com/urfave/cli"
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
-	defer func() {
-		if retErr != nil {
-			return
+	if cliContext.String("token") != "" {
+		if lerr := cmdLogin(cliContext); lerr != nil {
+			fmt.Printf("%s failed to login (%v)\n", warningSign, lerr)
+			return lerr
 		}
-		if cliContext.String("token") != "" {
-			if err := cmdLogin(cliContext); err != nil {
-				retErr = err
-			}
-		} else {
-			fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
-		}
-	}()
+		fmt.Printf("%s successfully logged in\n", checkMark)
+	} else {
+		fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
+	}
 
 	bin, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	if err := pkg_update.RequireRoot(); err != nil {
+	if err := pkgupdate.RequireRoot(); err != nil {
 		fmt.Printf("%s %q requires root to run with systemd: %v (to run without systemd, '%s run')\n", warningSign, bin, err, bin)
 		return err
 	}
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		fmt.Printf("%s requires systemd, to run without systemd, '%s run'\n", warningSign, bin)
 		return errors.ErrUnsupported
 	}
@@ -49,12 +46,12 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	if err := pkg_update.EnableGPUdSystemdUnit(); err != nil {
+	if err := pkgupdate.EnableGPUdSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to enable systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
 
-	if err := pkg_update.RestartGPUdSystemdUnit(); err != nil {
+	if err := pkgupdate.RestartGPUdSystemdUnit(); err != nil {
 		fmt.Printf("%s failed to restart systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
