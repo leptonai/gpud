@@ -11,6 +11,15 @@ type CustomPluginRegisteree interface {
 	Spec() Spec
 }
 
+const (
+	// SpecTypeInit is the type of the plugin that is used to initialize at the server start.
+	// Meant to be run only once.
+	SpecTypeInit = "init"
+	// SpecTypeComponent is the type of the plugin that is used to run as a component.
+	// Meant to be run periodically.
+	SpecTypeComponent = "component"
+)
+
 // Specs is a list of plugin specs.
 type Specs []Spec
 
@@ -20,6 +29,9 @@ type Spec struct {
 	// PluginName describes the plugin.
 	// It is used for generating the component name.
 	PluginName string `json:"plugin_name"`
+
+	// Type defines the plugin type.
+	Type string `json:"type"`
 
 	// StatePlugin represents the jobs to run for /states API.
 	StatePlugin *Plugin `json:"state_plugin,omitempty"`

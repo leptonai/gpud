@@ -1,4 +1,5 @@
 - plugin_name: "nvidia-smi"
+  type: component
 
   state_plugin:
     steps:

@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	clientv1 "github.com/leptonai/gpud/client/v1"
@@ -53,8 +54,14 @@ var (
 )
 
 var _ = Describe("[GPUD E2E]", Ordered, func() {
-	var err error
-	gCtx, gCancel := context.WithTimeout(context.Background(), time.Minute*8)
+	gCtx, gCancel := context.WithTimeout(context.Background(), 10*time.Minute)
+
+	randSfx, err := randStr(32)
+	Expect(err).NotTo(HaveOccurred(), "failed to rand key")
+	initPluginWriteFile := filepath.Join(os.TempDir(), randSfx)
+
+	initPluginWriteFileContents, err := randStr(128)
+	Expect(err).NotTo(HaveOccurred(), "failed to rand contents")
 
 	BeforeAll(func() {
 		err = os.Setenv(nvmllib.EnvMockAllSuccess, "true")
@@ -78,6 +85,42 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		listener.Close()
 		ep = fmt.Sprintf("localhost:%d", port)
 
+		By("create init plugin specs")
+		initPluginSpecs := pkgcustomplugins.Specs{
+			{
+				PluginName: "init-plugin",
+				Type:       pkgcustomplugins.SpecTypeInit,
+				StatePlugin: &pkgcustomplugins.Plugin{
+					Steps: []pkgcustomplugins.Step{
+						{
+							Name: "first-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo hello",
+							},
+						},
+						{
+							Name: "second-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								ContentType: "plaintext",
+								Script:      fmt.Sprintf("echo %s > %s", initPluginWriteFileContents, initPluginWriteFile),
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: time.Minute},
+			},
+		}
+		specsB, err := yaml.Marshal(initPluginSpecs)
+		Expect(err).NotTo(HaveOccurred(), "failed to marshal init plugin specs")
+
+		specFile, err := os.CreateTemp(os.TempDir(), "plugins.yaml")
+		Expect(err).NotTo(HaveOccurred(), "failed to create temp file")
+		defer os.Remove(specFile.Name())
+		_, err = specFile.Write(specsB)
+		Expect(err).NotTo(HaveOccurred(), "failed to write init plugin specs")
+		Expect(specFile.Close()).To(Succeed(), "failed to close temp file")
+
 		randKey, err = randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand key")
 		randVal, err = randStr(10)
@@ -95,6 +138,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			// to run e2e test with api plugin registration
 			"--enable-api-plugin-registration",
+			"--plugin-specs-file=" + specFile.Name(),
 		}
 
 		cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), args...)
@@ -370,6 +414,12 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 	Describe("register custom plugin with client/v1", func() {
 
+		It("make sure init plugin has run", func() {
+			b, err := os.ReadFile(initPluginWriteFile)
+			Expect(err).NotTo(HaveOccurred(), "failed to read init plugin file")
+			Expect(string(b)).To(ContainSubstring(initPluginWriteFileContents), "expected init plugin to have run")
+		})
+
 		It("list custom plugins", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -383,6 +433,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		// register with dry-run mode first
 		testPluginSpec := pkgcustomplugins.Spec{
 			PluginName: pluginName,
+			Type:       pkgcustomplugins.SpecTypeComponent,
 			DryRun:     true,
 			StatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{

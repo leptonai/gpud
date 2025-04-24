@@ -13,6 +13,7 @@ func TestPluginValidate(t *testing.T) {
 	// Create a plugin with base64 encoded scripts
 	plugin := Spec{
 		PluginName: "test",
+		Type:       SpecTypeComponent,
 		StatePlugin: &Plugin{
 			Steps: []Step{
 				{

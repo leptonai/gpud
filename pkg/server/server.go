@@ -28,9 +28,11 @@ import (
 	swaggerfiles "github.com/swaggo/files"
 	ginswagger "github.com/swaggo/gin-swagger"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
+	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
@@ -130,6 +132,14 @@ type Server struct {
 	dbRW *sql.DB
 	dbRO *sql.DB
 
+	// initRegistry is the registry for init plugins
+	// that runs before the regular components
+	// e.g., install python, ...
+	// in most cases, this runs only once
+	// to avoid conflicting with other periodic checks
+	initRegistry components.Registry
+
+	// componentsRegistry is the registry for the regular components
 	componentsRegistry components.Registry
 
 	uid                string
@@ -273,6 +283,50 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	for _, initFunc := range componentInits {
 		s.componentsRegistry.MustRegister(initFunc)
 	}
+
+	// must be registered before starting the components
+	s.initRegistry = components.NewRegistry(gpudInstance)
+	if config.PluginSpecsFile != "" {
+		specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load plugin specs: %w", err)
+		}
+		if err := specs.Validate(); err != nil {
+			return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
+		}
+
+		for _, spec := range specs {
+			initFunc := spec.NewInitFunc()
+			if initFunc == nil {
+				log.Logger.Errorw("failed to load plugin", "name", spec.ComponentName())
+				continue
+			}
+
+			if spec.Type == customplugins.SpecTypeInit {
+				s.initRegistry.MustRegister(initFunc)
+				log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
+			} else {
+				s.componentsRegistry.MustRegister(initFunc)
+				log.Logger.Infow("loaded component plugin", "name", spec.ComponentName())
+			}
+		}
+	}
+
+	// init plugin run only "once", and "before" regular components
+	// thus no need to start
+	for _, c := range s.initRegistry.All() {
+		rs := c.Check()
+		if rs.HealthState() != apiv1.HealthStateTypeHealthy {
+			return nil, fmt.Errorf("failed to start init plugin %s: %s", c.Name(), rs.Summary())
+		}
+		log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())
+
+		debugger, ok := c.(components.CheckResultDebugger)
+		if ok {
+			fmt.Printf("init plugin %q debug output:\n\n%s\n\n", c.Name(), debugger.Debug())
+		}
+	}
+
 	componentNames := make([]string, 0)
 	for _, c := range s.componentsRegistry.All() {
 		if err = c.Start(); err != nil {

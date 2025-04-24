@@ -15,7 +15,7 @@ func (specs Specs) Validate() error {
 	all := make(map[string]struct{})
 	for i := range specs {
 		if err := specs[i].Validate(); err != nil {
-			return err
+			return fmt.Errorf("failed to validate plugin spec: %w (plugin: %q)", err, specs[i].ComponentName())
 		}
 
 		if _, ok := all[specs[i].ComponentName()]; ok {
@@ -49,6 +49,7 @@ func LoadSpecs(path string) (Specs, error) {
 }
 
 var (
+	ErrInvalidPluginType     = errors.New("invalid plugin type")
 	ErrComponentNameRequired = errors.New("component name is required")
 	ErrStepNameRequired      = errors.New("step name is required")
 	ErrMissingPluginStep     = errors.New("plugin step cannot be empty")
@@ -58,12 +59,18 @@ var (
 )
 
 const (
-	MaxPluginNameLength = 32
-	DefaultTimeout      = 1 * time.Minute
+	MaxPluginNameLength = 128
+	DefaultTimeout      = time.Minute
 )
 
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
+	switch spec.Type {
+	case SpecTypeInit, SpecTypeComponent:
+	default:
+		return ErrInvalidPluginType
+	}
+
 	if len(spec.PluginName) > MaxPluginNameLength {
 		return fmt.Errorf("plugin name is too long: %s", spec.PluginName)
 	}

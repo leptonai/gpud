@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -49,5 +50,13 @@ func (b *RunBashScript) executeBash(ctx context.Context, processRunner process.R
 	if err != nil {
 		return nil, 0, err
 	}
-	return processRunner.RunUntilCompletion(ctx, decoded)
+
+	execOut, exitCode, err := processRunner.RunUntilCompletion(ctx, decoded)
+	if err != nil {
+		log.Logger.Errorw("failed to run bash script", "output", string(execOut), "exitCode", exitCode, "error", err)
+	} else {
+		log.Logger.Debugw("bash script output", "output", string(execOut), "exitCode", exitCode)
+	}
+
+	return execOut, exitCode, err
 }
