@@ -233,6 +233,7 @@ type checkResult struct {
 
 type Info struct {
 	Arch      string `json:"arch"`
+	GoArch    string `json:"go_arch"`
 	CPU       string `json:"cpu"`
 	Family    string `json:"family"`
 	Model     string `json:"model"`
@@ -269,6 +270,7 @@ func (cr *checkResult) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.Append([]string{"Arch", cr.Info.Arch})
+	table.Append([]string{"Go Arch", cr.Info.GoArch})
 	table.Append([]string{"CPU", cr.Info.CPU})
 	table.Append([]string{"Family", cr.Info.Family})
 	table.Append([]string{"Model", cr.Info.Model})

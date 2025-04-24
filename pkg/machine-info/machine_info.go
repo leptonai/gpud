@@ -117,7 +117,7 @@ func GetSystemResourceLogicalCores() (string, int64, error) {
 
 func GetMachineCPUInfo() apiv1.MachineCPUInfo {
 	return apiv1.MachineCPUInfo{
-		Architecture: pkghost.Arch(),
+		Architecture: runtime.GOARCH,
 	}
 }
 
