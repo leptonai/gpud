@@ -16,6 +16,7 @@ const collectCPUUsagePerCPU = false
 func getInfo() Info {
 	return Info{
 		Arch:      pkghost.Arch(),
+		GoArch:    runtime.GOARCH,
 		CPU:       pkghost.CPUModelName(),
 		Family:    pkghost.CPUFamily(),
 		Model:     pkghost.CPUModel(),

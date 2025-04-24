@@ -233,6 +233,7 @@ type checkResult struct {
 
 type Info struct {
 	Arch      string `json:"arch"`
+	GoArch    string `json:"go_arch"`
 	CPU       string `json:"cpu"`
 	Family    string `json:"family"`
 	Model     string `json:"model"`
