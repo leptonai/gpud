@@ -1217,11 +1217,6 @@ func TestComponentCheckOrder(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	// Setup tracking of which checks were called in what order
-	type checkCall struct {
-		name  string
-		count int
-	}
 	var checksCalled []string
 	trackCheck := func(name string) {
 		checksCalled = append(checksCalled, name)
@@ -1259,6 +1254,7 @@ func TestComponentCheckOrder(t *testing.T) {
 
 	result = c.Check()
 	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
