@@ -36,13 +36,29 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
+
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer dbRO.Close()
 
-	machineID, err := gpudstate.ReadMachineID(rootCtx, dbRO)
+	// in case the table has not been created
+	if err := gpudstate.CreateTableMachineMetadata(rootCtx, dbRW); err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	// if the login is the "first" operations before creating the db,
+	// we need write mode
+	// read-only mode fails with "no such file or directory"
+	// if the db file does not already exist
+	machineID, err := gpudstate.ReadMachineID(rootCtx, dbRW)
 	if err != nil {
 		return err
 	}
@@ -77,11 +93,6 @@ func cmdLogin(cliContext *cli.Context) error {
 	machineID = loginResp.MachineID
 
 	// consume the login response to persist the machine ID
-	dbRW, err := sqlite.Open(stateFile)
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer dbRW.Close()
 	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, machineID); err != nil {
 		return fmt.Errorf("failed to record machine ID: %w", err)
 	}
