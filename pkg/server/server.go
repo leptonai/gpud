@@ -509,25 +509,31 @@ func (s *Server) Stop() {
 		s.session.Stop()
 	}
 
-	for _, component := range s.componentsRegistry.All() {
-		closer, ok := component.(io.Closer)
-		if !ok {
-			continue
-		}
-		if err := closer.Close(); err != nil {
-			log.Logger.Errorf("failed to close plugin %v: %v", component.Name(), err)
+	if s.componentsRegistry != nil {
+		for _, component := range s.componentsRegistry.All() {
+			closer, ok := component.(io.Closer)
+			if !ok {
+				continue
+			}
+			if err := closer.Close(); err != nil {
+				log.Logger.Errorf("failed to close plugin %v: %v", component.Name(), err)
+			}
 		}
 	}
 
-	if cerr := s.dbRW.Close(); cerr != nil {
-		log.Logger.Debugw("failed to close read-write db", "error", cerr)
-	} else {
-		log.Logger.Debugw("successfully closed read-write db")
+	if s.dbRW != nil {
+		if cerr := s.dbRW.Close(); cerr != nil {
+			log.Logger.Debugw("failed to close read-write db", "error", cerr)
+		} else {
+			log.Logger.Debugw("successfully closed read-write db")
+		}
 	}
-	if cerr := s.dbRO.Close(); cerr != nil {
-		log.Logger.Debugw("failed to close read-only db", "error", cerr)
-	} else {
-		log.Logger.Debugw("successfully closed read-only db")
+	if s.dbRO != nil {
+		if cerr := s.dbRO.Close(); cerr != nil {
+			log.Logger.Debugw("failed to close read-only db", "error", cerr)
+		} else {
+			log.Logger.Debugw("successfully closed read-only db")
+		}
 	}
 
 	if s.fifo != nil {
