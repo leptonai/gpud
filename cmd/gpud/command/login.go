@@ -7,7 +7,6 @@ import (
 
 	"github.com/urfave/cli"
 
-	clientv1 "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
@@ -32,13 +31,6 @@ func cmdLogin(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
-
-	if err := clientv1.BlockUntilServerReady(
-		rootCtx,
-		fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort),
-	); err != nil {
-		return err
-	}
 
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
