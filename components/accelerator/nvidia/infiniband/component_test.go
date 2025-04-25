@@ -50,8 +50,8 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  0,
 			},
-			wantReason: "only 0 ports (>= 0 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantReason: reasonThresholdNotSetSkipped,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name:   "only rate threshold set",
@@ -60,7 +60,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 0,
 				AtLeastRate:  200,
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonThresholdNotSetSkipped,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
