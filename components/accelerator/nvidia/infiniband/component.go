@@ -160,6 +160,14 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	// nothing specified for this machine, gpud MUST skip the ib check
+	thresholds := c.getThresholdsFunc()
+	if thresholds.IsZero() {
+		cr.reason = reasonThresholdNotSetSkipped
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
+	}
+
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
 	ccancel()
@@ -188,7 +196,6 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	thresholds := c.getThresholdsFunc()
 	cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
 
 	// we only care about unhealthy events, no need to persist healthy events
@@ -244,17 +251,18 @@ func (c *component) Check() components.CheckResult {
 }
 
 var (
-	reasonMissingIbstatOutput    = "missing ibstat output (skipped evaluation)"
-	reasonMissingEventBucket     = "missing event storage (skipped evaluation)"
+	// nothing specified for this machine, gpud MUST skip the ib check
 	reasonThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
-	reasonNoIbIssueFound         = "no infiniband issue found (in ibstat)"
+
+	reasonMissingIbstatOutput = "missing ibstat output (skipped evaluation)"
+	reasonMissingEventBucket  = "missing event storage (skipped evaluation)"
+	reasonNoIbIssueFound      = "no infiniband issue found (in ibstat)"
 )
 
 // Returns the output evaluation reason and its health state.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
 func evaluateIbstatOutputAgainstThresholds(o *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
-	// nothing specified for this machine, gpud MUST skip the ib check
-	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
+	if thresholds.IsZero() {
 		return reasonThresholdNotSetSkipped, apiv1.HealthStateTypeHealthy
 	}
 
