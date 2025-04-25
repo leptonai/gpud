@@ -1321,6 +1321,7 @@ func TestComponentCheckOrder(t *testing.T) {
 
 	result = c.Check()
 	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat checker not found", data.reason)
@@ -1359,6 +1360,7 @@ func TestComponentCheckOrder(t *testing.T) {
 
 	result = c.Check()
 	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
 	require.True(t, ok)
 	assert.Equal(t, []string{"thresholds", "ibstat"}, checksCalled) // Both checks should be called
 }
