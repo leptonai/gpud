@@ -13,30 +13,49 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-// architectureNames maps architecture codes to human-readable names
-// as declared in nvml/nvml.h
-var architectureNames = map[uint]string{
-	2:          "Kepler",
-	3:          "Maxwell",
-	4:          "Pascal",
-	5:          "Volta",
-	6:          "Turing",
-	7:          "Ampere",
-	8:          "Ada",
-	9:          "Hopper",
-	0xffffffff: "Unknown",
+// GetArchFamily returns the GPU architecture family name
+// based on the given device CUDA compute capability.
+// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L283C6-L283C19
+func GetArchFamily(dev device.Device) (string, error) {
+	computeMajor, computeMinor, ret := dev.GetCudaComputeCapability()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get device compute capability: %v", nvml.ErrorString(ret))
+	}
+	return getArchFamily(computeMajor, computeMinor), nil
 }
 
-func GetArchitecture(dev device.Device) (string, error) {
-	arch, ret := dev.GetArchitecture()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("failed to get device architecture: %v", nvml.ErrorString(ret))
+// getArchFamily maps architecture codes to human-readable names
+// as declared in nvml/nvml.h
+// ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L283C6-L283C19
+func getArchFamily(computeMajor, computeMinor int) string {
+	switch computeMajor {
+	case 1:
+		return "tesla"
+	case 2:
+		return "fermi"
+	case 3:
+		return "kepler"
+	case 5:
+		return "maxwell"
+	case 6:
+		return "pascal"
+	case 7:
+		if computeMinor < 5 {
+			return "volta"
+		}
+		return "turing"
+	case 8:
+		if computeMinor < 9 {
+			return "ampere"
+		}
+		return "ada-lovelace"
+	case 9:
+		return "hopper"
+	// The Blackwell GPU family is bifurcated into two cuda compute capabilities 10.0 and 12.0
+	case 10, 12:
+		return "blackwell"
 	}
-
-	if name, ok := architectureNames[uint(arch)]; ok {
-		return name, nil
-	}
-	return fmt.Sprintf("UnknownArchitecture(%d)", arch), nil
+	return "undefined"
 }
 
 // brandNames maps brand codes to human-readable names

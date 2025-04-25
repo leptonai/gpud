@@ -52,6 +52,9 @@ var AllSuccessInterface = &nvmlmock.Interface{
 			GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
 				return 7, nvml.SUCCESS // NVML_DEVICE_ARCH_AMPERE (7)
 			},
+			GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
+				return 8, 0, nvml.SUCCESS // CUDA 12.0 version
+			},
 			GetBrandFunc: func() (nvml.BrandType, nvml.Return) {
 				return nvml.BRAND_GEFORCE_RTX, nvml.SUCCESS // GeForce RTX
 			},
