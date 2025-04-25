@@ -162,6 +162,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
 	}
+
 	if c.getIbstatOutputFunc == nil {
 		cr.reason = "ibstat checker not found"
 		cr.health = apiv1.HealthStateTypeHealthy
