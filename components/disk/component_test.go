@@ -510,3 +510,118 @@ func TestCheck(t *testing.T) {
 
 	fmt.Println(rs.String())
 }
+
+// TestCheckResultString tests the String method of checkResult
+func TestCheckResultString(t *testing.T) {
+	t.Run("nil checkResult", func(t *testing.T) {
+		var cr *checkResult
+		result := cr.String()
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("empty ExtPartitions", func(t *testing.T) {
+		cr := &checkResult{
+			ExtPartitions: disk.Partitions{},
+		}
+		result := cr.String()
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("ExtPartitions with nil Usage", func(t *testing.T) {
+		cr := &checkResult{
+			ExtPartitions: disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/mnt/data1",
+					Usage:      nil,
+				},
+			},
+		}
+		result := cr.String()
+		assert.NotContains(t, result, "/mnt/data1")
+	})
+
+	t.Run("ExtPartitions with valid Usage", func(t *testing.T) {
+		cr := &checkResult{
+			ExtPartitions: disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/mnt/data1",
+					Usage: &disk.Usage{
+						TotalBytes:       1024 * 1024 * 1024,
+						FreeBytes:        512 * 1024 * 1024,
+						UsedBytes:        512 * 1024 * 1024,
+						TotalHumanized:   "1.0 GB",
+						FreeHumanized:    "512 MB",
+						UsedHumanized:    "512 MB",
+						UsedPercent:      "50.0",
+						UsedPercentFloat: 50.0,
+					},
+				},
+				{
+					Device:     "/dev/sda2",
+					MountPoint: "/mnt/data2",
+					Usage: &disk.Usage{
+						TotalBytes:       2 * 1024 * 1024 * 1024,
+						FreeBytes:        1 * 1024 * 1024 * 1024,
+						UsedBytes:        1 * 1024 * 1024 * 1024,
+						TotalHumanized:   "2.0 GB",
+						FreeHumanized:    "1.0 GB",
+						UsedHumanized:    "1.0 GB",
+						UsedPercent:      "50.0",
+						UsedPercentFloat: 50.0,
+					},
+				},
+			},
+		}
+		result := cr.String()
+
+		// Verify table contains both mount points
+		assert.Contains(t, result, "/mnt/data1")
+		assert.Contains(t, result, "/mnt/data2")
+
+		// Verify header exists in uppercase
+		assert.Contains(t, result, "MOUNT POINT")
+		assert.Contains(t, result, "TOTAL")
+		assert.Contains(t, result, "FREE")
+		assert.Contains(t, result, "USED")
+		assert.Contains(t, result, "USED %")
+
+		// Verify data values
+		assert.Contains(t, result, "1.0 GB")
+		assert.Contains(t, result, "2.0 GB")
+		assert.Contains(t, result, "512 MB")
+		assert.Contains(t, result, "50.0 %")
+	})
+
+	t.Run("mixed valid and nil Usage", func(t *testing.T) {
+		cr := &checkResult{
+			ExtPartitions: disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/mnt/data1",
+					Usage: &disk.Usage{
+						TotalBytes:       1024 * 1024 * 1024,
+						FreeBytes:        512 * 1024 * 1024,
+						UsedBytes:        512 * 1024 * 1024,
+						TotalHumanized:   "1.0 GB",
+						FreeHumanized:    "512 MB",
+						UsedHumanized:    "512 MB",
+						UsedPercent:      "50.0",
+						UsedPercentFloat: 50.0,
+					},
+				},
+				{
+					Device:     "/dev/sda2",
+					MountPoint: "/mnt/data2",
+					Usage:      nil,
+				},
+			},
+		}
+		result := cr.String()
+
+		// Should contain the valid mount point but not the nil one
+		assert.Contains(t, result, "/mnt/data1")
+		assert.NotContains(t, result, "/mnt/data2")
+	})
+}

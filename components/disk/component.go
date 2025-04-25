@@ -272,6 +272,10 @@ func (cr *checkResult) String() string {
 	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
 
 	for _, p := range cr.ExtPartitions {
+		if p.Usage == nil {
+			continue
+		}
+
 		table.Append([]string{
 			p.MountPoint,
 			p.Usage.TotalHumanized,
