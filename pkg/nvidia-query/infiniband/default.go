@@ -16,6 +16,14 @@ type ExpectedPortStates struct {
 	AtLeastRate int `json:"at_least_rate"`
 }
 
+// IsZero returns true if the expected port states are not set.
+func (eps *ExpectedPortStates) IsZero() bool {
+	if eps == nil {
+		return true
+	}
+	return eps.AtLeastPorts <= 0 || eps.AtLeastRate <= 0
+}
+
 var gpuPortConfigs = map[string]ExpectedPortStates{
 	// "NVIDIA ConnectX-6 or ConnectX-7 Single Port InfiniBand (default): Up to 200Gbps"
 	// ref. https://docs.nvidia.com/dgx/dgxa100-user-guide/introduction-to-dgxa100.html

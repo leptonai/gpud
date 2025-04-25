@@ -50,8 +50,8 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  0,
 			},
-			wantReason: "only 0 ports (>= 0 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantReason: reasonThresholdNotSetSkipped,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name:   "only rate threshold set",
@@ -60,7 +60,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 0,
 				AtLeastRate:  200,
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonThresholdNotSetSkipped,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
@@ -431,9 +431,17 @@ func TestComponentCheck(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
 
-	// Case 2: With NVML
-	nvmlMock := &mockNVMLInstance{exists: true}
+	// Case 2: With NVML but missing product name
+	nvmlMock := &mockNVMLInstance{exists: true, productName: ""}
 	c.nvmlInstance = nvmlMock
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", data.reason)
+
+	// Case 3: With NVML and valid product name
+	nvmlMock.productName = "Tesla V100"
 	result = c.Check()
 	data, ok = result.(*checkResult)
 	require.True(t, ok)
@@ -669,7 +677,8 @@ func (m *MockEventBucket) GetEvents() apiv1.Events {
 
 // Test helpers for mocking NVML and IBStat
 type mockNVMLInstance struct {
-	exists bool
+	exists      bool
+	productName string
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -686,7 +695,10 @@ func (m *mockNVMLInstance) Library() nvmllib.Library {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return "test"
+	if m.productName == "" {
+		return "" // Empty string for testing
+	}
+	return m.productName // Return custom value for testing
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -886,7 +898,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			return nil, errors.New("ibstat error")
 		},
 		getThresholdsFunc: mockGetThresholds,
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 	}
 
 	result := c.Check()
@@ -903,7 +915,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			return nil, nil
 		},
 		getThresholdsFunc: mockGetThresholds,
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 	}
 
 	result = c.Check()
@@ -920,7 +932,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			return nil, infiniband.ErrNoIbstatCommand
 		},
 		getThresholdsFunc: mockGetThresholds,
-		nvmlInstance:      &mockNVMLInstance{exists: true},
+		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 	}
 
 	result = c.Check()
@@ -943,7 +955,7 @@ func TestComponentCheckEventBucketOperations(t *testing.T) {
 		ctx:                 cctx,
 		cancel:              ccancel,
 		eventBucket:         mockBucket,
-		nvmlInstance:        &mockNVMLInstance{exists: true},
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		getIbstatOutputFunc: mockGetIbstatOutput,
 		getThresholdsFunc: func() infiniband.ExpectedPortStates {
 			// Return thresholds that will trigger an unhealthy state
@@ -961,7 +973,7 @@ func TestComponentCheckEventBucketOperations(t *testing.T) {
 
 	// Verify that an event was inserted
 	events := mockBucket.GetEvents()
-	assert.NotEmpty(t, events)
+	require.NotEmpty(t, events)
 	assert.Equal(t, "ibstat", events[0].Name)
 	assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
 }
@@ -1035,7 +1047,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 		ctx:                 cctx,
 		cancel:              ccancel,
 		eventBucket:         errorBucket,
-		nvmlInstance:        &mockNVMLInstance{exists: true},
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		getIbstatOutputFunc: mockGetIbstatOutput,
 		getThresholdsFunc: func() infiniband.ExpectedPortStates {
 			return infiniband.ExpectedPortStates{
@@ -1115,7 +1127,7 @@ func TestCheckWithExistingEvent(t *testing.T) {
 		ctx:                 cctx,
 		cancel:              ccancel,
 		eventBucket:         mockBucket,
-		nvmlInstance:        &mockNVMLInstance{exists: true},
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		getIbstatOutputFunc: mockGetIbstatOutput,
 		getThresholdsFunc: func() infiniband.ExpectedPortStates {
 			return infiniband.ExpectedPortStates{
@@ -1185,7 +1197,7 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 	c := &component{
 		ctx:                 cctx,
 		cancel:              ccancel,
-		nvmlInstance:        &mockNVMLInstance{exists: true},
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		getIbstatOutputFunc: nil, // Set to nil explicitly
 		getThresholdsFunc:   mockGetThresholds,
 	}
@@ -1195,4 +1207,160 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "ibstat checker not found", data.reason)
+}
+
+// TestComponentCheckOrder tests that the checks in the Check() method are evaluated in the correct order
+func TestComponentCheckOrder(t *testing.T) {
+	t.Parallel()
+
+	// Create a context for tests
+	cctx, ccancel := context.WithCancel(context.Background())
+	defer ccancel()
+
+	var checksCalled []string
+	trackCheck := func(name string) {
+		checksCalled = append(checksCalled, name)
+	}
+
+	// 1. Test threshold check first
+	// Create a component with threshold check that returns IsZero() true
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{} // zero thresholds
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, reasonThresholdNotSetSkipped, data.reason)
+	assert.Equal(t, []string{"thresholds"}, checksCalled)
+
+	// 2. Test NVML instance nil check
+	checksCalled = nil // reset
+	c = &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100} // non-zero thresholds
+		},
+		nvmlInstance: nil, // nil NVML
+	}
+
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", data.reason)
+	assert.Equal(t, []string{"thresholds"}, checksCalled) // Only threshold check should be called
+
+	// 3. Test NVML exists check
+	checksCalled = nil // reset
+	c = &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
+		},
+		nvmlInstance: &mockNVMLInstance{
+			exists: false, // NVML does not exist
+		},
+	}
+
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
+	assert.Equal(t, []string{"thresholds"}, checksCalled)
+
+	// 4. Test ProductName check
+	checksCalled = nil // reset
+	c = &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
+		},
+		nvmlInstance: &mockNVMLInstance{
+			exists:      true,
+			productName: "", // Empty product name
+		},
+	}
+
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", data.reason)
+	assert.Equal(t, []string{"thresholds"}, checksCalled)
+
+	// 5. Test ibstat function check
+	checksCalled = nil // reset
+	c = &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
+		},
+		nvmlInstance: &mockNVMLInstance{
+			exists:      true,
+			productName: "Tesla V100", // Valid product name
+		},
+		getIbstatOutputFunc: nil, // No ibstat function
+	}
+
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "ibstat checker not found", data.reason)
+	assert.Equal(t, []string{"thresholds"}, checksCalled)
+
+	// 6. Test the full sequence passing all early checks
+	checksCalled = nil // reset
+	c = &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			trackCheck("thresholds")
+			return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100}
+		},
+		nvmlInstance: &mockNVMLInstance{
+			exists:      true,
+			productName: "Tesla V100",
+		},
+		getIbstatOutputFunc: func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error) {
+			trackCheck("ibstat")
+			return &infiniband.IbstatOutput{
+				Raw: "mock output",
+				Parsed: infiniband.IBStatCards{
+					{
+						Name: "mlx5_0",
+						Port1: infiniband.IBStatPort{
+							State:         "Active",
+							PhysicalState: "LinkUp",
+							Rate:          200,
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	result = c.Check()
+	data, ok = result.(*checkResult)
+	require.NotNil(t, data)
+	require.True(t, ok)
+	assert.Equal(t, []string{"thresholds", "ibstat"}, checksCalled) // Both checks should be called
 }

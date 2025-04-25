@@ -139,6 +139,14 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	// nothing specified for this machine, gpud MUST skip the ib check
+	thresholds := c.getThresholdsFunc()
+	if thresholds.IsZero() {
+		cr.reason = reasonThresholdNotSetSkipped
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
+	}
+
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
@@ -154,6 +162,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
 	}
+
 	if c.getIbstatOutputFunc == nil {
 		cr.reason = "ibstat checker not found"
 		cr.health = apiv1.HealthStateTypeHealthy
@@ -188,7 +197,6 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	thresholds := c.getThresholdsFunc()
 	cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
 
 	// we only care about unhealthy events, no need to persist healthy events
@@ -244,17 +252,18 @@ func (c *component) Check() components.CheckResult {
 }
 
 var (
-	reasonMissingIbstatOutput    = "missing ibstat output (skipped evaluation)"
-	reasonMissingEventBucket     = "missing event storage (skipped evaluation)"
+	// nothing specified for this machine, gpud MUST skip the ib check
 	reasonThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
-	reasonNoIbIssueFound         = "no infiniband issue found (in ibstat)"
+
+	reasonMissingIbstatOutput = "missing ibstat output (skipped evaluation)"
+	reasonMissingEventBucket  = "missing event storage (skipped evaluation)"
+	reasonNoIbIssueFound      = "no infiniband issue found (in ibstat)"
 )
 
 // Returns the output evaluation reason and its health state.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
 func evaluateIbstatOutputAgainstThresholds(o *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
-	// nothing specified for this machine, gpud MUST skip the ib check
-	if thresholds.AtLeastPorts <= 0 && thresholds.AtLeastRate <= 0 {
+	if thresholds.IsZero() {
 		return reasonThresholdNotSetSkipped, apiv1.HealthStateTypeHealthy
 	}
 
