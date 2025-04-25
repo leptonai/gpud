@@ -28,7 +28,7 @@ func TestLoad(t *testing.T) {
 	// Check the plugin data
 	plugin := plugins[0]
 	assert.Equal(t, "nvidia-smi", plugin.PluginName)
-	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.StatePlugin.Steps[0].RunBashScript.Script)
+	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.HealthStatePlugin.Steps[0].RunBashScript.Script)
 	assert.True(t, plugin.DryRun)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugin.Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugin.Interval)
@@ -56,7 +56,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -76,7 +76,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -107,7 +107,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -126,7 +126,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -146,7 +146,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -168,7 +168,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -189,7 +189,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -210,7 +210,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -231,7 +231,7 @@ func TestValidate(t *testing.T) {
 			plugin: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-plugin",
@@ -295,26 +295,26 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 
 	// Check the first plugin data
 	assert.Equal(t, "test plugin 1", plugins[0].PluginName)
-	assert.Equal(t, "Install Python", plugins[0].StatePlugin.Steps[0].Name)
-	assert.Equal(t, "plaintext", plugins[0].StatePlugin.Steps[0].RunBashScript.ContentType)
-	assert.Contains(t, plugins[0].StatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get update")
-	assert.Contains(t, plugins[0].StatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get install -y python3")
-	assert.Equal(t, "Run nvidia-smi", plugins[0].StatePlugin.Steps[1].Name)
-	assert.Equal(t, "plaintext", plugins[0].StatePlugin.Steps[1].RunBashScript.ContentType)
-	assert.Equal(t, "echo 'State script'", plugins[0].StatePlugin.Steps[1].RunBashScript.Script)
+	assert.Equal(t, "Install Python", plugins[0].HealthStatePlugin.Steps[0].Name)
+	assert.Equal(t, "plaintext", plugins[0].HealthStatePlugin.Steps[0].RunBashScript.ContentType)
+	assert.Contains(t, plugins[0].HealthStatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get update")
+	assert.Contains(t, plugins[0].HealthStatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get install -y python3")
+	assert.Equal(t, "Run nvidia-smi", plugins[0].HealthStatePlugin.Steps[1].Name)
+	assert.Equal(t, "plaintext", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
+	assert.Equal(t, "echo 'State script'", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.Script)
 	assert.True(t, plugins[0].DryRun)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[0].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[0].Interval)
 
 	// Check the second plugin data
 	assert.Equal(t, "test plugin 2", plugins[1].PluginName)
-	assert.Equal(t, "Install Python", plugins[1].StatePlugin.Steps[0].Name)
-	assert.Equal(t, "plaintext", plugins[1].StatePlugin.Steps[0].RunBashScript.ContentType)
-	assert.Contains(t, plugins[1].StatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get update")
-	assert.Contains(t, plugins[1].StatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get install -y python3")
-	assert.Equal(t, "Run python scripts", plugins[1].StatePlugin.Steps[1].Name)
-	assert.Equal(t, "plaintext", plugins[1].StatePlugin.Steps[1].RunBashScript.ContentType)
-	assert.Contains(t, plugins[1].StatePlugin.Steps[1].RunBashScript.Script, "python3 test.py")
+	assert.Equal(t, "Install Python", plugins[1].HealthStatePlugin.Steps[0].Name)
+	assert.Equal(t, "plaintext", plugins[1].HealthStatePlugin.Steps[0].RunBashScript.ContentType)
+	assert.Contains(t, plugins[1].HealthStatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get update")
+	assert.Contains(t, plugins[1].HealthStatePlugin.Steps[0].RunBashScript.Script, "sudo apt-get install -y python3")
+	assert.Equal(t, "Run python scripts", plugins[1].HealthStatePlugin.Steps[1].Name)
+	assert.Equal(t, "plaintext", plugins[1].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
+	assert.Contains(t, plugins[1].HealthStatePlugin.Steps[1].RunBashScript.Script, "python3 test.py")
 	assert.True(t, plugins[1].DryRun)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[1].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[1].Interval)
@@ -355,7 +355,7 @@ func TestValidatePlaintext(t *testing.T) {
 			plugin: Spec{
 				PluginName: "plaintext-test",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "plaintext-test",
@@ -375,7 +375,7 @@ func TestValidatePlaintext(t *testing.T) {
 			plugin: Spec{
 				PluginName: "plaintext-test",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "plaintext-test",
@@ -396,7 +396,7 @@ func TestValidatePlaintext(t *testing.T) {
 			plugin: Spec{
 				PluginName: "plaintext-test",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "plaintext-test",
@@ -435,7 +435,7 @@ func TestMixedContentTypes(t *testing.T) {
 	plugin := Spec{
 		PluginName: "mixed-content",
 		Type:       SpecTypeComponent,
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "plaintext-test",
@@ -454,7 +454,7 @@ func TestMixedContentTypes(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test decoding the scripts
-	stateScript, err := plugin.StatePlugin.Steps[0].RunBashScript.decode()
+	stateScript, err := plugin.HealthStatePlugin.Steps[0].RunBashScript.decode()
 	assert.NoError(t, err)
 	assert.Equal(t, "echo 'Plaintext state script'", stateScript)
 }
@@ -464,7 +464,7 @@ func TestMultiStepPlugins(t *testing.T) {
 	plugin := Spec{
 		PluginName: "multi-step-plugin",
 		Type:       SpecTypeComponent,
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "plaintext-step",
@@ -490,11 +490,11 @@ func TestMultiStepPlugins(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test decoding the scripts
-	step1Script, err := plugin.StatePlugin.Steps[0].RunBashScript.decode()
+	step1Script, err := plugin.HealthStatePlugin.Steps[0].RunBashScript.decode()
 	assert.NoError(t, err)
 	assert.Equal(t, "echo 'Step 1'", step1Script)
 
-	step2Script, err := plugin.StatePlugin.Steps[1].RunBashScript.decode()
+	step2Script, err := plugin.HealthStatePlugin.Steps[1].RunBashScript.decode()
 	assert.NoError(t, err)
 	assert.Equal(t, "echo 'Step 2'", step2Script)
 }
@@ -586,7 +586,7 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
 	testYAML := `
 - plugin_name: "multi-step-plugin"
   type: "component"
-  state_plugin:
+  health_state_plugin:
     steps:
       - name: "Install Python"
         run_bash_script:
@@ -623,12 +623,12 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
 	// Check the plugin data
 	plugin := plugins[0]
 	assert.Equal(t, "multi-step-plugin", plugin.PluginName)
-	assert.Len(t, plugin.StatePlugin.Steps, 2)
-	assert.Equal(t, "Install Python", plugin.StatePlugin.Steps[0].Name)
-	assert.Equal(t, "plaintext", plugin.StatePlugin.Steps[0].RunBashScript.ContentType)
-	assert.Contains(t, plugin.StatePlugin.Steps[0].RunBashScript.Script, "Installing Python")
-	assert.Equal(t, "Run nvidia-smi", plugin.StatePlugin.Steps[1].Name)
-	assert.Equal(t, "nvidia-smi", plugin.StatePlugin.Steps[1].RunBashScript.Script)
+	assert.Len(t, plugin.HealthStatePlugin.Steps, 2)
+	assert.Equal(t, "Install Python", plugin.HealthStatePlugin.Steps[0].Name)
+	assert.Equal(t, "plaintext", plugin.HealthStatePlugin.Steps[0].RunBashScript.ContentType)
+	assert.Contains(t, plugin.HealthStatePlugin.Steps[0].RunBashScript.Script, "Installing Python")
+	assert.Equal(t, "Run nvidia-smi", plugin.HealthStatePlugin.Steps[1].Name)
+	assert.Equal(t, "nvidia-smi", plugin.HealthStatePlugin.Steps[1].RunBashScript.Script)
 }
 
 func TestComponentNameWithSpecialChars(t *testing.T) {
@@ -678,7 +678,7 @@ func TestLoadMalformedYAML(t *testing.T) {
 	malformedYAML := `- plugin_name: "malformed-plugin"
   this is not valid YAML
   missing colon
-state_plugin:
+health_state_plugin:
   steps:
     - name: "malformed step"`
 
@@ -708,7 +708,7 @@ func TestSpecsValidate(t *testing.T) {
 				{
 					PluginName: "test-plugin-1",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "test-step",
@@ -724,7 +724,7 @@ func TestSpecsValidate(t *testing.T) {
 				{
 					PluginName: "test-plugin-2",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "test-step",
@@ -746,7 +746,7 @@ func TestSpecsValidate(t *testing.T) {
 				{
 					PluginName: "test-plugin",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "test-step-1",
@@ -762,7 +762,7 @@ func TestSpecsValidate(t *testing.T) {
 				{
 					PluginName: "test-plugin", // Duplicate name
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "test-step-2",
@@ -784,7 +784,7 @@ func TestSpecsValidate(t *testing.T) {
 				{
 					PluginName: "test-plugin-1",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "test-step",
@@ -841,7 +841,7 @@ func TestMissingStatePlugin(t *testing.T) {
 		{
 			PluginName: "valid-plugin",
 			Type:       SpecTypeComponent,
-			StatePlugin: &Plugin{
+			HealthStatePlugin: &Plugin{
 				Steps: []Step{
 					{
 						Name: "test-step",
@@ -874,7 +874,7 @@ func TestRunStatePlugin(t *testing.T) {
 			name: "successful run",
 			spec: Spec{
 				PluginName: "test-run",
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "echo-step",
@@ -894,7 +894,7 @@ func TestRunStatePlugin(t *testing.T) {
 			name: "non-zero exit code",
 			spec: Spec{
 				PluginName: "exit-code-test",
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "exit-code-step",
@@ -915,7 +915,7 @@ func TestRunStatePlugin(t *testing.T) {
 			name: "dry run",
 			spec: Spec{
 				PluginName: "dry-run-test",
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "dry-run-step",
@@ -978,7 +978,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				{
 					PluginName: "test plugin 1",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "step1",
@@ -994,7 +994,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				{
 					PluginName: "test-plugin-1", // Different raw name but same normalized component name
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "step2",
@@ -1016,7 +1016,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				{
 					PluginName: "plugin-1",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "step1",
@@ -1032,7 +1032,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				{
 					PluginName: "plugin-2",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "step2",
@@ -1048,7 +1048,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				{
 					PluginName: "plugin-3",
 					Type:       SpecTypeComponent,
-					StatePlugin: &Plugin{
+					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
 								Name: "step3",
@@ -1121,7 +1121,7 @@ func TestRunStatePluginValidationError(t *testing.T) {
 	// Test that RunStatePlugin fails if validation fails
 	spec := Spec{
 		PluginName: "validation-error-test",
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "", // Missing name should cause validation error
@@ -1174,7 +1174,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "zero-timeout",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1194,7 +1194,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "negative-timeout",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1214,7 +1214,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "negative-interval",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1235,7 +1235,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "one-minute-interval",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1256,7 +1256,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "almost-one-minute-interval",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1278,7 +1278,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "just-over-one-minute-interval",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1310,7 +1310,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "empty-steps",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{}, // Empty steps
 				},
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
@@ -1322,7 +1322,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "nil-steps",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: nil, // Nil steps
 				},
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
@@ -1334,7 +1334,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "short-interval",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1356,7 +1356,7 @@ func TestValidateComprehensive(t *testing.T) {
 			plugin: Spec{
 				PluginName: "mixed-steps",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "valid-step",
@@ -1410,7 +1410,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: "", // Empty name
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1432,7 +1432,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1452,7 +1452,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1473,7 +1473,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength*2), // 256 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1494,7 +1494,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: "plugin-name-with-special-characters!@#$%^&*()_+", // Valid name
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1514,7 +1514,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength-1), // 127 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1573,7 +1573,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1595,7 +1595,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			plugin: Spec{
 				PluginName: "valid-name",
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1617,7 +1617,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
 				Type:       SpecTypeComponent,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",
@@ -1688,7 +1688,7 @@ func TestValidateSpecType(t *testing.T) {
 			spec := Spec{
 				PluginName: "test-plugin",
 				Type:       tc.specType,
-				StatePlugin: &Plugin{
+				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
 							Name: "test-step",

@@ -14,7 +14,7 @@ func TestPluginValidate(t *testing.T) {
 	plugin := Spec{
 		PluginName: "test",
 		Type:       SpecTypeComponent,
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "test",

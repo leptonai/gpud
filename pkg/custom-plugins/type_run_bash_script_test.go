@@ -76,7 +76,7 @@ func TestDecodeWithInvalidBase64(t *testing.T) {
 	// Create a plugin with invalid base64 encoded scripts
 	plugin := Spec{
 		Type: SpecTypeComponent,
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "test-plugin",
@@ -93,7 +93,7 @@ func TestDecodeWithInvalidBase64(t *testing.T) {
 	err := plugin.Validate()
 	assert.Error(t, err)
 
-	_, err = plugin.StatePlugin.Steps[0].RunBashScript.decode()
+	_, err = plugin.HealthStatePlugin.Steps[0].RunBashScript.decode()
 	assert.Error(t, err)
 }
 
@@ -102,7 +102,7 @@ func TestDecodeWithPlaintext(t *testing.T) {
 	plugin := Spec{
 		PluginName: "test-plaintext",
 		Type:       SpecTypeComponent,
-		StatePlugin: &Plugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "test-plaintext",
@@ -121,7 +121,7 @@ func TestDecodeWithPlaintext(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test decoding the plaintext scripts
-	stateScript, err := plugin.StatePlugin.Steps[0].RunBashScript.decode()
+	stateScript, err := plugin.HealthStatePlugin.Steps[0].RunBashScript.decode()
 	assert.NoError(t, err)
 	assert.Equal(t, "echo 'Hello, World!'", stateScript)
 }

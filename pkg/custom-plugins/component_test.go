@@ -280,7 +280,7 @@ func TestComponent_Check_WithStatePlugin(t *testing.T) {
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,
 		},
-		StatePlugin: statePlugin,
+		HealthStatePlugin: statePlugin,
 	}
 
 	c := &component{
@@ -334,7 +334,7 @@ func TestComponent_Check_WithFailingStatePlugin(t *testing.T) {
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,
 		},
-		StatePlugin: statePlugin,
+		HealthStatePlugin: statePlugin,
 	}
 
 	c := &component{
@@ -386,7 +386,7 @@ func TestComponent_Check_WithTimeoutContext(t *testing.T) {
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10, // This will be overridden by the context timeout
 		},
-		StatePlugin: statePlugin,
+		HealthStatePlugin: statePlugin,
 	}
 
 	c := &component{
@@ -678,8 +678,8 @@ func TestComponent_CheckWithOutput(t *testing.T) {
 	}
 
 	spec := &Spec{
-		PluginName:  "test-plugin",
-		StatePlugin: statePlugin,
+		PluginName:        "test-plugin",
+		HealthStatePlugin: statePlugin,
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,
 		},
@@ -775,7 +775,7 @@ func TestComponent_Check_SuccessfulPlugin(t *testing.T) {
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,
 		},
-		StatePlugin: statePlugin,
+		HealthStatePlugin: statePlugin,
 	}
 
 	c := &component{

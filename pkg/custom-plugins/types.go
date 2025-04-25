@@ -33,8 +33,10 @@ type Spec struct {
 	// Type defines the plugin type.
 	Type string `json:"type"`
 
-	// StatePlugin represents the jobs to run for /states API.
-	StatePlugin *Plugin `json:"state_plugin,omitempty"`
+	// HealthStatePlugin defines the plugin instructions
+	// to evaluate the health state of this plugin,
+	// which is translated into an GPUd /states API response.
+	HealthStatePlugin *Plugin `json:"health_state_plugin,omitempty"`
 
 	// DryRun is set to true to allow non-zero exit code on the script
 	// useful for dry runs.
