@@ -535,7 +535,7 @@ func TestGetCustomPlugins(t *testing.T) {
 		"test": {
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
-			StatePlugin: &pkgcustomplugins.Plugin{
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
 						Name: "test-step",
@@ -646,7 +646,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 		"test": {
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
-			StatePlugin: &pkgcustomplugins.Plugin{
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
 						Name: "test-step",
@@ -729,7 +729,7 @@ func createValidPluginSpec() pkgcustomplugins.Spec {
 	return pkgcustomplugins.Spec{
 		PluginName: "test-plugin",
 		Type:       pkgcustomplugins.SpecTypeComponent,
-		StatePlugin: &pkgcustomplugins.Plugin{
+		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{
 					RunBashScript: &pkgcustomplugins.RunBashScript{

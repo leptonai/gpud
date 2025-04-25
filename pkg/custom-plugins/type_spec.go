@@ -78,10 +78,10 @@ func (spec *Spec) Validate() error {
 		return ErrComponentNameRequired
 	}
 
-	if spec.StatePlugin == nil {
+	if spec.HealthStatePlugin == nil {
 		return ErrMissingStatePlugin
 	}
-	if err := spec.StatePlugin.Validate(); err != nil {
+	if err := spec.HealthStatePlugin.Validate(); err != nil {
 		return err
 	}
 
@@ -103,10 +103,10 @@ func (spec *Spec) ComponentName() string {
 
 // RunStatePlugin runs the state plugin and returns the output and its exit code.
 func (spec *Spec) RunStatePlugin(ctx context.Context) ([]byte, int32, error) {
-	if spec.StatePlugin == nil {
+	if spec.HealthStatePlugin == nil {
 		return nil, 0, ErrMissingStatePlugin
 	}
-	if err := spec.StatePlugin.Validate(); err != nil {
+	if err := spec.HealthStatePlugin.Validate(); err != nil {
 		return nil, 0, err
 	}
 	if spec.DryRun {
@@ -115,5 +115,5 @@ func (spec *Spec) RunStatePlugin(ctx context.Context) ([]byte, int32, error) {
 
 	cctx, cancel := context.WithTimeout(ctx, spec.Timeout.Duration)
 	defer cancel()
-	return spec.StatePlugin.executeAllSteps(cctx)
+	return spec.HealthStatePlugin.executeAllSteps(cctx)
 }

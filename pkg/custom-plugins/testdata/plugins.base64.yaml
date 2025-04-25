@@ -1,7 +1,7 @@
 - plugin_name: "nvidia-smi"
   type: component
 
-  state_plugin:
+  health_state_plugin:
     steps:
       - name: "Run nvidia-smi"
         run_bash_script:

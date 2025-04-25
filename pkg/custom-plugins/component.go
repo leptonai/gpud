@@ -102,7 +102,7 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.spec.StatePlugin == nil {
+	if c.spec.HealthStatePlugin == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "no state plugin defined"
 		return cr
@@ -111,7 +111,7 @@ func (c *component) Check() components.CheckResult {
 	cctx, ccancel := context.WithTimeout(c.ctx, c.spec.Timeout.Duration)
 	defer ccancel()
 
-	cr.out, cr.exitCode, cr.err = c.spec.StatePlugin.executeAllSteps(cctx)
+	cr.out, cr.exitCode, cr.err = c.spec.HealthStatePlugin.executeAllSteps(cctx)
 	cr.output = string(cr.out)
 
 	if cr.err != nil {

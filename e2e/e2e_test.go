@@ -90,7 +90,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			{
 				PluginName: "init-plugin",
 				Type:       pkgcustomplugins.SpecTypeInit,
-				StatePlugin: &pkgcustomplugins.Plugin{
+				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
 						{
 							Name: "first-step",
@@ -435,7 +435,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			PluginName: pluginName,
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			DryRun:     true,
-			StatePlugin: &pkgcustomplugins.Plugin{
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
 						Name: "first-step",
@@ -489,21 +489,21 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
 		testPluginSpec.DryRun = false
-		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
 			Name: "third-step",
 			RunBashScript: &pkgcustomplugins.RunBashScript{
 				Script:      "echo 111 > " + fileToWrite,
 				ContentType: "plaintext",
 			},
 		})
-		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
 			Name: "fourth-step",
 			RunBashScript: &pkgcustomplugins.RunBashScript{
 				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixType + ` Degraded'`,
 				ContentType: "plaintext",
 			},
 		})
-		testPluginSpec.StatePlugin.Steps = append(testPluginSpec.StatePlugin.Steps, pkgcustomplugins.Step{
+		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
 			Name: "fifth-step",
 			RunBashScript: &pkgcustomplugins.RunBashScript{
 				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixReason + ` test'`,
