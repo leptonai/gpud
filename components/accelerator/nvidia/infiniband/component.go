@@ -139,6 +139,14 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	// nothing specified for this machine, gpud MUST skip the ib check
+	thresholds := c.getThresholdsFunc()
+	if thresholds.IsZero() {
+		cr.reason = reasonThresholdNotSetSkipped
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
+	}
+
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
@@ -156,14 +164,6 @@ func (c *component) Check() components.CheckResult {
 	}
 	if c.getIbstatOutputFunc == nil {
 		cr.reason = "ibstat checker not found"
-		cr.health = apiv1.HealthStateTypeHealthy
-		return cr
-	}
-
-	// nothing specified for this machine, gpud MUST skip the ib check
-	thresholds := c.getThresholdsFunc()
-	if thresholds.IsZero() {
-		cr.reason = reasonThresholdNotSetSkipped
 		cr.health = apiv1.HealthStateTypeHealthy
 		return cr
 	}
