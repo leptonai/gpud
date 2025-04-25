@@ -44,8 +44,7 @@ type HealthState struct {
 	// SuggestedActions represents the suggested actions to mitigate the issue.
 	SuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
 
-	// TO BE DEPRECATED
-	DeprecatedExtraInfo map[string]string `json:"extra_info,omitempty"`
+	ExtraInfo map[string]string `json:"extra_info,omitempty"`
 }
 
 type HealthStates []HealthState

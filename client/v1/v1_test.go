@@ -163,8 +163,8 @@ func TestGetInfo(t *testing.T) {
 			Info: apiv1.Info{
 				States: []apiv1.HealthState{
 					{
-						Name:                "test",
-						DeprecatedExtraInfo: map[string]string{"key": "value"},
+						Name:      "test",
+						ExtraInfo: map[string]string{"key": "value"},
 					},
 				},
 			},
@@ -280,8 +280,8 @@ func TestGetStates(t *testing.T) {
 			Component: "component1",
 			States: []apiv1.HealthState{
 				{
-					Name:                "test",
-					DeprecatedExtraInfo: map[string]string{"state": "running"},
+					Name:      "test",
+					ExtraInfo: map[string]string{"state": "running"},
 				},
 			},
 		},

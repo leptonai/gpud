@@ -416,13 +416,13 @@ func TestDataGetStates(t *testing.T) {
 
 			// Check that ExtraInfo exists for non-nil data
 			if tt.data != nil {
-				assert.Contains(t, state.DeprecatedExtraInfo, "data")
-				assert.Contains(t, state.DeprecatedExtraInfo, "encoding")
-				assert.Equal(t, "json", state.DeprecatedExtraInfo["encoding"])
+				assert.Contains(t, state.ExtraInfo, "data")
+				assert.Contains(t, state.ExtraInfo, "encoding")
+				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 
 				// Verify that the JSON encoding works
 				var decodedData map[string]interface{}
-				err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &decodedData)
+				err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &decodedData)
 				assert.NoError(t, err, "Should be able to decode the JSON data")
 
 				if len(tt.data.LoadedModules) > 0 {

@@ -241,7 +241,7 @@ func TestComponent_States_WithData(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "all GPUs were checked", states[0].Reason)
-	assert.NotNil(t, states[0].DeprecatedExtraInfo)
+	assert.NotNil(t, states[0].ExtraInfo)
 }
 
 func TestComponent_States_Unhealthy(t *testing.T) {

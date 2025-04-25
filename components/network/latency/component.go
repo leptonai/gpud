@@ -222,7 +222,7 @@ func (cr *checkResult) getLastHealthStates() apiv1.HealthStates {
 	}
 
 	b, _ := json.Marshal(cr)
-	state.DeprecatedExtraInfo = map[string]string{
+	state.ExtraInfo = map[string]string{
 		"data":     string(b),
 		"encoding": "json",
 	}

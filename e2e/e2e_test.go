@@ -224,15 +224,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if len(state.DeprecatedExtraInfo) == 0 {
+					if len(state.ExtraInfo) == 0 {
 						continue
 					}
-					if !strings.Contains(state.DeprecatedExtraInfo["data"], "annotations") {
+					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.DeprecatedExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
@@ -265,15 +265,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 					continue
 				}
 				for _, state := range comp.States {
-					if len(state.DeprecatedExtraInfo) == 0 {
+					if len(state.ExtraInfo) == 0 {
 						continue
 					}
-					if !strings.Contains(state.DeprecatedExtraInfo["data"], "annotations") {
+					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
 						continue
 					}
 
 					found = true
-					Expect(state.DeprecatedExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
+					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
 				}
 			}
 			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
@@ -372,7 +372,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
 			for _, ss := range states {
 				for _, s := range ss.States {
-					GinkgoLogr.Info(fmt.Sprintf("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.DeprecatedExtraInfo))
+					GinkgoLogr.Info(fmt.Sprintf("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.ExtraInfo))
 				}
 			}
 		})

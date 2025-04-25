@@ -294,10 +294,10 @@ func Test_getLastHealthStates(t *testing.T) {
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
 			if len(tc.data.Pods) > 0 {
-				require.NotNil(t, states[0].DeprecatedExtraInfo)
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
-				assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
+				require.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
+				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			}
 		})
 	}
@@ -855,9 +855,9 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 
 			// Check for extra info if we have pods
 			if len(tc.data.Pods) > 0 {
-				assert.NotNil(t, states[0].DeprecatedExtraInfo)
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
 			}
 		})
 	}

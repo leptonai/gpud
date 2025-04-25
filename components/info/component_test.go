@@ -224,12 +224,12 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 	assert.Len(t, states, 1)
 
 	// Check extraInfo contains JSON data
-	assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-	assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
-	assert.Equal(t, "json", states[0].DeprecatedExtraInfo["encoding"])
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.Contains(t, states[0].ExtraInfo, "encoding")
+	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 
 	// Verify the JSON data contains our fields
-	jsonData := states[0].DeprecatedExtraInfo["data"]
+	jsonData := states[0].ExtraInfo["data"]
 	assert.Contains(t, jsonData, "test-version")
 	assert.Contains(t, jsonData, "00:11:22:33:44:55")
 	assert.Contains(t, jsonData, "key")
