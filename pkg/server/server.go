@@ -653,6 +653,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithMetricsStore(metricsStore),
 			)
 			if err != nil {
