@@ -326,7 +326,7 @@ func TestLoadPlaintextPluginsMoreExamples(t *testing.T) {
 	plugins, err := LoadSpecs(testFile)
 	assert.NoError(t, err)
 
-	assert.Len(t, plugins, 5)
+	assert.Len(t, plugins, 4)
 
 	assert.Equal(t, "nv-plugin-install-python", plugins[0].PluginName)
 	assert.Equal(t, time.Minute, plugins[0].Timeout.Duration)
@@ -340,9 +340,6 @@ func TestLoadPlaintextPluginsMoreExamples(t *testing.T) {
 
 	assert.Equal(t, "nv-plugin-simple-script-gpu-power-state", plugins[3].PluginName)
 	assert.Equal(t, 10*time.Minute, plugins[3].Interval.Duration)
-
-	assert.Equal(t, "nv-plugin-install-nvidia-attestation-sdk", plugins[4].PluginName)
-	assert.Equal(t, 15*time.Minute, plugins[4].Interval.Duration)
 }
 
 func TestValidatePlaintext(t *testing.T) {
