@@ -322,8 +322,8 @@ func TestDataWithMultipleBadEnvs(t *testing.T) {
 	assert.Contains(t, states[0].Reason, "COMPUTE_PROFILE")
 
 	// Verify JSON marshaling in ExtraInfo
-	assert.Contains(t, states[0].DeprecatedExtraInfo["data"], "CUDA_PROFILE")
-	assert.Contains(t, states[0].DeprecatedExtraInfo["data"], "COMPUTE_PROFILE")
+	assert.Contains(t, states[0].ExtraInfo["data"], "CUDA_PROFILE")
+	assert.Contains(t, states[0].ExtraInfo["data"], "COMPUTE_PROFILE")
 }
 
 // Additional test cases to increase coverage

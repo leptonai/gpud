@@ -311,9 +311,9 @@ func TestDataGetStates(t *testing.T) {
 
 			// For cases with containers, check ExtraInfo
 			if len(tt.data.Containers) > 0 {
-				assert.NotNil(t, states[0].DeprecatedExtraInfo)
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
 			}
 		})
 	}
@@ -421,7 +421,7 @@ func TestComponentStates(t *testing.T) {
 
 	states = comp.LastHealthStates()
 	assert.Equal(t, 1, len(states))
-	assert.NotNil(t, states[0].DeprecatedExtraInfo)
+	assert.NotNil(t, states[0].ExtraInfo)
 
 	// Test with error but ignoreConnectionErrors is true
 	comp.lastCheckResult = &checkResult{

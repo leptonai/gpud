@@ -283,7 +283,7 @@ func TestStates_WithData(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", state.Reason)
-	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
+	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestStates_WithError(t *testing.T) {
@@ -619,8 +619,8 @@ func TestData_getLastHealthStates(t *testing.T) {
 
 			// Check that extraInfo is properly populated for non-nil data
 			if tt.data != nil {
-				assert.NotEmpty(t, state.DeprecatedExtraInfo["data"])
-				assert.Equal(t, "json", state.DeprecatedExtraInfo["encoding"])
+				assert.NotEmpty(t, state.ExtraInfo["data"])
+				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 			}
 		})
 	}

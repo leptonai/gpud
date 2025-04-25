@@ -75,3 +75,10 @@ type CheckResult interface {
 	// HealthState returns the health state of the check result.
 	HealthState() apiv1.HealthStateType
 }
+
+// CheckResultDebugger is an optional interface that can be implemented by components
+// to allow debugging the check result.
+type CheckResultDebugger interface {
+	// Debug returns a string representation of the check result.
+	Debug() string
+}

@@ -105,7 +105,7 @@ func checkDiskComponent() error {
 
 	for _, ss := range states {
 		for _, s := range ss.States {
-			log.Logger.Infof("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.DeprecatedExtraInfo)
+			log.Logger.Infof("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.ExtraInfo)
 		}
 	}
 
@@ -133,7 +133,7 @@ func checkNvidiaInfoComponent() error {
 
 	for _, ss := range states {
 		for _, s := range ss.States {
-			log.Logger.Infof("state: %q, health: %v, extra info: %q\n", s.Name, s.Health, s.DeprecatedExtraInfo)
+			log.Logger.Infof("state: %q, health: %v, extra info: %q\n", s.Name, s.Health, s.ExtraInfo)
 		}
 	}
 

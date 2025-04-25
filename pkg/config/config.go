@@ -46,6 +46,9 @@ type Config struct {
 	// A list of nvidia tool command paths to overwrite the default paths.
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
 
+	// PluginSpecsFile is the file that contains the plugin specs.
+	PluginSpecsFile string `json:"plugin_specs_file"`
+
 	// EnableAPIPluginRegistration enables the API plugin registration.
 	EnableAPIPluginRegistration bool `json:"enable_api_plugin_registration"`
 }

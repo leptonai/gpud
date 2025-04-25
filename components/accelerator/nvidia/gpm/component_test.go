@@ -417,7 +417,7 @@ func TestStates_WithData(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no GPM issue found", state.Reason)
-	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
+	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestStates_WithError(t *testing.T) {
@@ -919,13 +919,13 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 	assert.Equal(t, "test health state json", state.Reason)
 
 	// Verify the JSON data in the extra info
-	require.Contains(t, state.DeprecatedExtraInfo, "data")
-	require.Contains(t, state.DeprecatedExtraInfo, "encoding")
-	assert.Equal(t, "json", state.DeprecatedExtraInfo["encoding"])
+	require.Contains(t, state.ExtraInfo, "data")
+	require.Contains(t, state.ExtraInfo, "encoding")
+	assert.Equal(t, "json", state.ExtraInfo["encoding"])
 
 	// Parse the JSON data to verify its structure
 	var parsedData map[string]interface{}
-	err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
+	err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &parsedData)
 	require.NoError(t, err, "Data should be valid JSON")
 
 	// Verify the GPM metrics data

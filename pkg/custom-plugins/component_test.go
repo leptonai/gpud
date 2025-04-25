@@ -140,8 +140,8 @@ func TestComponent_Close(t *testing.T) {
 
 func TestCheckResult_String(t *testing.T) {
 	cr := &checkResult{
-		Output:   []byte("test output"),
-		ExitCode: 1,
+		out:      []byte("test output"),
+		exitCode: 1,
 	}
 
 	expected := "test output\n\n(exit code 1)"
@@ -489,7 +489,7 @@ More random output`
 	cr := &checkResult{
 		componentName: "test-component",
 		pluginName:    "test-plugin",
-		Output:        []byte(output),
+		out:           []byte(output),
 		health:        apiv1.HealthStateTypeHealthy, // This should be overridden by the parsed state
 		reason:        "original reason",            // This should be overridden
 		err:           errors.New("test error"),     // This should NOT affect the output since we're not using Error: prefix
@@ -517,7 +517,7 @@ More random output`
 	cr := &checkResult{
 		componentName: "test-component",
 		pluginName:    "test-plugin",
-		Output:        []byte(output),
+		out:           []byte(output),
 		health:        apiv1.HealthStateTypeHealthy,
 		reason:        "original reason",
 	}
@@ -696,7 +696,7 @@ func TestComponent_CheckWithOutput(t *testing.T) {
 	assert.True(t, ok)
 
 	// The output should contain our health state line
-	outputStr := string(cr.Output)
+	outputStr := string(cr.out)
 	assert.Contains(t, outputStr, "GPUD_HEALTH_STATE_TYPE:")
 
 	// Get the health states through the LastHealthStates method
@@ -751,4 +751,191 @@ func TestComponent_LastHealthStates_AfterCheck(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
 	assert.Equal(t, "mock reason", healthStates[0].Reason)
 	assert.Equal(t, "mock error", healthStates[0].Error)
+}
+
+// TestComponent_Check_SuccessfulPlugin tests that health is set to Healthy and reason to "ok"
+// when a state plugin executes successfully
+func TestComponent_Check_SuccessfulPlugin(t *testing.T) {
+	// Create a mock state plugin that will succeed
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "successful-step",
+				RunBashScript: &RunBashScript{
+					Script:      "echo 'Success' && exit 0", // This will exit successfully with code 0
+					ContentType: "plaintext",
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+		StatePlugin: statePlugin,
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check, which should succeed
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+
+	debugger, ok := result.(components.CheckResultDebugger)
+	assert.True(t, ok)
+	assert.Equal(t, string(cr.out), debugger.Debug())
+
+	// Verify the health and reason are set correctly
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+	assert.Equal(t, int32(0), cr.exitCode)
+	assert.Contains(t, string(cr.out), "Success")
+	assert.Nil(t, cr.err)
+
+	// Verify the LastHealthStates method returns the correct state
+	healthStates := c.LastHealthStates()
+	assert.Equal(t, 1, len(healthStates))
+	assert.Equal(t, ConvertToComponentName("test-plugin"), healthStates[0].Component)
+	assert.Equal(t, "test-plugin", healthStates[0].Name)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "ok", healthStates[0].Reason)
+	assert.Empty(t, healthStates[0].Error)
+}
+
+func TestCheckResultDebugMethod(t *testing.T) {
+	// Test cases for Debug method
+	testCases := []struct {
+		name     string
+		cr       *checkResult
+		expected string
+	}{
+		{
+			name:     "nil check result",
+			cr:       nil,
+			expected: "",
+		},
+		{
+			name:     "empty output",
+			cr:       &checkResult{},
+			expected: "",
+		},
+		{
+			name:     "with output",
+			cr:       &checkResult{output: "test debug output"},
+			expected: "test debug output",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test Debug() directly
+			assert.Equal(t, tc.expected, tc.cr.Debug())
+
+			// Test interface assertion if not nil
+			if tc.cr != nil {
+				debugger, ok := interface{}(tc.cr).(components.CheckResultDebugger)
+				assert.True(t, ok, "checkResult should implement CheckResultDebugger")
+				assert.Equal(t, tc.expected, debugger.Debug())
+			}
+		})
+	}
+}
+
+func TestDebugMethodViaComponentFlow(t *testing.T) {
+	// Create a spec with minimal configuration
+	spec := &Spec{
+		Type:       "test",
+		PluginName: "debug-test",
+	}
+
+	// Get the init function
+	initFunc := spec.NewInitFunc()
+	assert.NotNil(t, initFunc, "InitFunc should not be nil")
+
+	// Create a mock GPUdInstance
+	mockGPUd := &components.GPUdInstance{
+		RootCtx: context.Background(),
+	}
+
+	// Initialize the component
+	comp, err := initFunc(mockGPUd)
+	assert.NoError(t, err, "Component initialization should not fail")
+	assert.NotNil(t, comp, "Component should not be nil")
+
+	// Perform a check
+	checkResult := comp.Check()
+	assert.NotNil(t, checkResult, "CheckResult should not be nil")
+
+	// Assert that the check result implements CheckResultDebugger
+	debugger, ok := checkResult.(components.CheckResultDebugger)
+	assert.True(t, ok, "CheckResult should implement CheckResultDebugger")
+
+	// Call the Debug method
+	debug := debugger.Debug()
+
+	// The returned Debug value should match the output field
+	// For a new component without any execution, this will be empty
+	c, ok := comp.(*component)
+	assert.True(t, ok)
+
+	c.lastMu.RLock()
+	lastCR := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.Equal(t, lastCR.output, debug)
+}
+
+func TestDebugMethodWithModifiedOutput(t *testing.T) {
+	// Create a component directly to test with controlled output
+	cctx, ccancel := context.WithCancel(context.Background())
+	comp := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+		spec: &Spec{
+			Type:       "test",
+			PluginName: "debug-test",
+		},
+	}
+
+	// Perform check to initialize lastCheckResult
+	result := comp.Check()
+
+	// Verify we can get the debugger interface
+	debugger, ok := result.(components.CheckResultDebugger)
+	assert.True(t, ok, "result should implement CheckResultDebugger")
+
+	// Verify the Debug method works through the interface
+	initialDebug := debugger.Debug()
+	assert.Empty(t, initialDebug, "Initial debug output should be empty")
+
+	// Access the lastCheckResult directly
+	comp.lastMu.RLock()
+	lastCR := comp.lastCheckResult
+	comp.lastMu.RUnlock()
+
+	// Set a test output value
+	testOutput := "custom debug output"
+	lastCR.output = testOutput
+
+	// Check that the modified output is visible through Debug()
+	assert.Equal(t, testOutput, lastCR.Debug())
+
+	// Check through interface assertion as well
+	debuggerInterface, ok := interface{}(lastCR).(components.CheckResultDebugger)
+	assert.True(t, ok)
+	assert.Equal(t, testOutput, debuggerInterface.Debug())
+}
+
+func TestNewInitFuncNilSpec(t *testing.T) {
+	// Test that NewInitFunc returns nil when spec is nil
+	var spec *Spec
+	initFunc := spec.NewInitFunc()
+	assert.Nil(t, initFunc, "InitFunc should be nil for nil spec")
 }

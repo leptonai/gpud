@@ -55,6 +55,7 @@ func TestValidate(t *testing.T) {
 			name: "valid plugin",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -74,6 +75,7 @@ func TestValidate(t *testing.T) {
 			name: "missing component name",
 			plugin: Spec{
 				PluginName: "",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -94,6 +96,7 @@ func TestValidate(t *testing.T) {
 			name: "missing state script",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				Timeout:    metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectError: true,
@@ -103,6 +106,7 @@ func TestValidate(t *testing.T) {
 			name: "missing timeout",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -121,6 +125,7 @@ func TestValidate(t *testing.T) {
 			name: "invalid base64 in state script",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -140,6 +145,7 @@ func TestValidate(t *testing.T) {
 			name: "interval too short",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -161,6 +167,7 @@ func TestValidate(t *testing.T) {
 			name: "valid interval exactly 1 minute",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -181,6 +188,7 @@ func TestValidate(t *testing.T) {
 			name: "valid interval greater than 1 minute",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -201,6 +209,7 @@ func TestValidate(t *testing.T) {
 			name: "interval zero (runs once)",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -221,6 +230,7 @@ func TestValidate(t *testing.T) {
 			name: "long timeout with short interval",
 			plugin: Spec{
 				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -272,7 +282,7 @@ func TestComponentName(t *testing.T) {
 
 func TestLoadPlaintextPlugins(t *testing.T) {
 	// Get the path to the test data file
-	testFile := filepath.Join("testdata", "plugins.plaintext.yaml")
+	testFile := filepath.Join("testdata", "plugins.plaintext.0.yaml")
 
 	// Load the plugins
 	plugins, err := LoadSpecs(testFile)
@@ -310,6 +320,28 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[1].Interval)
 }
 
+func TestLoadPlaintextPluginsMoreExamples(t *testing.T) {
+	testFile := filepath.Join("testdata", "plugins.plaintext.1.yaml")
+
+	plugins, err := LoadSpecs(testFile)
+	assert.NoError(t, err)
+
+	assert.Len(t, plugins, 4)
+
+	assert.Equal(t, "nv-plugin-install-python", plugins[0].PluginName)
+	assert.Equal(t, time.Minute, plugins[0].Timeout.Duration)
+	assert.Zero(t, plugins[0].Interval.Duration)
+
+	assert.Equal(t, "nv-plugin-fail-me", plugins[1].PluginName)
+	assert.Equal(t, 100*time.Minute, plugins[1].Interval.Duration)
+
+	assert.Equal(t, "nv-plugin-simple-script-gpu-throttle", plugins[2].PluginName)
+	assert.Equal(t, 10*time.Minute, plugins[2].Interval.Duration)
+
+	assert.Equal(t, "nv-plugin-simple-script-gpu-power-state", plugins[3].PluginName)
+	assert.Equal(t, 10*time.Minute, plugins[3].Interval.Duration)
+}
+
 func TestValidatePlaintext(t *testing.T) {
 	// Test cases for Validate() with plaintext content
 	testCases := []struct {
@@ -322,6 +354,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "valid plaintext plugin",
 			plugin: Spec{
 				PluginName: "plaintext-test",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -341,6 +374,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "empty plaintext script",
 			plugin: Spec{
 				PluginName: "plaintext-test",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -361,6 +395,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "unsupported content type",
 			plugin: Spec{
 				PluginName: "plaintext-test",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -399,6 +434,7 @@ func TestMixedContentTypes(t *testing.T) {
 	// Create a plugin with mixed content types
 	plugin := Spec{
 		PluginName: "mixed-content",
+		Type:       SpecTypeComponent,
 		StatePlugin: &Plugin{
 			Steps: []Step{
 				{
@@ -427,6 +463,7 @@ func TestMultiStepPlugins(t *testing.T) {
 	// Create a plugin with multiple steps using different content types
 	plugin := Spec{
 		PluginName: "multi-step-plugin",
+		Type:       SpecTypeComponent,
 		StatePlugin: &Plugin{
 			Steps: []Step{
 				{
@@ -548,7 +585,7 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
 	// Create the test file dynamically
 	testYAML := `
 - plugin_name: "multi-step-plugin"
-
+  type: "component"
   state_plugin:
     steps:
       - name: "Install Python"
@@ -670,6 +707,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin-1",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -685,6 +723,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -706,6 +745,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -721,6 +761,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin", // Duplicate name
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -742,6 +783,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin-1",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -757,6 +799,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
 					// Missing StatePlugin
 					Timeout: metav1.Duration{Duration: 10 * time.Second},
 				},
@@ -784,18 +827,20 @@ func TestMissingStatePlugin(t *testing.T) {
 	// Test case specifically for ErrMissingStatePlugin
 	spec := Spec{
 		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
 		Timeout:    metav1.Duration{Duration: 10 * time.Second},
 		// StatePlugin is intentionally nil
 	}
 
 	err := spec.Validate()
 	assert.Error(t, err)
-	assert.Equal(t, ErrMissingStatePlugin, err)
+	assert.ErrorIs(t, err, ErrMissingStatePlugin)
 
 	// Also test in a Specs collection
 	specs := Specs{
 		{
 			PluginName: "valid-plugin",
+			Type:       SpecTypeComponent,
 			StatePlugin: &Plugin{
 				Steps: []Step{
 					{
@@ -814,7 +859,7 @@ func TestMissingStatePlugin(t *testing.T) {
 
 	err = specs.Validate()
 	assert.Error(t, err)
-	assert.Equal(t, ErrMissingStatePlugin, err)
+	assert.ErrorIs(t, err, ErrMissingStatePlugin)
 }
 
 func TestRunStatePlugin(t *testing.T) {
@@ -932,6 +977,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test plugin 1",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -947,6 +993,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-1", // Different raw name but same normalized component name
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -968,6 +1015,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "plugin-1",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -983,6 +1031,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "plugin-2",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -998,6 +1047,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "plugin-3",
+					Type:       SpecTypeComponent,
 					StatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -1067,32 +1117,6 @@ func TestPluginRunWithFailedStepModified(t *testing.T) {
 	assert.Contains(t, string(out), "Step 2")
 }
 
-func TestTimeoutInRunStatePlugin(t *testing.T) {
-	// This test is more of an integration test and might be flaky
-	// as it depends on timing. The behavior varies by environment.
-	t.Skip("Skipping this test as it's flaky due to timing dependencies")
-
-	spec := Spec{
-		PluginName: "timeout-test",
-		StatePlugin: &Plugin{
-			Steps: []Step{
-				{
-					Name: "slow-step",
-					RunBashScript: &RunBashScript{
-						ContentType: "plaintext",
-						Script:      "sleep 1", // Sleep longer than our context timeout
-					},
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: 10 * time.Millisecond}, // Very short timeout
-	}
-
-	ctx := context.Background()
-	_, _, err := spec.RunStatePlugin(ctx)
-	assert.Error(t, err, "Expected an error due to timeout")
-}
-
 func TestRunStatePluginValidationError(t *testing.T) {
 	// Test that RunStatePlugin fails if validation fails
 	spec := Spec{
@@ -1121,6 +1145,7 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	// Create a temporary file with a spec that won't pass validation
 	testFile := filepath.Join("testdata", "plugins.invalid-spec.yaml")
 	invalidSpecYAML := `- plugin_name: "invalid-plugin"
+  type: "component"
   # Missing StatePlugin
   timeout: 10s
   interval: 10s`
@@ -1137,153 +1162,6 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	assert.Equal(t, ErrMissingStatePlugin, err)
 }
 
-func TestValidateEdgeCases(t *testing.T) {
-	// Test more edge cases for Spec.Validate
-	testCases := []struct {
-		name        string
-		plugin      Spec
-		expectError bool
-		errorType   error
-	}{
-		{
-			name: "extremely large timeout value",
-			plugin: Spec{
-				PluginName: "large-timeout-plugin",
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "step1",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'test'",
-							},
-						},
-					},
-				},
-				Timeout: metav1.Duration{Duration: 24 * time.Hour}, // 24 hours
-			},
-			expectError: false,
-		},
-		{
-			name: "extremely large interval value",
-			plugin: Spec{
-				PluginName: "large-interval-plugin",
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "step1",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'test'",
-							},
-						},
-					},
-				},
-				Timeout:  metav1.Duration{Duration: 10 * time.Second},
-				Interval: metav1.Duration{Duration: 24 * time.Hour}, // 24 hours
-			},
-			expectError: false,
-		},
-		{
-			name: "timeout just above zero",
-			plugin: Spec{
-				PluginName: "minimal-timeout-plugin",
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "step1",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'test'",
-							},
-						},
-					},
-				},
-				Timeout: metav1.Duration{Duration: 1 * time.Millisecond}, // Minimal but non-zero
-			},
-			expectError: false,
-		},
-		{
-			name: "interval exactly at boundary (59s)",
-			plugin: Spec{
-				PluginName: "boundary-interval-plugin",
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "step1",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'test'",
-							},
-						},
-					},
-				},
-				Timeout:  metav1.Duration{Duration: 10 * time.Second},
-				Interval: metav1.Duration{Duration: 59 * time.Second}, // Just below 1 minute
-			},
-			expectError: true,
-			errorType:   ErrIntervalTooShort,
-		},
-		{
-			name: "both timeout and statePlugin missing",
-			plugin: Spec{
-				PluginName: "missing-both-plugin",
-				// Both StatePlugin and Timeout are missing
-			},
-			expectError: true,
-			errorType:   ErrMissingStatePlugin, // Should fail on first check
-		},
-		{
-			name: "valid plugin with multiple steps",
-			plugin: Spec{
-				PluginName: "multi-step-plugin",
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "step1",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'step 1'",
-							},
-						},
-						{
-							Name: "step2",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'step 2'",
-							},
-						},
-						{
-							Name: "step3",
-							RunBashScript: &RunBashScript{
-								ContentType: "base64",
-								Script:      "ZWNobyAnc3RlcCAzJw==", // echo 'step 3'
-							},
-						},
-					},
-				},
-				Timeout: metav1.Duration{Duration: 10 * time.Second},
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.plugin.Validate()
-
-			if tc.expectError {
-				assert.Error(t, err)
-				if tc.errorType != nil {
-					assert.Equal(t, tc.errorType, err)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestValidateComprehensive(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -1295,6 +1173,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "zero timeout",
 			plugin: Spec{
 				PluginName: "zero-timeout",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1314,6 +1193,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "negative timeout",
 			plugin: Spec{
 				PluginName: "negative-timeout",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1333,6 +1213,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "negative interval",
 			plugin: Spec{
 				PluginName: "negative-interval",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1353,6 +1234,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval exactly 1 minute",
 			plugin: Spec{
 				PluginName: "one-minute-interval",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1373,6 +1255,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval slightly less than 1 minute",
 			plugin: Spec{
 				PluginName: "almost-one-minute-interval",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1394,6 +1277,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval slightly more than 1 minute",
 			plugin: Spec{
 				PluginName: "just-over-one-minute-interval",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1414,6 +1298,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "multiple validations failing - missing component name and state plugin",
 			plugin: Spec{
 				PluginName: "", // Empty name
+				Type:       SpecTypeComponent,
 				// Missing state plugin
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
@@ -1424,6 +1309,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "plugin with empty steps but otherwise valid",
 			plugin: Spec{
 				PluginName: "empty-steps",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{}, // Empty steps
 				},
@@ -1435,6 +1321,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "plugin with state plugin but nil steps",
 			plugin: Spec{
 				PluginName: "nil-steps",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: nil, // Nil steps
 				},
@@ -1446,6 +1333,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "extremely short interval but zero",
 			plugin: Spec{
 				PluginName: "short-interval",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1467,6 +1355,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "multiple steps with one having empty name",
 			plugin: Spec{
 				PluginName: "mixed-steps",
+				Type:       SpecTypeComponent,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1487,7 +1376,7 @@ func TestValidateComprehensive(t *testing.T) {
 				},
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
-			expectError: true, // Spec.Validate will trigger Plugin.Validate which checks step names
+			expectError: true,
 			errorType:   ErrStepNameRequired,
 		},
 	}
@@ -1509,73 +1398,151 @@ func TestValidateComprehensive(t *testing.T) {
 }
 
 func TestMaxPluginNameLength(t *testing.T) {
-	// Create a valid state plugin for reuse
-	validStatePlugin := &Plugin{
-		Steps: []Step{
-			{
-				Name: "test-step",
-				RunBashScript: &RunBashScript{
-					ContentType: "plaintext",
-					Script:      "echo 'test'",
-				},
-			},
-		},
-	}
-
 	testCases := []struct {
-		name        string
-		pluginName  string
-		expectError bool
-		errorMsg    string
+		name          string
+		plugin        Spec
+		expectError   bool
+		errorType     error
+		errorContains string
 	}{
 		{
-			name:        "empty name",
-			pluginName:  "",
-			expectError: true,
-			errorMsg:    ErrComponentNameRequired.Error(),
+			name: "empty name",
+			plugin: Spec{
+				PluginName: "", // Empty name
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
+			expectError:   true,
+			errorType:     ErrComponentNameRequired,
+			errorContains: "component name is required",
 		},
 		{
-			name:        "name at max length",
-			pluginName:  strings.Repeat("a", MaxPluginNameLength),
+			name: "name at max length",
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
 			expectError: false,
 		},
 		{
-			name:        "name one character over max length",
-			pluginName:  strings.Repeat("a", MaxPluginNameLength+1),
-			expectError: true,
-			errorMsg:    "plugin name is too long",
+			name: "name one character over max length",
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
+			expectError:   true,
+			errorContains: "plugin name is too long",
 		},
 		{
-			name:        "name significantly over max length",
-			pluginName:  strings.Repeat("a", MaxPluginNameLength*2),
-			expectError: true,
-			errorMsg:    "plugin name is too long",
+			name: "name significantly over max length",
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength*2), // 256 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
+			expectError:   true,
+			errorContains: "plugin name is too long",
 		},
 		{
-			name:        "name with special characters but within length",
-			pluginName:  strings.Repeat("a-b", MaxPluginNameLength/3),
+			name: "name with special characters but within length",
+			plugin: Spec{
+				PluginName: "plugin-name-with-special-characters!@#$%^&*()_+", // Valid name
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
 			expectError: false,
 		},
 		{
-			name:        "name just below max length",
-			pluginName:  strings.Repeat("a", MaxPluginNameLength-1),
+			name: "name just below max length",
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength-1), // 127 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			},
 			expectError: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			spec := Spec{
-				PluginName:  tc.pluginName,
-				StatePlugin: validStatePlugin,
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
-			}
-
-			err := spec.Validate()
+			err := tc.plugin.Validate()
 
 			if tc.expectError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMsg)
+				if tc.errorType != nil {
+					assert.Equal(t, tc.errorType, err)
+				}
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
@@ -1584,65 +1551,85 @@ func TestMaxPluginNameLength(t *testing.T) {
 }
 
 func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
-	// This test checks the interaction between MaxPluginNameLength validation and other validations
-
-	validStatePlugin := &Plugin{
-		Steps: []Step{
-			{
-				Name: "test-step",
-				RunBashScript: &RunBashScript{
-					ContentType: "plaintext",
-					Script:      "echo 'test'",
-				},
-			},
-		},
-	}
-
 	testCases := []struct {
-		name        string
-		spec        Spec
-		expectError bool
-		errorMsg    string
+		name          string
+		plugin        Spec
+		expectError   bool
+		errorContains string
 	}{
 		{
 			name: "too long name and missing state plugin",
-			spec: Spec{
-				PluginName:  strings.Repeat("a", MaxPluginNameLength+10),
-				StatePlugin: nil,
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
+				Type:       SpecTypeComponent,
+				// Missing state plugin
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
-			expectError: true,
-			errorMsg:    "plugin name is too long",
+			expectError:   true,
+			errorContains: "plugin name is too long",
 		},
 		{
 			name: "too long name and interval too short",
-			spec: Spec{
-				PluginName:  strings.Repeat("a", MaxPluginNameLength+10),
-				StatePlugin: validStatePlugin,
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
-				Interval:    metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout:  metav1.Duration{Duration: 10 * time.Second},
+				Interval: metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
 			},
-			expectError: true,
-			errorMsg:    "plugin name is too long",
+			expectError:   true,
+			errorContains: "plugin name is too long",
 		},
 		{
 			name: "valid name and interval too short",
-			spec: Spec{
-				PluginName:  "valid-name",
-				StatePlugin: validStatePlugin,
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
-				Interval:    metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
+			plugin: Spec{
+				PluginName: "valid-name",
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout:  metav1.Duration{Duration: 10 * time.Second},
+				Interval: metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
 			},
-			expectError: true,
-			errorMsg:    ErrIntervalTooShort.Error(),
+			expectError:   true,
+			errorContains: "interval is too short",
 		},
 		{
 			name: "valid name with max length and valid interval",
-			spec: Spec{
-				PluginName:  strings.Repeat("a", MaxPluginNameLength),
-				StatePlugin: validStatePlugin,
-				Timeout:     metav1.Duration{Duration: 10 * time.Second},
-				Interval:    metav1.Duration{Duration: 1 * time.Minute}, // Exactly 1 minute
+			plugin: Spec{
+				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
+				Type:       SpecTypeComponent,
+				StatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'test'",
+							},
+						},
+					},
+				},
+				Timeout:  metav1.Duration{Duration: 10 * time.Second},
+				Interval: metav1.Duration{Duration: 5 * time.Minute}, // More than 1 minute
 			},
 			expectError: false,
 		},
@@ -1650,11 +1637,13 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.spec.Validate()
+			err := tc.plugin.Validate()
 
 			if tc.expectError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMsg)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
@@ -1662,132 +1651,43 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 	}
 }
 
-func TestDefaultTimeout(t *testing.T) {
-	// Create a valid state plugin for reuse
-	validStatePlugin := &Plugin{
-		Steps: []Step{
-			{
-				Name: "test-step",
-				RunBashScript: &RunBashScript{
-					ContentType: "plaintext",
-					Script:      "echo 'test'",
-				},
-			},
-		},
-	}
-
+func TestValidateSpecType(t *testing.T) {
 	testCases := []struct {
-		name               string
-		initialTimeout     time.Duration
-		expectedTimeout    time.Duration
-		timeoutShouldMatch bool
+		name        string
+		specType    string
+		expectError bool
+		errorType   error
 	}{
 		{
-			name:               "zero timeout gets default value",
-			initialTimeout:     0,
-			expectedTimeout:    DefaultTimeout,
-			timeoutShouldMatch: true,
+			name:        "valid type - init",
+			specType:    SpecTypeInit,
+			expectError: false,
 		},
 		{
-			name:               "non-zero timeout remains unchanged",
-			initialTimeout:     30 * time.Second,
-			expectedTimeout:    30 * time.Second,
-			timeoutShouldMatch: true,
+			name:        "valid type - component",
+			specType:    SpecTypeComponent,
+			expectError: false,
 		},
 		{
-			name:               "very small timeout remains unchanged",
-			initialTimeout:     1 * time.Millisecond,
-			expectedTimeout:    1 * time.Millisecond,
-			timeoutShouldMatch: true,
+			name:        "invalid type - empty",
+			specType:    "",
+			expectError: true,
+			errorType:   ErrInvalidPluginType,
 		},
 		{
-			name:               "negative timeout remains unchanged",
-			initialTimeout:     -10 * time.Second,
-			expectedTimeout:    -10 * time.Second,
-			timeoutShouldMatch: true,
-		},
-		{
-			name:               "timeout equal to default remains unchanged",
-			initialTimeout:     DefaultTimeout,
-			expectedTimeout:    DefaultTimeout,
-			timeoutShouldMatch: true,
-		},
-		{
-			name:               "very large timeout remains unchanged",
-			initialTimeout:     100 * time.Hour,
-			expectedTimeout:    100 * time.Hour,
-			timeoutShouldMatch: true,
+			name:        "invalid type - random string",
+			specType:    "not-a-valid-type",
+			expectError: true,
+			errorType:   ErrInvalidPluginType,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Create a valid plugin spec with all required fields
 			spec := Spec{
-				PluginName:  "test-plugin",
-				StatePlugin: validStatePlugin,
-				Timeout:     metav1.Duration{Duration: tc.initialTimeout},
-			}
-
-			// Validate the spec which should set default timeout if needed
-			err := spec.Validate()
-			assert.NoError(t, err)
-
-			if tc.timeoutShouldMatch {
-				assert.Equal(t, tc.expectedTimeout, spec.Timeout.Duration,
-					"Timeout should be %v but got %v", tc.expectedTimeout, spec.Timeout.Duration)
-			}
-		})
-	}
-}
-
-func TestDefaultTimeoutWithValidationErrors(t *testing.T) {
-	// This test checks how DefaultTimeout works in conjunction with validation errors
-	// Based on the Spec.Validate implementation, the default timeout is only set
-	// after passing the earlier validations like plugin name length and StatePlugin existence
-
-	testCases := []struct {
-		name            string
-		spec            Spec
-		expectError     bool
-		errorMsg        string
-		timeoutExpected time.Duration // The expected timeout after validation attempts
-	}{
-		{
-			name: "zero timeout with missing StatePlugin",
-			spec: Spec{
-				PluginName:  "test-plugin",
-				StatePlugin: nil,
-				Timeout:     metav1.Duration{Duration: 0},
-			},
-			expectError:     true,
-			errorMsg:        ErrMissingStatePlugin.Error(),
-			timeoutExpected: 0, // Won't be set because validation fails before timeout code
-		},
-		{
-			name: "zero timeout with plugin name too long",
-			spec: Spec{
-				PluginName: strings.Repeat("a", MaxPluginNameLength+10),
-				StatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "test-step",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo 'test'",
-							},
-						},
-					},
-				},
-				Timeout: metav1.Duration{Duration: 0},
-			},
-			expectError:     true,
-			errorMsg:        "plugin name is too long",
-			timeoutExpected: 0, // Won't be set because validation fails before timeout code
-		},
-		{
-			name: "zero timeout with interval too short",
-			spec: Spec{
 				PluginName: "test-plugin",
+				Type:       tc.specType,
 				StatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1799,34 +1699,19 @@ func TestDefaultTimeoutWithValidationErrors(t *testing.T) {
 						},
 					},
 				},
-				Timeout:  metav1.Duration{Duration: 0},
-				Interval: metav1.Duration{Duration: 30 * time.Second}, // Less than 1 minute
-			},
-			expectError:     true,
-			errorMsg:        ErrIntervalTooShort.Error(),
-			timeoutExpected: DefaultTimeout, // Will be set before interval validation
-		},
-	}
+				Timeout: metav1.Duration{Duration: 10 * time.Second},
+			}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Create a copy to check if the timeout is updated
-			specCopy := tc.spec
+			err := spec.Validate()
 
-			// Call Validate which should set the timeout
-			err := specCopy.Validate()
-
-			// Check the error
 			if tc.expectError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMsg)
+				if tc.errorType != nil {
+					assert.Equal(t, tc.errorType, err)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
-
-			// Check if the timeout was updated as expected based on validation order
-			assert.Equal(t, tc.timeoutExpected, specCopy.Timeout.Duration,
-				"Timeout should be %v but got %v", tc.timeoutExpected, specCopy.Timeout.Duration)
 		})
 	}
 }

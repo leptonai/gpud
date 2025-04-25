@@ -163,8 +163,8 @@ func TestGetInfo(t *testing.T) {
 			Info: apiv1.Info{
 				States: []apiv1.HealthState{
 					{
-						Name:                "test",
-						DeprecatedExtraInfo: map[string]string{"key": "value"},
+						Name:      "test",
+						ExtraInfo: map[string]string{"key": "value"},
 					},
 				},
 			},
@@ -280,8 +280,8 @@ func TestGetStates(t *testing.T) {
 			Component: "component1",
 			States: []apiv1.HealthState{
 				{
-					Name:                "test",
-					DeprecatedExtraInfo: map[string]string{"state": "running"},
+					Name:      "test",
+					ExtraInfo: map[string]string{"state": "running"},
 				},
 			},
 		},
@@ -534,6 +534,7 @@ func TestGetCustomPlugins(t *testing.T) {
 	testPlugins := map[string]pkgcustomplugins.Spec{
 		"test": {
 			PluginName: "test",
+			Type:       pkgcustomplugins.SpecTypeComponent,
 			StatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
@@ -644,6 +645,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 	testPlugins := map[string]pkgcustomplugins.Spec{
 		"test": {
 			PluginName: "test",
+			Type:       pkgcustomplugins.SpecTypeComponent,
 			StatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
@@ -726,6 +728,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 func createValidPluginSpec() pkgcustomplugins.Spec {
 	return pkgcustomplugins.Spec{
 		PluginName: "test-plugin",
+		Type:       pkgcustomplugins.SpecTypeComponent,
 		StatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{

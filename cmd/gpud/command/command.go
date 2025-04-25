@@ -35,7 +35,8 @@ var (
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	ibstatCommand string
+	ibstatCommand   string
+	pluginSpecsFile string
 
 	enableAPIPluginRegistration bool
 )
@@ -210,6 +211,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "plugin-specs-file",
+					Usage:       "sets the plugin specs file (leave empty for default, useful for testing)",
+					Destination: &pluginSpecsFile,
 					Hidden:      true,
 				},
 				&cli.BoolFlag{

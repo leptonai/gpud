@@ -362,7 +362,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no ECC issue found", state.Reason)
-	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
+	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestLastHealthStates_WithError(t *testing.T) {

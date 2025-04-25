@@ -75,6 +75,7 @@ func TestRunBashScriptValidation(t *testing.T) {
 func TestDecodeWithInvalidBase64(t *testing.T) {
 	// Create a plugin with invalid base64 encoded scripts
 	plugin := Spec{
+		Type: SpecTypeComponent,
 		StatePlugin: &Plugin{
 			Steps: []Step{
 				{
@@ -100,6 +101,7 @@ func TestDecodeWithPlaintext(t *testing.T) {
 	// Create a plugin with plaintext scripts
 	plugin := Spec{
 		PluginName: "test-plaintext",
+		Type:       SpecTypeComponent,
 		StatePlugin: &Plugin{
 			Steps: []Step{
 				{

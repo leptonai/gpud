@@ -301,7 +301,7 @@ func TestStates_WithData(t *testing.T) {
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	assert.Equal(t, "all 1 GPU(s) were checked, no power issue found", state.Reason)
-	assert.Contains(t, state.DeprecatedExtraInfo["data"], "gpu-uuid-123")
+	assert.Contains(t, state.ExtraInfo["data"], "gpu-uuid-123")
 }
 
 func TestStates_WithError(t *testing.T) {

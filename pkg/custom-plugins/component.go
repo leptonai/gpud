@@ -62,7 +62,7 @@ func (c *component) CanDeregister() bool {
 func (c *component) Name() string { return c.spec.ComponentName() }
 
 func (c *component) Start() error {
-	log.Logger.Infow("starting custom plugin", "component", c.Name(), "plugin", c.spec.PluginName)
+	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
 	itv := c.spec.Interval.Duration
 	// either periodic check is disabled or interval is too short
@@ -89,7 +89,7 @@ func (c *component) Start() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking custom plugin", "component", c.Name(), "plugin", c.spec.PluginName)
+	log.Logger.Infow("checking custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
 	cr := &checkResult{
 		componentName: c.Name(),
@@ -111,15 +111,18 @@ func (c *component) Check() components.CheckResult {
 	cctx, ccancel := context.WithTimeout(c.ctx, c.spec.Timeout.Duration)
 	defer ccancel()
 
-	cr.Output, cr.ExitCode, cr.err = c.spec.StatePlugin.executeAllSteps(cctx)
+	cr.out, cr.exitCode, cr.err = c.spec.StatePlugin.executeAllSteps(cctx)
+	cr.output = string(cr.out)
+
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.Output))
+		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.out))
 		return cr
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = "success"
+	cr.reason = "ok"
+	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
 
 	return cr
 }
@@ -146,8 +149,8 @@ func (c *component) Close() error {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	Output   []byte
-	ExitCode int32
+	out      []byte
+	exitCode int32
 
 	componentName string
 	pluginName    string
@@ -161,6 +164,9 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+
+	// output of the last check commands
+	output string
 }
 
 func (cr *checkResult) String() string {
@@ -168,7 +174,7 @@ func (cr *checkResult) String() string {
 		return ""
 	}
 
-	return string(cr.Output) + "\n\n" + fmt.Sprintf("(exit code %d)", cr.ExitCode)
+	return string(cr.out) + "\n\n" + fmt.Sprintf("(exit code %d)", cr.exitCode)
 }
 
 func (cr *checkResult) Summary() string {
@@ -204,8 +210,8 @@ func (cr *checkResult) getLastHealthStates(componentName string, pluginName stri
 		}
 	}
 
-	if len(cr.Output) > 0 {
-		parsedHealthStateType, parsedHealthStateReason, err := ReadHealthStateFromLines(strings.Split(string(cr.Output), "\n"))
+	if len(cr.out) > 0 {
+		parsedHealthStateType, parsedHealthStateReason, err := ReadHealthStateFromLines(strings.Split(string(cr.out), "\n"))
 		if err != nil {
 			log.Logger.Errorw("error reading health state", "error", err)
 		}
@@ -233,4 +239,13 @@ func (cr *checkResult) getLastHealthStates(componentName string, pluginName stri
 		Health:    cr.health,
 	}
 	return apiv1.HealthStates{state}
+}
+
+var _ components.CheckResultDebugger = &checkResult{}
+
+func (cr *checkResult) Debug() string {
+	if cr == nil {
+		return ""
+	}
+	return cr.output
 }

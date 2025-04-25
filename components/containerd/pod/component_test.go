@@ -125,8 +125,8 @@ func TestDataFunctions(t *testing.T) {
 		// Test getStates with pods
 		states := cr.getLastHealthStates()
 		assert.Len(t, states, 1)
-		assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-		assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+		assert.Contains(t, states[0].ExtraInfo, "data")
+		assert.Contains(t, states[0].ExtraInfo, "encoding")
 	})
 }
 
@@ -667,7 +667,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 		assert.Equal(t, "many pods edge case", states[0].Reason)
 
 		// Check that JSON encoding worked and includes multiple pods
-		jsonData, jsonErr := json.Marshal(states[0].DeprecatedExtraInfo)
+		jsonData, jsonErr := json.Marshal(states[0].ExtraInfo)
 		assert.NoError(t, jsonErr)
 		assert.Contains(t, string(jsonData), "pod-0")
 		assert.Contains(t, string(jsonData), "pod-9")
@@ -1126,13 +1126,13 @@ func TestData_getStates(t *testing.T) {
 
 			// Check extraInfo for data with pods
 			if tt.data != nil && len(tt.data.Pods) > 0 {
-				assert.NotNil(t, states[0].DeprecatedExtraInfo)
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "data")
-				assert.Contains(t, states[0].DeprecatedExtraInfo, "encoding")
+				assert.NotNil(t, states[0].ExtraInfo)
+				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.Contains(t, states[0].ExtraInfo, "encoding")
 
 				// Verify we can unmarshal the JSON data
 				var decodedData checkResult
-				jsonErr := json.Unmarshal([]byte(states[0].DeprecatedExtraInfo["data"]), &decodedData)
+				jsonErr := json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &decodedData)
 				assert.NoError(t, jsonErr)
 				assert.Equal(t, len(tt.data.Pods), len(decodedData.Pods))
 			}
@@ -1591,13 +1591,13 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 
 	// Check that ExtraInfo contains the expected data
-	assert.NotNil(t, state.DeprecatedExtraInfo)
-	assert.Contains(t, state.DeprecatedExtraInfo, "data")
-	assert.Contains(t, state.DeprecatedExtraInfo, "encoding")
+	assert.NotNil(t, state.ExtraInfo)
+	assert.Contains(t, state.ExtraInfo, "data")
+	assert.Contains(t, state.ExtraInfo, "encoding")
 
 	// Deserialize the data back and verify it contains the expected fields
 	var parsedData checkResult
-	err := json.Unmarshal([]byte(state.DeprecatedExtraInfo["data"]), &parsedData)
+	err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &parsedData)
 	assert.NoError(t, err)
 	assert.Equal(t, len(cr.Pods), len(parsedData.Pods))
 	assert.Equal(t, cr.ContainerdServiceActive, parsedData.ContainerdServiceActive)

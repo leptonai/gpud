@@ -1,0 +1,206 @@
+########################################
+# demonstrates a plugin that installs python and runs a simple script using "uv run"
+- plugin_name: nv-plugin-install-python
+  type: init
+
+  state_plugin:
+    steps:
+      - name: Install Python
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            if ! command -v /usr/sbin/uv &>/dev/null; then
+              curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/sbin sh
+            fi
+
+            if ! /usr/sbin/uv python --version &>/dev/null || [ -z "$(/usr/sbin/uv python --version 2>/dev/null)" ]; then
+              echo "installing python 3.10"
+              /usr/sbin/uv python install 3.10 --verbose
+            else
+              echo "skipped python install"
+            fi
+
+      - name: Test python script with uv
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            cat > /tmp/hello.py << 'EOF'
+            print("Hello, World!")
+            EOF
+            uv run /tmp/hello.py
+            rm -f /tmp/hello.py
+
+  dry_run: false
+  timeout: 1m
+
+
+
+
+
+########################################
+# demonstrates a plugin that fails with an exit code 1
+- plugin_name: nv-plugin-fail-me
+  type: component
+
+  state_plugin:
+    steps:
+      - name: Exit 1
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo "about to fail with exit code 1"
+            exit 1
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 100m
+
+
+
+
+
+########################################
+# demonstrates a plugin that installs python and runs a simple script using "uv run"
+# checks if there is any "Active" hw slowdown using "nvidia-smi"
+- plugin_name: nv-plugin-simple-script-gpu-throttle
+  type: component
+
+  state_plugin:
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            #!/bin/bash
+
+            # do not mask errors in a pipeline
+            set -o pipefail
+
+            # treat unset variables as an error
+            set -o nounset
+
+            # exit script whenever it errs
+            set -o errexit
+
+            cat > /tmp/nvidia-smi-gpu-throttle.py << 'EOF'
+            #!/usr/bin/env python3
+            import subprocess
+            import sys
+
+            def check_gpu_errors():
+                try:
+                    cmd = ["nvidia-smi", "--query-gpu=pci.bus,clocks_event_reasons.hw_slowdown", "--format=csv,noheader"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    
+                    # Check if any "Active" hw slowdown is present
+                    for line in result.stdout.strip().split('\n'):
+                        if line and line.strip():
+                            parts = line.split(', ')
+                            if len(parts) >= 2:
+                                hw_slowdown = parts[1].strip()
+                                if hw_slowdown != "Not Active" and hw_slowdown != "N/A":
+                                    print(f"GPU hw slowdown detected: {line}")
+                                    return False
+                    
+                    # No errors found
+                    print("No GPU throttle detected")
+                    return True
+                
+                except subprocess.CalledProcessError as e:
+                    print(f"Error running nvidia-smi: {e}")
+                    print(f"stderr: {e.stderr}")
+                    return False
+                except Exception as e:
+                    print(f"Unexpected error: {e}")
+                    return False
+
+            if __name__ == "__main__":
+                if check_gpu_errors():
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            EOF
+            uv run /tmp/nvidia-smi-gpu-throttle.py
+            rm -f /tmp/nvidia-smi-gpu-throttle.py
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 10m
+
+
+
+
+
+########################################
+# demonstrates a plugin that installs python and runs a simple script using "uv run"
+# checks if there is any "GPU requires reset" using "nvidia-smi"
+- plugin_name: nv-plugin-simple-script-gpu-power-state
+  type: component
+
+  state_plugin:
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            #!/bin/bash
+
+            # do not mask errors in a pipeline
+            set -o pipefail
+
+            # treat unset variables as an error
+            set -o nounset
+
+            # exit script whenever it errs
+            set -o errexit
+
+            cat > /tmp/nvidia-smi-gpu-power-state.py << 'EOF'
+            #!/usr/bin/env python3
+            import subprocess
+            import sys
+
+            def check_gpu_errors():
+                try:
+                    cmd = ["nvidia-smi", "--query-gpu=pci.bus,pstate", "--format=csv,noheader"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    
+                    for line in result.stdout.strip().split('\n'):
+                        gpu_bus, powerstate = line.split(', ', 1)
+                        if "[GPU requires reset]" in line:
+                            print(f"GPU requires reset: {gpu_bus} {line}")
+                            return False
+                    
+                    # No errors found
+                    print("No GPU power state issue detected")
+                    return True
+                
+                except subprocess.CalledProcessError as e:
+                    print(f"Error running nvidia-smi: {e}")
+                    print(f"stderr: {e.stderr}")
+                    return False
+                except Exception as e:
+                    print(f"Unexpected error: {e}")
+                    return False
+
+            if __name__ == "__main__":
+                if check_gpu_errors():
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            EOF
+            uv run /tmp/nvidia-smi-gpu-power-state.py
+            rm -f /tmp/nvidia-smi-gpu-power-state.py
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 10m
+
+
+
+
+
+########################################
+
