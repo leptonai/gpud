@@ -97,7 +97,7 @@ func New() (Instance, error) {
 	log.Logger.Infow("got devices from device library", "numDevices", len(devices))
 
 	productName := ""
-	architecture := ""
+	archFamily := ""
 	brand := ""
 	dm := make(map[string]device.Device)
 	if len(devices) > 0 {
@@ -108,10 +108,12 @@ func New() (Instance, error) {
 		productName = name
 
 		var err error
-		architecture, err = GetArchitecture(devices[0])
+
+		archFamily, err = GetArchFamily(devices[0])
 		if err != nil {
 			return nil, err
 		}
+
 		brand, err = GetBrand(devices[0])
 		if err != nil {
 			return nil, err
@@ -138,7 +140,7 @@ func New() (Instance, error) {
 		cudaVersion:          cudaVersion,
 		devices:              dm,
 		sanitizedProductName: SanitizeProductName(productName),
-		architecture:         architecture,
+		architecture:         archFamily,
 		brand:                brand,
 		fabricMgrSupported:   fmSupported,
 		memMgmtCaps:          memMgmtCaps,

@@ -10,7 +10,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-func TestGetArchitecture(t *testing.T) {
+func TestGetArchFamily(t *testing.T) {
 	const testUUID = "test-gpu-uuid"
 
 	tests := []struct {
