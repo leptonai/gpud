@@ -130,18 +130,18 @@ func New() (Instance, error) {
 	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instance{
-		nvmlLib:            nvmlLib,
-		nvmlExists:         nvmlExists,
-		nvmlExistsMsg:      nvmlExistsMsg,
-		driverVersion:      driverVersion,
-		driverMajor:        driverMajor,
-		cudaVersion:        cudaVersion,
-		devices:            dm,
-		productName:        productName,
-		architecture:       architecture,
-		brand:              brand,
-		fabricMgrSupported: fmSupported,
-		memMgmtCaps:        memMgmtCaps,
+		nvmlLib:              nvmlLib,
+		nvmlExists:           nvmlExists,
+		nvmlExistsMsg:        nvmlExistsMsg,
+		driverVersion:        driverVersion,
+		driverMajor:          driverMajor,
+		cudaVersion:          cudaVersion,
+		devices:              dm,
+		sanitizedProductName: SanitizeProductName(productName),
+		architecture:         architecture,
+		brand:                brand,
+		fabricMgrSupported:   fmSupported,
+		memMgmtCaps:          memMgmtCaps,
 	}, nil
 }
 
@@ -159,9 +159,9 @@ type instance struct {
 
 	devices map[string]device.Device
 
-	productName  string
-	architecture string
-	brand        string
+	sanitizedProductName string
+	architecture         string
+	brand                string
 
 	fabricMgrSupported bool
 	memMgmtCaps        MemoryErrorManagementCapabilities
@@ -180,7 +180,7 @@ func (inst *instance) Devices() map[string]device.Device {
 }
 
 func (inst *instance) ProductName() string {
-	return inst.productName
+	return inst.sanitizedProductName
 }
 
 func (inst *instance) Architecture() string {
