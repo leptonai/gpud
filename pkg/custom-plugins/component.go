@@ -133,6 +133,7 @@ func (c *component) Check() components.CheckResult {
 
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "failed to parse plugin output"
+			return cr
 		}
 
 		if len(matchResults) > 0 {
