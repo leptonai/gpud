@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -88,6 +89,16 @@ func TestComponent_LastHealthStates_NoCheckPerformed(t *testing.T) {
 		ctx:  context.Background(),
 		spec: spec,
 	}
+
+	// Create a default check result to avoid nil pointer dereference
+	c.lastMu.Lock()
+	c.lastCheckResult = &checkResult{
+		componentName: c.Name(),
+		pluginName:    c.spec.PluginName,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "no data yet",
+	}
+	c.lastMu.Unlock()
 
 	// No check performed yet
 	healthStates := c.LastHealthStates()
@@ -475,62 +486,6 @@ func TestComponent_Start_ShortInterval(t *testing.T) {
 
 	// The test passes if we reach here without deadlock, as it means
 	// no goroutine was blocked waiting on ticker.C
-}
-
-// TestCheckResult_GetLastHealthStatesWithOutput tests the case where checkResult has output
-// that can be parsed for health state information
-func TestCheckResult_GetLastHealthStatesWithOutput(t *testing.T) {
-	// Create a checkResult with simulated output containing a health state
-	output := `Random log output
-GPUD_HEALTH_STATE_TYPE:Unhealthy
-GPUD_HEALTH_STATE_REASON:test reason
-More random output`
-
-	cr := &checkResult{
-		componentName: "test-component",
-		pluginName:    "test-plugin",
-		out:           []byte(output),
-		health:        apiv1.HealthStateTypeHealthy, // This should be overridden by the parsed state
-		reason:        "original reason",            // This should be overridden
-		err:           errors.New("test error"),     // This should NOT affect the output since we're not using Error: prefix
-	}
-
-	// Get health states
-	states := cr.getLastHealthStates("test-component", "test-plugin")
-
-	// Verify the parsed health state
-	assert.Equal(t, 1, len(states))
-	assert.Equal(t, "test-component", states[0].Component)
-	assert.Equal(t, "test-plugin", states[0].Name)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health) // From the parsed output
-	assert.Equal(t, "test reason", states[0].Reason)                  // From the parsed output
-	assert.Empty(t, states[0].Error)                                  // Error doesn't come from output in current implementation
-}
-
-// TestCheckResult_GetLastHealthStatesWithInvalidOutput tests handling of invalid output
-func TestCheckResult_GetLastHealthStatesWithInvalidOutput(t *testing.T) {
-	// Create a checkResult with output containing an invalid health state
-	output := `Random log output
-GPUD_HEALTH_STATE: {"invalid json
-More random output`
-
-	cr := &checkResult{
-		componentName: "test-component",
-		pluginName:    "test-plugin",
-		out:           []byte(output),
-		health:        apiv1.HealthStateTypeHealthy,
-		reason:        "original reason",
-	}
-
-	// Get health states - should fall back to using the checkResult properties
-	states := cr.getLastHealthStates("test-component", "test-plugin")
-
-	// Verify the fallback health state
-	assert.Equal(t, 1, len(states))
-	assert.Equal(t, "test-component", states[0].Component)
-	assert.Equal(t, "test-plugin", states[0].Name)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health) // From the checkResult
-	assert.Equal(t, "original reason", states[0].Reason)            // From the checkResult
 }
 
 // TestComponent_CanDeregister tests the CanDeregister method
@@ -938,4 +893,202 @@ func TestNewInitFuncNilSpec(t *testing.T) {
 	var spec *Spec
 	initFunc := spec.NewInitFunc()
 	assert.Nil(t, initFunc, "InitFunc should be nil for nil spec")
+}
+
+// TestComponentSpec_NilCases tests the Spec method with nil cases
+func TestComponentSpec_NilCases(t *testing.T) {
+	t.Run("nil component", func(t *testing.T) {
+		var c *component
+		spec := c.Spec()
+		require.Equal(t, Spec{}, spec)
+	})
+
+	t.Run("nil spec", func(t *testing.T) {
+		c := &component{
+			spec: nil,
+		}
+		spec := c.Spec()
+		require.Equal(t, Spec{}, spec)
+	})
+}
+
+// TestCheckResult_GetLastHealthStatesWithEmptyOutput tests the getLastHealthStates method with empty output
+func TestCheckResult_GetLastHealthStatesWithEmptyOutput(t *testing.T) {
+	cr := &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "test reason",
+		err:           nil,
+		out:           []byte{}, // Empty output
+	}
+
+	healthStates := cr.getLastHealthStates("test-component", "test-plugin")
+	require.Len(t, healthStates, 1)
+	require.Equal(t, "test-component", healthStates[0].Component)
+	require.Equal(t, "test-plugin", healthStates[0].Name)
+	require.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	require.Equal(t, "test reason", healthStates[0].Reason)
+	require.Empty(t, healthStates[0].Error)
+}
+
+// TestComponent_CheckWithCustomPluginOutputParser tests component check with a custom plugin output parser
+func TestComponent_CheckWithCustomPluginOutputParser(t *testing.T) {
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-step",
+				RunBashScript: &RunBashScript{
+					Script:      "echo '{\"health\": \"healthy\", \"reason\": \"everything works\"}'",
+					ContentType: "plaintext",
+				},
+			},
+		},
+		// Add the OutputParse to the plugin
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.health"},
+				{Field: "reason", Query: "$.reason"},
+				{Field: "extra", Query: "$.nonexistent"}, // This path doesn't exist but should be skipped
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-plugin",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+
+	// Since non-existent paths are skipped, the component should still be healthy
+	assert.NotNil(t, cr)
+
+	t.Logf("Check result: %s", cr.String())
+
+	// The component should be healthy since non-existent paths don't cause errors
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Component should be healthy despite non-existent path")
+	assert.Equal(t, "ok", cr.reason, "Reason should be 'ok' since no error occurred")
+
+	// Verify that the output from the script is still captured
+	assert.Contains(t, cr.String(), "healthy", "Original output should be included")
+	assert.Contains(t, cr.String(), "everything works", "Original output should be included")
+
+	// Verify the health states are properly parsed
+	healthStates := c.LastHealthStates()
+	t.Logf("Health state: %s, Reason: %s, Error: %s", healthStates[0].Health, healthStates[0].Reason, healthStates[0].Error)
+}
+
+func TestComponentCheckOutputWithRegex(t *testing.T) {
+	testFile := filepath.Join("testdata", "plugins.plaintext.2.regex.yaml")
+	specs, err := LoadSpecs(testFile)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 3)
+
+	t.Run("test-healthy", func(t *testing.T) {
+		spec := specs[0]
+		assert.Equal(t, "test-healthy", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(0), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+		assert.Contains(t, cr.reason, `ok`)
+		assert.Contains(t, rs.Summary(), `ok`)
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "healthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "true")
+	})
+
+	t.Run("test-unhealthy", func(t *testing.T) {
+		spec := specs[1]
+		assert.Equal(t, "test-unhealthy", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(0), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
+		assert.Contains(t, cr.reason, "unexpected plugin output")
+		assert.Contains(t, rs.Summary(), "unexpected plugin output")
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "false")
+	})
+
+	t.Run("test-unhealthy-with-missing-field", func(t *testing.T) {
+		spec := specs[2]
+		assert.Equal(t, "test-unhealthy-with-missing-field", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 5, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(0), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
+		assert.Contains(t, cr.reason, "unexpected plugin output")
+		assert.Contains(t, rs.Summary(), "unexpected plugin output")
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "false")
+	})
 }

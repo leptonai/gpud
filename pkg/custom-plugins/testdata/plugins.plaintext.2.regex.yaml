@@ -1,0 +1,103 @@
+
+- plugin_name: test-healthy
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.name
+          field: name
+        - query: $.result
+          field: result
+        - query: $.error
+          field: error
+        - query: $.passed
+          field: passed
+          filter:
+            # regex to match "true" case-insensitively
+            regex: "(?i)^true$"
+
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo "hello world no JSON yet"
+            echo '{"name": "test", "result": "healthy", "passed": true}'
+            echo "thank you"
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 10m
+
+
+- plugin_name: test-unhealthy
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.name
+          field: name
+        - query: $.result
+          field: result
+        - query: $.error
+          field: error
+        - query: $.passed
+          field: passed
+          filter:
+            # regex to match "true" case-insensitively
+            regex: "(?i)^true$"
+
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo "hello world no JSON yet"
+            echo '{"name": "test", "result": "unhealthy", "passed": false}'
+            echo "done"
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 10m
+
+
+- plugin_name: test-unhealthy-with-missing-field
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.name
+          field: name
+        - query: $.result
+          field: result
+        - query: $.error
+          field: error
+        - query: $.passed
+          field: passed
+          filter:
+            # regex to match "false" case-insensitively
+            regex: "(?i)^false$"
+        - query: $.nothere
+          field: nothere
+          filter:
+            # regex to match "true" case-insensitively
+            regex: "(?i)^true$"
+
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo "hello world no JSON yet"
+            echo '{"name": "test", "result": "unhealthy", "passed": false}'
+            echo "done"
+
+  dry_run: false
+
+  timeout: 1m
+  interval: 10m

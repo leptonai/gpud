@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/NVIDIA/go-nvlib v0.7.1
 	github.com/NVIDIA/go-nvml v0.12.4-1
+	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.26.5
@@ -51,6 +52,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/PaesslerAG/gval v1.0.0 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16 // indirect

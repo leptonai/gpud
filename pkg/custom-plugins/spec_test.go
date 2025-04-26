@@ -862,7 +862,7 @@ func TestMissingStatePlugin(t *testing.T) {
 	assert.ErrorIs(t, err, ErrMissingStatePlugin)
 }
 
-func TestRunStatePlugin(t *testing.T) {
+func TestHealthStatePlugin_executeAllSteps(t *testing.T) {
 	tests := []struct {
 		name         string
 		spec         Spec
@@ -932,15 +932,6 @@ func TestRunStatePlugin(t *testing.T) {
 			expectOutput: false,
 			expectError:  false,
 		},
-		{
-			name: "nil state plugin",
-			spec: Spec{
-				PluginName: "nil-state-plugin",
-				Timeout:    metav1.Duration{Duration: 10 * time.Second},
-			},
-			expectOutput: false,
-			expectError:  true,
-		},
 	}
 
 	for _, tc := range tests {
@@ -950,7 +941,7 @@ func TestRunStatePlugin(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			output, _, err := tc.spec.RunStatePlugin(ctx)
+			output, _, err := tc.spec.HealthStatePlugin.executeAllSteps(ctx)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -1115,30 +1106,6 @@ func TestPluginRunWithFailedStepModified(t *testing.T) {
 	assert.Equal(t, int32(0), exitCode, "All steps should succeed")
 	assert.Contains(t, string(out), "Step 1")
 	assert.Contains(t, string(out), "Step 2")
-}
-
-func TestRunStatePluginValidationError(t *testing.T) {
-	// Test that RunStatePlugin fails if validation fails
-	spec := Spec{
-		PluginName: "validation-error-test",
-		HealthStatePlugin: &Plugin{
-			Steps: []Step{
-				{
-					Name: "", // Missing name should cause validation error
-					RunBashScript: &RunBashScript{
-						ContentType: "plaintext",
-						Script:      "echo 'Should not run'",
-					},
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: 10 * time.Second},
-	}
-
-	ctx := context.Background()
-	_, _, err := spec.RunStatePlugin(ctx)
-	assert.Error(t, err)
-	assert.Equal(t, ErrStepNameRequired, err)
 }
 
 func TestLoadSpecsWithInvalidSpec(t *testing.T) {

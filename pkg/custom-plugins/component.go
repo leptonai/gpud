@@ -3,7 +3,6 @@ package customplugins
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -95,6 +94,7 @@ func (c *component) Check() components.CheckResult {
 		componentName: c.Name(),
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
+		extraInfo:     make(map[string]string),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -124,6 +124,37 @@ func (c *component) Check() components.CheckResult {
 	cr.reason = "ok"
 	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
 
+	// either custom parser (jsonpath) or default parser
+	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
+		var matchResults map[string]extractedField
+		matchResults, cr.err = c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		if cr.err != nil {
+			log.Logger.Errorw("error extracting extra info", "error", cr.err)
+
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "failed to parse plugin output"
+			return cr
+		}
+
+		if len(matchResults) > 0 {
+			for k, result := range matchResults {
+				cr.extraInfo[k] = result.fieldValue
+
+				if !result.matched {
+					log.Logger.Warnw("rule cannot find the matching value (marking unhealthy)",
+						"component", c.Name(),
+						"field", k,
+						"value", result.fieldValue,
+						"rule", result.rule,
+					)
+
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = "unexpected plugin output"
+				}
+			}
+		}
+	}
+
 	return cr
 }
 
@@ -131,6 +162,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
+
 	return lastCheckResult.getLastHealthStates(c.Name(), c.spec.PluginName)
 }
 
@@ -164,6 +196,8 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+	// extra info extracted from the output
+	extraInfo map[string]string
 
 	// output of the last check commands
 	output string
@@ -210,33 +244,13 @@ func (cr *checkResult) getLastHealthStates(componentName string, pluginName stri
 		}
 	}
 
-	if len(cr.out) > 0 {
-		parsedHealthStateType, parsedHealthStateReason, err := ReadHealthStateFromLines(strings.Split(string(cr.out), "\n"))
-		if err != nil {
-			log.Logger.Errorw("error reading health state", "error", err)
-		}
-
-		if parsedHealthStateType != "" {
-			return apiv1.HealthStates{
-				{
-					Component: componentName,
-					Name:      pluginName,
-					Health:    parsedHealthStateType,
-					Reason:    parsedHealthStateReason,
-				},
-			}
-		}
-
-		// if no health state is found, return the default health state
-		// based on the exit code
-	}
-
 	state := apiv1.HealthState{
 		Component: cr.componentName,
 		Name:      cr.pluginName,
 		Reason:    cr.reason,
 		Error:     cr.getError(),
 		Health:    cr.health,
+		ExtraInfo: cr.extraInfo,
 	}
 	return apiv1.HealthStates{state}
 }
