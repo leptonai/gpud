@@ -130,7 +130,9 @@ func (c *component) Check() components.CheckResult {
 		matchResults, cr.err = c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
 		if cr.err != nil {
 			log.Logger.Errorw("error extracting extra info", "error", cr.err)
-			cr.reason = fmt.Sprintf("error extracting extra info -- %s (output: %s)", cr.err, string(cr.out))
+
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "failed to parse plugin output"
 		}
 
 		if len(matchResults) > 0 {
