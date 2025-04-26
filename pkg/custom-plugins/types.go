@@ -64,9 +64,9 @@ type Plugin struct {
 	// Which means, the final success requires all steps to succeed.
 	Steps []Step `json:"steps,omitempty"`
 
-	// OutputParse is the parser for the plugin output.
+	// Parser is the parser for the plugin output.
 	// If not set, the default prefix parser is used.
-	OutputParse *PluginOutputParseConfig `json:"output_parse,omitempty"`
+	Parser *PluginOutputParseConfig `json:"parser,omitempty"`
 }
 
 // Step represents a step in a plugin.

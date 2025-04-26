@@ -24,7 +24,7 @@ func TestPluginOutputParseConfig_Validate(t *testing.T) {
 	t.Run("PluginOutputParseConfig with JSONPaths should return nil error", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.status"},
+				{Field: "health", Query: "$.status"},
 			},
 		}
 		err := po.Validate()
@@ -60,7 +60,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("empty input should return nil, nil", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.status"},
+				{Field: "health", Query: "$.status"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte{})
@@ -71,7 +71,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("invalid JSON should return error", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.status"},
+				{Field: "health", Query: "$.status"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte(`{invalid json}`))
@@ -82,8 +82,8 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("valid JSON with matching paths should extract values", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.status"},
-				{FieldName: "message", Query: "$.reason"},
+				{Field: "health", Query: "$.status"},
+				{Field: "message", Query: "$.reason"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte(`{"status": "healthy", "reason": "all systems operational"}`))
@@ -98,7 +98,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("valid JSON with non-existent path should return empty result", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "field", Query: "$.nonexistent"},
+				{Field: "field", Query: "$.nonexistent"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
@@ -109,7 +109,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("JSON embedded in text should extract values", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.status"},
+				{Field: "health", Query: "$.status"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte(`Some log output
@@ -125,8 +125,8 @@ Following text`))
 	t.Run("nested JSON values should be extracted and converted to strings", func(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "nested_val", Query: "$.nested.value"},
-				{FieldName: "array_val", Query: "$.array"},
+				{Field: "nested_val", Query: "$.nested.value"},
+				{Field: "array_val", Query: "$.array"},
 			},
 		}
 		result, err := po.extractExtraInfo([]byte(`{"nested": {"value": 42}, "array": [1, 2, 3]}`))
@@ -141,15 +141,15 @@ Following text`))
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
 				{
-					FieldName: "status",
-					Query:     "$.status",
+					Field: "status",
+					Query: "$.status",
 					Filter: &Filter{
 						Regex: stringPtr("healthy"),
 					},
 				},
 				{
-					FieldName: "count",
-					Query:     "$.count",
+					Field: "count",
+					Query: "$.count",
 					Filter: &Filter{
 						Regex: stringPtr(`^\d+$`),
 					},
@@ -169,8 +169,8 @@ Following text`))
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
 				{
-					FieldName: "status",
-					Query:     "$.status",
+					Field: "status",
+					Query: "$.status",
 					Filter: &Filter{
 						Regex: stringPtr("unhealthy"), // This won't match
 					},
@@ -189,8 +189,8 @@ Following text`))
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
 				{
-					FieldName: "status",
-					Query:     "$.status",
+					Field: "status",
+					Query: "$.status",
 					Filter: &Filter{
 						Regex: stringPtr(`[invalid regex`),
 					},
@@ -667,7 +667,7 @@ func TestExtractExtraInfoWithJSONPaths(t *testing.T) {
 		{
 			name:      "empty input",
 			input:     []byte{},
-			jsonPaths: []JSONPath{{FieldName: "name", Query: "$.name"}},
+			jsonPaths: []JSONPath{{Field: "name", Query: "$.name"}},
 			expected:  nil,
 		},
 		{
@@ -679,52 +679,52 @@ func TestExtractExtraInfoWithJSONPaths(t *testing.T) {
 		{
 			name:      "invalid JSON",
 			input:     []byte(`{invalid}`),
-			jsonPaths: []JSONPath{{FieldName: "name", Query: "$.name"}},
+			jsonPaths: []JSONPath{{Field: "name", Query: "$.name"}},
 			wantErr:   true,
 		},
 		{
 			name:      "simple string path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "abc", Query: "$.name"}},
+			jsonPaths: []JSONPath{{Field: "abc", Query: "$.name"}},
 			expected:  map[string]string{"abc": "test"},
 		},
 		{
 			name:      "number path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "mycnt", Query: "$.count"}},
+			jsonPaths: []JSONPath{{Field: "mycnt", Query: "$.count"}},
 			expected:  map[string]string{"mycnt": "42"},
 		},
 		{
 			name:      "deep nested path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "value", Query: "$.nested.level1.level2.value"}},
+			jsonPaths: []JSONPath{{Field: "value", Query: "$.nested.level1.level2.value"}},
 			expected:  map[string]string{"value": "deep"},
 		},
 		{
 			name:      "array element path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "name", Query: "$.items[0].name"}},
+			jsonPaths: []JSONPath{{Field: "name", Query: "$.items[0].name"}},
 			expected:  map[string]string{"name": "item1"},
 		},
 		{
 			name:      "complex object path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "nested", Query: "$.nested"}},
+			jsonPaths: []JSONPath{{Field: "nested", Query: "$.nested"}},
 			expected:  map[string]string{"nested": `{"level1":{"level2":{"array":[1,2,3],"value":"deep"}}}`},
 		},
 		{
 			name:      "array path",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "items", Query: "$.items"}},
+			jsonPaths: []JSONPath{{Field: "items", Query: "$.items"}},
 			expected:  map[string]string{"items": `[{"id":1,"name":"item1"},{"id":2,"name":"item2"}]`},
 		},
 		{
 			name:  "multiple paths",
 			input: complexJSON,
 			jsonPaths: []JSONPath{
-				{FieldName: "name", Query: "$.name"},
-				{FieldName: "count", Query: "$.count"},
-				{FieldName: "value", Query: "$.nested.level1.level2.value"},
+				{Field: "name", Query: "$.name"},
+				{Field: "count", Query: "$.count"},
+				{Field: "value", Query: "$.nested.level1.level2.value"},
 			},
 			expected: map[string]string{
 				"name":  "test",
@@ -735,25 +735,25 @@ func TestExtractExtraInfoWithJSONPaths(t *testing.T) {
 		{
 			name:      "invalid path syntax",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "invalid", Query: "$.[invalid"}},
+			jsonPaths: []JSONPath{{Field: "invalid", Query: "$.[invalid"}},
 			wantErr:   true,
 		},
 		{
 			name:      "non-existent path should be skipped 1",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "not.exists", Query: "$.not.exists"}},
+			jsonPaths: []JSONPath{{Field: "not.exists", Query: "$.not.exists"}},
 			expected:  map[string]string{},
 		},
 		{
 			name:      "non-existent path should be skipped 2",
 			input:     complexJSON,
-			jsonPaths: []JSONPath{{FieldName: "a", Query: "$.a.b.c.d.e"}},
+			jsonPaths: []JSONPath{{Field: "a", Query: "$.a.b.c.d.e"}},
 			expected:  map[string]string{},
 		},
 		{
 			name:      "non-JSON input with text before JSON",
 			input:     []byte(`Some text before JSON: {"name":"test"}`),
-			jsonPaths: []JSONPath{{FieldName: "name", Query: "$.name"}},
+			jsonPaths: []JSONPath{{Field: "name", Query: "$.name"}},
 			expected:  map[string]string{"name": "test"},
 		},
 	}
@@ -865,7 +865,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		// This JSON has opening and closing braces but no content
 		emptyJSON := []byte(`{}`)
 		jsonPaths := []JSONPath{
-			{FieldName: "some_field", Query: "$.nonexistent"},
+			{Field: "some_field", Query: "$.nonexistent"},
 		}
 		result, err := extractExtraInfoWithJSONPaths(emptyJSON, jsonPaths)
 		assert.NoError(t, err)
@@ -878,7 +878,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		// it's hard to make anyToString fail without a mocking framework
 		jsonData := []byte(`{"status": "healthy"}`)
 		jsonPaths := []JSONPath{
-			{FieldName: "status", Query: "$.status"},
+			{Field: "status", Query: "$.status"},
 		}
 
 		// The actual test just verifies we have good coverage of the normal path
@@ -902,10 +902,10 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		}`)
 
 		jsonPaths := []JSONPath{
-			{FieldName: "exists1", Query: "$.a.b.c"},
-			{FieldName: "exists2", Query: "$.x.y"},
-			{FieldName: "missing1", Query: "$.a.b.z"},
-			{FieldName: "missing2", Query: "$.p.q.r"},
+			{Field: "exists1", Query: "$.a.b.c"},
+			{Field: "exists2", Query: "$.x.y"},
+			{Field: "missing1", Query: "$.a.b.z"},
+			{Field: "missing2", Query: "$.p.q.r"},
 		}
 
 		result, err := extractExtraInfoWithJSONPaths(jsonData, jsonPaths)
@@ -930,7 +930,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 
 		// Using a simple test to exercise as much of the code path as possible
 		jsonPaths := []JSONPath{
-			{FieldName: "status", Query: "$.status"},
+			{Field: "status", Query: "$.status"},
 		}
 
 		result, err := extractExtraInfoWithJSONPaths(jsonData, jsonPaths)
@@ -943,7 +943,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		// Creating input that would produce this situation in parseFirstJSON
 		input := []byte("no json here")
 		jsonPaths := []JSONPath{
-			{FieldName: "status", Query: "$.status"},
+			{Field: "status", Query: "$.status"},
 		}
 		result, err := extractExtraInfoWithJSONPaths(input, jsonPaths)
 		assert.Nil(t, err)

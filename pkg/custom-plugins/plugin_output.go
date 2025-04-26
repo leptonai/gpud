@@ -84,8 +84,8 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 				continue
 			}
 
-			results[jsonPath.FieldName] = extractedField{
-				fieldName: jsonPath.FieldName,
+			results[jsonPath.Field] = extractedField{
+				fieldName: jsonPath.Field,
 				matched:   false,
 				rule:      jsonPath.Filter.describeRule(),
 			}
@@ -102,8 +102,8 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 			return nil, fmt.Errorf("failed to check match rule for path %q: %w", jsonPath.Query, err)
 		}
 
-		results[jsonPath.FieldName] = extractedField{
-			fieldName:  jsonPath.FieldName,
+		results[jsonPath.Field] = extractedField{
+			fieldName:  jsonPath.Field,
 			fieldValue: strVal,
 			matched:    match,
 			rule:       jsonPath.Filter.describeRule(),

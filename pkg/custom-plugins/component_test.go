@@ -945,11 +945,11 @@ func TestComponent_CheckWithCustomPluginOutputParser(t *testing.T) {
 			},
 		},
 		// Add the OutputParse to the plugin
-		OutputParse: &PluginOutputParseConfig{
+		Parser: &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{
-				{FieldName: "health", Query: "$.health"},
-				{FieldName: "reason", Query: "$.reason"},
-				{FieldName: "extra", Query: "$.nonexistent"}, // This path doesn't exist but should be skipped
+				{Field: "health", Query: "$.health"},
+				{Field: "reason", Query: "$.reason"},
+				{Field: "extra", Query: "$.nonexistent"}, // This path doesn't exist but should be skipped
 			},
 		},
 	}
@@ -1001,7 +1001,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, "test-healthy", spec.PluginName)
 		assert.Equal(t, SpecTypeComponent, spec.Type)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
-		assert.Equal(t, 4, len(spec.HealthStatePlugin.OutputParse.JSONPaths))
+		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
 		initFunc := spec.NewInitFunc()
 		assert.NotNil(t, initFunc)
@@ -1028,7 +1028,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, "test-unhealthy", spec.PluginName)
 		assert.Equal(t, SpecTypeComponent, spec.Type)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
-		assert.Equal(t, 4, len(spec.HealthStatePlugin.OutputParse.JSONPaths))
+		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
 		initFunc := spec.NewInitFunc()
 		assert.NotNil(t, initFunc)

@@ -3,7 +3,7 @@
   type: component
 
   health_state_plugin:
-    output_parse:
+    parser:
       json_paths:
         - query: $.name
           field_name: name
@@ -36,7 +36,7 @@
   type: component
 
   health_state_plugin:
-    output_parse:
+    parser:
       json_paths:
         - query: $.name
           field_name: name

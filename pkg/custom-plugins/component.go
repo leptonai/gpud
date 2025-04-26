@@ -125,9 +125,9 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
 
 	// either custom parser (jsonpath) or default parser
-	if len(cr.out) > 0 && c.spec.HealthStatePlugin.OutputParse != nil {
+	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
 		var matchResults map[string]extractedField
-		matchResults, cr.err = c.spec.HealthStatePlugin.OutputParse.extractExtraInfo(cr.out)
+		matchResults, cr.err = c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
 		if cr.err != nil {
 			log.Logger.Errorw("error extracting extra info", "error", cr.err)
 			cr.reason = fmt.Sprintf("error extracting extra info -- %s (output: %s)", cr.err, string(cr.out))

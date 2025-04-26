@@ -507,14 +507,14 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				ContentType: "plaintext",
 			},
 		})
-		testPluginSpec.HealthStatePlugin.OutputParse = &pkgcustomplugins.PluginOutputParseConfig{
+		testPluginSpec.HealthStatePlugin.Parser = &pkgcustomplugins.PluginOutputParseConfig{
 			JSONPaths: []pkgcustomplugins.JSONPath{
-				{FieldName: "name", Query: "$.name"},
-				{FieldName: "health", Query: "$.health"},
+				{Field: "name", Query: "$.name"},
+				{Field: "health", Query: "$.health"},
 
 				// non-existent path should be skipped
-				{FieldName: "nonexistent1", Query: "$.nonexistent"},
-				{FieldName: "nonexistent2", Query: "$.a.b.c.d.e"},
+				{Field: "nonexistent1", Query: "$.nonexistent"},
+				{Field: "nonexistent2", Query: "$.a.b.c.d.e"},
 			},
 		}
 
