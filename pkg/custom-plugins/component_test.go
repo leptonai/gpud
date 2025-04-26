@@ -994,7 +994,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	testFile := filepath.Join("testdata", "plugins.plaintext.2.regex.yaml")
 	specs, err := LoadSpecs(testFile)
 	assert.NoError(t, err)
-	assert.Len(t, specs, 2)
+	assert.Len(t, specs, 3)
 
 	t.Run("test-healthy", func(t *testing.T) {
 		spec := specs[0]
@@ -1021,6 +1021,11 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
 		assert.Contains(t, cr.reason, `ok`)
 		assert.Contains(t, rs.Summary(), `ok`)
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "healthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "true")
 	})
 
 	t.Run("test-unhealthy", func(t *testing.T) {
@@ -1048,5 +1053,42 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
 		assert.Contains(t, cr.reason, `cannot find the matching value`)
 		assert.Contains(t, rs.Summary(), `cannot find the matching value`)
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "false")
+	})
+
+	t.Run("test-unhealthy-with-missing-field", func(t *testing.T) {
+		spec := specs[2]
+		assert.Equal(t, "test-unhealthy-with-missing-field", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 5, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(0), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
+		assert.Contains(t, cr.reason, `cannot find the matching value for "nothere"`)
+		assert.Contains(t, rs.Summary(), `cannot find the matching value for "nothere"`)
+
+		assert.Equal(t, cr.extraInfo["name"], "test")
+		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
+		assert.Equal(t, cr.extraInfo["error"], "")
+		assert.Equal(t, cr.extraInfo["passed"], "false")
 	})
 }
