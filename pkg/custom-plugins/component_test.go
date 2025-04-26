@@ -1051,8 +1051,8 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
-		assert.Contains(t, cr.reason, `cannot find the matching value`)
-		assert.Contains(t, rs.Summary(), `cannot find the matching value`)
+		assert.Contains(t, cr.reason, "unexpected plugin output")
+		assert.Contains(t, rs.Summary(), "unexpected plugin output")
 
 		assert.Equal(t, cr.extraInfo["name"], "test")
 		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
@@ -1083,8 +1083,8 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
-		assert.Contains(t, cr.reason, `cannot find the matching value for "nothere"`)
-		assert.Contains(t, rs.Summary(), `cannot find the matching value for "nothere"`)
+		assert.Contains(t, cr.reason, "unexpected plugin output")
+		assert.Contains(t, rs.Summary(), "unexpected plugin output")
 
 		assert.Equal(t, cr.extraInfo["name"], "test")
 		assert.Equal(t, cr.extraInfo["result"], "unhealthy")

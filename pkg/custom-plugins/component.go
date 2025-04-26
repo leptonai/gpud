@@ -141,8 +141,15 @@ func (c *component) Check() components.CheckResult {
 				cr.extraInfo[k] = result.fieldValue
 
 				if !result.matched {
+					log.Logger.Warnw("rule cannot find the matching value (marking unhealthy)",
+						"component", c.Name(),
+						"field", k,
+						"value", result.fieldValue,
+						"rule", result.rule,
+					)
+
 					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.reason = fmt.Sprintf("cannot find the matching value for %q", k)
+					cr.reason = "unexpected plugin output"
 				}
 			}
 		}
