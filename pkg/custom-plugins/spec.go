@@ -1,7 +1,6 @@
 package customplugins
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -99,21 +98,4 @@ func (spec *Spec) Validate() error {
 // ComponentName returns the component name for the plugin spec.
 func (spec *Spec) ComponentName() string {
 	return ConvertToComponentName(spec.PluginName)
-}
-
-// RunStatePlugin runs the state plugin and returns the output and its exit code.
-func (spec *Spec) RunStatePlugin(ctx context.Context) ([]byte, int32, error) {
-	if spec.HealthStatePlugin == nil {
-		return nil, 0, ErrMissingStatePlugin
-	}
-	if err := spec.HealthStatePlugin.Validate(); err != nil {
-		return nil, 0, err
-	}
-	if spec.DryRun {
-		return nil, 0, nil
-	}
-
-	cctx, cancel := context.WithTimeout(ctx, spec.Timeout.Duration)
-	defer cancel()
-	return spec.HealthStatePlugin.executeAllSteps(cctx)
 }

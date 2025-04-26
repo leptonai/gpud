@@ -1,6 +1,11 @@
 package customplugins
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"fmt"
+	"regexp"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // CustomPluginRegisteree is an optional interface that can be implemented by components
 // to allow them to be registered as custom plugins.
@@ -58,6 +63,10 @@ type Plugin struct {
 	// If a step fails, the execution stops and the error is returned.
 	// Which means, the final success requires all steps to succeed.
 	Steps []Step `json:"steps,omitempty"`
+
+	// OutputParse is the parser for the plugin output.
+	// If not set, the default prefix parser is used.
+	OutputParse *PluginOutputParseConfig `json:"output_parse,omitempty"`
 }
 
 // Step represents a step in a plugin.
@@ -82,4 +91,70 @@ type RunBashScript struct {
 	// Script is the script to run for this job.
 	// Assumed to be base64 encoded.
 	Script string `json:"script"`
+}
+
+// PluginOutputParseConfig configures the parser for the plugin output.
+type PluginOutputParseConfig struct {
+	// JSONPaths is a list of JSON paths to the output fields.
+	// Each entry has a FieldName (the output field name you want to assign e.g. "name")
+	// and a QueryPath (the JSON path you want to extract with e.g. "$.name").
+	JSONPaths []JSONPath `json:"json_paths,omitempty"`
+}
+
+// JSONPath represents a JSON path to the output fields.
+type JSONPath struct {
+	// Query defines the JSONPath query path to extract for.
+	// ref. https://pkg.go.dev/github.com/PaesslerAG/jsonpath#section-readme
+	// ref. https://en.wikipedia.org/wiki/JSONPath
+	// ref. https://goessner.net/articles/JsonPath/
+	Query string `json:"query"`
+	// FieldName defines the field name to represent this query result.
+	FieldName string `json:"field_name"`
+
+	// Filter is the match rule for the field value.
+	// It not set, the field value is not checked.
+	// If set, the field value is checked against the match rule.
+	// If set but mismatched, the health state is set to "Unhealthy".
+	Filter *Filter `json:"filter,omitempty"`
+}
+
+// Filter represents an expected output match rule
+// for the plugin output.
+type Filter struct {
+	// Regex is the regex to match the output.
+	Regex *string `json:"regex,omitempty"`
+}
+
+// checkMatchRule checks if the input matches the match rule.
+// It returns true if the input matches the match rule, otherwise false.
+// It returns an error if the match rule is invalid.
+func (filter *Filter) checkMatchRule(input string) (bool, error) {
+	if filter == nil {
+		// no rule then it matches
+		return true, nil
+	}
+
+	if filter.Regex != nil {
+		rule := *filter.Regex
+
+		re, err := regexp.Compile(rule)
+		if err != nil {
+			return false, fmt.Errorf("failed to compile regex %q: %w", rule, err)
+		}
+		return re.MatchString(input), nil
+	}
+
+	return true, nil
+}
+
+func (rule *Filter) describeRule() string {
+	if rule == nil {
+		return ""
+	}
+
+	if rule.Regex != nil {
+		return *rule.Regex
+	}
+
+	return ""
 }

@@ -496,20 +496,27 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				ContentType: "plaintext",
 			},
 		})
+
+		randStrToEcho, err := randStr(100)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
+
 		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
 			Name: "fourth-step",
 			RunBashScript: &pkgcustomplugins.RunBashScript{
-				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixType + ` Degraded'`,
+				Script:      `echo '{"name":"` + randStrToEcho + `", "health":"degraded"}'`,
 				ContentType: "plaintext",
 			},
 		})
-		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
-			Name: "fifth-step",
-			RunBashScript: &pkgcustomplugins.RunBashScript{
-				Script:      "echo '" + pkgcustomplugins.HealthStateOutputPrefixReason + ` test'`,
-				ContentType: "plaintext",
+		testPluginSpec.HealthStatePlugin.OutputParse = &pkgcustomplugins.PluginOutputParseConfig{
+			JSONPaths: []pkgcustomplugins.JSONPath{
+				{FieldName: "name", Query: "$.name"},
+				{FieldName: "health", Query: "$.health"},
+
+				// non-existent path should be skipped
+				{FieldName: "nonexistent1", Query: "$.nonexistent"},
+				{FieldName: "nonexistent2", Query: "$.a.b.c.d.e"},
 			},
-		})
+		}
 
 		It("updates the custom plugin with non-dry-run mode", func() {
 			rerr := clientv1.UpdateCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
@@ -556,8 +563,12 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got states", "states", states)
 			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
 			Expect(states[0].States).To(HaveLen(1), "expected states to have 1 state")
-			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeDegraded), "expected health state to be degraded")
-			Expect(states[0].States[0].Reason).To(Equal("test"), "expected reason to be test")
+			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeHealthy), "expected health state to be healthy")
+			Expect(states[0].States[0].Reason).To(Equal("ok"), "expected reason to be ok")
+			Expect(states[0].States[0].ExtraInfo).To(Equal(map[string]string{
+				"name":   randStrToEcho,
+				"health": "degraded",
+			}), "unexpected extra info")
 		})
 
 		It("deregister the custom plugin", func() {
