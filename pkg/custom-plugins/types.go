@@ -109,7 +109,7 @@ type JSONPath struct {
 	// ref. https://goessner.net/articles/JsonPath/
 	Query string `json:"query"`
 	// FieldName defines the field name to represent this query result.
-	FieldName string `json:"field_name"`
+	Field string `json:"field"`
 
 	// Filter is the match rule for the field value.
 	// It not set, the field value is not checked.
