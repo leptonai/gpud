@@ -215,8 +215,6 @@ func (c *component) Check() components.CheckResult {
 		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.TotalBytes))
 		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.FreeBytes))
 		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.UsedBytes))
-		metricUsedBytesPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(usage.UsedPercentFloat)
-		metricUsedInodesPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(usage.InodesUsedPercentFloat)
 	}
 
 	for target := range c.mountPointsToTrackUsage {
@@ -281,7 +279,7 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
+	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used"})
 	for _, p := range cr.ExtPartitions {
 		if p.Usage == nil {
 			continue
@@ -292,7 +290,6 @@ func (cr *checkResult) String() string {
 			humanize.Bytes(p.Usage.TotalBytes),
 			humanize.Bytes(p.Usage.FreeBytes),
 			humanize.Bytes(p.Usage.UsedBytes),
-			p.Usage.UsedPercent + " %",
 		})
 	}
 	table.Render()

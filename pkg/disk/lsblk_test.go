@@ -87,7 +87,7 @@ func TestParseWithMultipleDevices(t *testing.T) {
 			continue
 		}
 
-		t.Logf("Device: %s, Size: %s", blk.Name, humanize.Bytes(uint64(blk.Size.Uint64)))
+		t.Logf("Device: %s, Size: %s", blk.Name, humanize.Bytes(blk.Size.Uint64))
 	}
 }
 

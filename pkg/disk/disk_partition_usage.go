@@ -93,16 +93,9 @@ func GetUsage(ctx context.Context, mountPoint string) (*Usage, error) {
 		return nil, err
 	}
 	return &Usage{
-		TotalBytes:             usage.Total,
-		FreeBytes:              usage.Free,
-		UsedBytes:              usage.Used,
-		UsedPercent:            fmt.Sprintf("%.2f", usage.UsedPercent),
-		UsedPercentFloat:       usage.UsedPercent,
-		InodesTotal:            usage.InodesTotal,
-		InodesUsed:             usage.InodesUsed,
-		InodesFree:             usage.InodesFree,
-		InodesUsedPercent:      fmt.Sprintf("%.2f", usage.InodesUsedPercent),
-		InodesUsedPercentFloat: usage.InodesUsedPercent,
+		TotalBytes: usage.Total,
+		FreeBytes:  usage.Free,
+		UsedBytes:  usage.Used,
 	}, nil
 }
 
@@ -165,20 +158,7 @@ type Partition struct {
 }
 
 type Usage struct {
-	TotalBytes       uint64  `json:"total_bytes"`
-	FreeBytes        uint64  `json:"free_bytes"`
-	UsedBytes        uint64  `json:"used_bytes"`
-	UsedPercent      string  `json:"used_percent"`
-	UsedPercentFloat float64 `json:"-"`
-
-	InodesTotal       uint64 `json:"inodes_total"`
-	InodesUsed        uint64 `json:"inodes_used"`
-	InodesFree        uint64 `json:"inodes_free"`
-	InodesUsedPercent string `json:"inodes_used_percent"`
-
-	InodesUsedPercentFloat float64 `json:"-"`
-}
-
-func (u Usage) GetUsedPercent() (float64, error) {
-	return strconv.ParseFloat(u.UsedPercent, 64)
+	TotalBytes uint64 `json:"total_bytes"`
+	FreeBytes  uint64 `json:"free_bytes"`
+	UsedBytes  uint64 `json:"used_bytes"`
 }

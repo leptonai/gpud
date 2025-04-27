@@ -15,51 +15,14 @@ type DeviceUsages []DeviceUsage
 type DeviceUsage struct {
 	FlattenedBlockDevice
 
-	TotalBytes       uint64  `json:"total_bytes"`
-	FreeBytes        uint64  `json:"free_bytes"`
-	UsedBytes        uint64  `json:"used_bytes"`
-	UsedPercent      string  `json:"used_percent"`
-	UsedPercentFloat float64 `json:"-"`
-}
-
-func (blks FlattenedBlockDevices) GetDeviceUsages(parts Partitions) DeviceUsages {
-	usages := make(map[string]Usage)
-	for _, part := range parts {
-		if part.Usage == nil {
-			continue
-		}
-		usages[part.MountPoint] = *part.Usage
-	}
-
-	devUsages := make(DeviceUsages, 0, len(blks))
-
-	for _, blkDev := range blks {
-		if blkDev.MountPoint == "" {
-			continue
-		}
-
-		usage, ok := usages[blkDev.MountPoint]
-		if !ok {
-			continue
-		}
-
-		devUsages = append(devUsages, DeviceUsage{
-			FlattenedBlockDevice: blkDev,
-
-			TotalBytes:       usage.TotalBytes,
-			FreeBytes:        usage.FreeBytes,
-			UsedBytes:        usage.UsedBytes,
-			UsedPercent:      usage.UsedPercent,
-			UsedPercentFloat: usage.UsedPercentFloat,
-		})
-	}
-
-	return devUsages
+	TotalBytes uint64 `json:"total_bytes"`
+	FreeBytes  uint64 `json:"free_bytes"`
+	UsedBytes  uint64 `json:"used_bytes"`
 }
 
 func (devs DeviceUsages) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Device", "Mount Point", "Device Type", "FSType", "Total", "Used", "Free", "Used %", "Parents", "Children"})
+	table.SetHeader([]string{"Device", "Mount Point", "Device Type", "FSType", "Total", "Used", "Free", "Parents", "Children"})
 	for _, dev := range devs {
 		table.Append([]string{
 			dev.FlattenedBlockDevice.Name,
@@ -69,7 +32,6 @@ func (devs DeviceUsages) RenderTable(wr io.Writer) {
 			humanize.Bytes(dev.TotalBytes),
 			humanize.Bytes(dev.UsedBytes),
 			humanize.Bytes(dev.FreeBytes),
-			dev.UsedPercent,
 			strings.Join(dev.Parents, "\n"),
 			strings.Join(dev.Children, "\n"),
 		})

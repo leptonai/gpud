@@ -42,26 +42,6 @@ var (
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
 	).MustCurryWith(componentLabel)
-
-	metricUsedBytesPercent = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_bytes_percent",
-			Help:      "tracks the current disk bytes usage percentage",
-		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
-	).MustCurryWith(componentLabel)
-
-	metricUsedInodesPercent = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "",
-			Subsystem: SubSystem,
-			Name:      "used_inodes_percent",
-			Help:      "tracks the current disk inodes usage percentage",
-		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is the mount point
-	).MustCurryWith(componentLabel)
 )
 
 func init() {
@@ -69,7 +49,5 @@ func init() {
 		metricTotalBytes,
 		metricFreeBytes,
 		metricUsedBytes,
-		metricUsedBytesPercent,
-		metricUsedInodesPercent,
 	)
 }

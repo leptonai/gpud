@@ -121,45 +121,6 @@ func TestPartitions_TotalBytes(t *testing.T) {
 	}
 }
 
-func TestUsage_GetUsedPercent(t *testing.T) {
-	tests := []struct {
-		name    string
-		usage   Usage
-		want    float64
-		wantErr bool
-	}{
-		{
-			name: "valid percent",
-			usage: Usage{
-				UsedPercent: "75.50",
-			},
-			want:    75.50,
-			wantErr: false,
-		},
-		{
-			name: "invalid percent",
-			usage: Usage{
-				UsedPercent: "invalid",
-			},
-			want:    0,
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.usage.GetUsedPercent()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Usage.GetUsedPercent() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("Usage.GetUsedPercent() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestPartitions_JSON(t *testing.T) {
 	parts := Partitions{
 		{
@@ -168,11 +129,9 @@ func TestPartitions_JSON(t *testing.T) {
 			MountPoint: "/",
 			Mounted:    true,
 			Usage: &Usage{
-				TotalBytes:       1000,
-				FreeBytes:        500,
-				UsedBytes:        500,
-				UsedPercent:      "50.00",
-				UsedPercentFloat: 50.00,
+				TotalBytes: 1000,
+				FreeBytes:  500,
+				UsedBytes:  500,
 			},
 		},
 	}

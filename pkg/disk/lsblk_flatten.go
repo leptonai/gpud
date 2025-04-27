@@ -114,3 +114,36 @@ func (blks FlattenedBlockDevices) RenderTable(wr io.Writer) {
 
 	table.Render()
 }
+
+func (blks FlattenedBlockDevices) GetDeviceUsages(parts Partitions) DeviceUsages {
+	usages := make(map[string]Usage)
+	for _, part := range parts {
+		if part.Usage == nil {
+			continue
+		}
+		usages[part.MountPoint] = *part.Usage
+	}
+
+	devUsages := make(DeviceUsages, 0, len(blks))
+
+	for _, blkDev := range blks {
+		if blkDev.MountPoint == "" {
+			continue
+		}
+
+		usage, ok := usages[blkDev.MountPoint]
+		if !ok {
+			continue
+		}
+
+		devUsages = append(devUsages, DeviceUsage{
+			FlattenedBlockDevice: blkDev,
+
+			TotalBytes: usage.TotalBytes,
+			FreeBytes:  usage.FreeBytes,
+			UsedBytes:  usage.UsedBytes,
+		})
+	}
+
+	return devUsages
+}
