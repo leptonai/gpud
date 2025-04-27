@@ -27,6 +27,11 @@ type Op struct {
 	// e.g., "tmpbash*.bash"
 	bashScriptFilePattern string
 
+	// enablePty is true if the process is started with a pty
+	// ref. https://en.wikipedia.org/wiki/Pseudoterminal
+	// ref. https://github.com/creack/pty
+	enablePty bool
+
 	restartConfig *RestartConfig
 }
 
@@ -158,6 +163,16 @@ func WithBashScriptTmpDirectory(dir string) OpOption {
 func WithBashScriptFilePattern(pattern string) OpOption {
 	return func(op *Op) {
 		op.bashScriptFilePattern = pattern
+	}
+}
+
+// WithEnablePty enables pseudoterminal mode to run the script.
+// Useful to capture all outputs from a command.
+// ref. https://en.wikipedia.org/wiki/Pseudoterminal
+// ref. https://github.com/creack/pty
+func WithEnablePty() OpOption {
+	return func(op *Op) {
+		op.enablePty = true
 	}
 }
 

@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/creack/pty"
+
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -113,6 +115,12 @@ type process struct {
 	stdoutReadCloser io.ReadCloser
 	stderrReadCloser io.ReadCloser
 
+	// enablePty is true if the process is started with a pty
+	// ref. https://en.wikipedia.org/wiki/Pseudoterminal
+	// ref. https://github.com/creack/pty
+	enablePty bool
+	ptyFile   *os.File
+
 	restartConfig *RestartConfig
 }
 
@@ -177,6 +185,8 @@ func New(opts ...OpOption) (Process, error) {
 		envs:        op.envs,
 		runBashFile: bashFile,
 		outputFile:  op.outputFile,
+
+		enablePty: op.enablePty,
 
 		restartConfig: op.restartConfig,
 	}, nil
@@ -251,6 +261,30 @@ func (p *process) startCommand() error {
 		p.stdoutReadCloser = p.outputFile
 		p.stderrReadCloser = p.outputFile
 
+		if p.enablePty {
+			// ref. https://github.com/creack/pty/blob/v1.1.24/run.go
+			pty, tty, err := pty.Open()
+			if err != nil {
+				return fmt.Errorf("failed to open pty: %w", err)
+			}
+
+			// best effort
+			defer func() { _ = tty.Close() }()
+
+			p.cmd.Stdout = pty
+			p.cmd.Stderr = pty
+			p.ptyFile = pty
+
+			p.stdoutReadCloser = pty
+			p.stderrReadCloser = pty
+
+			// ref. https://github.com/creack/pty/blob/v1.1.24/start.go
+			p.cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setsid:  true,
+				Setctty: true,
+			}
+		}
+
 	default:
 		var err error
 		p.stdoutReadCloser, err = p.cmd.StdoutPipe()
@@ -271,6 +305,17 @@ func (p *process) startCommand() error {
 	p.startedMu.Lock()
 	p.started = true
 	p.startedMu.Unlock()
+
+	// ref. https://github.com/creack/pty/blob/master/README.md#command
+	if p.ptyFile != nil && p.outputFile != nil {
+		go func(ptyFile *os.File, outputFile *os.File) {
+			log.Logger.Infow("copying pty to output file", "ptyFile", ptyFile.Name(), "outputFile", outputFile.Name())
+			_, cerr := io.Copy(outputFile, ptyFile)
+			if cerr != nil {
+				log.Logger.Warnw("failed to copy pty to output file", "error", cerr)
+			}
+		}(p.ptyFile, p.outputFile)
+	}
 
 	return nil
 }
@@ -469,6 +514,14 @@ func (p *process) Close(ctx context.Context) error {
 
 	if p.cmd.Cancel != nil { // if created with CommandContext
 		_ = p.cmd.Cancel()
+	}
+
+	if p.ptyFile != nil {
+		_ = p.ptyFile.Sync()
+		_ = p.ptyFile.Close()
+
+		// set to nil to prevent redundant closing of the reader
+		p.ptyFile = nil
 	}
 
 	// do not set p.cmd to nil

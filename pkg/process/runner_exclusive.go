@@ -47,6 +47,7 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 	p, err := New(
 		WithBashScriptContentsToRun(script),
 		WithOutputFile(tmpFile),
+		WithEnablePty(),
 	)
 	if err != nil {
 		return nil, 0, err
