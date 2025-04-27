@@ -310,6 +310,12 @@ func (p *process) startCommand() error {
 	if p.ptyFile != nil && p.outputFile != nil {
 		go func(ptyFile *os.File, outputFile *os.File) {
 			log.Logger.Infow("copying pty to output file", "ptyFile", ptyFile.Name(), "outputFile", outputFile.Name())
+			// When using PTY, the command output only goes to the PTY
+			// We need to make sure we're writing to the correct position in the output file
+			if _, err := outputFile.Seek(0, io.SeekEnd); err != nil {
+				log.Logger.Warnw("failed to seek output file", "error", err)
+				return
+			}
 			_, cerr := io.Copy(outputFile, ptyFile)
 			if cerr != nil {
 				log.Logger.Warnw("failed to copy pty to output file", "error", cerr)

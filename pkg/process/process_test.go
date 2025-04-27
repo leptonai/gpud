@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcess(t *testing.T) {
@@ -743,4 +746,54 @@ func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPtyOutputRedirection(t *testing.T) {
+	// Create a temporary output file
+	tmpDir, err := os.MkdirTemp("", "process-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	outputFilePath := filepath.Join(tmpDir, "output.txt")
+	outputFile, err := os.Create(outputFilePath)
+	require.NoError(t, err)
+	defer outputFile.Close()
+
+	// Create a process with PTY enabled and output file set
+	ctx := context.Background()
+	p, err := New(
+		WithOutputFile(outputFile),
+		WithEnablePty(),
+		WithCommand("echo", "Hello from PTY"),
+	)
+	require.NoError(t, err)
+
+	// Start the process and wait for it to complete
+	err = p.Start(ctx)
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not supported by device") {
+			t.Skip("PTY not supported on this system")
+		}
+		t.Fatalf("Failed to start process: %v", err)
+	}
+
+	select {
+	case err := <-p.Wait():
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("process did not exit within timeout")
+	}
+
+	// Close the process and file handles
+	err = p.Close(ctx)
+	require.NoError(t, err)
+	outputFile.Close()
+
+	// Read the output file and verify content
+	content, err := os.ReadFile(outputFilePath)
+	require.NoError(t, err)
+
+	// Verify output contains the expected message
+	assert.True(t, strings.Contains(string(content), "Hello from PTY"),
+		"Output file should contain 'Hello from PTY', got: %s", string(content))
 }
