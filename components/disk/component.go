@@ -58,7 +58,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.GetBlockDevicesWithLsblk(ctx, disk.WithDeviceType(func(dt string) bool {
-				return dt == "disk" || dt == "lvm"
+				return dt == "disk" || dt == "lvm" || dt == "part"
 			}))
 		}
 	}
