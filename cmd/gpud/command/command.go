@@ -404,6 +404,11 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 			},
 		},
+		{
+			Name:   "compact",
+			Usage:  "compact the GPUd state database to reduce the size in disk (GPUd must be stopped)",
+			Action: cmdCompact,
+		},
 
 		// for diagnose + quick scanning
 		{
