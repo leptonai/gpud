@@ -405,7 +405,7 @@ func parseLsblkSize(data []byte) (uint64, error) {
 
 	// remove quotes if present
 	if len(s) > 1 && s[0] == '"' && s[len(s)-1] == '"' {
-		s = strings.TrimSpace(string(s[1 : len(s)-1]))
+		s = strings.TrimSpace(s[1 : len(s)-1])
 		if s == "" {
 			return 0, nil
 		}
