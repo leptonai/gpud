@@ -63,6 +63,11 @@ func (c *component) Name() string { return c.spec.ComponentName() }
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
+	if c.spec.ManualMode {
+		log.Logger.Infow("custom plugin is in manual mode, skipping start", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
+		return nil
+	}
+
 	itv := c.spec.Interval.Duration
 	// either periodic check is disabled or interval is too short
 	if itv < time.Second {
@@ -94,8 +99,11 @@ func (c *component) Check() components.CheckResult {
 		componentName: c.Name(),
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
-		extraInfo:     make(map[string]string),
 	}
+	cr.extraInfo = map[string]string{
+		"last_check_ts_unix_seconds": fmt.Sprintf("%d", cr.ts.Unix()),
+	}
+
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr

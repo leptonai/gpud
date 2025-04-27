@@ -430,11 +430,19 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		pluginName, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand str")
 
-		// register with dry-run mode first
+		// register with manual mode first
+		randSfx1, err := randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
+		fileToWrite1 := filepath.Join(os.TempDir(), "testplugin"+randSfx1)
+		defer os.Remove(fileToWrite1)
+
 		testPluginSpec := pkgcustomplugins.Spec{
 			PluginName: pluginName,
 			Type:       pkgcustomplugins.SpecTypeComponent,
-			DryRun:     true,
+
+			// should not run, only registers
+			ManualMode: true,
+
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
@@ -451,13 +459,20 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 							ContentType: "plaintext",
 						},
 					},
+					{
+						Name: "third-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							Script:      "echo 111 > " + fileToWrite1,
+							ContentType: "plaintext",
+						},
+					},
 				},
 			},
 			Timeout:  metav1.Duration{Duration: 30 * time.Second},
 			Interval: metav1.Duration{Duration: 0},
 		}
 
-		It("register a custom plugin with dry-run mode", func() {
+		It("register a custom plugin with manual mode", func() {
 			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).NotTo(HaveOccurred(), "failed to register custom plugin")
 		})
@@ -482,26 +497,36 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
 		})
 
-		randSfx, err := randStr(10)
+		It("make sure the plugin has been not run as it's manual mode", func() {
+			// wait for the plugin to run
+			time.Sleep(3 * time.Second)
+
+			_, err := os.Stat(fileToWrite1)
+			Expect(err).To(Equal(os.ErrNotExist), "expected file to not be created")
+		})
+
+		randSfx2, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
-		fileToWrite := filepath.Join(os.TempDir(), "testplugin"+randSfx)
-		defer os.Remove(fileToWrite)
+		fileToWrite2 := filepath.Join(os.TempDir(), "testplugin"+randSfx2)
+		defer os.Remove(fileToWrite2)
 
 		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
-		testPluginSpec.DryRun = false
-		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
-			Name: "third-step",
-			RunBashScript: &pkgcustomplugins.RunBashScript{
-				Script:      "echo 111 > " + fileToWrite,
-				ContentType: "plaintext",
+		testPluginSpec.ManualMode = false
+		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps,
+			pkgcustomplugins.Step{
+				Name: "fourth-step",
+				RunBashScript: &pkgcustomplugins.RunBashScript{
+					Script:      "echo 111 > " + fileToWrite2,
+					ContentType: "plaintext",
+				},
 			},
-		})
+		)
 
 		randStrToEcho, err := randStr(100)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 
 		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
-			Name: "fourth-step",
+			Name: "fifth-step",
 			RunBashScript: &pkgcustomplugins.RunBashScript{
 				Script:      `echo '{"name":"` + randStrToEcho + `", "health":"degraded"}'`,
 				ContentType: "plaintext",
@@ -542,7 +567,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			// wait for the plugin to run
 			time.Sleep(3 * time.Second)
 
-			_, err := os.Stat(fileToWrite)
+			_, err := os.Stat(fileToWrite2)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
 
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)

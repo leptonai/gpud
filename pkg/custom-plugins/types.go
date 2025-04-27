@@ -43,16 +43,23 @@ type Spec struct {
 	// which is translated into an GPUd /states API response.
 	HealthStatePlugin *Plugin `json:"health_state_plugin,omitempty"`
 
-	// DryRun is set to true to allow non-zero exit code on the script
-	// useful for dry runs.
-	DryRun bool `json:"dry_run,omitempty"`
+	// ManualMode is set to true to only run the plugin
+	// when explicitly triggered by the user.
+	// GPUd does not run this even once.
+	// GPUd does not run this periodically.
+	// The plugin is only registered but not run periodically.
+	// This is only applicable to "component" type plugins.
+	// The "init" type plugins are always run only once.
+	ManualMode bool `json:"manual_mode"`
 
 	// Timeout is the timeout for the script execution.
 	// If zero, it uses the default timeout (1-minute).
 	Timeout metav1.Duration `json:"timeout"`
 
 	// Interval is the interval for the script execution.
-	// If zero, it runs only once.
+	// For init plugin that only runs once at the server start,
+	// this value is ignored.
+	// Similarly, if set to zero, it runs only once.
 	Interval metav1.Duration `json:"interval"`
 }
 
