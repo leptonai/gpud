@@ -105,7 +105,7 @@ func (blks FlattenedBlockDevices) RenderTable(wr io.Writer) {
 			blk.Name,
 			blk.Type,
 			blk.FSType,
-			humanize.Bytes(uint64(blk.Size)),
+			humanize.Bytes(blk.Size),
 			blk.MountPoint,
 			strings.Join(blk.Parents, "\n"),
 			strings.Join(blk.Children, "\n"),
