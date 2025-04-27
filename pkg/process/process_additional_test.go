@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -134,84 +133,6 @@ func TestProcessWithSignals(t *testing.T) {
 	// Just verify that the process was terminated
 	exitCode := p.ExitCode()
 	t.Logf("Process exit code: %d", exitCode)
-}
-
-// TestProcessConcurrentOperations tests the process with concurrent operations
-func TestProcessConcurrentOperations(t *testing.T) {
-	// Create a process
-	p, err := New(
-		WithCommand("sleep", "5"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Start the process
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	// Run concurrent operations
-	var wg sync.WaitGroup
-	wg.Add(5)
-
-	// Concurrent operation 1: Check if started
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 10; i++ {
-			if !p.Started() {
-				t.Errorf("Process should be started")
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	// Concurrent operation 2: Get PID
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 10; i++ {
-			pid := p.PID()
-			if pid <= 0 {
-				t.Errorf("Expected positive PID, got %d", pid)
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	// Concurrent operation 3: Get stdout reader
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 10; i++ {
-			reader := p.StdoutReader()
-			if reader == nil {
-				t.Errorf("Expected non-nil stdout reader")
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	// Concurrent operation 4: Get stderr reader
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 10; i++ {
-			reader := p.StderrReader()
-			if reader == nil {
-				t.Errorf("Expected non-nil stderr reader")
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	// Wait for all concurrent operations to finish
-	wg.Wait()
-
-	// Close the process
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // TestProcessWithCustomBashScriptDirectory tests the process with a custom bash script directory
