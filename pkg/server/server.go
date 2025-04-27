@@ -321,9 +321,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 		log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())
 
-		debugger, ok := c.(components.CheckResultDebugger)
+		debugger, ok := rs.(components.CheckResultDebugger)
 		if ok {
-			fmt.Printf("init plugin %q debug output:\n\n%s\n\n", c.Name(), debugger.Debug())
+			fmt.Printf("init plugin debug output %q:\n\n%s\n\n", c.Name(), debugger.Debug())
 		}
 	}
 
