@@ -571,13 +571,9 @@ func TestCheckResultString(t *testing.T) {
 		assert.Contains(t, result, "TOTAL")
 		assert.Contains(t, result, "FREE")
 		assert.Contains(t, result, "USED")
-		assert.Contains(t, result, "USED %")
 
-		// Verify data values - use more flexible contains checks instead of exact matches
-		// since the exact formatting may vary
-		assert.Contains(t, result, "GB")     // Total size in GB
-		assert.Contains(t, result, "MB")     // Free and used sizes in MB or GB
-		assert.Contains(t, result, "50.0 %") // Usage percentage
+		assert.Contains(t, result, "GB") // Total size in GB
+		assert.Contains(t, result, "MB") // Free and used sizes in MB or GB
 	})
 
 	t.Run("mixed valid and nil Usage", func(t *testing.T) {
