@@ -482,7 +482,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(rerr).To(HaveOccurred(), "expected to fail with redundant registration")
 		})
 
-		It("list custom plugins and make sure the plugin is registered even with dry-run mode", func() {
+		It("list custom plugins and make sure the plugin is registered even with manual mode", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
@@ -492,6 +492,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 				b, err := json.Marshal(spec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
+				Expect(spec.ManualMode).To(BeTrue(), "expected manual mode")
+
 				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
 			}
 			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
@@ -543,12 +545,12 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			},
 		}
 
-		It("updates the custom plugin with non-dry-run mode", func() {
+		It("updates the custom plugin with non-manual mode", func() {
 			rerr := clientv1.UpdateCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).NotTo(HaveOccurred(), "failed to update custom plugin")
 		})
 
-		It("list custom plugins and make sure the plugin is registered with non-dry-run mode", func() {
+		It("list custom plugins and make sure the plugin is registered with non-manual mode", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
@@ -558,6 +560,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 				b, err := json.Marshal(spec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
+				Expect(spec.ManualMode).To(BeFalse(), "expected non-manual mode")
+
 				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
 			}
 			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
