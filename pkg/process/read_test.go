@@ -44,10 +44,6 @@ type mockProcess struct {
 	closed       bool
 }
 
-func (p *mockProcess) Labels() map[string]string {
-	return nil
-}
-
 func (p *mockProcess) Start(context.Context) error {
 	p.started = true
 	return nil
