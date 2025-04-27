@@ -368,7 +368,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 			"",
 			blk.Type,
 			blk.FSType,
-			humanize.Bytes(uint64(blk.Size.Uint64)),
+			humanize.Bytes(blk.Size.Uint64),
 			blk.MountPoint,
 		})
 
@@ -378,7 +378,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 				child.ParentDeviceName,
 				child.Type,
 				child.FSType,
-				humanize.Bytes(uint64(child.Size.Uint64)),
+				humanize.Bytes(child.Size.Uint64),
 				child.MountPoint,
 			})
 		}
@@ -399,7 +399,7 @@ func (blks BlockDevices) GetTotalBytes() uint64 {
 // "63.9M" should be parsed to 63.9 million (63900000)
 func parseLsblkSize(data []byte) (uint64, error) {
 	s := strings.TrimSpace(string(data))
-	if len(s) == 0 || string(s) == "null" {
+	if len(s) == 0 || s == "null" {
 		return 0, nil
 	}
 
