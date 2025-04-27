@@ -87,7 +87,7 @@ func TestParseWithMultipleDevices(t *testing.T) {
 			continue
 		}
 
-		t.Logf("Device: %s, Size: %s", blk.Name, blk.SizeHumanized)
+		t.Logf("Device: %s, Size: %s", blk.Name, humanize.Bytes(uint64(blk.Size.Uint64)))
 	}
 }
 
@@ -164,7 +164,7 @@ func TestCheckVersion(t *testing.T) {
 		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			flags, _, err := decideLsblkFlagAndParserFromVersion(tt.input)
+			flags, _, err := decideLsblkFlag(tt.input)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")

@@ -58,7 +58,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.GetBlockDevicesWithLsblk(ctx, disk.WithDeviceType(func(dt string) bool {
-				return dt == "disk"
+				return dt == "disk" || dt == "lvm"
 			}))
 		}
 	}
@@ -147,9 +147,9 @@ func (c *component) Check() components.CheckResult {
 				continue
 			}
 
-			cr.BlockDevices = blks
+			cr.BlockDevices = blks.Flatten()
 			if prevFailed {
-				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(blks))
+				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
 			}
 			break
 		}
@@ -248,7 +248,7 @@ var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
-	BlockDevices      disk.BlockDevices             `json:"block_devices"`
+	BlockDevices      disk.FlattenBlockDevices      `json:"block_devices"`
 	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 
 	// timestamp of the last check

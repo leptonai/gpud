@@ -31,31 +31,60 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
-	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
+type BlockDevices []BlockDevice
+
+// BlockDevice represents output of lsblk command for a device
+type BlockDevice struct {
+	Name             string        `json:"name,omitempty"`
+	ParentDeviceName string        `json:"parent_device_name,omitempty"`
+	Type             string        `json:"type,omitempty"`
+	Size             CustomUint64  `json:"size,omitempty"`
+	Rota             CustomBool    `json:"rota,omitempty"`
+	Serial           string        `json:"serial,omitempty"`
+	WWN              string        `json:"wwn,omitempty"`
+	Vendor           string        `json:"vendor,omitempty"`
+	Model            string        `json:"model,omitempty"`
+	Rev              string        `json:"rev,omitempty"`
+	MountPoint       string        `json:"mountpoint,omitempty"`
+	FSType           string        `json:"fstype,omitempty"`
+	PartUUID         string        `json:"partuuid,omitempty"`
+	PKName           string        `json:"-"`
+	Children         []BlockDevice `json:"children,omitempty"`
+}
+
 // GetBlockDevicesWithLsblk run "lsblk" command for device and construct BlockDevice struct based on output
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevicesWithLsblk(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	lsblkPath, err := file.LocateExecutable("lsblk")
+	return getBlockDevicesWithLsblk(ctx, getLsblkBinPathAndVersion, opts...)
+}
+
+// getBlockDevicesWithLsblk run "lsblk" command for device and construct BlockDevice struct based on output
+// Receives device path. If device is empty string, info about all devices will be collected
+// Returns slice of BlockDevice structs or error if something went wrong
+func getBlockDevicesWithLsblk(
+	ctx context.Context,
+	getLsblkBinPathAndVersionFunc func(context.Context) (string, string, error),
+	opts ...OpOption) (BlockDevices, error) {
+	lsblkBin, verOut, err := getLsblkBinPathAndVersionFunc(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// pre-check lsblk version
-	flags, parseFunc, checkErr := decideLsblkFlag(ctx)
+	flags, parseFunc, checkErr := decideLsblkFlag(verOut)
 	if checkErr != nil {
 		log.Logger.Warnw("failed to decide lsblk flag and parser -- falling back to latest version", "error", checkErr)
 		flags, parseFunc = lsblkFlags+" "+lsblkJsonFlag, parseLsblkJSON
 	}
 
 	p, err := process.New(
-		process.WithCommand(lsblkPath+" "+flags),
+		process.WithCommand(lsblkBin+" "+flags),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -92,8 +121,8 @@ const (
 
 var lsblkVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
 
-// decideLsblkFlagAndParserFromVersion decides the lsblk command flags based on the "lsblk --version" output
-func decideLsblkFlagAndParserFromVersion(verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
+// decideLsblkFlag decides the lsblk command flags, based on the "lsblk --version" output
+func decideLsblkFlag(verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
 	matches := lsblkVersionRegPattern.FindString(verOutput)
 	if matches != "" {
 		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
@@ -108,22 +137,23 @@ func decideLsblkFlagAndParserFromVersion(verOutput string) (string, func([]byte,
 	return "", nil, fmt.Errorf("failed to parse 'lsblk --version' output: %q", verOutput)
 }
 
-func decideLsblkFlag(ctx context.Context) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
-	lsblkVersion, err := file.LocateExecutable("lsblk")
+// getLsblkBinPathAndVersion returns the "lsblk" executable path and the output of "lsblk --version".
+func getLsblkBinPathAndVersion(ctx context.Context) (string, string, error) {
+	lsblkBin, err := file.LocateExecutable("lsblk")
 	if err != nil {
-		return "", nil, err
+		return "", "", err
 	}
 
 	p, err := process.New(
-		process.WithCommand(lsblkVersion+" "+lsblkVersionFlags),
+		process.WithCommand(lsblkBin+" "+lsblkVersionFlags),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
-		return "", nil, err
+		return "", "", err
 	}
 
 	if err := p.Start(ctx); err != nil {
-		return "", nil, err
+		return "", "", err
 	}
 	defer func() {
 		if err := p.Close(ctx); err != nil {
@@ -142,13 +172,13 @@ func decideLsblkFlag(ctx context.Context) (string, func([]byte, ...OpOption) (Bl
 		}),
 		process.WithWaitForCmd(),
 	); err != nil {
-		return "", nil, fmt.Errorf("failed to check lsblk version: %w", err)
+		return "", "", fmt.Errorf("failed to check lsblk version: %w", err)
 	}
 
 	line := strings.Join(lines, "\n")
 	line = strings.TrimSpace(line)
 
-	return decideLsblkFlagAndParserFromVersion(line)
+	return lsblkBin, line, nil
 }
 
 // parseLsblkJSON parses the "lsblk --json" output.
@@ -182,8 +212,6 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 			continue
 		}
 
-		parentDev.SizeHumanized = humanize.Bytes(uint64(parentDev.Size.Uint64))
-
 		children := make([]BlockDevice, 0)
 		for _, child := range parentDev.Children {
 			if !op.matchFuncFstype(child.FSType) {
@@ -194,7 +222,6 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 			}
 
 			child.ParentDeviceName = parentDev.Name
-			child.SizeHumanized = humanize.Bytes(child.Size.Uint64)
 			children = append(children, child)
 		}
 		parentDev.Children = children
@@ -260,7 +287,8 @@ func parseLineToDisk(line string) (BlockDevice, error) {
 		if len(kv) != 2 {
 			continue
 		}
-		key, value := kv[0], strings.Trim(kv[1], `"`)
+
+		key, value := strings.TrimSpace(kv[0]), strings.Trim(strings.TrimSpace(kv[1]), `"`)
 		switch key {
 		case "NAME":
 			disk.Name = value
@@ -330,32 +358,6 @@ func buildDiskHierarchy(disks BlockDevices) (finalDisks BlockDevices) {
 	return finalDisks
 }
 
-func toCustomUint64(value string) CustomUint64 {
-	n, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return CustomUint64{}
-	}
-	return CustomUint64{n}
-}
-
-func toCustomBool(value string) CustomBool {
-	n, err := strconv.ParseBool(value)
-	if err != nil {
-		return CustomBool{}
-	}
-	return CustomBool{n}
-}
-
-type BlockDevices []BlockDevice
-
-func (blks BlockDevices) JSON() ([]byte, error) {
-	return json.Marshal(blks)
-}
-
-func (blks BlockDevices) YAML() ([]byte, error) {
-	return yaml.Marshal(blks)
-}
-
 func (blks BlockDevices) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetHeader([]string{"Name", "Parent", "Type", "FSType", "Size", "Mount Point"})
@@ -366,7 +368,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 			"",
 			blk.Type,
 			blk.FSType,
-			blk.SizeHumanized,
+			humanize.Bytes(uint64(blk.Size.Uint64)),
 			blk.MountPoint,
 		})
 
@@ -376,7 +378,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 				child.ParentDeviceName,
 				child.Type,
 				child.FSType,
-				child.SizeHumanized,
+				humanize.Bytes(uint64(child.Size.Uint64)),
 				child.MountPoint,
 			})
 		}
@@ -392,39 +394,6 @@ func (blks BlockDevices) GetTotalBytes() uint64 {
 		total += blk.Size.Uint64
 	}
 	return total
-}
-
-// BlockDevice is the struct that represents output of lsblk command for a device
-type BlockDevice struct {
-	Name             string        `json:"name,omitempty"`
-	ParentDeviceName string        `json:"parent_device_name,omitempty"`
-	Type             string        `json:"type,omitempty"`
-	Size             CustomUint64  `json:"size,omitempty"`
-	SizeHumanized    string        `json:"size_humanized,omitempty"`
-	Rota             CustomBool    `json:"rota,omitempty"`
-	Serial           string        `json:"serial,omitempty"`
-	WWN              string        `json:"wwn,omitempty"`
-	Vendor           string        `json:"vendor,omitempty"`
-	Model            string        `json:"model,omitempty"`
-	Rev              string        `json:"rev,omitempty"`
-	MountPoint       string        `json:"mountpoint,omitempty"`
-	FSType           string        `json:"fstype,omitempty"`
-	PartUUID         string        `json:"partuuid,omitempty"`
-	PKName           string        `json:"-"`
-	Children         []BlockDevice `json:"children,omitempty"`
-}
-
-// CustomUint64 to handle Size lsblk output - 8001563222016 or "8001563222016"
-type CustomUint64 struct {
-	Uint64 uint64
-}
-
-// UnmarshalJSON customizes string size unmarshaling
-// "63.9M" should be parsed to 63.9 million (63900000)
-func (ci *CustomUint64) UnmarshalJSON(data []byte) error {
-	var err error
-	ci.Uint64, err = parseLsblkSize(data)
-	return err
 }
 
 // "63.9M" should be parsed to 63.9 million (63900000)
@@ -459,9 +428,30 @@ func parseLsblkSize(data []byte) (uint64, error) {
 	return val, nil
 }
 
+// CustomUint64 to handle Size lsblk output - 8001563222016 or "8001563222016"
+type CustomUint64 struct {
+	Uint64 uint64
+}
+
 // MarshalJSON customizes size marshaling
 func (ci *CustomUint64) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.FormatUint(ci.Uint64, 10)), nil
+}
+
+// UnmarshalJSON customizes string size unmarshaling
+// "63.9M" should be parsed to 63.9 million (63900000)
+func (ci *CustomUint64) UnmarshalJSON(data []byte) error {
+	var err error
+	ci.Uint64, err = parseLsblkSize(data)
+	return err
+}
+
+func toCustomUint64(value string) CustomUint64 {
+	n, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return CustomUint64{}
+	}
+	return CustomUint64{n}
 }
 
 // CustomBool to handle Rota lsblk output - true/false or "1"/"0"
@@ -469,9 +459,14 @@ type CustomBool struct {
 	Bool bool
 }
 
+// MarshalJSON customizes rota marshaling
+func (cb CustomBool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(cb.Bool)
+}
+
 // UnmarshalJSON customizes string rota unmarshaling
 func (cb *CustomBool) UnmarshalJSON(data []byte) error {
-	switch string(data) {
+	switch strings.TrimSpace(string(data)) {
 	case `"true"`, `true`, `"1"`, `1`:
 		cb.Bool = true
 		return nil
@@ -483,7 +478,10 @@ func (cb *CustomBool) UnmarshalJSON(data []byte) error {
 	}
 }
 
-// MarshalJSON customizes rota marshaling
-func (cb CustomBool) MarshalJSON() ([]byte, error) {
-	return json.Marshal(cb.Bool)
+func toCustomBool(value string) CustomBool {
+	n, err := strconv.ParseBool(value)
+	if err != nil {
+		return CustomBool{}
+	}
+	return CustomBool{n}
 }
