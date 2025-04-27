@@ -13,16 +13,11 @@ import (
 
 // testProcess implements Process interface for testing
 type testProcess struct {
-	labels map[string]string
 	cmd    *exec.Cmd
 	waitCh chan error
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 	mu     sync.Mutex
-}
-
-func (p *testProcess) Labels() map[string]string {
-	return p.labels
 }
 
 func (p *testProcess) ExitCode() int32 {
@@ -256,10 +251,6 @@ type nilReaderProcess struct {
 	returnNilStderr bool
 }
 
-func (p *nilReaderProcess) Labels() map[string]string {
-	return nil
-}
-
 func (p *nilReaderProcess) ExitCode() int32 {
 	return 0
 }
@@ -312,10 +303,6 @@ func (p *nilReaderProcess) Closed() bool {
 type stateProcess struct {
 	isStarted bool
 	isAborted bool
-}
-
-func (p *stateProcess) Labels() map[string]string {
-	return nil
 }
 
 func (p *stateProcess) ExitCode() int32 {

@@ -19,9 +19,6 @@ import (
 )
 
 type Process interface {
-	// Returns the copy of the labels of the process.
-	Labels() map[string]string
-
 	// Starts the process but does not wait for it to exit.
 	Start(ctx context.Context) error
 	// Returns true if the process is started.
@@ -85,8 +82,6 @@ type RestartConfig struct {
 }
 
 type process struct {
-	labels map[string]string
-
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -165,8 +160,7 @@ func New(opts ...OpOption) (Process, error) {
 		errcBuffer = op.restartConfig.Limit
 	}
 	return &process{
-		labels: op.labels,
-		cmd:    nil,
+		cmd: nil,
 
 		started: false,
 		aborted: false,
@@ -180,14 +174,6 @@ func New(opts ...OpOption) (Process, error) {
 
 		restartConfig: op.restartConfig,
 	}, nil
-}
-
-func (p *process) Labels() map[string]string {
-	copied := make(map[string]string)
-	for k, v := range p.labels {
-		copied[k] = v
-	}
-	return copied
 }
 
 func (p *process) Start(ctx context.Context) error {
