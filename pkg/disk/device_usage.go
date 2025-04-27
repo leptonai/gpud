@@ -20,7 +20,7 @@ type DeviceUsage struct {
 	UsedBytes  uint64 `json:"used_bytes"`
 }
 
-func (devs DeviceUsages) RenderTable(wr io.Writer) {
+func (devs *DeviceUsages) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetHeader([]string{"Device", "Mount Point", "Device Type", "FSType", "Total", "Used", "Free", "Parents", "Children"})
 	for _, dev := range devs {
