@@ -137,9 +137,8 @@ func (blks FlattenedBlockDevices) GetDeviceUsages(parts Partitions) DeviceUsages
 		}
 
 		devUsages = append(devUsages, DeviceUsage{
-			FlattenedBlockDevice: blkDev,
-
 			DeviceName: blkDev.Name,
+			MountPoint: blkDev.MountPoint,
 
 			TotalBytes: usage.TotalBytes,
 			FreeBytes:  usage.FreeBytes,
