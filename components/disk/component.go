@@ -287,7 +287,17 @@ func (cr *checkResult) String() string {
 	}
 
 	table.Render()
-	return buf.String()
+	output := buf.String()
+
+	if len(cr.BlockDevices) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		cr.BlockDevices.RenderTable(buf)
+		output += buf.String()
+	}
+
+	return output
 }
 
 func (cr *checkResult) Summary() string {
