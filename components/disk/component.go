@@ -277,7 +277,6 @@ func (cr *checkResult) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
-
 	for _, p := range cr.ExtPartitions {
 		if p.Usage == nil {
 			continue
@@ -291,7 +290,6 @@ func (cr *checkResult) String() string {
 			p.Usage.UsedPercent + " %",
 		})
 	}
-
 	table.Render()
 	output := buf.String()
 
@@ -300,6 +298,28 @@ func (cr *checkResult) String() string {
 
 		buf.Reset()
 		cr.BlockDevices.RenderTable(buf)
+		output += buf.String()
+	}
+
+	if len(cr.MountTargetUsages) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		table := tablewriter.NewWriter(buf)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
+		for target, usage := range cr.MountTargetUsages {
+			for _, fs := range usage.Filesystems {
+				table.Append([]string{
+					target,
+					fs.SizeHumanized,
+					fs.AvailableHumanized,
+					fs.UsedHumanized,
+					fs.UsedPercentHumanized,
+				})
+			}
+		}
+		table.Render()
 		output += buf.String()
 	}
 
