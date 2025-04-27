@@ -57,7 +57,7 @@ func cmdCompact(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
-	log.Logger.Infow("state file size before compact", "size", humanize.Bytes(uint64(dbSize)))
+	log.Logger.Infow("state file size before compact", "size", humanize.Bytes(dbSize))
 
 	if err := sqlite.Compact(rootCtx, dbRW); err != nil {
 		return fmt.Errorf("failed to compact state file: %w", err)
@@ -67,7 +67,7 @@ func cmdCompact(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
-	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(uint64(dbSize)))
+	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(dbSize))
 
 	fmt.Printf("%s successfully compacted state file\n", checkMark)
 	return nil
