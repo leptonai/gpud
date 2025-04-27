@@ -91,7 +91,7 @@ func TestDataGetStates(t *testing.T) {
 		ExtPartitions: disk.Partitions{
 			{Device: "/dev/sda1", MountPoint: "/mnt/data1"},
 		},
-		BlockDevices: disk.FlattenBlockDevices{
+		BlockDevices: disk.FlattenedBlockDevices{
 			{Name: "sda", Type: "disk"},
 		},
 

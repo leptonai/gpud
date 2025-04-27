@@ -248,7 +248,7 @@ var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
-	BlockDevices      disk.FlattenBlockDevices      `json:"block_devices"`
+	BlockDevices      disk.FlattenedBlockDevices    `json:"block_devices"`
 	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 
 	// timestamp of the last check

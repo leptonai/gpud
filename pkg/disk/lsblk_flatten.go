@@ -7,10 +7,11 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-type FlattenBlockDevices []FlattenBlockDevice
+type FlattenedBlockDevices []FlattenedBlockDevice
 
-// FlattenBlockDevice represents the flattened output of lsblk command for a device
-type FlattenBlockDevice struct {
+// FlattenedBlockDevice represents the flattened output of lsblk command for a device,
+// meaning the child device is included as its own entry in the device list.
+type FlattenedBlockDevice struct {
 	Name             string   `json:"name,omitempty"`
 	Type             string   `json:"type,omitempty"`
 	Size             uint64   `json:"size,omitempty"`
@@ -27,8 +28,8 @@ type FlattenBlockDevice struct {
 	Children         []string `json:"children,omitempty"`
 }
 
-func (blk BlockDevice) flatten() FlattenBlockDevices {
-	blkFlat := FlattenBlockDevice{
+func (blk BlockDevice) flatten() FlattenedBlockDevices {
+	blkFlat := FlattenedBlockDevice{
 		Name:             blk.Name,
 		Type:             blk.Type,
 		Size:             blk.Size.Uint64,
@@ -43,10 +44,10 @@ func (blk BlockDevice) flatten() FlattenBlockDevices {
 		PartUUID:         blk.PartUUID,
 		ParentDeviceName: blk.ParentDeviceName,
 	}
-	flattened := FlattenBlockDevices{blkFlat}
+	flattened := FlattenedBlockDevices{blkFlat}
 
 	for _, child := range blk.Children {
-		flattened = append(flattened, FlattenBlockDevice{
+		flattened = append(flattened, FlattenedBlockDevice{
 			Name:             child.Name,
 			Type:             child.Type,
 			Size:             child.Size.Uint64,
@@ -68,15 +69,15 @@ func (blk BlockDevice) flatten() FlattenBlockDevices {
 	return flattened
 }
 
-func (blks BlockDevices) Flatten() FlattenBlockDevices {
-	flattened := FlattenBlockDevices{}
+func (blks BlockDevices) Flatten() FlattenedBlockDevices {
+	flattened := FlattenedBlockDevices{}
 	for _, blk := range blks {
 		flattened = append(flattened, blk.flatten()...)
 	}
 	return flattened
 }
 
-func (blks FlattenBlockDevices) RenderTable(wr io.Writer) {
+func (blks FlattenedBlockDevices) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetHeader([]string{"Name", "Parent", "Type", "FSType", "Size", "Mount Point"})
 
