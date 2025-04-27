@@ -57,9 +57,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
-			return disk.GetBlockDevicesWithLsblk(ctx, disk.WithDeviceType(func(dt string) bool {
-				return dt == "disk" || dt == "lvm" || dt == "part"
-			}))
+			return disk.GetBlockDevicesWithLsblk(
+				ctx,
+				disk.WithFstype(func(fs string) bool {
+					return fs == "" || fs == "ext4" || fs == "LVM2_member"
+				}),
+				disk.WithDeviceType(func(dt string) bool {
+					return dt == "disk" || dt == "lvm" || dt == "part"
+				},
+				))
 		}
 	}
 
