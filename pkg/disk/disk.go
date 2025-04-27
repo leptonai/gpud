@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/pkg/log"
-
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
@@ -96,11 +96,8 @@ func GetUsage(ctx context.Context, mountPoint string) (*Usage, error) {
 	}
 	return &Usage{
 		TotalBytes:             usage.Total,
-		TotalHumanized:         humanize.Bytes(usage.Total),
 		FreeBytes:              usage.Free,
-		FreeHumanized:          humanize.Bytes(usage.Free),
 		UsedBytes:              usage.Used,
-		UsedHumanized:          humanize.Bytes(usage.Used),
 		UsedPercent:            fmt.Sprintf("%.2f", usage.UsedPercent),
 		UsedPercentFloat:       usage.UsedPercent,
 		InodesTotal:            usage.InodesTotal,
@@ -130,9 +127,9 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 		used := "n/a"
 		free := "n/a"
 		if part.Usage != nil {
-			total = part.Usage.TotalHumanized
-			used = part.Usage.UsedHumanized
-			free = part.Usage.FreeHumanized
+			total = humanize.Bytes(part.Usage.TotalBytes)
+			used = humanize.Bytes(part.Usage.UsedBytes)
+			free = humanize.Bytes(part.Usage.FreeBytes)
 		}
 
 		table.Append([]string{
@@ -178,15 +175,9 @@ type Partition struct {
 }
 
 type Usage struct {
-	TotalBytes     uint64 `json:"total_bytes"`
-	TotalHumanized string `json:"total_humanized"`
-
-	FreeBytes     uint64 `json:"free_bytes"`
-	FreeHumanized string `json:"free_humanized"`
-
-	UsedBytes     uint64 `json:"used_bytes"`
-	UsedHumanized string `json:"used_humanized"`
-
+	TotalBytes       uint64  `json:"total_bytes"`
+	FreeBytes        uint64  `json:"free_bytes"`
+	UsedBytes        uint64  `json:"used_bytes"`
 	UsedPercent      string  `json:"used_percent"`
 	UsedPercentFloat float64 `json:"-"`
 

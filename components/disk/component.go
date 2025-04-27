@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -278,9 +279,9 @@ func (cr *checkResult) String() string {
 
 		table.Append([]string{
 			p.MountPoint,
-			p.Usage.TotalHumanized,
-			p.Usage.FreeHumanized,
-			p.Usage.UsedHumanized,
+			humanize.Bytes(p.Usage.TotalBytes),
+			humanize.Bytes(p.Usage.FreeBytes),
+			humanize.Bytes(p.Usage.UsedBytes),
 			p.Usage.UsedPercent + " %",
 		})
 	}
