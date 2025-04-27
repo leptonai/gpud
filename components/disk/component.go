@@ -244,6 +244,10 @@ func (c *component) Check() components.CheckResult {
 		cr.MountTargetUsages[target] = *mntOut
 	}
 
+	if len(cr.BlockDevices) > 0 && len(cr.ExtPartitions) > 0 {
+		cr.DeviceUsages = cr.BlockDevices.GetDeviceUsages(cr.ExtPartitions)
+	}
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("found %d ext4 partition(s) and %d block device(s)", len(cr.ExtPartitions), len(cr.BlockDevices))
 
@@ -255,6 +259,7 @@ var _ components.CheckResult = &checkResult{}
 type checkResult struct {
 	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
 	BlockDevices      disk.FlattenedBlockDevices    `json:"block_devices"`
+	DeviceUsages      disk.DeviceUsages             `json:"device_usages"`
 	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 
 	// timestamp of the last check
@@ -298,6 +303,14 @@ func (cr *checkResult) String() string {
 
 		buf.Reset()
 		cr.BlockDevices.RenderTable(buf)
+		output += buf.String()
+	}
+
+	if len(cr.DeviceUsages) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		cr.DeviceUsages.RenderTable(buf)
 		output += buf.String()
 	}
 
