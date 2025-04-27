@@ -3,7 +3,6 @@ package disk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
-	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -109,14 +107,6 @@ func GetUsage(ctx context.Context, mountPoint string) (*Usage, error) {
 }
 
 type Partitions []Partition
-
-func (parts Partitions) JSON() ([]byte, error) {
-	return json.Marshal(parts)
-}
-
-func (parts Partitions) YAML() ([]byte, error) {
-	return yaml.Marshal(parts)
-}
 
 func (parts Partitions) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)

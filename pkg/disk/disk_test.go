@@ -1,8 +1,11 @@
 package disk
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -15,12 +18,6 @@ func TestGetPartitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get partitions: %v", err)
 	}
-	yb, err := partitions.YAML()
-	if err != nil {
-		t.Fatalf("failed to marshal partitions to yaml: %v", err)
-	}
-	t.Logf("partitions:\n%s\n", string(yb))
-
 	partitions.RenderTable(os.Stdout)
 }
 
@@ -158,6 +155,192 @@ func TestUsage_GetUsedPercent(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("Usage.GetUsedPercent() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPartitions_JSON(t *testing.T) {
+	parts := Partitions{
+		{
+			Device:     "/dev/sda1",
+			Fstype:     "ext4",
+			MountPoint: "/",
+			Mounted:    true,
+			Usage: &Usage{
+				TotalBytes:       1000,
+				FreeBytes:        500,
+				UsedBytes:        500,
+				UsedPercent:      "50.00",
+				UsedPercentFloat: 50.00,
+			},
+		},
+	}
+
+	jsonBytes, err := json.Marshal(parts)
+	if err != nil {
+		t.Fatalf("failed to marshal partitions to JSON: %v", err)
+	}
+
+	var unmarshaledParts Partitions
+	if err := json.Unmarshal(jsonBytes, &unmarshaledParts); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if len(unmarshaledParts) != len(parts) {
+		t.Fatalf("unmarshaled partitions length = %d, want %d", len(unmarshaledParts), len(parts))
+	}
+
+	if unmarshaledParts[0].Device != parts[0].Device {
+		t.Errorf("unmarshaled partition device = %s, want %s", unmarshaledParts[0].Device, parts[0].Device)
+	}
+
+	if unmarshaledParts[0].Usage.TotalBytes != parts[0].Usage.TotalBytes {
+		t.Errorf("unmarshaled partition total bytes = %d, want %d", unmarshaledParts[0].Usage.TotalBytes, parts[0].Usage.TotalBytes)
+	}
+}
+
+func TestPartitions_RenderTable(t *testing.T) {
+	parts := Partitions{
+		{
+			Device:     "/dev/sda1",
+			Fstype:     "ext4",
+			MountPoint: "/",
+			Mounted:    true,
+			Usage: &Usage{
+				TotalBytes: 1000,
+				FreeBytes:  500,
+				UsedBytes:  500,
+			},
+		},
+		{
+			Device:     "/dev/sda2",
+			Fstype:     "xfs",
+			MountPoint: "/home",
+			Mounted:    false,
+			Usage:      nil,
+		},
+	}
+
+	var buf bytes.Buffer
+	parts.RenderTable(&buf)
+
+	output := buf.String()
+	t.Logf("Table output: %s", output)
+
+	// Check that the table contains our device values
+	if !strings.Contains(output, "/dev/sda1") {
+		t.Errorf("table is missing device: %s", output)
+	}
+	if !strings.Contains(output, "ext4") {
+		t.Errorf("table is missing fstype: %s", output)
+	}
+	if !strings.Contains(output, "/home") {
+		t.Errorf("table is missing mount point: %s", output)
+	}
+}
+
+func TestOpApplyOpts(t *testing.T) {
+	tests := []struct {
+		name             string
+		opts             []OpOption
+		wantFstypeMatch  bool
+		wantDevTypeMatch bool
+	}{
+		{
+			name:             "no options",
+			opts:             nil,
+			wantFstypeMatch:  true, // Default should match everything
+			wantDevTypeMatch: true, // Default should match everything
+		},
+		{
+			name: "with fstype matcher",
+			opts: []OpOption{
+				WithFstype(func(fs string) bool { return fs == "ext4" }),
+			},
+			wantFstypeMatch:  false, // Our test will use "xfs"
+			wantDevTypeMatch: true,  // Default should match everything
+		},
+		{
+			name: "with device type matcher",
+			opts: []OpOption{
+				WithDeviceType(func(dt string) bool { return dt == "disk" }),
+			},
+			wantFstypeMatch:  true,  // Default should match everything
+			wantDevTypeMatch: false, // Our test will use "part"
+		},
+		{
+			name: "with both matchers",
+			opts: []OpOption{
+				WithFstype(func(fs string) bool { return fs == "ext4" }),
+				WithDeviceType(func(dt string) bool { return dt == "disk" }),
+			},
+			wantFstypeMatch:  false, // Our test will use "xfs"
+			wantDevTypeMatch: false, // Our test will use "part"
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := &Op{}
+			if err := op.applyOpts(tt.opts); err != nil {
+				t.Fatalf("applyOpts() error = %v", err)
+			}
+
+			// Test fstype matcher
+			if got := op.matchFuncFstype("xfs"); got != tt.wantFstypeMatch {
+				t.Errorf("matchFuncFstype(xfs) = %v, want %v", got, tt.wantFstypeMatch)
+			}
+
+			// Test device type matcher
+			if got := op.matchFuncDeviceType("part"); got != tt.wantDevTypeMatch {
+				t.Errorf("matchFuncDeviceType(part) = %v, want %v", got, tt.wantDevTypeMatch)
+			}
+		})
+	}
+}
+
+func TestDefaultMatchFuncFstype(t *testing.T) {
+	tests := []struct {
+		fs   string
+		want bool
+	}{
+		{"ext4", true},
+		{"apfs", true},
+		{"xfs", true},
+		{"btrfs", true},
+		{"zfs", true},
+		{"fuse.juicefs", true},
+		{"fuse.lxcfs", false},
+		{"tmpfs", false},
+		{"proc", false},
+		{"sysfs", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.fs, func(t *testing.T) {
+			if got := DefaultMatchFuncFstype(tt.fs); got != tt.want {
+				t.Errorf("DefaultMatchFuncFstype(%s) = %v, want %v", tt.fs, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDefaultMatchFuncDeviceType(t *testing.T) {
+	tests := []struct {
+		deviceType string
+		want       bool
+	}{
+		{"disk", true},
+		{"part", false},
+		{"loop", false},
+		{"rom", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.deviceType, func(t *testing.T) {
+			if got := DefaultMatchFuncDeviceType(tt.deviceType); got != tt.want {
+				t.Errorf("DefaultMatchFuncDeviceType(%s) = %v, want %v", tt.deviceType, got, tt.want)
 			}
 		})
 	}

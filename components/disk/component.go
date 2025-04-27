@@ -57,7 +57,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
-			return disk.GetBlockDevices(ctx, disk.WithDeviceType(func(dt string) bool {
+			return disk.GetBlockDevicesWithLsblk(ctx, disk.WithDeviceType(func(dt string) bool {
 				return dt == "disk"
 			}))
 		}
