@@ -127,6 +127,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 		EventStore:       nil,
 		RebootEventStore: nil,
+
+		MountPoints:  []string{"/"},
+		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
 	for _, initFunc := range componentInits {

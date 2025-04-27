@@ -57,9 +57,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
-			return disk.GetBlockDevices(ctx, disk.WithDeviceType(func(dt string) bool {
-				return dt == "disk"
-			}))
+			return disk.GetBlockDevicesWithLsblk(
+				ctx,
+				disk.WithFstype(func(fs string) bool {
+					return fs == "" || fs == "ext4" || fs == "LVM2_member"
+				}),
+				disk.WithDeviceType(func(dt string) bool {
+					return dt == "disk" || dt == "lvm" || dt == "part"
+				},
+				))
 		}
 	}
 
@@ -147,9 +153,9 @@ func (c *component) Check() components.CheckResult {
 				continue
 			}
 
-			cr.BlockDevices = blks
+			cr.BlockDevices = blks.Flatten()
 			if prevFailed {
-				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(blks))
+				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
 			}
 			break
 		}
@@ -209,8 +215,6 @@ func (c *component) Check() components.CheckResult {
 		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.TotalBytes))
 		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.FreeBytes))
 		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.UsedBytes))
-		metricUsedBytesPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(usage.UsedPercentFloat)
-		metricUsedInodesPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(usage.InodesUsedPercentFloat)
 	}
 
 	for target := range c.mountPointsToTrackUsage {
@@ -238,6 +242,10 @@ func (c *component) Check() components.CheckResult {
 		cr.MountTargetUsages[target] = *mntOut
 	}
 
+	if len(cr.BlockDevices) > 0 && len(cr.ExtPartitions) > 0 {
+		cr.DeviceUsages = cr.BlockDevices.GetDeviceUsages(cr.ExtPartitions)
+	}
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("found %d ext4 partition(s) and %d block device(s)", len(cr.ExtPartitions), len(cr.BlockDevices))
 
@@ -248,7 +256,8 @@ var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
-	BlockDevices      disk.BlockDevices             `json:"block_devices"`
+	BlockDevices      disk.FlattenedBlockDevices    `json:"block_devices"`
+	DeviceUsages      disk.DeviceUsages             `json:"device_usages"`
 	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 
 	// timestamp of the last check
@@ -270,8 +279,7 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
-
+	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used"})
 	for _, p := range cr.ExtPartitions {
 		if p.Usage == nil {
 			continue
@@ -282,12 +290,50 @@ func (cr *checkResult) String() string {
 			humanize.Bytes(p.Usage.TotalBytes),
 			humanize.Bytes(p.Usage.FreeBytes),
 			humanize.Bytes(p.Usage.UsedBytes),
-			p.Usage.UsedPercent + " %",
 		})
 	}
-
 	table.Render()
-	return buf.String()
+	output := buf.String()
+
+	if len(cr.BlockDevices) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		cr.BlockDevices.RenderTable(buf)
+		output += buf.String()
+	}
+
+	if len(cr.DeviceUsages) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		cr.DeviceUsages.RenderTable(buf)
+		output += buf.String()
+	}
+
+	if len(cr.MountTargetUsages) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		table := tablewriter.NewWriter(buf)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
+		for target, usage := range cr.MountTargetUsages {
+			for _, fs := range usage.Filesystems {
+				table.Append([]string{
+					target,
+					fs.SizeHumanized,
+					fs.AvailableHumanized,
+					fs.UsedHumanized,
+					fs.UsedPercentHumanized,
+				})
+			}
+		}
+		table.Render()
+		output += buf.String()
+	}
+
+	return output
 }
 
 func (cr *checkResult) Summary() string {

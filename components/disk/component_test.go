@@ -91,7 +91,7 @@ func TestDataGetStates(t *testing.T) {
 		ExtPartitions: disk.Partitions{
 			{Device: "/dev/sda1", MountPoint: "/mnt/data1"},
 		},
-		BlockDevices: disk.BlockDevices{
+		BlockDevices: disk.FlattenedBlockDevices{
 			{Name: "sda", Type: "disk"},
 		},
 
@@ -172,11 +172,9 @@ func TestCheckOnce(t *testing.T) {
 		Device:     "/dev/sda1",
 		MountPoint: "/mnt/data1",
 		Usage: &disk.Usage{
-			TotalBytes:             1000,
-			FreeBytes:              500,
-			UsedBytes:              500,
-			UsedPercentFloat:       50.0,
-			InodesUsedPercentFloat: 20.0,
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
 		},
 	}
 
@@ -460,11 +458,9 @@ func TestMetricsTracking(t *testing.T) {
 		Device:     "/dev/sda1",
 		MountPoint: "/mnt/data1",
 		Usage: &disk.Usage{
-			TotalBytes:             1000,
-			FreeBytes:              500,
-			UsedBytes:              500,
-			UsedPercentFloat:       50.0,
-			InodesUsedPercentFloat: 20.0,
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
 		},
 	}
 
@@ -548,22 +544,18 @@ func TestCheckResultString(t *testing.T) {
 					Device:     "/dev/sda1",
 					MountPoint: "/mnt/data1",
 					Usage: &disk.Usage{
-						TotalBytes:       1024 * 1024 * 1024,
-						FreeBytes:        512 * 1024 * 1024,
-						UsedBytes:        512 * 1024 * 1024,
-						UsedPercent:      "50.0",
-						UsedPercentFloat: 50.0,
+						TotalBytes: 1024 * 1024 * 1024,
+						FreeBytes:  512 * 1024 * 1024,
+						UsedBytes:  512 * 1024 * 1024,
 					},
 				},
 				{
 					Device:     "/dev/sda2",
 					MountPoint: "/mnt/data2",
 					Usage: &disk.Usage{
-						TotalBytes:       2 * 1024 * 1024 * 1024,
-						FreeBytes:        1 * 1024 * 1024 * 1024,
-						UsedBytes:        1 * 1024 * 1024 * 1024,
-						UsedPercent:      "50.0",
-						UsedPercentFloat: 50.0,
+						TotalBytes: 2 * 1024 * 1024 * 1024,
+						FreeBytes:  1 * 1024 * 1024 * 1024,
+						UsedBytes:  1 * 1024 * 1024 * 1024,
 					},
 				},
 			},
@@ -579,13 +571,9 @@ func TestCheckResultString(t *testing.T) {
 		assert.Contains(t, result, "TOTAL")
 		assert.Contains(t, result, "FREE")
 		assert.Contains(t, result, "USED")
-		assert.Contains(t, result, "USED %")
 
-		// Verify data values - use more flexible contains checks instead of exact matches
-		// since the exact formatting may vary
-		assert.Contains(t, result, "GB")     // Total size in GB
-		assert.Contains(t, result, "MB")     // Free and used sizes in MB or GB
-		assert.Contains(t, result, "50.0 %") // Usage percentage
+		assert.Contains(t, result, "GB") // Total size in GB
+		assert.Contains(t, result, "MB") // Free and used sizes in MB or GB
 	})
 
 	t.Run("mixed valid and nil Usage", func(t *testing.T) {
@@ -595,11 +583,9 @@ func TestCheckResultString(t *testing.T) {
 					Device:     "/dev/sda1",
 					MountPoint: "/mnt/data1",
 					Usage: &disk.Usage{
-						TotalBytes:       1024 * 1024 * 1024,
-						FreeBytes:        512 * 1024 * 1024,
-						UsedBytes:        512 * 1024 * 1024,
-						UsedPercent:      "50.0",
-						UsedPercentFloat: 50.0,
+						TotalBytes: 1024 * 1024 * 1024,
+						FreeBytes:  512 * 1024 * 1024,
+						UsedBytes:  512 * 1024 * 1024,
 					},
 				},
 				{

@@ -1,0 +1,401 @@
+{
+    "blockdevices": [
+        {
+            "name": "loop0",
+            "maj:min": "7:0",
+            "rm": false,
+            "size": "63.9M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop1",
+            "maj:min": "7:1",
+            "rm": false,
+            "size": "87M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/lxd/28373"
+            ]
+        },
+        {
+            "name": "loop2",
+            "maj:min": "7:2",
+            "rm": false,
+            "size": "38.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/snapd/21759"
+            ]
+        },
+        {
+            "name": "loop3",
+            "maj:min": "7:3",
+            "rm": false,
+            "size": "44.4M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/snapd/23771"
+            ]
+        },
+        {
+            "name": "loop4",
+            "maj:min": "7:4",
+            "rm": false,
+            "size": "89.4M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/lxd/31333"
+            ]
+        },
+        {
+            "name": "loop5",
+            "maj:min": "7:5",
+            "rm": false,
+            "size": "63.7M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/core20/2496"
+            ]
+        },
+        {
+            "name": "loop6",
+            "maj:min": "7:6",
+            "rm": false,
+            "size": "63.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/core20/2501"
+            ]
+        },
+        {
+            "name": "vda",
+            "maj:min": "252:0",
+            "rm": false,
+            "size": "128G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "vda1",
+                    "maj:min": "252:1",
+                    "rm": false,
+                    "size": "127.9G",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/c8c5033b-f277-45d6-bc21-c8006c0c3f80/volume-subpaths/host-root/gpu-feature-discovery-imex-init/2",
+                        "/var/lib/kubelet/pods/c8c5033b-f277-45d6-bc21-c8006c0c3f80/volume-subpaths/host-root/gpu-feature-discovery-imex-init/2",
+                        "/"
+                    ]
+                },
+                {
+                    "name": "vda14",
+                    "maj:min": "252:14",
+                    "rm": false,
+                    "size": "4M",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ]
+                },
+                {
+                    "name": "vda15",
+                    "maj:min": "252:15",
+                    "rm": false,
+                    "size": "106M",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        "/boot/efi"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme0n1",
+            "maj:min": "259:0",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme1n1",
+            "maj:min": "259:1",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme2n1",
+            "maj:min": "259:2",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme4n1",
+            "maj:min": "259:3",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme7n1",
+            "maj:min": "259:4",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme6n1",
+            "maj:min": "259:5",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme5n1",
+            "maj:min": "259:6",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme3n1",
+            "maj:min": "259:7",
+            "rm": false,
+            "size": "894.3G",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sample_vg-sample_lv",
+                    "maj:min": "253:0",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "lvm",
+                    "mountpoints": [
+                        "/sample-data-disk/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/var/lib/kubelet/pods/3574e959-ff24-40d6-a6d0-5b9af3d743a0/volume-subpaths/metrics-config/nvidia-dcgm-exporter/1",
+                        "/sample-data-disk/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/var/lib/kubelet/pods/ac66afb9-888c-42cd-a0cc-fa0a685cb5b2/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0",
+                        "/sample-data-disk/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/var/lib/kubelet/pods/cf72599b-b4f1-40c8-8d91-319fb30f6e32/volume-subpaths/nvidia-container-toolkit-entrypoint/nvidia-container-toolkit-ctr/0",
+                        "/sample-data-disk/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet/pods/707db00d-0c7c-4900-af80-198d1ea25126/volume-subpaths/tigera-ca-bundle/calico-node/9",
+                        "/var/lib/kubelet",
+                        "/var/lib/containerd",
+                        "/sample-data-disk"
+                    ]
+                }
+            ]
+        }
+    ]
+}
