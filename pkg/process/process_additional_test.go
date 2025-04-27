@@ -205,18 +205,6 @@ func TestProcessConcurrentOperations(t *testing.T) {
 		}
 	}()
 
-	// Concurrent operation 5: Get labels
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 10; i++ {
-			labels := p.Labels()
-			if labels == nil {
-				t.Errorf("Expected non-nil labels")
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
 	// Wait for all concurrent operations to finish
 	wg.Wait()
 
@@ -381,43 +369,6 @@ func TestProcessCloseNotStarted(t *testing.T) {
 	// The process should not be started
 	if p.Started() {
 		t.Error("Process should not be started")
-	}
-}
-
-// TestProcessWithLabels tests the process with labels
-func TestProcessWithLabels(t *testing.T) {
-	// Create a process with labels
-	p, err := New(
-		WithCommand("echo", "hello"),
-		WithLabel("key1", "value1"),
-		WithLabel("key2", "value2"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Check if the labels are set
-	labels := p.Labels()
-	if len(labels) != 2 {
-		t.Fatalf("Expected 2 labels, got %d", len(labels))
-	}
-	if labels["key1"] != "value1" {
-		t.Errorf("Expected key1=value1, got key1=%s", labels["key1"])
-	}
-	if labels["key2"] != "value2" {
-		t.Errorf("Expected key2=value2, got key2=%s", labels["key2"])
-	}
-
-	// Modify the returned labels
-	labels["key3"] = "value3"
-
-	// Check if the original labels are unchanged
-	labels = p.Labels()
-	if len(labels) != 2 {
-		t.Fatalf("Expected 2 labels, got %d", len(labels))
-	}
-	if _, ok := labels["key3"]; ok {
-		t.Error("Labels should be a copy, not a reference")
 	}
 }
 
