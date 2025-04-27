@@ -15,17 +15,23 @@ type DeviceUsages []DeviceUsage
 type DeviceUsage struct {
 	FlattenedBlockDevice
 
+	DeviceName string `json:"device_name"`
+
 	TotalBytes uint64 `json:"total_bytes"`
 	FreeBytes  uint64 `json:"free_bytes"`
 	UsedBytes  uint64 `json:"used_bytes"`
 }
 
-func (devs *DeviceUsages) RenderTable(wr io.Writer) {
+func (devs DeviceUsages) RenderTable(wr io.Writer) {
+	if len(devs) == 0 {
+		return
+	}
+
 	table := tablewriter.NewWriter(wr)
 	table.SetHeader([]string{"Device", "Mount Point", "Device Type", "FSType", "Total", "Used", "Free", "Parents", "Children"})
 	for _, dev := range devs {
 		table.Append([]string{
-			dev.FlattenedBlockDevice.Name,
+			dev.DeviceName,
 			dev.MountPoint,
 			dev.FlattenedBlockDevice.Type,
 			dev.FlattenedBlockDevice.FSType,
