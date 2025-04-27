@@ -13,14 +13,7 @@ type DeviceUsages []DeviceUsage
 // DeviceUsage is derived from the output of "lsblk" command,
 // and the size and usage information based on its mount point
 type DeviceUsage struct {
-	DeviceName string `json:"device_name,omitempty"`
-
-	MountPoint string `json:"mountpoint,omitempty"`
-	DeviceType string `json:"device_type,omitempty"`
-	FSType     string `json:"fstype,omitempty"`
-
-	Parents  []string `json:"parents,omitempty"`
-	Children []string `json:"children,omitempty"`
+	FlattenedBlockDevice
 
 	TotalBytes       uint64  `json:"total_bytes"`
 	FreeBytes        uint64  `json:"free_bytes"`
@@ -51,20 +44,13 @@ func (blks FlattenedBlockDevices) GetDeviceUsages(parts Partitions) DeviceUsages
 		}
 
 		devUsages = append(devUsages, DeviceUsage{
-			DeviceName: blkDev.Name,
-
-			MountPoint: blkDev.MountPoint,
-			DeviceType: blkDev.Type,
-			FSType:     blkDev.FSType,
+			FlattenedBlockDevice: blkDev,
 
 			TotalBytes:       usage.TotalBytes,
 			FreeBytes:        usage.FreeBytes,
 			UsedBytes:        usage.UsedBytes,
 			UsedPercent:      usage.UsedPercent,
 			UsedPercentFloat: usage.UsedPercentFloat,
-
-			Parents:  blkDev.Parents,
-			Children: blkDev.Children,
 		})
 	}
 
@@ -76,10 +62,10 @@ func (devs DeviceUsages) RenderTable(wr io.Writer) {
 	table.SetHeader([]string{"Device", "Mount Point", "Device Type", "FSType", "Total", "Used", "Free", "Used %", "Parents", "Children"})
 	for _, dev := range devs {
 		table.Append([]string{
-			dev.DeviceName,
+			dev.FlattenedBlockDevice.Name,
 			dev.MountPoint,
-			dev.DeviceType,
-			dev.FSType,
+			dev.FlattenedBlockDevice.Type,
+			dev.FlattenedBlockDevice.FSType,
 			humanize.Bytes(dev.TotalBytes),
 			humanize.Bytes(dev.UsedBytes),
 			humanize.Bytes(dev.FreeBytes),
