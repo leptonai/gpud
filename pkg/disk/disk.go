@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/pkg/log"
-
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
