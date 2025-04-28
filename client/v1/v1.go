@@ -178,7 +178,7 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 	q.Add("componentName", componentName)
 	reqURL.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
