@@ -101,6 +101,7 @@ func (c *component) Check() components.CheckResult {
 		componentName: c.Name(),
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
+		extraInfo:     make(map[string]string),
 	}
 	defer func() {
 		c.lastMu.Lock()
