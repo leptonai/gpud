@@ -124,6 +124,9 @@ var AllSuccessInterface = &nvmlmock.Interface{
 			GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
 				return 0, 0, false, false, nvml.SUCCESS
 			},
+			GetSerialFunc: func() (string, nvml.Return) {
+				return "MOCK-GPU-SERIAL", nvml.SUCCESS
+			},
 		}, nvml.SUCCESS
 	},
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,6 +33,8 @@ type component struct {
 	nvmlInstance       nvidianvml.Instance
 	getDeviceCountFunc func() (int, error)
 	getMemoryFunc      func(uuid string, dev device.Device) (nvidianvml.Memory, error)
+	getSerialFunc      func(uuid string, dev device.Device) (string, error)
+	getMinorIDFunc     func(uuid string, dev device.Device) (int, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -45,6 +48,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance:       gpudInstance.NVMLInstance,
 		getDeviceCountFunc: nvidiaquery.CountAllDevicesFromDevDir,
 		getMemoryFunc:      nvidianvml.GetMemory,
+		getSerialFunc:      nvidianvml.GetSerial,
+		getMinorIDFunc:     nvidianvml.GetMinorID,
 	}
 	return c, nil
 }
@@ -143,22 +148,51 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = fmt.Sprintf("error getting device count: %s", err)
 		return cr
 	}
-	cr.GPU.DeviceCount = deviceCount
+	cr.GPUCount.DeviceCount = deviceCount
 
 	devs := c.nvmlInstance.Devices()
-	cr.GPU.Attached = len(devs)
+	cr.GPUCount.Attached = len(devs)
 
 	for uuid, dev := range devs {
-		mem, err := c.getMemoryFunc(uuid, dev)
-		if err != nil {
-			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting memory: %s", err)
-			return cr
+		if cr.Memory.TotalBytes == 0 {
+			mem, err := c.getMemoryFunc(uuid, dev)
+			if err != nil {
+				cr.err = err
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = fmt.Sprintf("error getting memory: %s", err)
+				return cr
+			}
+			cr.Memory.TotalBytes = mem.TotalBytes
+			cr.Memory.TotalHumanized = mem.TotalHumanized
 		}
-		cr.Memory.TotalBytes = mem.TotalBytes
-		cr.Memory.TotalHumanized = mem.TotalHumanized
-		break
+
+		gpuID := GPUID{
+			UUID: uuid,
+		}
+
+		if c.getSerialFunc != nil {
+			serialID, err := c.getSerialFunc(uuid, dev)
+			if err != nil {
+				cr.err = err
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = fmt.Sprintf("error getting serial id: %s", err)
+				return cr
+			}
+			gpuID.SN = serialID
+		}
+
+		if c.getMinorIDFunc != nil {
+			minorID, err := c.getMinorIDFunc(uuid, dev)
+			if err != nil {
+				cr.err = err
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = fmt.Sprintf("error getting minor id: %s", err)
+				return cr
+			}
+			gpuID.MinorID = strconv.Itoa(minorID)
+		}
+
+		cr.GPUIDs = append(cr.GPUIDs, gpuID)
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
@@ -170,9 +204,12 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	Driver  Driver  `json:"driver"`
-	CUDA    CUDA    `json:"cuda"`
-	GPU     GPU     `json:"gpu"`
+	Driver Driver `json:"driver"`
+	CUDA   CUDA   `json:"cuda"`
+
+	GPUCount GPUCount `json:"gpu_count"`
+	GPUIDs   []GPUID  `json:"gpu_ids"`
+
 	Memory  Memory  `json:"memory"`
 	Product Product `json:"products"`
 
@@ -197,14 +234,21 @@ type CUDA struct {
 	Version string `json:"version"`
 }
 
-// GPU is the GPU information of the NVIDIA GPU.
-type GPU struct {
+// GPUCount is the GPUCount information of the NVIDIA GPUCount.
+type GPUCount struct {
 	// DeviceCount is the number of GPU devices based on the /dev directory.
 	DeviceCount int `json:"device_count"`
 
 	// Attached is the number of GPU devices that are attached to the system,
 	// based on the nvidia-smi or NVML.
 	Attached int `json:"attached"`
+}
+
+// GPUID represents the unique identifier of a GPU.
+type GPUID struct {
+	UUID    string `json:"uuid,omitempty"`
+	SN      string `json:"sn,omitempty"`
+	MinorID string `json:"minor_id,omitempty"`
 }
 
 // Memory is the memory information of the NVIDIA GPU.
@@ -233,8 +277,8 @@ func (cr *checkResult) String() string {
 	table.Append([]string{"Architecture", cr.Product.Architecture})
 	table.Append([]string{"Driver Version", cr.Driver.Version})
 	table.Append([]string{"CUDA Version", cr.CUDA.Version})
-	table.Append([]string{"GPU Count", fmt.Sprintf("%d", cr.GPU.DeviceCount)})
-	table.Append([]string{"GPU Attached", fmt.Sprintf("%d", cr.GPU.Attached)})
+	table.Append([]string{"GPU Count", fmt.Sprintf("%d", cr.GPUCount.DeviceCount)})
+	table.Append([]string{"GPU Attached", fmt.Sprintf("%d", cr.GPUCount.Attached)})
 	table.Append([]string{"GPU Memory", cr.Memory.TotalHumanized})
 	table.Render()
 

@@ -256,6 +256,15 @@ type MachineGPUInfo struct {
 	Product      string `json:"product,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Memory       string `json:"memory,omitempty"`
+
+	// GPUs is the GPU info of the machine.
+	GPUs []MachineGPUInstance `json:"gpus,omitempty"`
+}
+
+type MachineGPUInstance struct {
+	UUID    string `json:"uuid,omitempty"`
+	SN      string `json:"sn,omitempty"`
+	MinorID string `json:"minorID,omitempty"`
 }
 
 type MachineDiskInfo struct {

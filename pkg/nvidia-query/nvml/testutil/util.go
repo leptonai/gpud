@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 )
 
@@ -13,16 +14,25 @@ type MockDevice struct {
 	Brand                 string
 	CudaComputeCapability string
 	PCIBusID              string
+	Serial                string
+	MinorNumber           int
 }
 
 // NewMockDevice creates a new mock device with the given parameters
 func NewMockDevice(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID string) *MockDevice {
+	return NewMockDeviceWithIDs(device, architecture, brand, cudaComputeCapability, pciBusID, "MOCK-GPU-SERIAL", 0)
+}
+
+// NewMockDeviceWithIDs creates a new mock device with the given parameters including serial and minor number
+func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID, serial string, minorNumber int) *MockDevice {
 	return &MockDevice{
 		Device:                device,
 		Architecture:          architecture,
 		Brand:                 brand,
 		CudaComputeCapability: cudaComputeCapability,
 		PCIBusID:              pciBusID,
+		Serial:                serial,
+		MinorNumber:           minorNumber,
 	}
 }
 
@@ -48,6 +58,14 @@ func (d *MockDevice) GetMigProfiles() ([]device.MigProfile, error) {
 
 func (d *MockDevice) GetPCIBusID() (string, error) {
 	return d.PCIBusID, nil
+}
+
+func (d *MockDevice) GetSerial() (string, nvml.Return) {
+	return d.Serial, nvml.SUCCESS
+}
+
+func (d *MockDevice) GetMinorNumber() (int, nvml.Return) {
+	return d.MinorNumber, nvml.SUCCESS
 }
 
 func (d *MockDevice) IsFabricAttached() (bool, error) {
