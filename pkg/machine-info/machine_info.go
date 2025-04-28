@@ -16,6 +16,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/asn"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
+	"github.com/leptonai/gpud/pkg/disk"
 	pkgdisk "github.com/leptonai/gpud/pkg/disk"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -52,15 +53,22 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if pkgcontainerd.CheckContainerdInstalled() && pkgcontainerd.CheckContainerdRunning(ctx) {
-		version, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
+	if runtime.GOOS == "linux" {
+		info.DiskInfo, err = GetMachineDiskInfo(ctx)
 		if err != nil {
-			log.Logger.Warnw("failed to check containerd version", "error", err)
-		} else {
-			if !strings.HasPrefix(version, "containerd://") {
-				version = "containerd://" + version
+			return nil, fmt.Errorf("failed to get machine disk info: %w", err)
+		}
+
+		if pkgcontainerd.CheckContainerdInstalled() && pkgcontainerd.CheckContainerdRunning(ctx) {
+			version, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
+			if err != nil {
+				log.Logger.Warnw("failed to check containerd version", "error", err)
+			} else {
+				if !strings.HasPrefix(version, "containerd://") {
+					version = "containerd://" + version
+				}
+				info.ContainerRuntimeVersion = version
 			}
-			info.ContainerRuntimeVersion = version
 		}
 	}
 
@@ -199,4 +207,43 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 	}
 
 	return info, nil
+}
+
+func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
+	blks, err := disk.GetBlockDevicesWithLsblk(
+		ctx,
+		disk.WithFstype(func(fs string) bool {
+			return fs == "" || fs == "ext4" || fs == "LVM2_member"
+		}),
+		disk.WithDeviceType(func(dt string) bool {
+			return dt == "disk" || dt == "lvm" || dt == "part"
+		},
+		))
+	if err != nil {
+		return nil, err
+	}
+	flattened := blks.Flatten()
+
+	rs := make([]apiv1.MachineDiskDevice, 0, len(flattened))
+	for _, bd := range flattened {
+		rs = append(rs, apiv1.MachineDiskDevice{
+			Name:       bd.Name,
+			Type:       bd.Type,
+			Size:       int64(bd.Size),
+			Rota:       bool(bd.Rota),
+			Serial:     bd.Serial,
+			WWN:        bd.WWN,
+			Vendor:     bd.Vendor,
+			Model:      bd.Model,
+			Rev:        bd.Rev,
+			MountPoint: bd.MountPoint,
+			FSType:     bd.FSType,
+			PartUUID:   bd.PartUUID,
+			Parents:    bd.Parents,
+			Children:   bd.Children,
+		})
+	}
+	return &apiv1.MachineDiskInfo{
+		BlockDevices: rs,
+	}, nil
 }
