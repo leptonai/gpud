@@ -77,7 +77,14 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 
 	case err := <-p.Wait():
 		if err != nil {
-			output, _ := os.ReadFile(tmpFile.Name())
+			// even if the command failed and aborted in the middle with non-zero exit code,
+			// we still want to return the partial output
+			// in case the output parser is configured
+			output, rerr := os.ReadFile(tmpFile.Name())
+			if rerr != nil {
+				log.Logger.Errorw("failed to read output file after the process failed", "error", rerr)
+			}
+
 			return output, p.ExitCode(), err
 		}
 		log.Logger.Infow("process exited", "pid", p.PID(), "exitCode", p.ExitCode())
