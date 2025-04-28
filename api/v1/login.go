@@ -3,13 +3,11 @@ package v1
 // LoginRequest is the request for the login request.
 type LoginRequest struct {
 	Token       string            `json:"token"`
-	Network     MachineNetwork    `json:"network"`
-	Location    MachineLocation   `json:"location"`
-	CPUInfo     MachineCPUInfo    `json:"cpuInfo"`
-	GPUInfo     MachineGPUInfo    `json:"gpuInfo"`
+	Network     *MachineNetwork   `json:"network,omitempty"`
+	Location    *MachineLocation  `json:"location,omitempty"`
 	Provider    string            `json:"provider"`
-	MachineInfo MachineInfo       `json:"machineInfo"`
-	Resources   map[string]string `json:"resources"`
+	MachineInfo *MachineInfo      `json:"machineInfo,omitempty"`
+	Resources   map[string]string `json:"resources,omitempty"`
 }
 
 // LoginResponse is the response for the login request.

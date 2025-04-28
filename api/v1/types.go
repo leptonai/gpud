@@ -237,6 +237,13 @@ type MachineInfo struct {
 	BootID string `json:"bootID,omitempty"`
 	// Uptime represents when the machine up
 	Uptime metav1.Time `json:"uptime,omitempty"`
+
+	// CPUInfo is the CPU info of the machine.
+	CPUInfo *MachineCPUInfo `json:"cpuInfo,omitempty"`
+	// GPUInfo is the GPU info of the machine.
+	GPUInfo *MachineGPUInfo `json:"gpuInfo,omitempty"`
+	// DiskInfo is the Disk info of the machine.
+	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
 }
 
 type MachineCPUInfo struct {
@@ -249,6 +256,27 @@ type MachineGPUInfo struct {
 	Product      string `json:"product,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Memory       string `json:"memory,omitempty"`
+}
+
+type MachineDiskInfo struct {
+	BlockDevices []MachineDiskDevice `json:"blockDevices,omitempty"`
+}
+
+type MachineDiskDevice struct {
+	Name       string   `json:"name,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Size       int64    `json:"size,omitempty"`
+	Rota       bool     `json:"rota,omitempty"`
+	Serial     string   `json:"serial,omitempty"`
+	WWN        string   `json:"wwn,omitempty"`
+	Vendor     string   `json:"vendor,omitempty"`
+	Model      string   `json:"model,omitempty"`
+	Rev        string   `json:"rev,omitempty"`
+	MountPoint string   `json:"mountPoint,omitempty"`
+	FSType     string   `json:"fsType,omitempty"`
+	PartUUID   string   `json:"partUUID,omitempty"`
+	Parents    []string `json:"parents,omitempty"`
+	Children   []string `json:"children,omitempty"`
 }
 
 type MachineNetwork struct {

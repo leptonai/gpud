@@ -14,18 +14,12 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance) (*apiv1.
 		Token:     token,
 		Network:   GetMachineNetwork(),
 		Location:  GetMachineLocation(),
-		CPUInfo:   GetMachineCPUInfo(),
 		Resources: map[string]string{},
-	}
-
-	var err error
-	req.GPUInfo, err = GetMachineGPUInfo(nvmlInstance)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
 
 	req.Provider = GetProvider(req.Network.PublicIP)
 
+	var err error
 	req.MachineInfo, err = GetMachineInfo(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
