@@ -38,12 +38,7 @@ type Spec struct {
 	// Type defines the plugin type.
 	Type string `json:"type"`
 
-	// HealthStatePlugin defines the plugin instructions
-	// to evaluate the health state of this plugin,
-	// which is translated into an GPUd /states API response.
-	HealthStatePlugin *Plugin `json:"health_state_plugin,omitempty"`
-
-	// ManualRun is set to true to only when explicitly triggered.
+	// Mode is set to "manual" to only when explicitly triggered.
 	// The plugin is only registered but not run periodically.
 	//
 	// GPUd does not run this even once.
@@ -51,7 +46,12 @@ type Spec struct {
 	//
 	// This is only applicable to "component" type plugins.
 	// The "init" type plugins are always run only once.
-	ManualRun bool `json:"manual_run"`
+	Mode string `json:"mode"`
+
+	// HealthStatePlugin defines the plugin instructions
+	// to evaluate the health state of this plugin,
+	// which is translated into an GPUd /states API response.
+	HealthStatePlugin *Plugin `json:"health_state_plugin,omitempty"`
 
 	// Timeout is the timeout for the script execution.
 	// If zero, it uses the default timeout (1-minute).

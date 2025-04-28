@@ -441,7 +441,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Type:       pkgcustomplugins.SpecTypeComponent,
 
 			// should not run, only registers
-			ManualRun: true,
+			Mode: "manual",
 
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
@@ -486,15 +486,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
-			for componentName, spec := range csPlugins {
-				Expect(componentName).Should(Equal(spec.ComponentName()))
-				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+			for componentName, curSpec := range csPlugins {
+				Expect(componentName).Should(Equal(curSpec.ComponentName()))
+				GinkgoLogr.Info("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
 
-				b, err := json.Marshal(spec)
+				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				Expect(spec.ManualRun).To(BeTrue(), "expected manual mode")
+				fmt.Println("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
+				Expect(curSpec.Mode).Should(Equal("manual"), "expected manual mode")
 			}
 			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
 		})
@@ -526,7 +526,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		defer os.Remove(fileToWrite2)
 
 		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
-		testPluginSpec.ManualRun = false
+		testPluginSpec.Mode = ""
 		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps,
 			pkgcustomplugins.Step{
 				Name: "fourth-step",
@@ -567,15 +567,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
-			for componentName, spec := range csPlugins {
-				Expect(componentName).Should(Equal(spec.ComponentName()))
-				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+			for componentName, curSpec := range csPlugins {
+				Expect(componentName).Should(Equal(curSpec.ComponentName()))
+				GinkgoLogr.Info("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName)
 
-				b, err := json.Marshal(spec)
+				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				Expect(spec.ManualRun).To(BeFalse(), "expected non-manual mode")
+				fmt.Println("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
+				Expect(curSpec.Mode).Should(BeEmpty(), "expected empty mode")
 			}
 			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
 		})
