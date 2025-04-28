@@ -232,6 +232,24 @@ func (s *Session) serve() {
 				}
 			}
 
+		case "triggerComponentCheck":
+			if payload.ComponentName != "" {
+				comp := s.componentsRegistry.Get(payload.ComponentName)
+				if comp == nil {
+					log.Logger.Warnw("component not found", "name", payload.ComponentName)
+					response.ErrorCode = http.StatusNotFound
+					break
+				}
+
+				rs := comp.Check()
+				response.States = apiv1.GPUdComponentHealthStates{
+					{
+						Component: payload.ComponentName,
+						States:    rs.HealthStates(),
+					},
+				}
+			}
+
 		case "deregisterComponent":
 			if payload.ComponentName != "" {
 				comp := s.componentsRegistry.Get(payload.ComponentName)
