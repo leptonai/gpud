@@ -79,7 +79,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		}
 	}()
 
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, cliContext.String("gpu-count"), cliContext.String("private-ip"), cliContext.String("public-ip"))
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, cliContext.String("machine-id"), cliContext.String("gpu-count"), cliContext.String("private-ip"), cliContext.String("public-ip"))
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
@@ -91,6 +91,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		return err
 	}
 	machineID = loginResp.MachineID
+	sessionToken := loginResp.Token
 
 	// consume the login response to persist the machine ID
 	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, machineID); err != nil {
@@ -109,7 +110,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		log.Logger.Debugw("failed to write token -- login before first gpud run/up", "error", err)
 	}
 
-	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, token); err != nil {
+	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, sessionToken); err != nil {
 		fmt.Println("machine logged in but failed to update token:", err)
 	}
 

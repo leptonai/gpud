@@ -111,6 +111,11 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "can specify public ip for machine",
 				},
 				cli.StringFlag{
+					Name:   "machine-id",
+					Hidden: true,
+					Usage:  "for override default machine id",
+				},
+				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
 					Value: "mothership-machine.app.lepton.ai",
