@@ -154,6 +154,9 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	// we still parsed the output above
+	// even when the command/script had failed
+	// e.g., command failed with non-zero exit code
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("error executing state plugin -- %s (exit code: %d)", cr.err, cr.exitCode)
