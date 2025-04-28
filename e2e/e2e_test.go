@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -505,7 +506,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			time.Sleep(3 * time.Second)
 
 			_, err := os.Stat(fileToWrite1)
-			Expect(err).To(Equal(os.ErrNotExist), "expected file to not be created")
+			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue(), "expected file to not be created")
 		})
 
 		It("trigger the plugin that is in manual mode", func() {
