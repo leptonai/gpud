@@ -327,11 +327,11 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 	req := apiv1.LoginRequest{
 		Token:    "test-token",
 		Provider: "aws",
-		Network: apiv1.MachineNetwork{
+		Network: &apiv1.MachineNetwork{
 			PrivateIP: "192.168.1.1",
 			PublicIP:  "203.0.113.1",
 		},
-		Location: apiv1.MachineLocation{
+		Location: &apiv1.MachineLocation{
 			Region: "us-west-2",
 			Zone:   "us-west-2a",
 		},

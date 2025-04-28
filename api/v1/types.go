@@ -234,8 +234,8 @@ type MachineInfo struct {
 	// Uptime represents when the machine up
 	Uptime metav1.Time `json:"uptime,omitempty"`
 
-	CPUInfo MachineCPUInfo `json:"cpuInfo"`
-	GPUInfo MachineGPUInfo `json:"gpuInfo"`
+	CPUInfo *MachineCPUInfo `json:"cpuInfo"`
+	GPUInfo *MachineGPUInfo `json:"gpuInfo"`
 }
 
 type MachineCPUInfo struct {

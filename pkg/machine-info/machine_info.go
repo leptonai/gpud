@@ -25,8 +25,8 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
-func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error) {
-	info := apiv1.MachineInfo{
+func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+	info := &apiv1.MachineInfo{
 		GPUdVersion: version.Version,
 
 		GPUDriverVersion:        nvmlInstance.DriverVersion(),
@@ -46,7 +46,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error)
 	var err error
 	info.GPUInfo, err = GetMachineGPUInfo(nvmlInstance)
 	if err != nil {
-		return apiv1.MachineInfo{}, fmt.Errorf("failed to get machine gpu info: %w", err)
+		return nil, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -123,15 +123,15 @@ func GetSystemResourceLogicalCores() (string, int64, error) {
 	return qty.String(), int64(cnt), nil
 }
 
-func GetMachineCPUInfo() apiv1.MachineCPUInfo {
-	return apiv1.MachineCPUInfo{
+func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
+	return &apiv1.MachineCPUInfo{
 		Architecture: runtime.GOARCH,
 	}
 }
 
-func GetMachineNetwork() apiv1.MachineNetwork {
+func GetMachineNetwork() *apiv1.MachineNetwork {
 	publicIP, _ := netutil.PublicIP()
-	return apiv1.MachineNetwork{
+	return &apiv1.MachineNetwork{
 		PublicIP:  publicIP,
 		PrivateIP: "",
 	}
@@ -148,17 +148,17 @@ func GetProvider(publicIP string) string {
 	return asnResult.AsnName
 }
 
-func GetMachineLocation() apiv1.MachineLocation {
+func GetMachineLocation() *apiv1.MachineLocation {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	latencies, err := pkgnetutillatencyedge.Measure(ctx)
 	if err != nil || len(latencies) == 0 {
-		return apiv1.MachineLocation{}
+		return nil
 	}
 
 	closest := latencies.Closest()
-	return apiv1.MachineLocation{
+	return &apiv1.MachineLocation{
 		Region: closest.RegionCode,
 	}
 }
@@ -182,15 +182,15 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 	return qty.String(), nil
 }
 
-func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineGPUInfo, error) {
-	info := apiv1.MachineGPUInfo{
+func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
+	info := &apiv1.MachineGPUInfo{
 		Product: nvmlInstance.ProductName(),
 	}
 
 	for uuid, dev := range nvmlInstance.Devices() {
 		mem, err := nvidianvml.GetMemory(uuid, dev)
 		if err != nil {
-			return apiv1.MachineGPUInfo{}, err
+			return nil, err
 		}
 
 		qty := resource.NewQuantity(int64(mem.TotalBytes), resource.DecimalSI)
