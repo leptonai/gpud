@@ -316,8 +316,8 @@ func TestCheckOnce_Success(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Equal(t, "530.82.01", cr.Driver.Version)
 	assert.Equal(t, "12.7", cr.CUDA.Version)
-	assert.Equal(t, 1, cr.GPU.DeviceCount)
-	assert.Equal(t, 0, cr.GPU.Attached) // No devices in our mock
+	assert.Equal(t, 1, cr.GPUCount.DeviceCount)
+	assert.Equal(t, 0, cr.GPUCount.Attached) // No devices in our mock
 }
 
 func TestCheckOnce_WithDevices(t *testing.T) {
@@ -393,8 +393,8 @@ func TestCheckOnce_WithDevices(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Equal(t, "530.82.01", cr.Driver.Version)
 	assert.Equal(t, "12.7", cr.CUDA.Version)
-	assert.Equal(t, 1, cr.GPU.DeviceCount)
-	assert.Equal(t, 1, cr.GPU.Attached)
+	assert.Equal(t, 1, cr.GPUCount.DeviceCount)
+	assert.Equal(t, 1, cr.GPUCount.Attached)
 	// We can't verify these because we're not actually mocking the low level functions
 	// that would populate these fields, but the test should pass
 }
@@ -827,7 +827,7 @@ func TestData_StringAndUtilityMethods(t *testing.T) {
 		CUDA: CUDA{
 			Version: "12.7",
 		},
-		GPU: GPU{
+		GPUCount: GPUCount{
 			DeviceCount: 2,
 			Attached:    1,
 		},
