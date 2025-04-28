@@ -49,8 +49,8 @@ type Config struct {
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
-	// EnableAPIPluginRegistration enables the API plugin registration.
-	EnableAPIPluginRegistration bool `json:"enable_api_plugin_registration"`
+	// EnablePluginAPI enables the plugin API.
+	EnablePluginAPI bool `json:"enable_plugin_api"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

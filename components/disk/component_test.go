@@ -99,7 +99,7 @@ func TestDataGetStates(t *testing.T) {
 		reason: "found 1 ext4 partitions and 1 block devices",
 	}
 
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
@@ -133,7 +133,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
 
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
@@ -445,7 +445,7 @@ func TestMountTargetUsages(t *testing.T) {
 func TestNilDataHandling(t *testing.T) {
 	var nilData *checkResult
 
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
@@ -502,7 +502,7 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
 
 	fmt.Println(rs.String())
 }

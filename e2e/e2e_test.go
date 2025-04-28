@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -137,7 +138,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Sprintf("--listen-address=%s", ep),
 
 			// to run e2e test with api plugin registration
-			"--enable-api-plugin-registration",
+			"--enable-plugin-api",
 			"--plugin-specs-file=" + specFile.Name(),
 		}
 
@@ -430,119 +431,192 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		pluginName, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand str")
 
-		// register with dry-run mode first
-		testPluginSpec := pkgcustomplugins.Spec{
-			PluginName: pluginName,
-			Type:       pkgcustomplugins.SpecTypeComponent,
-			DryRun:     true,
-			HealthStatePlugin: &pkgcustomplugins.Plugin{
-				Steps: []pkgcustomplugins.Step{
-					{
-						Name: "first-step",
-						RunBashScript: &pkgcustomplugins.RunBashScript{
-							Script:      "echo 'hello'",
-							ContentType: "plaintext",
+		componentName := pkgcustomplugins.ConvertToComponentName(pluginName)
+
+		// register with manual mode first
+		randSfx1, err := randStr(10)
+		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
+		fileToWrite1 := filepath.Join(os.TempDir(), "testplugin"+randSfx1)
+		defer os.Remove(fileToWrite1)
+
+		It("register a custom plugin with manual mode", func() {
+			testPluginSpec := pkgcustomplugins.Spec{
+				PluginName: pluginName,
+				Type:       pkgcustomplugins.SpecTypeComponent,
+
+				// should not run, only registers
+				Mode: pkgcustomplugins.SpecModeManual,
+
+				HealthStatePlugin: &pkgcustomplugins.Plugin{
+					Steps: []pkgcustomplugins.Step{
+						{
+							Name: "first-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 'hello'",
+								ContentType: "plaintext",
+							},
 						},
-					},
-					{
-						Name: "second-step",
-						RunBashScript: &pkgcustomplugins.RunBashScript{
-							Script:      "echo 'world'",
-							ContentType: "plaintext",
+						{
+							Name: "second-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 'world'",
+								ContentType: "plaintext",
+							},
+						},
+						{
+							Name: "third-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 111 > " + fileToWrite1,
+								ContentType: "plaintext",
+							},
 						},
 					},
 				},
-			},
-			Timeout:  metav1.Duration{Duration: 30 * time.Second},
-			Interval: metav1.Duration{Duration: 0},
-		}
+				Timeout:  metav1.Duration{Duration: 30 * time.Second},
+				Interval: metav1.Duration{Duration: 0},
+			}
 
-		It("register a custom plugin with dry-run mode", func() {
 			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).NotTo(HaveOccurred(), "failed to register custom plugin")
-		})
 
-		It("redundant registration request should fail", func() {
-			rerr := clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
+			// redundant registration request should fail
+			rerr = clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).To(HaveOccurred(), "expected to fail with redundant registration")
 		})
 
-		It("list custom plugins and make sure the plugin is registered even with dry-run mode", func() {
+		It("list custom plugins and make sure the plugin is registered even with manual mode", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
-			for componentName, spec := range csPlugins {
-				Expect(componentName).Should(Equal(spec.ComponentName()))
-				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+			for componentName, curSpec := range csPlugins {
+				Expect(componentName).Should(Equal(curSpec.ComponentName()))
+				GinkgoLogr.Info("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
 
-				b, err := json.Marshal(spec)
+				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
+				fmt.Println("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
+
+				Expect(curSpec.Mode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
 			}
-			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
+			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
 		})
 
-		randSfx, err := randStr(10)
+		It("make sure the plugin has been not run as it's manual mode", func() {
+			// wait for the plugin to run
+			time.Sleep(3 * time.Second)
+
+			_, err := os.Stat(fileToWrite1)
+			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue(), "expected file to not be created")
+		})
+
+		It("trigger the plugin that is in manual mode", func() {
+			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, componentName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			Expect(len(resp)).To(Equal(1), "expected 1 response")
+
+			fmt.Printf("%+v\n", resp)
+		})
+
+		It("make sure the plugin has been run manually", func() {
+			_, err := os.Stat(fileToWrite1)
+			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
+		})
+
+		randSfx2, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
-		fileToWrite := filepath.Join(os.TempDir(), "testplugin"+randSfx)
-		defer os.Remove(fileToWrite)
-
-		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
-		testPluginSpec.DryRun = false
-		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
-			Name: "third-step",
-			RunBashScript: &pkgcustomplugins.RunBashScript{
-				Script:      "echo 111 > " + fileToWrite,
-				ContentType: "plaintext",
-			},
-		})
+		fileToWrite2 := filepath.Join(os.TempDir(), "testplugin"+randSfx2)
+		defer os.Remove(fileToWrite2)
 
 		randStrToEcho, err := randStr(100)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 
-		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
-			Name: "fourth-step",
-			RunBashScript: &pkgcustomplugins.RunBashScript{
-				Script:      `echo '{"name":"` + randStrToEcho + `", "health":"degraded"}'`,
-				ContentType: "plaintext",
-			},
-		})
-		testPluginSpec.HealthStatePlugin.Parser = &pkgcustomplugins.PluginOutputParseConfig{
-			JSONPaths: []pkgcustomplugins.JSONPath{
-				{Field: "name", Query: "$.name"},
-				{Field: "health", Query: "$.health"},
+		It("updates the custom plugin with non-manual mode", func() {
+			testPluginSpec := pkgcustomplugins.Spec{
+				PluginName: pluginName,
+				Type:       pkgcustomplugins.SpecTypeComponent,
 
-				// non-existent path should be skipped
-				{Field: "nonexistent1", Query: "$.nonexistent"},
-				{Field: "nonexistent2", Query: "$.a.b.c.d.e"},
-			},
-		}
+				Mode: "",
 
-		It("updates the custom plugin with non-dry-run mode", func() {
+				HealthStatePlugin: &pkgcustomplugins.Plugin{
+					Steps: []pkgcustomplugins.Step{
+						{
+							Name: "first-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 'hello'",
+								ContentType: "plaintext",
+							},
+						},
+						{
+							Name: "second-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 'world'",
+								ContentType: "plaintext",
+							},
+						},
+						{
+							Name: "third-step",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "echo 111 > " + fileToWrite1,
+								ContentType: "plaintext",
+							},
+						},
+					},
+				},
+				Timeout:  metav1.Duration{Duration: 30 * time.Second},
+				Interval: metav1.Duration{Duration: 0},
+			}
+			testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
+			testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps,
+				pkgcustomplugins.Step{
+					Name: "fourth-step",
+					RunBashScript: &pkgcustomplugins.RunBashScript{
+						Script:      "echo 111 > " + fileToWrite2,
+						ContentType: "plaintext",
+					},
+				},
+			)
+			testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps, pkgcustomplugins.Step{
+				Name: "fifth-step",
+				RunBashScript: &pkgcustomplugins.RunBashScript{
+					Script:      `echo '{"name":"` + randStrToEcho + `", "health":"degraded"}'`,
+					ContentType: "plaintext",
+				},
+			})
+			testPluginSpec.HealthStatePlugin.Parser = &pkgcustomplugins.PluginOutputParseConfig{
+				JSONPaths: []pkgcustomplugins.JSONPath{
+					{Field: "name", Query: "$.name"},
+					{Field: "health", Query: "$.health"},
+
+					// non-existent path should be skipped
+					{Field: "nonexistent1", Query: "$.nonexistent"},
+					{Field: "nonexistent2", Query: "$.a.b.c.d.e"},
+				},
+			}
+
 			rerr := clientv1.UpdateCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).NotTo(HaveOccurred(), "failed to update custom plugin")
-		})
 
-		It("list custom plugins and make sure the plugin is registered with non-dry-run mode", func() {
+			// list custom plugins and make sure the plugin is registered with non-manual mode
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
-			for componentName, spec := range csPlugins {
-				Expect(componentName).Should(Equal(spec.ComponentName()))
-				GinkgoLogr.Info("custom plugin", "name", spec.PluginName, "componentName", componentName)
+			for componentName, curSpec := range csPlugins {
+				Expect(componentName).Should(Equal(curSpec.ComponentName()))
+				GinkgoLogr.Info("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName)
 
-				b, err := json.Marshal(spec)
+				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
-			}
-			Expect(csPlugins[pkgcustomplugins.ConvertToComponentName(testPluginSpec.PluginName)]).NotTo(BeNil(), "expected to be registered")
-		})
+				fmt.Println("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-		It("make sure the plugin has been run once by checking the file exists when the dry mode is disabled", func() {
+				Expect(curSpec.Mode).Should(BeEmpty(), "expected empty mode")
+			}
+			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
+
+			// make sure the plugin has been run once by checking the file exists when the dry mode is disabled
 			// wait for the plugin to run
 			time.Sleep(3 * time.Second)
 
-			_, err := os.Stat(fileToWrite)
+			_, err = os.Stat(fileToWrite2)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
 
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
@@ -558,21 +632,20 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
 			fmt.Println("/v1/states RESPONSE BODY:", string(body))
 
-			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(testPluginSpec.ComponentName()))
+			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(componentName))
 			Expect(err).NotTo(HaveOccurred(), "failed to get states")
 			GinkgoLogr.Info("got states", "states", states)
 			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
 			Expect(states[0].States).To(HaveLen(1), "expected states to have 1 state")
 			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeHealthy), "expected health state to be healthy")
 			Expect(states[0].States[0].Reason).To(Equal("ok"), "expected reason to be ok")
-			Expect(states[0].States[0].ExtraInfo).To(Equal(map[string]string{
-				"name":   randStrToEcho,
-				"health": "degraded",
-			}), "unexpected extra info")
+			Expect(states[0].States[0].ExtraInfo["name"]).To(Equal(randStrToEcho))
+			Expect(states[0].States[0].ExtraInfo["health"]).To(Equal("degraded"))
+			Expect(states[0].States[0].Time.IsZero()).Should(BeFalse(), "expected time to be set")
 		})
 
 		It("deregister the custom plugin", func() {
-			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, testPluginSpec.ComponentName())
+			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, componentName)
 			Expect(derr).NotTo(HaveOccurred(), "failed to deregister custom plugin")
 		})
 

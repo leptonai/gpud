@@ -289,7 +289,7 @@ func Test_getLastHealthStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states := tc.data.getLastHealthStates()
+			states := tc.data.HealthStates()
 			require.Len(t, states, tc.expectedLen)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 
@@ -759,7 +759,7 @@ func Test_componentConstructor(t *testing.T) {
 func TestDataGetLastHealthStatesNil(t *testing.T) {
 	// Test with nil data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -846,7 +846,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states := tc.data.getLastHealthStates()
+			states := tc.data.HealthStates()
 
 			// Verify state properties
 			require.Len(t, states, 1)
@@ -872,7 +872,7 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "deadline exceeded",
 	}
-	states := deadlineData.getLastHealthStates()
+	states := deadlineData.HealthStates()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "deadline exceeded")
 
@@ -884,7 +884,7 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "context canceled",
 	}
-	states = canceledData.getLastHealthStates()
+	states = canceledData.HealthStates()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "context canceled")
 
@@ -896,7 +896,7 @@ func TestDataGetLastHealthStatesWithSpecificErrors(t *testing.T) {
 		health:   apiv1.HealthStateTypeUnhealthy,
 		reason:   "custom error",
 	}
-	states = customData.getLastHealthStates()
+	states = customData.HealthStates()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "custom error")
 }

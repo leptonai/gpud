@@ -132,7 +132,7 @@ func TestData_getStates(t *testing.T) {
 
 	// Test with nil data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Equal(t, "no data yet", states[0].Reason)
 }
 
@@ -220,14 +220,14 @@ func TestDataHealthField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 			assert.Equal(t, tt.expectedHealth, states[0].Health)
 		})
 	}
 
 	// Test with nil data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
 
@@ -302,7 +302,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 
 			assert.Equal(t, tt.stateCount, len(states))
 			assert.Equal(t, Name, states[0].Name)
@@ -320,7 +320,7 @@ func TestDataGetStates(t *testing.T) {
 
 	// Test with nil data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)

@@ -8,7 +8,7 @@
           content_type: base64
           script: bnZpZGlhLXNtaQo=
 
-  dry_run: true
+  mode: manual
 
   timeout: 10s
   interval: 1m

@@ -125,7 +125,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 
 	// Test with nil Data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
@@ -134,7 +134,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 		err:    assert.AnError,
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
-	states = data.getLastHealthStates()
+	states = data.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, assert.AnError.Error(), states[0].Error)
@@ -143,7 +143,7 @@ func TestDataGetStatesForHealth(t *testing.T) {
 	data = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	states = data.getLastHealthStates()
+	states = data.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 }
@@ -153,7 +153,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 
 	// Test with nil Data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "no data yet", states[0].Reason)
 
@@ -162,7 +162,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 		err:    assert.AnError,
 		reason: "failed to get info data",
 	}
-	states = data.getLastHealthStates()
+	states = data.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, "failed to get info data", states[0].Reason)
 
@@ -172,7 +172,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 		Annotations: map[string]string{"test": "value"},
 		reason:      "daemon version: test, mac address: 00:11:22:33:44:55",
 	}
-	states = data.getLastHealthStates()
+	states = data.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "daemon version")
 	assert.Contains(t, states[0].Reason, "mac address: 00:11:22:33:44:55")
@@ -181,7 +181,7 @@ func TestDataGetStatesForReason(t *testing.T) {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -220,7 +220,7 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 		reason:        "test reason",
 	}
 
-	states := data.getLastHealthStates()
+	states := data.HealthStates()
 	assert.Len(t, states, 1)
 
 	// Check extraInfo contains JSON data
@@ -304,19 +304,19 @@ func TestDataHealthState(t *testing.T) {
 
 	// Test with nil Data
 	var nilData *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthStateType())
 
 	// Test with health set
 	data := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthStateType())
 
 	// Test with unhealthy state
 	data = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.HealthStateType())
 }
 
 func TestCheckWithErrors(t *testing.T) {

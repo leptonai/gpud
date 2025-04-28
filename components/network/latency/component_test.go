@@ -171,7 +171,7 @@ func TestCheckHealthState(t *testing.T) {
 	defer comp.Close()
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
 
 	fmt.Println(rs.String())
 

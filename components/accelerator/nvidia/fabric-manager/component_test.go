@@ -319,7 +319,7 @@ func TestDataGetLastHealthStates(t *testing.T) {
 
 	// Test nil Data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -331,7 +331,7 @@ func TestDataGetLastHealthStates(t *testing.T) {
 		reason: "test unhealthy reason",
 		err:    assert.AnError,
 	}
-	states = cr.getLastHealthStates()
+	states = cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
@@ -394,13 +394,13 @@ func TestDataHealthState(t *testing.T) {
 
 	// Test nil data
 	var cr *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
 
 	// Test with health state
 	cr = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 }
 
 func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {

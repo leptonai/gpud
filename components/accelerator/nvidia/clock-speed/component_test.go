@@ -109,7 +109,7 @@ func TestData_GetStates(t *testing.T) {
 		},
 	}
 
-	states := successData.getLastHealthStates()
+	states := successData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 
@@ -183,14 +183,14 @@ func TestData_Summary(t *testing.T) {
 func TestData_HealthState(t *testing.T) {
 	// Test nil data
 	var nilData *checkResult
-	health := nilData.HealthState()
+	health := nilData.HealthStateType()
 	assert.Empty(t, health)
 
 	// Test with health state
 	dataWithHealth := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	health = dataWithHealth.HealthState()
+	health = dataWithHealth.HealthStateType()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, health)
 }
 

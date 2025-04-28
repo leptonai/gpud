@@ -47,8 +47,8 @@ func TestCheck(t *testing.T) {
 	}
 
 	result := comp.Check()
-	if result.HealthState() != apiv1.HealthStateTypeUnhealthy {
-		t.Errorf("expected unhealthy state, got %s", result.HealthState())
+	if result.HealthStateType() != apiv1.HealthStateTypeUnhealthy {
+		t.Errorf("expected unhealthy state, got %s", result.HealthStateType())
 	}
 	if !contains(result.Summary(), "lib2.so") {
 		t.Errorf("expected summary to contain lib2.so, got %q", result.Summary())
@@ -60,8 +60,8 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthState() != apiv1.HealthStateTypeUnhealthy {
-		t.Errorf("expected unhealthy state, got %s", result.HealthState())
+	if result.HealthStateType() != apiv1.HealthStateTypeUnhealthy {
+		t.Errorf("expected unhealthy state, got %s", result.HealthStateType())
 	}
 
 	// Case 3: All libraries found
@@ -73,8 +73,8 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthState() != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", result.HealthState())
+	if result.HealthStateType() != apiv1.HealthStateTypeHealthy {
+		t.Errorf("expected healthy state, got %s", result.HealthStateType())
 	}
 	if result.Summary() != "all libraries exist" {
 		t.Errorf("expected summary 'all libraries exist', got %q", result.Summary())
@@ -151,8 +151,8 @@ func TestDataMethods(t *testing.T) {
 		reason:            "all libraries exist",
 	}
 
-	if cr.HealthState() != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", cr.HealthState())
+	if cr.HealthStateType() != apiv1.HealthStateTypeHealthy {
+		t.Errorf("expected healthy state, got %s", cr.HealthStateType())
 	}
 
 	if cr.Summary() != "all libraries exist" {
@@ -173,7 +173,7 @@ func TestDataMethods(t *testing.T) {
 	if nilData.Summary() != "" {
 		t.Error("Summary() on nil Data should return empty string")
 	}
-	if nilData.HealthState() != "" {
+	if nilData.HealthStateType() != "" {
 		t.Error("HealthState() on nil Data should return empty string")
 	}
 	if nilData.getError() != "" {

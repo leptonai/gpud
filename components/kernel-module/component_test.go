@@ -395,7 +395,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 
 			require.Len(t, states, 1)
 			state := states[0]

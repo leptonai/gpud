@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -194,9 +196,40 @@ func (cr *checkResult) Summary() string {
 	return cr.reason
 }
 
-func (cr *checkResult) HealthState() apiv1.HealthStateType {
+func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 	if cr == nil {
 		return ""
 	}
 	return cr.health
+}
+
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
+		return ""
+	}
+	return cr.err.Error()
+}
+
+func (cr *checkResult) HealthStates() apiv1.HealthStates {
+	if cr == nil {
+		return apiv1.HealthStates{
+			{
+				Time:      metav1.NewTime(time.Now().UTC()),
+				Component: Name,
+				Name:      Name,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
+			},
+		}
+	}
+
+	state := apiv1.HealthState{
+		Time:      metav1.NewTime(cr.ts),
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
+	}
+	return apiv1.HealthStates{state}
 }

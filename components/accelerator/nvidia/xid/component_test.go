@@ -408,7 +408,7 @@ func TestCheck(t *testing.T) {
 		assert.NoError(t, err)
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 		assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 	})
 
@@ -427,7 +427,7 @@ func TestCheck(t *testing.T) {
 		c.readAllKmsg = nil
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 		assert.Contains(t, result.Summary(), "kmsg reader is not set")
 	})
 
@@ -448,7 +448,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 		assert.Contains(t, result.Summary(), "failed to read kmsg")
 	})
 
@@ -474,7 +474,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 		assert.Contains(t, result.Summary(), "matched")
 		data := result.(*checkResult)
 		assert.Len(t, data.FoundErrors, 1)

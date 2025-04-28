@@ -23,6 +23,9 @@ const (
 	// SpecTypeComponent is the type of the plugin that is used to run as a component.
 	// Meant to be run periodically.
 	SpecTypeComponent = "component"
+
+	// SpecModeManual is the mode of the plugin that is used to run manually.
+	SpecModeManual = "manual"
 )
 
 // Specs is a list of plugin specs.
@@ -38,21 +41,29 @@ type Spec struct {
 	// Type defines the plugin type.
 	Type string `json:"type"`
 
+	// Mode is set to "manual" to only when explicitly triggered.
+	// The plugin is only registered but not run periodically.
+	// GPUd does not run this even once.
+	// GPUd does not run this periodically.
+	// This "manual" mode is only applicable to "component" type plugins.
+	// The "init" type plugins are always run only once.
+	//
+	// If not set, the plugin is run periodically by default.
+	Mode string `json:"mode"`
+
 	// HealthStatePlugin defines the plugin instructions
 	// to evaluate the health state of this plugin,
 	// which is translated into an GPUd /states API response.
 	HealthStatePlugin *Plugin `json:"health_state_plugin,omitempty"`
-
-	// DryRun is set to true to allow non-zero exit code on the script
-	// useful for dry runs.
-	DryRun bool `json:"dry_run,omitempty"`
 
 	// Timeout is the timeout for the script execution.
 	// If zero, it uses the default timeout (1-minute).
 	Timeout metav1.Duration `json:"timeout"`
 
 	// Interval is the interval for the script execution.
-	// If zero, it runs only once.
+	// For init plugin that only runs once at the server start,
+	// this value is ignored.
+	// Similarly, if set to zero, it runs only once.
 	Interval metav1.Duration `json:"interval"`
 }
 

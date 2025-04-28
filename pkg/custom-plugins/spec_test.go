@@ -29,7 +29,7 @@ func TestLoad(t *testing.T) {
 	plugin := plugins[0]
 	assert.Equal(t, "nvidia-smi", plugin.PluginName)
 	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.HealthStatePlugin.Steps[0].RunBashScript.Script)
-	assert.True(t, plugin.DryRun)
+	assert.Equal(t, SpecModeManual, plugin.Mode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugin.Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugin.Interval)
 }
@@ -302,7 +302,7 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 	assert.Equal(t, "Run nvidia-smi", plugins[0].HealthStatePlugin.Steps[1].Name)
 	assert.Equal(t, "plaintext", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
 	assert.Equal(t, "echo 'State script'", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.Script)
-	assert.True(t, plugins[0].DryRun)
+	assert.Equal(t, SpecModeManual, plugins[0].Mode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[0].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[0].Interval)
 
@@ -315,7 +315,7 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 	assert.Equal(t, "Run python scripts", plugins[1].HealthStatePlugin.Steps[1].Name)
 	assert.Equal(t, "plaintext", plugins[1].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
 	assert.Contains(t, plugins[1].HealthStatePlugin.Steps[1].RunBashScript.Script, "python3 test.py")
-	assert.True(t, plugins[1].DryRun)
+	assert.Equal(t, SpecModeManual, plugins[1].Mode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[1].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[1].Interval)
 }
@@ -601,7 +601,7 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
           content_type: plaintext
           script: nvidia-smi
 
-  dry_run: true
+  mode: manual
 
   timeout: 10s
   interval: 1m`
@@ -926,7 +926,7 @@ func TestHealthStatePlugin_executeAllSteps(t *testing.T) {
 						},
 					},
 				},
-				DryRun:  true,
+				Mode:    SpecModeManual,
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectOutput: false,

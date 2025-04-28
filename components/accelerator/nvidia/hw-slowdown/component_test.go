@@ -995,13 +995,13 @@ func TestDataMethods(t *testing.T) {
 			assert.Equal(t, tc.expectSummary, tc.checkResult.Summary())
 
 			// Test HealthState method
-			assert.Equal(t, tc.expectHealth, tc.checkResult.HealthState())
+			assert.Equal(t, tc.expectHealth, tc.checkResult.HealthStateType())
 
 			// Test getError method
 			assert.Equal(t, tc.expectError, tc.checkResult.getError())
 
 			// Test getLastHealthStates method
-			states := tc.checkResult.getLastHealthStates()
+			states := tc.checkResult.HealthStates()
 			assert.Equal(t, tc.expectStates, len(states))
 			if len(states) > 0 {
 				assert.Contains(t, states[0].Reason, tc.expectStateMsg)
