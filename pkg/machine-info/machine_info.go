@@ -230,7 +230,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			Name:       bd.Name,
 			Type:       bd.Type,
 			Size:       int64(bd.Size),
-			Rota:       bool(bd.Rota),
+			Rota:       bd.Rota,
 			Serial:     bd.Serial,
 			WWN:        bd.WWN,
 			Vendor:     bd.Vendor,
