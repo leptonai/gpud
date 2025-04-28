@@ -84,6 +84,9 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 			if rerr != nil {
 				log.Logger.Errorw("failed to read output file after the process failed", "error", rerr)
 			}
+			if len(output) == 0 {
+				output = nil
+			}
 
 			return output, p.ExitCode(), err
 		}
