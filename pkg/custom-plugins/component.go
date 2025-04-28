@@ -160,9 +160,12 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = "ok"
-	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
+	// no invalid output found or no error occurred, thus healthy
+	if cr.reason == "" {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "ok"
+		log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
+	}
 
 	return cr
 }
