@@ -335,14 +335,6 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 			Region: "us-west-2",
 			Zone:   "us-west-2a",
 		},
-		CPUInfo: apiv1.MachineCPUInfo{
-			Type:         "Intel Xeon",
-			Architecture: "x86_64",
-		},
-		GPUInfo: apiv1.MachineGPUInfo{
-			Product: "NVIDIA A100",
-			Memory:  "40GB",
-		},
 	}
 
 	resp, err := sendRequest(ctx, server.URL, req)

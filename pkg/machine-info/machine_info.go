@@ -39,6 +39,14 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (apiv1.MachineInfo, error)
 		MachineID:               pkghost.OSMachineID(),
 		BootID:                  pkghost.BootID(),
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
+
+		CPUInfo: GetMachineCPUInfo(),
+	}
+
+	var err error
+	info.GPUInfo, err = GetMachineGPUInfo(nvmlInstance)
+	if err != nil {
+		return apiv1.MachineInfo{}, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

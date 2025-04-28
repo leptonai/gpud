@@ -233,6 +233,9 @@ type MachineInfo struct {
 	BootID string `json:"bootID,omitempty"`
 	// Uptime represents when the machine up
 	Uptime metav1.Time `json:"uptime,omitempty"`
+
+	CPUInfo MachineCPUInfo `json:"cpuInfo"`
+	GPUInfo MachineGPUInfo `json:"gpuInfo"`
 }
 
 type MachineCPUInfo struct {
