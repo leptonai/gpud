@@ -77,7 +77,8 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 
 	case err := <-p.Wait():
 		if err != nil {
-			return nil, p.ExitCode(), err
+			output, _ := os.ReadFile(tmpFile.Name())
+			return output, p.ExitCode(), err
 		}
 		log.Logger.Infow("process exited", "pid", p.PID(), "exitCode", p.ExitCode())
 	}

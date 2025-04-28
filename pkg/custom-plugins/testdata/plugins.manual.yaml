@@ -1,0 +1,23 @@
+########################################
+# demonstrates a plugin that fails with an exit code 1 ONLY when triggered manually
+- plugin_name: manual-exit-1
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.description
+          field: description
+    steps:
+      - name: Exit 1
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo '{"description": "triggered to fail with exit code 1"}'
+
+            exit 1
+
+  run_mode: "manual" # set to "manual" to only trigger manually
+
+  timeout: 1m
+  interval: 100m

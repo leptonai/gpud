@@ -121,25 +121,17 @@ func (c *component) Check() components.CheckResult {
 	cr.out, cr.exitCode, cr.err = c.spec.HealthStatePlugin.executeAllSteps(cctx)
 	cr.output = string(cr.out)
 
-	if cr.err != nil {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.out))
-		return cr
-	}
-
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = "ok"
-	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
-
 	// either custom parser (jsonpath) or default parser
+	// parse before processing the error/command failures
+	// since we still want to process the output even if the plugin failed
 	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
-		var matchResults map[string]extractedField
-		matchResults, cr.err = c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
-		if cr.err != nil {
-			log.Logger.Errorw("error extracting extra info", "error", cr.err)
+		matchResults, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		if exErr != nil {
+			log.Logger.Errorw("error extracting extra info", "error", exErr)
 
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "failed to parse plugin output"
+			cr.err = exErr
 			return cr
 		}
 
@@ -161,6 +153,16 @@ func (c *component) Check() components.CheckResult {
 			}
 		}
 	}
+
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.out))
+		return cr
+	}
+
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "ok"
+	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
 
 	return cr
 }
