@@ -431,7 +431,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		pluginName, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand str")
 
-		componentName := pkgcustomplugins.ConvertToComponentName(pluginName)
+		customComponentName := pkgcustomplugins.ConvertToComponentName(pluginName)
 
 		// register with manual mode first
 		randSfx1, err := randStr(10)
@@ -445,7 +445,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
 				// should not run, only registers
-				Mode: pkgcustomplugins.SpecModeManual,
+				RunMode: pkgcustomplugins.SpecModeManual,
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -464,9 +464,16 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 							},
 						},
 						{
-							Name: "third-step",
+							Name: "third-step-1",
 							RunBashScript: &pkgcustomplugins.RunBashScript{
 								Script:      "echo 111 > " + fileToWrite1,
+								ContentType: "plaintext",
+							},
+						},
+						{
+							Name: "third-step-2",
+							RunBashScript: &pkgcustomplugins.RunBashScript{
+								Script:      "exit 1",
 								ContentType: "plaintext",
 							},
 						},
@@ -490,15 +497,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			for componentName, curSpec := range csPlugins {
 				Expect(componentName).Should(Equal(curSpec.ComponentName()))
-				GinkgoLogr.Info("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
+				GinkgoLogr.Info("currently registered custom plugin (expect run_mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
 
 				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
+				fmt.Println("currently registered custom plugin (expect run_mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.Mode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
+				Expect(curSpec.RunMode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
 			}
-			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
+			Expect(csPlugins[customComponentName]).NotTo(BeNil(), "expected to be registered")
 		})
 
 		It("make sure the plugin has been not run as it's manual mode", func() {
@@ -510,7 +517,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		})
 
 		It("trigger the plugin that is in manual mode", func() {
-			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, componentName)
+			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, customComponentName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			Expect(len(resp)).To(Equal(1), "expected 1 response")
 
@@ -520,6 +527,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		It("make sure the plugin has been run manually", func() {
 			_, err := os.Stat(fileToWrite1)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
+		})
+
+		It("make sure the plugin has been failed as configured", func() {
+			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(customComponentName))
+			Expect(err).NotTo(HaveOccurred(), "failed to get states")
+			GinkgoLogr.Info("got states", "states", states)
+			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
+			Expect(states[0].States).To(HaveLen(1), "expected states to have 1 state")
+			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeUnhealthy), "expected health state to be unhealthy")
 		})
 
 		randSfx2, err := randStr(10)
@@ -535,7 +551,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				PluginName: pluginName,
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
-				Mode: "",
+				RunMode: "",
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -602,15 +618,15 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			for componentName, curSpec := range csPlugins {
 				Expect(componentName).Should(Equal(curSpec.ComponentName()))
-				GinkgoLogr.Info("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName)
+				GinkgoLogr.Info("currently registered custom plugin (expect run_mode: '')", "name", curSpec.PluginName, "componentName", componentName)
 
 				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
+				fmt.Println("currently registered custom plugin (expect run_mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.Mode).Should(BeEmpty(), "expected empty mode")
+				Expect(curSpec.RunMode).Should(BeEmpty(), "expected empty run_mode")
 			}
-			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
+			Expect(csPlugins[customComponentName]).NotTo(BeNil(), "expected to be registered")
 
 			// make sure the plugin has been run once by checking the file exists when the dry mode is disabled
 			// wait for the plugin to run
@@ -632,7 +648,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
 			fmt.Println("/v1/states RESPONSE BODY:", string(body))
 
-			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(componentName))
+			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(customComponentName))
 			Expect(err).NotTo(HaveOccurred(), "failed to get states")
 			GinkgoLogr.Info("got states", "states", states)
 			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
@@ -645,7 +661,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		})
 
 		It("deregister the custom plugin", func() {
-			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, componentName)
+			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, customComponentName)
 			Expect(derr).NotTo(HaveOccurred(), "failed to deregister custom plugin")
 		})
 

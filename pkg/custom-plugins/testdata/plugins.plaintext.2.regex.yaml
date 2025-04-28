@@ -25,7 +25,7 @@
             echo '{"name": "test", "result": "healthy", "passed": true}'
             echo "thank you"
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 10m
@@ -58,7 +58,7 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false}'
             echo "done"
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 10m
@@ -96,7 +96,7 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false}'
             echo "done"
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 10m

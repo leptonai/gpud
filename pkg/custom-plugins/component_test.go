@@ -1092,3 +1092,37 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, cr.extraInfo["passed"], "false")
 	})
 }
+
+func TestComponentCheckManualExit(t *testing.T) {
+	testFile := filepath.Join("testdata", "plugins.manual.yaml")
+	specs, err := LoadSpecs(testFile)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 1)
+
+	spec := specs[0]
+	assert.Equal(t, "manual-exit-1", spec.PluginName)
+	assert.Equal(t, SpecTypeComponent, spec.Type)
+	assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+	assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+	initFunc := spec.NewInitFunc()
+	assert.NotNil(t, initFunc)
+
+	comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	rs := comp.Check()
+	assert.NotNil(t, rs)
+
+	cr, ok := rs.(*checkResult)
+	assert.True(t, ok)
+	assert.Equal(t, int32(1), cr.exitCode)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
+	assert.Contains(t, cr.reason, "error executing state plugin -- exit status 1")
+	assert.Contains(t, rs.Summary(), "error executing state plugin -- exit status 1")
+
+	assert.Equal(t, cr.extraInfo["description"], "triggered to fail with exit code 1")
+}

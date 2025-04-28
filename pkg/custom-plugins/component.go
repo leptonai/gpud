@@ -65,7 +65,7 @@ func (c *component) Name() string { return c.spec.ComponentName() }
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
-	if c.spec.Mode == SpecModeManual {
+	if c.spec.RunMode == SpecModeManual {
 		log.Logger.Infow("custom plugin is in manual mode, skipping start", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 		return nil
 	}
@@ -121,25 +121,17 @@ func (c *component) Check() components.CheckResult {
 	cr.out, cr.exitCode, cr.err = c.spec.HealthStatePlugin.executeAllSteps(cctx)
 	cr.output = string(cr.out)
 
-	if cr.err != nil {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.out))
-		return cr
-	}
-
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = "ok"
-	log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
-
 	// either custom parser (jsonpath) or default parser
+	// parse before processing the error/command failures
+	// since we still want to process the output even if the plugin failed
 	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
-		var matchResults map[string]extractedField
-		matchResults, cr.err = c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
-		if cr.err != nil {
-			log.Logger.Errorw("error extracting extra info", "error", cr.err)
+		matchResults, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		if exErr != nil {
+			log.Logger.Errorw("error extracting extra info", "error", exErr)
 
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "failed to parse plugin output"
+			cr.err = exErr
 			return cr
 		}
 
@@ -160,6 +152,22 @@ func (c *component) Check() components.CheckResult {
 				}
 			}
 		}
+	}
+
+	// we still parsed the output above
+	// even when the command/script had failed
+	// e.g., command failed with non-zero exit code
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error executing state plugin -- %s (exit code: %d)", cr.err, cr.exitCode)
+		return cr
+	}
+
+	// no invalid output found or no error occurred, thus healthy
+	if cr.reason == "" {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "ok"
+		log.Logger.Debugw("successfully executed plugin", "exitCode", cr.exitCode, "output", string(cr.out))
 	}
 
 	return cr

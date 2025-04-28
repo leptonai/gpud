@@ -30,7 +30,7 @@
             uv run /tmp/hello.py
             rm -f /tmp/hello.py
 
-  mode: ""
+  run_mode: ""
   timeout: 1m
 
 
@@ -51,7 +51,7 @@
             echo "about to fail with exit code 1"
             exit 1
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 100m
@@ -124,7 +124,7 @@
             uv run /tmp/nvidia-smi-gpu-throttle.py
             rm -f /tmp/nvidia-smi-gpu-throttle.py
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 10m
@@ -193,7 +193,7 @@
             uv run /tmp/nvidia-smi-gpu-power-state.py
             rm -f /tmp/nvidia-smi-gpu-power-state.py
 
-  mode: ""
+  run_mode: ""
 
   timeout: 1m
   interval: 10m
