@@ -176,6 +176,7 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = fmt.Sprintf("error getting serial id: %s", err)
+				return cr
 			}
 			gpuID.SN = serialID
 		}
@@ -186,6 +187,7 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = fmt.Sprintf("error getting minor id: %s", err)
+				return cr
 			}
 			gpuID.MinorID = strconv.Itoa(minorID)
 		}
