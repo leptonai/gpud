@@ -15,6 +15,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/mem"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -254,6 +255,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
+				Time:      metav1.NewTime(time.Now().UTC()),
 				Component: Name,
 				Name:      Name,
 				Health:    apiv1.HealthStateTypeHealthy,
@@ -263,6 +265,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
+		Time:      metav1.NewTime(cr.ts),
 		Component: Name,
 		Name:      Name,
 		Reason:    cr.reason,

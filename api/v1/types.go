@@ -21,6 +21,9 @@ const (
 // so the health state here is to provide more details about the healthiness,
 // and other data for the control plane to decide how to alert and remediate the issue.
 type HealthState struct {
+	// Time represents when the event happened.
+	Time metav1.Time `json:"time"`
+
 	// Component represents which component generated the state.
 	Component string `json:"component,omitempty"`
 
@@ -44,6 +47,7 @@ type HealthState struct {
 	// SuggestedActions represents the suggested actions to mitigate the issue.
 	SuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
 
+	// ExtraInfo represents the extra information of the state.
 	ExtraInfo map[string]string `json:"extra_info,omitempty"`
 }
 

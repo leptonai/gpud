@@ -641,7 +641,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(states[0].States[0].Reason).To(Equal("ok"), "expected reason to be ok")
 			Expect(states[0].States[0].ExtraInfo["name"]).To(Equal(randStrToEcho))
 			Expect(states[0].States[0].ExtraInfo["health"]).To(Equal("degraded"))
-			Expect(states[0].States[0].ExtraInfo["last_check_ts_unix_seconds"]).Should(Not(BeEmpty()))
+			Expect(states[0].States[0].Time.IsZero()).Should(BeFalse(), "expected time to be set")
 		})
 
 		It("deregister the custom plugin", func() {

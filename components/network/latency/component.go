@@ -10,14 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
+	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
-	"github.com/olekukonko/tablewriter"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Name is the ID of the network latency component.
@@ -205,6 +207,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
+				Time:      metav1.NewTime(time.Now().UTC()),
 				Component: Name,
 				Name:      Name,
 				Health:    apiv1.HealthStateTypeHealthy,
@@ -214,6 +217,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
+		Time:      metav1.NewTime(cr.ts),
 		Component: Name,
 		Name:      Name,
 		Reason:    cr.reason,

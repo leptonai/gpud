@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
@@ -100,10 +102,6 @@ func (c *component) Check() components.CheckResult {
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
 	}
-	cr.extraInfo = map[string]string{
-		"last_check_ts_unix_seconds": fmt.Sprintf("%d", cr.ts.Unix()),
-	}
-
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
@@ -174,6 +172,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	if lastCheckResult == nil {
 		return apiv1.HealthStates{
 			{
+				Time:      metav1.NewTime(time.Now().UTC()),
 				Component: c.Name(),
 				Name:      c.spec.PluginName,
 				Health:    apiv1.HealthStateTypeHealthy,
@@ -254,6 +253,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
+				Time:   metav1.NewTime(time.Now().UTC()),
 				Health: apiv1.HealthStateTypeHealthy,
 				Reason: "no data yet",
 			},
@@ -261,6 +261,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
+		Time:      metav1.NewTime(cr.ts),
 		Component: cr.componentName,
 		Name:      cr.pluginName,
 		Reason:    cr.reason,
