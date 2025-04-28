@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -196,14 +197,31 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 	}
 
 	for uuid, dev := range nvmlInstance.Devices() {
-		mem, err := nvidianvml.GetMemory(uuid, dev)
+		if info.Memory == "" {
+			mem, err := nvidianvml.GetMemory(uuid, dev)
+			if err != nil {
+				return nil, err
+			}
+
+			qty := resource.NewQuantity(int64(mem.TotalBytes), resource.DecimalSI)
+			info.Memory = qty.String()
+		}
+
+		serialID, err := nvidianvml.GetSerial(uuid, dev)
 		if err != nil {
 			return nil, err
 		}
 
-		qty := resource.NewQuantity(int64(mem.TotalBytes), resource.DecimalSI)
-		info.Memory = qty.String()
-		break
+		minorID, err := nvidianvml.GetMinorID(uuid, dev)
+		if err != nil {
+			return nil, err
+		}
+
+		info.GPUs = append(info.GPUs, apiv1.MachineGPUInstance{
+			UUID:    uuid,
+			SN:      serialID,
+			MinorID: strconv.Itoa(minorID),
+		})
 	}
 
 	return info, nil
