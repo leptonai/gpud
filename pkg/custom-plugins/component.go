@@ -156,7 +156,7 @@ func (c *component) Check() components.CheckResult {
 
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error executing state plugin -- %s (output: %s)", cr.err, string(cr.out))
+		cr.reason = fmt.Sprintf("error executing state plugin -- %s (exit code: %d)", cr.err, cr.exitCode)
 		return cr
 	}
 
