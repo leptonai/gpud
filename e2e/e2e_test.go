@@ -445,7 +445,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
 				// should not run, only registers
-				Mode: pkgcustomplugins.SpecModeManual,
+				RunMode: pkgcustomplugins.SpecModeManual,
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -490,13 +490,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			for componentName, curSpec := range csPlugins {
 				Expect(componentName).Should(Equal(curSpec.ComponentName()))
-				GinkgoLogr.Info("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
+				GinkgoLogr.Info("currently registered custom plugin (expect run_mode: manual)", "name", curSpec.PluginName, "componentName", componentName)
 
 				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
+				fmt.Println("currently registered custom plugin (expect run_mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.Mode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
+				Expect(curSpec.RunMode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
 			}
 			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
 		})
@@ -535,7 +535,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				PluginName: pluginName,
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
-				Mode: "",
+				RunMode: "",
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -602,13 +602,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			for componentName, curSpec := range csPlugins {
 				Expect(componentName).Should(Equal(curSpec.ComponentName()))
-				GinkgoLogr.Info("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName)
+				GinkgoLogr.Info("currently registered custom plugin (expect run_mode: '')", "name", curSpec.PluginName, "componentName", componentName)
 
 				b, err := json.Marshal(curSpec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				fmt.Println("currently registered custom plugin (expect mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
+				fmt.Println("currently registered custom plugin (expect run_mode: '')", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.Mode).Should(BeEmpty(), "expected empty mode")
+				Expect(curSpec.RunMode).Should(BeEmpty(), "expected empty run_mode")
 			}
 			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
 

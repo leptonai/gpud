@@ -15,7 +15,7 @@
           content_type: plaintext
           script: echo 'State script'
 
-  mode: manual
+  run_mode: manual
 
   timeout: 10s
   interval: 1m
@@ -38,7 +38,7 @@
           script: |
             python3 test.py
 
-  mode: manual
+  run_mode: manual
 
   timeout: 10s
   interval: 1m
