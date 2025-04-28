@@ -63,7 +63,7 @@ func (c *component) Name() string { return c.spec.ComponentName() }
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
-	if c.spec.Mode == "manual" {
+	if c.spec.Mode == SpecModeManual {
 		log.Logger.Infow("custom plugin is in manual mode, skipping start", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 		return nil
 	}

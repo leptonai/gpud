@@ -23,6 +23,9 @@ const (
 	// SpecTypeComponent is the type of the plugin that is used to run as a component.
 	// Meant to be run periodically.
 	SpecTypeComponent = "component"
+
+	// SpecModeManual is the mode of the plugin that is used to run manually.
+	SpecModeManual = "manual"
 )
 
 // Specs is a list of plugin specs.
@@ -40,12 +43,12 @@ type Spec struct {
 
 	// Mode is set to "manual" to only when explicitly triggered.
 	// The plugin is only registered but not run periodically.
-	//
 	// GPUd does not run this even once.
 	// GPUd does not run this periodically.
-	//
-	// This is only applicable to "component" type plugins.
+	// This "manual" mode is only applicable to "component" type plugins.
 	// The "init" type plugins are always run only once.
+	//
+	// If not set, the plugin is run periodically by default.
 	Mode string `json:"mode"`
 
 	// HealthStatePlugin defines the plugin instructions

@@ -445,7 +445,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
 				// should not run, only registers
-				Mode: "manual",
+				Mode: pkgcustomplugins.SpecModeManual,
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -496,7 +496,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
 				fmt.Println("currently registered custom plugin (expect mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.Mode).Should(Equal("manual"), "expected manual mode")
+				Expect(curSpec.Mode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
 			}
 			Expect(csPlugins[componentName]).NotTo(BeNil(), "expected to be registered")
 		})
@@ -535,8 +535,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				PluginName: pluginName,
 				Type:       pkgcustomplugins.SpecTypeComponent,
 
-				// should not run, only registers
-				Mode: "manual",
+				Mode: "",
 
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
@@ -567,7 +566,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Interval: metav1.Duration{Duration: 0},
 			}
 			testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
-			testPluginSpec.Mode = ""
 			testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps,
 				pkgcustomplugins.Step{
 					Name: "fourth-step",
