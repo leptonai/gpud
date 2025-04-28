@@ -695,7 +695,7 @@ func TestCheck_NVMLInstanceNil(t *testing.T) {
 
 	result := component.Check()
 
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Equal(t, "NVIDIA NVML instance is nil", result.Summary())
 }
 
@@ -713,7 +713,7 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 
 	result := component.Check()
 
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Equal(t, "NVIDIA NVML library is not loaded", result.Summary())
 }
 
@@ -824,7 +824,7 @@ func TestData_HealthState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.data.HealthState()
+			got := tt.data.HealthStateType()
 			assert.Equal(t, tt.expected, got)
 		})
 	}
@@ -909,7 +909,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 		reason: "test health state json",
 	}
 
-	states := data.getLastHealthStates()
+	states := data.HealthStates()
 
 	// Verify the basic health state properties
 	require.Len(t, states, 1)

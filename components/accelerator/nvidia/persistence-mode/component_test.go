@@ -623,7 +623,7 @@ func TestData_HealthState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.data.HealthState()
+			got := tt.data.HealthStateType()
 			assert.Equal(t, tt.expected, got)
 		})
 	}

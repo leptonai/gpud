@@ -86,7 +86,7 @@ func (m *MockKmsgSyncer) Close() error {
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -102,7 +102,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		reason: "error calculating CPU usage",
 	}
 
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testError.Error(), states[0].Error)
@@ -533,7 +533,7 @@ func TestComponentDataExtraInfo(t *testing.T) {
 	}
 
 	// Get states
-	states := testData.getLastHealthStates()
+	states := testData.HealthStates()
 
 	// Verify
 	assert.Len(t, states, 1)
@@ -648,7 +648,7 @@ func TestDataMarshalingInStates(t *testing.T) {
 	}
 
 	// Get states
-	states := testData.getLastHealthStates()
+	states := testData.HealthStates()
 
 	// Verify no errors in marshaling
 	assert.Len(t, states, 1)
@@ -702,7 +702,7 @@ func TestCheckHealthState(t *testing.T) {
 	// Use the Check method directly which returns CheckResult
 	rs := c.Check()
 	assert.NotNil(t, rs)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
 
 	fmt.Println(rs.String())
 

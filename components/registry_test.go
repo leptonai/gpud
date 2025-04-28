@@ -59,8 +59,14 @@ func (r *mockCheckResult) Summary() string {
 	return "mock summary"
 }
 
-func (r *mockCheckResult) HealthState() apiv1.HealthStateType {
+func (r *mockCheckResult) HealthStateType() apiv1.HealthStateType {
 	return apiv1.HealthStateTypeHealthy
+}
+
+func (r *mockCheckResult) HealthStates() apiv1.HealthStates {
+	return apiv1.HealthStates{
+		{Health: apiv1.HealthStateTypeHealthy},
+	}
 }
 
 // Mock function that returns a component without error

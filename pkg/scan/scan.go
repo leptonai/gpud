@@ -95,7 +95,7 @@ const (
 
 func printSummary(result components.CheckResult) {
 	header := checkMark
-	if result.HealthState() != apiv1.HealthStateTypeHealthy {
+	if result.HealthStateType() != apiv1.HealthStateTypeHealthy {
 		header = warningSign
 	}
 	fmt.Printf("%s %s\n", header, result.Summary())

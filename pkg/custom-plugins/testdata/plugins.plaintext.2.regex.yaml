@@ -1,4 +1,3 @@
-
 - plugin_name: test-healthy
   type: component
 
@@ -26,7 +25,7 @@
             echo '{"name": "test", "result": "healthy", "passed": true}'
             echo "thank you"
 
-  manual_mode: false
+  manual_run: false
 
   timeout: 1m
   interval: 10m
@@ -59,7 +58,7 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false}'
             echo "done"
 
-  manual_mode: false
+  manual_run: false
 
   timeout: 1m
   interval: 10m
@@ -97,7 +96,7 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false}'
             echo "done"
 
-  manual_mode: false
+  manual_run: false
 
   timeout: 1m
   interval: 10m

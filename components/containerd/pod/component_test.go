@@ -63,7 +63,7 @@ func TestDataFunctions(t *testing.T) {
 		assert.NotNil(t, b)
 
 		// Test states with empty data
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 
@@ -79,7 +79,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with error - just verify we get an unhealthy state
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
@@ -92,7 +92,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with unimplemented error
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		assert.Contains(t, states[0].Error, "test unimplemented")
@@ -107,7 +107,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test states with empty pods and error
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "empty pods with error reason", states[0].Reason)
 	})
@@ -123,7 +123,7 @@ func TestDataFunctions(t *testing.T) {
 		}
 
 		// Test getStates with pods
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Contains(t, states[0].ExtraInfo, "data")
 		assert.Contains(t, states[0].ExtraInfo, "encoding")
@@ -560,7 +560,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
 
@@ -574,7 +574,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
 
@@ -584,7 +584,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
 
@@ -594,7 +594,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
 
@@ -604,7 +604,7 @@ func TestGetHealthFromStates(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy, // Explicitly set health
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	})
 }
@@ -619,7 +619,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy,
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
@@ -634,7 +634,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			health: apiv1.HealthStateTypeUnhealthy,
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
@@ -660,7 +660,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			health: apiv1.HealthStateTypeHealthy,
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -684,7 +684,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 			Pods: []pkgcontainerd.PodSandbox{badPod},
 		}
 
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		// Even with JSON issues, the function should not return an error
 		// It might produce empty or escaped JSON
 		assert.Len(t, states, 1)
@@ -796,7 +796,7 @@ func TestData_Reason(t *testing.T) {
 			tt.data.reason = tt.explicitReason
 
 			// We verify that getStates doesn't fail and returns the expected reason
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 			assert.Equal(t, tt.explicitReason, states[0].Reason)
 
 			// If there's an error, verify Error field is populated
@@ -913,7 +913,7 @@ func TestData_ReasonWithErrors(t *testing.T) {
 			tt.data.reason = "explicit test reason"
 			tt.data.health = apiv1.HealthStateTypeUnhealthy
 
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 			assert.Equal(t, "explicit test reason", states[0].Reason)
 			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 		})
@@ -1009,7 +1009,7 @@ func TestData_HealthStates(t *testing.T) {
 				tt.data.reason = "test reason"
 			}
 
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 			assert.Equal(t, tt.expectedState, states[0].Health)
 		})
 	}
@@ -1111,7 +1111,7 @@ func TestData_getStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			states := tt.data.getLastHealthStates()
+			states := tt.data.HealthStates()
 			assert.Len(t, states, tt.expectedStates)
 			assert.Equal(t, tt.expectedName, states[0].Name)
 
@@ -1254,7 +1254,7 @@ func TestDataWithCustomReason(t *testing.T) {
 		reason: "custom reason",
 	}
 
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Equal(t, "custom reason", states[0].Reason)
 }
 
@@ -1288,7 +1288,7 @@ func TestDataWithReason(t *testing.T) {
 	}
 
 	// Call getStates
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Equal(t, cr.reason, states[0].Reason)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
@@ -1297,7 +1297,7 @@ func TestDataWithReason(t *testing.T) {
 	cr.health = apiv1.HealthStateTypeUnhealthy
 
 	// Call getStates again
-	states = cr.getLastHealthStates()
+	states = cr.HealthStates()
 	assert.Equal(t, cr.reason, states[0].Reason)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
@@ -1306,7 +1306,7 @@ func TestDataWithReason(t *testing.T) {
 func TestDataWithEmptyOrNilValues(t *testing.T) {
 	// Nil data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Equal(t, "no data yet", states[0].Reason)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
@@ -1314,7 +1314,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 	cr = &checkResult{
 		reason: "explicit reason for empty data",
 	}
-	states = cr.getLastHealthStates()
+	states = cr.HealthStates()
 	assert.Equal(t, "explicit reason for empty data", states[0].Reason)
 
 	// Data with empty pods and explicit reason
@@ -1322,7 +1322,7 @@ func TestDataWithEmptyOrNilValues(t *testing.T) {
 		Pods:   []pkgcontainerd.PodSandbox{},
 		reason: "explicit reason for data with empty pods",
 	}
-	states = cr.getLastHealthStates()
+	states = cr.HealthStates()
 	assert.Equal(t, "explicit reason for data with empty pods", states[0].Reason)
 }
 
@@ -1581,7 +1581,7 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	}
 
 	// Get the states
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 
 	// Verify the state fields
@@ -1749,7 +1749,7 @@ func TestDataWithComplexErrors(t *testing.T) {
 			}
 
 			// Test the getStates method with this error
-			states := cr.getLastHealthStates()
+			states := cr.HealthStates()
 			assert.Len(t, states, 1)
 
 			// Check that our explicit reason is used
@@ -2230,7 +2230,7 @@ func TestDataHealthState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.data.HealthState()
+			result := tt.data.HealthStateType()
 			assert.Equal(t, tt.expectedResult, result)
 		})
 	}

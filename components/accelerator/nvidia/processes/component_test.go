@@ -289,7 +289,7 @@ func TestDataGetLastHealthStates(t *testing.T) {
 		reason: "all GPUs healthy",
 	}
 
-	states := healthyData.getLastHealthStates()
+	states := healthyData.HealthStates()
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
@@ -301,7 +301,7 @@ func TestDataGetLastHealthStates(t *testing.T) {
 		reason: "GPU issue detected",
 	}
 
-	states = unhealthyData.getLastHealthStates()
+	states = unhealthyData.HealthStates()
 	assert.Equal(t, 1, len(states))
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, testErr.Error(), states[0].Error)
@@ -367,19 +367,19 @@ func TestDataSummary(t *testing.T) {
 func TestDataHealthState(t *testing.T) {
 	// Test nil data
 	var nilData *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthStateType())
 
 	// Test data with health state
 	dataWithHealth := &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, dataWithHealth.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, dataWithHealth.HealthStateType())
 
 	// Test data with unhealthy state
 	dataUnhealthy := &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, dataUnhealthy.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, dataUnhealthy.HealthStateType())
 }
 
 // Test Check edge cases

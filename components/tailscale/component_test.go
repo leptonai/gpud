@@ -313,7 +313,7 @@ func TestDataGetStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			states := tc.data.getLastHealthStates()
+			states := tc.data.HealthStates()
 
 			assert.Len(t, states, 1, "getStates should return exactly one state")
 

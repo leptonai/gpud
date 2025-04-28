@@ -20,7 +20,7 @@ import (
 func TestDataGetStatesNil(t *testing.T) {
 	// Test with nil data
 	var cr *checkResult
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -36,7 +36,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 		err:        testError,
 	}
 
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
@@ -297,7 +297,7 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	rs := comp.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
 
 	fmt.Println(rs.String())
 }

@@ -316,7 +316,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// thus no need to start
 	for _, c := range s.initRegistry.All() {
 		rs := c.Check()
-		if rs.HealthState() != apiv1.HealthStateTypeHealthy {
+		if rs.HealthStateType() != apiv1.HealthStateTypeHealthy {
 			return nil, fmt.Errorf("failed to start init plugin %s: %s", c.Name(), rs.Summary())
 		}
 		log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())

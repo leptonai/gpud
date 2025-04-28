@@ -72,8 +72,10 @@ type CheckResult interface {
 	// Summary returns a summary of the check result.
 	Summary() string
 
-	// HealthState returns the health state of the check result.
-	HealthState() apiv1.HealthStateType
+	// HealthStateType returns the health state of the last check result.
+	HealthStateType() apiv1.HealthStateType
+	// HealthStates returns the health states of the last check result.
+	HealthStates() apiv1.HealthStates
 }
 
 // CheckResultDebugger is an optional interface that can be implemented by components

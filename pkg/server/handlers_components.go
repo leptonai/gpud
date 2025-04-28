@@ -28,11 +28,12 @@ const (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
-
+	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
 
-	if g.cfg.EnableAPIPluginRegistration {
+	if g.cfg.EnablePluginAPI {
 		r.DELETE(URLPathComponents, g.deregisterComponent)
+
 		r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
 		r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
 	}
@@ -121,6 +122,32 @@ func (g *globalHandler) deregisterComponent(c *gin.Context) {
 	_ = g.componentsRegistry.Deregister(componentName)
 
 	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component deregistered", "component": comp.Name()})
+}
+
+const URLPathComponentsTriggerCheck = "/components/trigger-check"
+
+// triggerComponentCheck godoc
+// @Summary Manually trigger a component check in gpud
+// @Description Manually trigger a component check in gpud
+// @ID triggerComponentCheck
+// @Produce  json
+// @Success 200 {object}
+// @Router /v1/components/trigger-check [get]
+func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
+	componentName := c.Query("componentName")
+	if componentName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component name is required"})
+		return
+	}
+
+	comp := g.componentsRegistry.Get(componentName)
+	if comp == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
+		return
+	}
+
+	rs := comp.Check()
+	c.JSON(http.StatusOK, rs.HealthStates())
 }
 
 const URLPathComponentsCustomPlugins = "/components/custom-plugin"

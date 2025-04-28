@@ -158,6 +158,57 @@ func DeregisterComponent(ctx context.Context, addr string, componentName string,
 	return nil
 }
 
+// TriggerComponentCheck manually triggers a component check.
+func TriggerComponentCheck(ctx context.Context, addr string, componentName string, opts ...OpOption) (v1.HealthStates, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
+	if componentName == "" {
+		return nil, errors.New("component name is required")
+	}
+
+	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/components/trigger-check", addr))
+	if err != nil {
+		return nil, err
+	}
+
+	q := reqURL.Query()
+	q.Add("componentName", componentName)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if op.requestContentType != "" {
+		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+	}
+	if op.requestAcceptEncoding != "" {
+		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+	}
+
+	resp, err := createDefaultHTTPClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("server not ready, response not 200")
+	}
+
+	var healthStates v1.HealthStates
+	if err := json.NewDecoder(resp.Body).Decode(&healthStates); err != nil {
+		return nil, fmt.Errorf("failed to decode json: %w", err)
+	}
+
+	log.Logger.Infow("triggered component check", "component", componentName, "healthStates", healthStates)
+	return healthStates, nil
+}
+
 func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {

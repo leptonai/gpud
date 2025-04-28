@@ -316,7 +316,7 @@ func TestDataWithMultipleBadEnvs(t *testing.T) {
 	}
 
 	// Check the reason string contains both env vars
-	states := cr.getLastHealthStates()
+	states := cr.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Contains(t, states[0].Reason, "CUDA_PROFILE")
 	assert.Contains(t, states[0].Reason, "COMPUTE_PROFILE")
@@ -363,13 +363,13 @@ func TestCheckResultSummary(t *testing.T) {
 func TestCheckResultHealthState(t *testing.T) {
 	// Test with nil checkResult
 	var cr *checkResult
-	assert.Empty(t, cr.HealthState())
+	assert.Empty(t, cr.HealthStateType())
 
 	// Test with health state set
 	cr = &checkResult{
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 }
 
 func TestCheckWithNilNVML(t *testing.T) {

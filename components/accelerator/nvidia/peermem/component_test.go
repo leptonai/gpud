@@ -217,7 +217,7 @@ func TestCheckWithNoNVML(t *testing.T) {
 	}
 
 	result := c.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 }
 
@@ -239,7 +239,7 @@ func TestCheckWithNVML(t *testing.T) {
 	}
 
 	result := c.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "ibcore successfully loaded peermem module")
 
 	// Test with unsuccessful peermem check (module not loaded)
@@ -254,7 +254,7 @@ func TestCheckWithNVML(t *testing.T) {
 	c.checkLsmodPeermemModuleFunc = mockChecker.Check
 
 	result = c.Check()
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "ibcore is not using peermem module")
 
 	// Test with error during peermem check
@@ -266,7 +266,7 @@ func TestCheckWithNVML(t *testing.T) {
 	c.checkLsmodPeermemModuleFunc = mockChecker.Check
 
 	result = c.Check()
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "error checking peermem: command failed")
 }
 
@@ -352,7 +352,7 @@ func TestDataMethods(t *testing.T) {
 	var cr *checkResult
 	assert.Equal(t, "", cr.String())
 	assert.Equal(t, "", cr.Summary())
-	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
 	assert.Equal(t, "", cr.getError())
 
 	// Test without peer mem module output
@@ -362,7 +362,7 @@ func TestDataMethods(t *testing.T) {
 	}
 	assert.Equal(t, "no data", cr.String())
 	assert.Equal(t, "test reason", cr.Summary())
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 
 	// Test with peer mem module output (module loaded)
 	cr = &checkResult{
@@ -374,7 +374,7 @@ func TestDataMethods(t *testing.T) {
 	}
 	assert.Equal(t, "ibcore using peermem module: true", cr.String())
 	assert.Equal(t, "test reason", cr.Summary())
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 
 	// Test with peer mem module output (module not loaded)
 	cr = &checkResult{

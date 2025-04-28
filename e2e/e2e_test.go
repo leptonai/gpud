@@ -137,7 +137,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			fmt.Sprintf("--listen-address=%s", ep),
 
 			// to run e2e test with api plugin registration
-			"--enable-api-plugin-registration",
+			"--enable-plugin-api",
 			"--plugin-specs-file=" + specFile.Name(),
 		}
 
@@ -441,7 +441,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Type:       pkgcustomplugins.SpecTypeComponent,
 
 			// should not run, only registers
-			ManualMode: true,
+			ManualRun: true,
 
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
@@ -492,7 +492,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 				b, err := json.Marshal(spec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				Expect(spec.ManualMode).To(BeTrue(), "expected manual mode")
+				Expect(spec.ManualRun).To(BeTrue(), "expected manual mode")
 
 				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
 			}
@@ -507,13 +507,26 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).To(Equal(os.ErrNotExist), "expected file to not be created")
 		})
 
+		It("trigger the plugin that is in manual mode", func() {
+			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, testPluginSpec.ComponentName())
+			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
+			Expect(len(resp)).To(Equal(1), "expected 1 response")
+
+			fmt.Printf("%+v\n", resp)
+		})
+
+		It("make sure the plugin has been run manually", func() {
+			_, err := os.Stat(fileToWrite1)
+			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
+		})
+
 		randSfx2, err := randStr(10)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 		fileToWrite2 := filepath.Join(os.TempDir(), "testplugin"+randSfx2)
 		defer os.Remove(fileToWrite2)
 
 		testPluginSpec.Interval = metav1.Duration{Duration: time.Minute}
-		testPluginSpec.ManualMode = false
+		testPluginSpec.ManualRun = false
 		testPluginSpec.HealthStatePlugin.Steps = append(testPluginSpec.HealthStatePlugin.Steps,
 			pkgcustomplugins.Step{
 				Name: "fourth-step",
@@ -560,7 +573,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 				b, err := json.Marshal(spec)
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
-				Expect(spec.ManualMode).To(BeFalse(), "expected non-manual mode")
+				Expect(spec.ManualRun).To(BeFalse(), "expected non-manual mode")
 
 				fmt.Println("custom plugin", "name", spec.PluginName, "componentName", componentName, "spec", string(b))
 			}

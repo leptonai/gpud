@@ -38,7 +38,7 @@ var (
 	ibstatCommand   string
 	pluginSpecsFile string
 
-	enableAPIPluginRegistration bool
+	enablePluginAPI bool
 )
 
 const (
@@ -220,9 +220,9 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden:      true,
 				},
 				&cli.BoolFlag{
-					Name:        "enable-api-plugin-registration",
-					Usage:       "enable api plugin registration (default: false)",
-					Destination: &enableAPIPluginRegistration,
+					Name:        "enable-plugin-api",
+					Usage:       "enable plugin API (default: false)",
+					Destination: &enablePluginAPI,
 				},
 			},
 		},

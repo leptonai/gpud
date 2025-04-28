@@ -770,7 +770,7 @@ func TestCheckOnce_DeviceCountError(t *testing.T) {
 func TestData_GetHealthStates(t *testing.T) {
 	// Test with nil data
 	var nilData *checkResult
-	states := nilData.getLastHealthStates()
+	states := nilData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, "no data yet", states[0].Reason)
@@ -780,7 +780,7 @@ func TestData_GetHealthStates(t *testing.T) {
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "all good",
 	}
-	states = healthyData.getLastHealthStates()
+	states = healthyData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
@@ -790,7 +790,7 @@ func TestData_GetHealthStates(t *testing.T) {
 		reason: "problems found",
 		err:    errors.New("test error"),
 	}
-	states = unhealthyData.getLastHealthStates()
+	states = unhealthyData.HealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test error", states[0].Error)
@@ -852,8 +852,8 @@ func TestData_StringAndUtilityMethods(t *testing.T) {
 	assert.Equal(t, "", nilData.Summary())
 
 	// Test HealthState method
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthState())
-	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.HealthStateType())
+	assert.Equal(t, apiv1.HealthStateType(""), nilData.HealthStateType())
 }
 
 func TestCheckOnce_NilNVMLInstance(t *testing.T) {

@@ -180,11 +180,11 @@ func TestCheckResult_HealthState(t *testing.T) {
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
 
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 
 	// Test nil case
 	var nilCR *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), nilCR.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), nilCR.HealthStateType())
 }
 
 func TestCheckResult_GetError(t *testing.T) {
@@ -207,10 +207,10 @@ func TestCheckResult_GetError(t *testing.T) {
 func TestCheckResult_GetLastHealthStates(t *testing.T) {
 	// Test nil case
 	var nilCR *checkResult
-	nilStates := nilCR.getLastHealthStates("custom-component", "test-plugin")
+	nilStates := nilCR.HealthStates()
 	require.Equal(t, 1, len(nilStates))
-	assert.Equal(t, "custom-component", nilStates[0].Component)
-	assert.Equal(t, "test-plugin", nilStates[0].Name)
+	assert.Equal(t, "", nilStates[0].Component)
+	assert.Equal(t, "", nilStates[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, nilStates[0].Health)
 	assert.Equal(t, "no data yet", nilStates[0].Reason)
 
@@ -223,7 +223,7 @@ func TestCheckResult_GetLastHealthStates(t *testing.T) {
 		err:           errors.New("test error"),
 	}
 
-	states := cr.getLastHealthStates("custom-component", "test-plugin")
+	states := cr.HealthStates()
 	require.Equal(t, 1, len(states))
 	assert.Equal(t, "custom-component", states[0].Component)
 	assert.Equal(t, "test-plugin", states[0].Name)
@@ -923,7 +923,7 @@ func TestCheckResult_GetLastHealthStatesWithEmptyOutput(t *testing.T) {
 		out:           []byte{}, // Empty output
 	}
 
-	healthStates := cr.getLastHealthStates("test-component", "test-plugin")
+	healthStates := cr.HealthStates()
 	require.Len(t, healthStates, 1)
 	require.Equal(t, "test-component", healthStates[0].Component)
 	require.Equal(t, "test-plugin", healthStates[0].Name)
@@ -1018,7 +1018,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, int32(0), cr.exitCode)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
 		assert.Contains(t, cr.reason, `ok`)
 		assert.Contains(t, rs.Summary(), `ok`)
 
@@ -1050,7 +1050,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, int32(0), cr.exitCode)
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
 		assert.Contains(t, cr.reason, "unexpected plugin output")
 		assert.Contains(t, rs.Summary(), "unexpected plugin output")
 
@@ -1082,7 +1082,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, int32(0), cr.exitCode)
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthState())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
 		assert.Contains(t, cr.reason, "unexpected plugin output")
 		assert.Contains(t, rs.Summary(), "unexpected plugin output")
 

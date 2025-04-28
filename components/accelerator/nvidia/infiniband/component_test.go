@@ -861,11 +861,11 @@ func TestDataHealthState(t *testing.T) {
 
 	// Test nil data
 	var cr *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
 
 	// Test with health state
 	cr = &checkResult{health: apiv1.HealthStateTypeUnhealthy}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthState())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 }
 
 func TestDataGetError(t *testing.T) {

@@ -132,7 +132,7 @@ func TestDataFunctions(t *testing.T) {
 
 	t.Run("getStates with nil", func(t *testing.T) {
 		var cr *checkResult
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -144,7 +144,7 @@ func TestDataFunctions(t *testing.T) {
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "all good",
 		}
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
@@ -157,7 +157,7 @@ func TestDataFunctions(t *testing.T) {
 			reason: "something wrong",
 			err:    errors.New("test error"),
 		}
-		states := cr.getLastHealthStates()
+		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Equal(t, "fuse", states[0].Name)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)

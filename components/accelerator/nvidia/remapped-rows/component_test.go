@@ -1393,7 +1393,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 			// If data is not nil, test HealthState() method
 			if tt.data != nil {
 				tt.data.health = apiv1.HealthStateTypeUnhealthy
-				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, tt.data.HealthState())
+				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, tt.data.HealthStateType())
 			}
 		})
 	}

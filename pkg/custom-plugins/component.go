@@ -63,7 +63,7 @@ func (c *component) Name() string { return c.spec.ComponentName() }
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
-	if c.spec.ManualMode {
+	if c.spec.ManualRun {
 		log.Logger.Infow("custom plugin is in manual mode, skipping start", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 		return nil
 	}
@@ -171,7 +171,17 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	return lastCheckResult.getLastHealthStates(c.Name(), c.spec.PluginName)
+	if lastCheckResult == nil {
+		return apiv1.HealthStates{
+			{
+				Component: c.Name(),
+				Name:      c.spec.PluginName,
+				Health:    apiv1.HealthStateTypeHealthy,
+				Reason:    "no data yet",
+			},
+		}
+	}
+	return lastCheckResult.HealthStates()
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -226,7 +236,7 @@ func (cr *checkResult) Summary() string {
 	return cr.reason
 }
 
-func (cr *checkResult) HealthState() apiv1.HealthStateType {
+func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 	if cr == nil {
 		return ""
 	}
@@ -240,14 +250,12 @@ func (cr *checkResult) getError() string {
 	return cr.err.Error()
 }
 
-func (cr *checkResult) getLastHealthStates(componentName string, pluginName string) apiv1.HealthStates {
+func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Component: componentName,
-				Name:      pluginName,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Health: apiv1.HealthStateTypeHealthy,
+				Reason: "no data yet",
 			},
 		}
 	}
