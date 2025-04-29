@@ -214,7 +214,7 @@ func TestCheck_UtilizationError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
-	assert.Equal(t, "error getting utilization for device gpu-uuid-123", data.reason)
+	assert.Equal(t, "error getting utilization", data.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -277,7 +277,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test utilization error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting utilization for device gpu-uuid-123",
+		reason: "error getting utilization",
 	}
 	component.lastMu.Unlock()
 
@@ -288,7 +288,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting utilization for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting utilization", state.Reason)
 	assert.Equal(t, "test utilization error", state.Error)
 }
 

@@ -200,7 +200,7 @@ func TestCheckOnce_PowerError(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting power for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting power", lastCheckResult.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -266,7 +266,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.NotNil(t, lastCheckResult.err)
-	assert.Equal(t, "error getting used percent for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting used percent", lastCheckResult.reason)
 }
 
 func TestStates_WithData(t *testing.T) {
@@ -313,7 +313,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test power error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting power for device gpu-uuid-123",
+		reason: "error getting power",
 	}
 	component.lastMu.Unlock()
 
@@ -324,7 +324,7 @@ func TestStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting power for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting power", state.Reason)
 	assert.Equal(t, "test power error", state.Error)
 }
 

@@ -208,7 +208,7 @@ func TestCheck_TemperatureError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
-	assert.Equal(t, "error getting temperature for device gpu-uuid-123", data.reason)
+	assert.Equal(t, "error getting temperature", data.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -274,7 +274,7 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.NotNil(t, data.err)
-	assert.Equal(t, "error getting used percent for slowdown for device gpu-uuid-123", data.reason)
+	assert.Equal(t, "error getting used percent for slowdown", data.reason)
 }
 
 func TestLastHealthStates_WithData(t *testing.T) {
@@ -325,7 +325,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test temperature error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting temperature for device gpu-uuid-123",
+		reason: "error getting temperature",
 	}
 	component.lastMu.Unlock()
 
@@ -336,7 +336,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting temperature for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting temperature", state.Reason)
 	assert.Equal(t, "test temperature error", state.Error)
 }
 
