@@ -29,8 +29,6 @@ const (
 type ComponentType string
 
 const (
-	// ComponentTypeComponent represents a native component of GPUd.
-	ComponentTypeComponent ComponentType = "component"
 	// ComponentTypeCustomPlugin represents a custom plugin of GPUd.
 	ComponentTypeCustomPlugin ComponentType = "custom-plugin"
 )
@@ -46,7 +44,7 @@ type HealthState struct {
 	// Component represents the component name.
 	Component string `json:"component,omitempty"`
 	// ComponentType represents the type of the component.
-	// It is either "component" or "custom-plugin".
+	// It is either "" (just 'component') or "custom-plugin".
 	ComponentType ComponentType `json:"component_type,omitempty"`
 
 	// Name is the name of the state,
