@@ -139,11 +139,10 @@ func (c *component) Check() components.CheckResult {
 	vm, err := c.getVirtualMemoryFunc(cctx)
 	ccancel()
 	if err != nil {
-		log.Logger.Errorw("failed to get virtual memory", "error", err)
-
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("failed to get virtual memory: %s", err)
+		cr.reason = "error getting virtual memory"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -164,18 +163,18 @@ func (c *component) Check() components.CheckResult {
 	if c.getCurrentBPFJITBufferBytesFunc != nil {
 		bpfJITBufferBytes, err := c.getCurrentBPFJITBufferBytesFunc()
 		if err != nil {
-			log.Logger.Errorw("failed to get bpf jit buffer bytes", "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("failed to get bpf jit buffer bytes: %s", err)
+			cr.reason = "error getting bpf jit buffer bytes"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 		cr.BPFJITBufferBytes = bpfJITBufferBytes
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("using %s out of total %s", humanize.Bytes(cr.UsedBytes), humanize.Bytes(cr.TotalBytes))
+	cr.reason = "ok"
+	log.Logger.Debugw(cr.reason, "used", humanize.Bytes(cr.UsedBytes), "total", humanize.Bytes(cr.TotalBytes))
 
 	return cr
 }

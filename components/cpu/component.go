@@ -162,7 +162,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		cr.reason = "error calculating CPU usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -172,7 +173,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		cr.reason = "error calculating CPU usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -196,7 +198,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating load average -- %s", err)
+		cr.reason = "error calculating load average"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	cr.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
@@ -208,8 +211,7 @@ func (c *component) Check() components.CheckResult {
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
-		cr.Info.Arch, cr.Info.CPU, cr.Info.Family, cr.Info.Model, cr.Info.ModelName)
+	cr.reason = "ok"
 
 	return cr
 }

@@ -278,7 +278,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	assert.Equal(t, "1.25", c.lastCheckResult.Usage.LoadAvg5Min)
 	assert.Equal(t, "1.10", c.lastCheckResult.Usage.LoadAvg15Min)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
-	assert.Contains(t, c.lastCheckResult.reason, "arch: ")
+	assert.Contains(t, c.lastCheckResult.reason, "ok")
 }
 
 func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
