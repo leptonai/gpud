@@ -2,7 +2,6 @@
 package xid
 
 import (
-	"encoding/json"
 	"fmt"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -51,10 +50,6 @@ type Detail struct {
 	// PotentialFBCorruption is true if the Xid indicates a potential framebuffer corruption.
 	// Source: https://docs.nvidia.com/deploy/xid-errors/index.html#xid-error-listing
 	PotentialFBCorruption bool `json:"potential_fb_corruption"`
-}
-
-func (d Detail) JSON() ([]byte, error) {
-	return json.Marshal(d)
 }
 
 // if nvidia says only possible reason is hw, then we do hard inspections directly

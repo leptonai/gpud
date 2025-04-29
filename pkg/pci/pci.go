@@ -3,7 +3,6 @@ package pci
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,8 +10,6 @@ import (
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
-
-	"sigs.k8s.io/yaml"
 )
 
 // Lists all PCI devices.
@@ -58,14 +55,6 @@ func List(ctx context.Context) (Devices, error) {
 }
 
 type Devices []Device
-
-func (devs Devices) JSON() ([]byte, error) {
-	return json.Marshal(devs)
-}
-
-func (devs Devices) YAML() ([]byte, error) {
-	return yaml.Marshal(devs)
-}
 
 type Device struct {
 	// ID of the PCI device.

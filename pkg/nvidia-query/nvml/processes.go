@@ -1,7 +1,6 @@
 package nvml
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -12,7 +11,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -54,14 +52,6 @@ type Process struct {
 	GPUUsedPercent              uint32      `json:"gpu_used_percent,omitempty"`
 	GPUUsedMemoryBytes          uint64      `json:"gpu_used_memory_bytes,omitempty"`
 	GPUUsedMemoryBytesHumanized string      `json:"gpu_used_memory_bytes_humanized,omitempty"`
-}
-
-func (procs *Processes) JSON() ([]byte, error) {
-	return json.Marshal(procs)
-}
-
-func (procs *Processes) YAML() ([]byte, error) {
-	return yaml.Marshal(procs)
 }
 
 func GetProcesses(uuid string, dev device.Device) (Processes, error) {

@@ -135,7 +135,7 @@ func resolveXIDEvent(event apiv1.Event) apiv1.Event {
 				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
 			}
 
-			raw, _ := xidErr.JSON()
+			raw, _ := json.Marshal(xidErr)
 			ret.DeprecatedExtraInfo[EventKeyErrorXidData] = string(raw)
 		}
 	}
@@ -162,8 +162,4 @@ type xidErrorEventDetail struct {
 	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
 	// You may use this field to decide whether to alert or not.
 	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
-}
-
-func (d *xidErrorEventDetail) JSON() ([]byte, error) {
-	return json.Marshal(d)
 }

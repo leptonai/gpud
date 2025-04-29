@@ -3,6 +3,7 @@ package v1
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -151,7 +152,7 @@ func TestCheckHealthzContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		json, _ := server.DefaultHealthz.JSON()
+		json, _ := json.Marshal(server.DefaultHealthz)
 		_, err := w.Write(json)
 		if err != nil {
 			t.Errorf("Error writing response: %v", err)
@@ -170,7 +171,7 @@ func TestCheckHealthzContextCancellation(t *testing.T) {
 
 func TestBlockUntilServerReady(t *testing.T) {
 	t.Run("server becomes ready immediately", func(t *testing.T) {
-		expectedHealthz, err := server.DefaultHealthz.JSON()
+		expectedHealthz, err := json.Marshal(server.DefaultHealthz)
 		require.NoError(t, err)
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +191,7 @@ func TestBlockUntilServerReady(t *testing.T) {
 	})
 
 	t.Run("server becomes ready after delay", func(t *testing.T) {
-		expectedHealthz, err := server.DefaultHealthz.JSON()
+		expectedHealthz, err := json.Marshal(server.DefaultHealthz)
 		require.NoError(t, err)
 
 		// Track number of requests to simulate the server becoming ready after a few attempts

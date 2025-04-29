@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"path"
@@ -100,10 +99,6 @@ const (
 type Healthz struct {
 	Status  string `json:"status"`
 	Version string `json:"version"`
-}
-
-func (hz Healthz) JSON() ([]byte, error) {
-	return json.Marshal(hz)
 }
 
 var DefaultHealthz = Healthz{

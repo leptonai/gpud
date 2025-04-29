@@ -1,14 +1,12 @@
 package nvml
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/leptonai/gpud/pkg/log"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"sigs.k8s.io/yaml"
 )
 
 type ECCErrors struct {
@@ -26,14 +24,6 @@ type ECCErrors struct {
 	// Supported is true if the ECC errors are supported by the device.
 	// Set to true if any of the ECC error counts are supported.
 	Supported bool `json:"supported"`
-}
-
-func (es ECCErrors) JSON() ([]byte, error) {
-	return json.Marshal(es)
-}
-
-func (es ECCErrors) YAML() ([]byte, error) {
-	return yaml.Marshal(es)
 }
 
 type AllECCErrorCounts struct {

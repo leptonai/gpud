@@ -1,7 +1,6 @@
 package nvml
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
@@ -68,20 +66,6 @@ type ClockEvents struct {
 
 	// Supported is true if the clock events are supported by the device.
 	Supported bool `json:"supported"`
-}
-
-func (evs *ClockEvents) JSON() ([]byte, error) {
-	if evs == nil {
-		return nil, nil
-	}
-	return json.Marshal(evs)
-}
-
-func (evs *ClockEvents) YAML() ([]byte, error) {
-	if evs == nil {
-		return nil, nil
-	}
-	return yaml.Marshal(evs)
 }
 
 // Event creates a apiv1.Event from ClockEvents if there are hardware slowdown reasons.

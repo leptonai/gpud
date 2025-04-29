@@ -469,21 +469,3 @@ func TestGetClockEventsWithNotSupported(t *testing.T) {
 		assert.Equal(t, uint64(0), clockEvents.ReasonsBitmask)
 	})
 }
-
-// TestClockEventsWithNilPointer tests handling of nil pointers in JSON and YAML serialization
-func TestClockEventsWithNilPointer(t *testing.T) {
-	// Test handling nil pointers for both JSON and YAML methods
-	t.Run("nil receiver for JSON()", func(t *testing.T) {
-		var clockEvents *ClockEvents
-		result, err := clockEvents.JSON()
-		assert.NoError(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("nil receiver for YAML()", func(t *testing.T) {
-		var clockEvents *ClockEvents
-		result, err := clockEvents.YAML()
-		assert.NoError(t, err)
-		assert.Nil(t, result)
-	})
-}

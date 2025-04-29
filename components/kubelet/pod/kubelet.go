@@ -152,10 +152,6 @@ type PodStatus struct {
 	ContainerStatuses     []ContainerStatus `json:"containerStatuses,omitempty"`
 }
 
-func (s PodStatus) JSON() ([]byte, error) {
-	return json.Marshal(s)
-}
-
 // ref. https://pkg.go.dev/k8s.io/api/core/v1#PodCondition
 type PodCondition struct {
 	Type               string      `json:"type,omitempty"`
