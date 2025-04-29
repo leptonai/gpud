@@ -118,11 +118,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		mem, err := c.getMemoryFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting memory for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting memory for device %s", uuid)
+			cr.reason = "error getting memory"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.Memories = append(cr.Memories, mem)
@@ -134,11 +133,10 @@ func (c *component) Check() components.CheckResult {
 
 		usedPct, err := mem.GetUsedPercent()
 		if err != nil {
-			log.Logger.Errorw("error getting used percent for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting used percent for device %s", uuid)
+			cr.reason = "error getting used percent"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(usedPct)

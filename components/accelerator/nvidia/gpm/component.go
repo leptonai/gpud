@@ -167,7 +167,8 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting GPM supported for device %s", uuid)
+			cr.reason = "error getting GPM supported"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 
@@ -185,7 +186,8 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting GPM metrics for device %s", uuid)
+			cr.reason = "error getting GPM metrics"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 

@@ -147,14 +147,13 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	var err error
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	cr.PeerMemModuleOutput, err = c.checkLsmodPeermemModuleFunc(cctx)
+	cr.PeerMemModuleOutput, cr.err = c.checkLsmodPeermemModuleFunc(cctx)
 	ccancel()
-	if err != nil {
-		cr.err = err
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error checking peermem: %s", err)
+		cr.reason = "error checking peermem"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
