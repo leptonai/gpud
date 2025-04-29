@@ -1,6 +1,7 @@
 package fuse
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -70,7 +71,7 @@ func TestConnectionInfo_JSON(t *testing.T) {
 
 	expected := `{"device":42,"fstype":"fuse.test","device_name":"test-device","congestion_threshold":100,"congested_percent":25.5,"max_background":200,"max_background_percent":12.75,"waiting":25}`
 
-	data, err := info.JSON()
+	data, err := json.Marshal(info)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
