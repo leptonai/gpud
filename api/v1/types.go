@@ -25,6 +25,14 @@ const (
 	HealthStateTypeInitializing HealthStateType = "Initializing"
 )
 
+// ComponentType defines the type of a component.
+type ComponentType string
+
+const (
+	// ComponentTypeCustomPlugin represents a custom plugin of GPUd.
+	ComponentTypeCustomPlugin ComponentType = "custom-plugin"
+)
+
 // HealthState represents the health state of a component.
 // The healthiness of the component is already evaluated at the component level,
 // so the health state here is to provide more details about the healthiness,
@@ -33,10 +41,14 @@ type HealthState struct {
 	// Time represents when the event happened.
 	Time metav1.Time `json:"time"`
 
-	// Component represents which component generated the state.
+	// Component represents the component name.
 	Component string `json:"component,omitempty"`
+	// ComponentType represents the type of the component.
+	// It is either "" (just 'component') or "custom-plugin".
+	ComponentType ComponentType `json:"component_type,omitempty"`
 
-	// Name is the name of the state.
+	// Name is the name of the state,
+	// can be different from the component name.
 	Name string `json:"name,omitempty"`
 
 	// RunMode is the run mode of the state.

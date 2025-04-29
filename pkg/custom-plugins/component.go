@@ -181,12 +181,13 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	if lastCheckResult == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: c.Name(),
-				Name:      c.spec.PluginName,
-				RunMode:   apiv1.RunModeType(c.spec.RunMode),
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:          metav1.NewTime(time.Now().UTC()),
+				Component:     c.Name(),
+				ComponentType: apiv1.ComponentTypeCustomPlugin,
+				Name:          c.spec.PluginName,
+				RunMode:       apiv1.RunModeType(c.spec.RunMode),
+				Health:        apiv1.HealthStateTypeHealthy,
+				Reason:        "no data yet",
 			},
 		}
 	}
@@ -263,22 +264,24 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:   metav1.NewTime(time.Now().UTC()),
-				Health: apiv1.HealthStateTypeHealthy,
-				Reason: "no data yet",
+				Time:          metav1.NewTime(time.Now().UTC()),
+				ComponentType: apiv1.ComponentTypeCustomPlugin,
+				Health:        apiv1.HealthStateTypeHealthy,
+				Reason:        "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: cr.componentName,
-		Name:      cr.pluginName,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		RunMode:   cr.runMode,
-		Health:    cr.health,
-		ExtraInfo: cr.extraInfo,
+		Time:          metav1.NewTime(cr.ts),
+		Component:     cr.componentName,
+		ComponentType: apiv1.ComponentTypeCustomPlugin,
+		Name:          cr.pluginName,
+		Reason:        cr.reason,
+		Error:         cr.getError(),
+		RunMode:       cr.runMode,
+		Health:        cr.health,
+		ExtraInfo:     cr.extraInfo,
 	}
 	return apiv1.HealthStates{state}
 }
