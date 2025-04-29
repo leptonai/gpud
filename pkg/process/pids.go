@@ -21,16 +21,45 @@ func CheckRunningByPid(ctx context.Context, processName string) bool {
 
 // CountRunningPids returns the number of running pids.
 func CountRunningPids() (uint64, error) {
-	pids, err := procs.Pids()
+	return countRunningPidsImpl(procs.Pids)
+}
+
+// countRunningPidsImpl is the implementation of CountRunningPids that takes a function
+// to get the PIDs, making it easier to test.
+func countRunningPidsImpl(getPids func() ([]int32, error)) (uint64, error) {
+	pids, err := getPids()
 	if err != nil {
 		return 0, err
 	}
 	return uint64(len(pids)), nil
 }
 
+// ProcessStatus represents the read-only status of a process.
+// Derived from "github.com/shirou/gopsutil/v4/process.Process" struct.
+// ref. https://pkg.go.dev/github.com/shirou/gopsutil/v4@v4.25.3/process#Process
+type ProcessStatus interface {
+	Name() (string, error)
+	Status() ([]string, error)
+}
+
 // CountProcessesByStatus counts all processes by its process status.
-func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, error) {
-	processes, err := procs.ProcessesWithContext(ctx)
+func CountProcessesByStatus(ctx context.Context) (map[string][]ProcessStatus, error) {
+	return countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
+		procs, err := procs.ProcessesWithContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		ps := make([]ProcessStatus, len(procs))
+		for i, p := range procs {
+			ps[i] = p
+		}
+		return ps, nil
+	})
+}
+
+// countProcessesByStatus counts all processes by its process status.
+func countProcessesByStatus(ctx context.Context, listProcessFunc func(ctx context.Context) ([]ProcessStatus, error)) (map[string][]ProcessStatus, error) {
+	processes, err := listProcessFunc(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +67,7 @@ func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, e
 		return nil, nil
 	}
 
-	all := make(map[string][]*procs.Process)
+	all := make(map[string][]ProcessStatus)
 	for _, p := range processes {
 		if p == nil {
 			continue
@@ -62,14 +91,15 @@ func CountProcessesByStatus(ctx context.Context) (map[string][]*procs.Process, e
 			continue
 		}
 		if len(status) < 1 {
-			log.Logger.Warnw("no status found", "pid", p.Pid)
+			name, _ := p.Name()
+			log.Logger.Warnw("no status found", "name", name)
 			continue
 		}
 		s := status[0]
 
 		prev, ok := all[s]
 		if !ok {
-			all[s] = []*procs.Process{p}
+			all[s] = []ProcessStatus{p}
 		} else {
 			all[s] = append(prev, p)
 		}

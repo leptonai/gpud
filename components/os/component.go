@@ -35,7 +35,7 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 
-	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]*procs.Process, error)
+	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]process.ProcessStatus, error)
 	zombieProcessCountThreshold int
 
 	lastMu          sync.RWMutex

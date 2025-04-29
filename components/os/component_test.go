@@ -14,6 +14,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -400,7 +401,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 		comp := c.(*component)
 
 		// Override the process counting function to return an error
-		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
 			return nil, errors.New("process count error")
 		}
 
@@ -430,10 +431,10 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 		comp := c.(*component)
 
 		// Override the process counting function to return normal processes
-		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
-			return map[string][]*procs.Process{
-				procs.Running: make([]*procs.Process, 10),
-				procs.Zombie:  make([]*procs.Process, 5),
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 10),
+				procs.Zombie:  make([]process.ProcessStatus, 5),
 			}, nil
 		}
 
@@ -729,7 +730,7 @@ func TestComponent_CheckWithProcessError(t *testing.T) {
 	comp := c.(*component)
 
 	// Override the process counting function to return an error
-	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
 		return nil, errors.New("process count error")
 	}
 
@@ -761,10 +762,10 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 
 	// Override the process counting function to return many zombie processes
 	comp.zombieProcessCountThreshold = threshold
-	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
-		return map[string][]*procs.Process{
-			procs.Running: make([]*procs.Process, 10),
-			procs.Zombie:  make([]*procs.Process, threshold+1),
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+			procs.Zombie:  make([]process.ProcessStatus, threshold+1),
 		}, nil
 	}
 
@@ -793,9 +794,9 @@ func TestComponent_SystemManufacturer(t *testing.T) {
 	comp := c.(*component)
 
 	// Override the process counting function to return normal processes
-	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
-		return map[string][]*procs.Process{
-			procs.Running: make([]*procs.Process, 10),
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
 		}, nil
 	}
 
@@ -842,9 +843,9 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 
 	// Test that component can be checked successfully
 	comp := c.(*component)
-	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]*procs.Process, error) {
-		return map[string][]*procs.Process{
-			procs.Running: make([]*procs.Process, 10),
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
 		}, nil
 	}
 
@@ -1049,4 +1050,219 @@ func TestData_SummaryComprehensive(t *testing.T) {
 			assert.Equal(t, tt.expected, summary)
 		})
 	}
+}
+
+// TestCountProcessesByStatusFuncVariations tests various scenarios for the countProcessesByStatusFunc function
+func TestCountProcessesByStatusFuncVariations(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mockRebootStore := &MockRebootEventStore{}
+
+	t.Run("empty process list", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Mock empty process list
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, 0, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Contains(t, data.reason, "os kernel version")
+	})
+
+	t.Run("multiple process types but no zombies", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Mock process list with no zombies
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 10),
+				"sleeping":    make([]process.ProcessStatus, 20),
+				"stopped":     make([]process.ProcessStatus, 5),
+				"idle":        make([]process.ProcessStatus, 3),
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, 0, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Contains(t, data.reason, "os kernel version")
+	})
+
+	t.Run("exactly at zombie threshold", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Set a low threshold for testing
+		threshold := 10
+		comp.zombieProcessCountThreshold = threshold
+
+		// Mock process list with zombies exactly at threshold
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 15),
+				procs.Zombie:  make([]process.ProcessStatus, threshold),
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, threshold, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Contains(t, data.reason, "os kernel version")
+	})
+
+	t.Run("one above zombie threshold", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Set a low threshold for testing
+		threshold := 10
+		comp.zombieProcessCountThreshold = threshold
+
+		// Mock process list with zombies one above threshold
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 15),
+				procs.Zombie:  make([]process.ProcessStatus, threshold+1),
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
+		assert.Equal(t, expectedReason, data.reason)
+	})
+
+	t.Run("very large number of zombies", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Set a low threshold for testing
+		threshold := 100
+		comp.zombieProcessCountThreshold = threshold
+
+		// Mock process list with a very large number of zombies
+		zombieCount := threshold * 10
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 50),
+				procs.Zombie:  make([]process.ProcessStatus, zombieCount),
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, zombieCount, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieCount, threshold)
+		assert.Equal(t, expectedReason, data.reason)
+	})
+
+	t.Run("context cancellation during process check", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Mock process function that checks for context cancellation
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			// Create a canceled context
+			canceledCtx, cancel := context.WithCancel(ctx)
+			cancel()
+
+			// Check if context is canceled and return error if it is
+			select {
+			case <-canceledCtx.Done():
+				return nil, context.Canceled
+			default:
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+				}, nil
+			}
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.NotNil(t, data.err)
+		assert.Equal(t, context.Canceled, data.err)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		assert.Contains(t, data.reason, "error getting process count")
+	})
+
+	t.Run("mixed process types with zombies", func(t *testing.T) {
+		c, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer c.Close()
+		comp := c.(*component)
+
+		// Set threshold
+		threshold := 50
+		comp.zombieProcessCountThreshold = threshold
+
+		// Mock process list with various statuses including zombies
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 100),
+				"sleeping":    make([]process.ProcessStatus, 200),
+				"stopped":     make([]process.ProcessStatus, 10),
+				procs.Zombie:  make([]process.ProcessStatus, 30), // Below threshold
+				"idle":        make([]process.ProcessStatus, 5),
+				"dead":        make([]process.ProcessStatus, 2),
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, 30, data.ProcessCountZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Contains(t, data.reason, "os kernel version")
+	})
 }
