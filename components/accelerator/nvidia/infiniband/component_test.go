@@ -19,6 +19,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -1363,4 +1364,71 @@ func TestComponentCheckOrder(t *testing.T) {
 	require.NotNil(t, data)
 	require.True(t, ok)
 	assert.Equal(t, []string{"thresholds", "ibstat"}, checksCalled) // Both checks should be called
+}
+
+// TestEventsWithContextCanceled tests the Events method with a canceled context
+func TestEventsWithContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	mockBucket := NewMockEventBucket()
+
+	// Create component with the mock bucket
+	c := &component{
+		eventBucket: mockBucket,
+	}
+
+	// Create a canceled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Test Events with canceled context
+	since := time.Now().Add(-time.Hour)
+	events, err := c.Events(ctx, since)
+	assert.Error(t, err)
+	assert.Nil(t, events)
+	assert.Equal(t, context.Canceled, err)
+}
+
+// TestEventsWithNoEventBucket tests the Events method when eventBucket is nil
+func TestEventsWithNoEventBucket(t *testing.T) {
+	t.Parallel()
+
+	// Create component with nil eventBucket
+	c := &component{
+		eventBucket: nil,
+	}
+
+	// Test Events with nil eventBucket
+	since := time.Now().Add(-time.Hour)
+	events, err := c.Events(context.Background(), since)
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+}
+
+// mockErrorEventStore is a mock implementation of eventstore.Store that returns errors
+type mockErrorEventStore struct {
+	bucketError error
+}
+
+func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return nil, m.bucketError
+}
+
+func (m *mockErrorEventStore) Close() error {
+	return nil
+}
+
+// TestCloseWithNilComponents tests the Close method when components are nil
+func TestCloseWithNilComponents(t *testing.T) {
+	t.Parallel()
+
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {}, // no-op cancel
+		eventBucket: nil,
+		kmsgSyncer:  nil,
+	}
+
+	err := c.Close()
+	assert.NoError(t, err)
 }

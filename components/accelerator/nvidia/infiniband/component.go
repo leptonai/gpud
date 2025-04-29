@@ -229,9 +229,10 @@ func (c *component) Check() components.CheckResult {
 	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
+		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error finding ibstat event"
-		log.Logger.Errorw(cr.reason, "error", err)
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
