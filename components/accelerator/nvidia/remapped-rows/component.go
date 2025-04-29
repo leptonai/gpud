@@ -153,11 +153,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		remappedRows, err := c.getRemappedRowsFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting remapped rows", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting remapped rows for %s", uuid)
+			cr.reason = "error getting remapped rows"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			continue
 		}
 		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
@@ -181,7 +180,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-			err = c.eventBucket.Insert(
+			cr.err = c.eventBucket.Insert(
 				cctx,
 				apiv1.Event{
 					Time:    metav1.Time{Time: cr.ts},
@@ -197,12 +196,10 @@ func (c *component) Check() components.CheckResult {
 				},
 			)
 			ccancel()
-			if err != nil {
-				log.Logger.Errorw("error inserting event for remapping pending", "uuid", uuid, "error", err)
-				cr.err = err
+			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error inserting event for remapping pending for %s", uuid)
-				continue
+				cr.reason = "error inserting event for remapping pending"
+				log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			}
 		}
 
@@ -210,7 +207,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-			err = c.eventBucket.Insert(
+			cr.err = c.eventBucket.Insert(
 				cctx,
 				apiv1.Event{
 					Time:    metav1.Time{Time: cr.ts},
@@ -226,12 +223,10 @@ func (c *component) Check() components.CheckResult {
 				},
 			)
 			ccancel()
-			if err != nil {
-				log.Logger.Errorw("error inserting event for remapping failed", "uuid", uuid, "error", err)
-				cr.err = err
+			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error inserting event for remapping failed for %s", uuid)
-				continue
+				cr.reason = "error inserting event for remapping failed"
+				log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			}
 		}
 
