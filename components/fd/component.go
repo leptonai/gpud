@@ -167,7 +167,8 @@ func (c *component) Check() components.CheckResult {
 	cr.AllocatedFileHandles, _, cr.err = c.getFileHandlesFunc()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting file handles -- %s", cr.err)
+		cr.reason = "error getting file handles"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(cr.AllocatedFileHandles))
@@ -175,7 +176,8 @@ func (c *component) Check() components.CheckResult {
 	cr.RunningPIDs, cr.err = c.countRunningPIDsFunc()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting running pids -- %s", cr.err)
+		cr.reason = "error getting running pids"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(cr.RunningPIDs))
@@ -186,14 +188,16 @@ func (c *component) Check() components.CheckResult {
 	cr.Usage, cr.err = c.getUsageFunc()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting usage -- %s", cr.err)
+		cr.reason = "error getting usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
 	cr.Limit, cr.err = c.getLimitFunc()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting limit -- %s", cr.err)
+		cr.reason = "error getting limit"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricLimit.With(prometheus.Labels{}).Set(float64(cr.Limit))

@@ -197,7 +197,7 @@ func TestCheckOnce(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastCheckResult.reason)
+		assert.Equal(t, "ok", lastCheckResult.reason)
 		assert.Len(t, lastCheckResult.BlockDevices, 1)
 		assert.Len(t, lastCheckResult.ExtPartitions, 1)
 	})
@@ -282,7 +282,7 @@ func TestErrorRetry(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastCheckResult.reason)
+		assert.Equal(t, "ok", lastCheckResult.reason)
 		assert.Equal(t, 2, callCount)
 	})
 
@@ -311,7 +311,7 @@ func TestErrorRetry(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "found 1 ext4 partition(s) and 1 block device(s)", lastCheckResult.reason)
+		assert.Equal(t, "ok", lastCheckResult.reason)
 		assert.Equal(t, 2, callCount)
 	})
 
