@@ -165,14 +165,19 @@ func (c *component) Check() components.CheckResult {
 	if c.getSystemDriverVersionFunc != nil {
 		driverVersion, err := c.getSystemDriverVersionFunc()
 		if err != nil {
+			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting driver version: %s", err)
+			cr.reason = "error getting driver version"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
+
 		major, _, _, err := c.parseDriverVersionFunc(driverVersion)
 		if err != nil {
+			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error parsing driver version: %s", err)
+			cr.reason = "error parsing driver version"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 		if !c.checkClockEventsSupportedFunc(major) {
@@ -186,23 +191,25 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		supported, err := c.getClockEventsSupportedFunc(dev)
 		if err != nil {
-			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.err = err
-			cr.reason = fmt.Sprintf("error getting clock events supported for device %s", uuid)
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "error getting clock events supported"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 
 		if !supported {
 			cr.health = apiv1.HealthStateTypeHealthy
-			cr.reason = fmt.Sprintf("clock events not supported for device %s", uuid)
+			cr.reason = "clock events not supported"
 			return cr
 		}
 
 		clockEvents, err := c.getClockEventsFunc(uuid, dev)
 		if err != nil {
-			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.err = err
-			cr.reason = fmt.Sprintf("error getting clock events for gpu %s", uuid)
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "error getting clock events"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 
@@ -239,11 +246,10 @@ func (c *component) Check() components.CheckResult {
 			found, err := c.eventBucket.Find(cctx, *ev)
 			ccancel()
 			if err != nil {
-				log.Logger.Errorw("failed to find clock events from db", "error", err, "gpu_uuid", uuid)
-
-				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = err
-				cr.reason = fmt.Sprintf("error finding clock events for gpu %s", uuid)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = "error finding clock events"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
 			if found != nil {
@@ -252,11 +258,10 @@ func (c *component) Check() components.CheckResult {
 			}
 
 			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
-				log.Logger.Errorw("failed to insert event", "error", err)
-
-				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = err
-				cr.reason = fmt.Sprintf("error inserting clock events for gpu %s", uuid)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = "error inserting clock events"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
 			log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
@@ -281,11 +286,10 @@ func (c *component) Check() components.CheckResult {
 	latestEvents, err := c.eventBucket.Get(cctx, since)
 	ccancel()
 	if err != nil {
-		log.Logger.Errorw("failed to get clock events from db", "error", err)
-
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting clock events from db: %s", err)
+		cr.reason = "error getting clock events from db"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
