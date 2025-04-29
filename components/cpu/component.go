@@ -211,8 +211,7 @@ func (c *component) Check() components.CheckResult {
 	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("arch: %s, cpu: %s, family: %s, model: %s, model_name: %s",
-		cr.Info.Arch, cr.Info.CPU, cr.Info.Family, cr.Info.Model, cr.Info.ModelName)
+	cr.reason = "ok"
 
 	return cr
 }
