@@ -250,7 +250,7 @@ func TestCheck_ECCModeError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
-	assert.Equal(t, "error getting ECC mode for device gpu-uuid-123", data.reason)
+	assert.Equal(t, "error getting ECC mode", data.reason)
 }
 
 func TestCheck_ECCErrorsError(t *testing.T) {
@@ -298,7 +298,7 @@ func TestCheck_ECCErrorsError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, data.err)
-	assert.Equal(t, "error getting ECC errors for device gpu-uuid-123", data.reason)
+	assert.Equal(t, "error getting ECC errors", data.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -374,7 +374,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test ECC error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting ECC mode for device gpu-uuid-123",
+		reason: "error getting ECC mode",
 	}
 	component.lastMu.Unlock()
 
@@ -385,7 +385,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting ECC mode for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting ECC mode", state.Reason)
 	assert.Equal(t, "test ECC error", state.Error)
 }
 
