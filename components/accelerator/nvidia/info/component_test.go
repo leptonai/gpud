@@ -474,7 +474,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting memory: memory error", cr.reason)
+	assert.Equal(t, "error getting memory", cr.reason)
 	assert.Error(t, cr.err)
 }
 
@@ -822,7 +822,7 @@ func TestCheckOnce_DeviceCountError(t *testing.T) {
 
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting device count: device count error", cr.reason)
+	assert.Equal(t, "error getting device count", cr.reason)
 	assert.Error(t, cr.err)
 }
 
@@ -1019,7 +1019,7 @@ func TestCheckOnce_SerialError(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting serial id: serial error", cr.reason)
+	assert.Equal(t, "error getting serial id", cr.reason)
 	assert.Error(t, cr.err)
 	assert.Contains(t, cr.err.Error(), "serial error")
 }
@@ -1089,7 +1089,7 @@ func TestCheckOnce_MinorIDFunc_ReturnError(t *testing.T) {
 	// Verify the results - should be unhealthy due to the error
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting minor id: minor ID error with return", cr.reason)
+	assert.Equal(t, "error getting minor id", cr.reason)
 	assert.Error(t, cr.err)
 	assert.Contains(t, cr.err.Error(), "minor ID error with return")
 }
