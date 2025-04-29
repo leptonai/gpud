@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -131,7 +130,8 @@ func (c *component) Check() components.CheckResult {
 		cr.DockerServiceActive, cr.err = c.checkServiceActiveFunc()
 		if !cr.DockerServiceActive || cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("docker installed but docker service is not active or failed to check (error %v)", cr.err)
+			cr.reason = "docker installed but docker service is not active or failed to check"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
@@ -142,10 +142,10 @@ func (c *component) Check() components.CheckResult {
 
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error listing containers -- %s", cr.err)
+		cr.reason = "error listing containers"
 
 		if pkgdocker.IsErrDockerClientVersionNewerThanDaemon(cr.err) {
-			cr.reason = fmt.Sprintf("not supported; %s (needs upgrading docker daemon in the host)", cr.err)
+			cr.reason = "not supported; needs upgrading docker daemon in the host"
 		}
 
 		// e.g.,
@@ -156,11 +156,12 @@ func (c *component) Check() components.CheckResult {
 			} else {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 			}
-			cr.reason = fmt.Sprintf("connection error to docker daemon -- %s", cr.err)
+			cr.reason = "connection error to docker daemon"
 		}
 	} else {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("total %d container(s)", len(cr.Containers))
+		cr.reason = "ok"
+		log.Logger.Debugw("ok", "count", len(cr.Containers))
 	}
 
 	return cr
