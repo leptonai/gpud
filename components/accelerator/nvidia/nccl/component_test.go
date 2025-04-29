@@ -222,7 +222,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.NotNil(t, result)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
-		assert.Contains(t, result.Summary(), "matched 0 kmsg(s)")
+		assert.Contains(t, result.Summary(), "scanned kmsg(s)")
 	})
 
 	t.Run("with matching messages", func(t *testing.T) {
@@ -253,7 +253,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.NotNil(t, result)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
-		assert.Contains(t, result.Summary(), "matched 1 kmsg(s)")
+		assert.Contains(t, result.Summary(), "scanned kmsg(s)")
 
 		data, ok := result.(*checkResult)
 		assert.True(t, ok)
