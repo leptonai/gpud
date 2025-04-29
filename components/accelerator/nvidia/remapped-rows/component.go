@@ -188,9 +188,8 @@ func (c *component) Check() components.CheckResult {
 					Type:    apiv1.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected pending row remapping", uuid),
 					DeprecatedExtraInfo: map[string]string{
-						"gpu_id":   uuid,
-						"data":     string(b),
-						"encoding": "json",
+						"gpu_id": uuid,
+						"data":   string(b),
 					},
 					DeprecatedSuggestedActions: nil,
 				},
@@ -215,9 +214,8 @@ func (c *component) Check() components.CheckResult {
 					Type:    apiv1.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected failed row remapping", uuid),
 					DeprecatedExtraInfo: map[string]string{
-						"gpu_id":   uuid,
-						"data":     string(b),
-						"encoding": "json",
+						"gpu_id": uuid,
+						"data":   string(b),
 					},
 					DeprecatedSuggestedActions: nil,
 				},

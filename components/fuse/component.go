@@ -189,8 +189,7 @@ func (c *component) Check() components.CheckResult {
 			Type:    apiv1.EventTypeCritical,
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
 			DeprecatedExtraInfo: map[string]string{
-				"data":     string(ib),
-				"encoding": "json",
+				"data": string(ib),
 			},
 		}
 
