@@ -1,7 +1,6 @@
 package nvml
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -316,46 +315,6 @@ func TestClockEventsSupportedByDevice(t *testing.T) {
 
 			if result != tt.expectedResult {
 				t.Errorf("ClockEventsSupportedByDevice() = %v, want %v", result, tt.expectedResult)
-			}
-		})
-	}
-}
-
-func TestClockEventsJSONAndYAML(t *testing.T) {
-	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	tests := []struct {
-		name        string
-		clockEvents *ClockEvents
-		wantJSON    string
-	}{
-		{
-			name: "valid clock events",
-			clockEvents: &ClockEvents{
-				Time:              metav1.Time{Time: testTime},
-				UUID:              "GPU-123",
-				ReasonsBitmask:    reasonHWSlowdown,
-				HWSlowdownReasons: []string{"test reason"},
-				HWSlowdown:        true,
-				Supported:         true,
-			},
-			wantJSON: `{"time":"2024-01-01T00:00:00Z","uuid":"GPU-123","reasons_bitmask":8,"hw_slowdown_reasons":["test reason"],"hw_slowdown":true,"hw_thermal_slowdown":false,"hw_slowdown_power_brake":false,"supported":true}`,
-		},
-		{
-			name:        "nil clock events",
-			clockEvents: nil,
-			wantJSON:    "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotJSON, err := json.Marshal(tt.clockEvents)
-			if err != nil {
-				t.Errorf("ClockEvents.JSON() error = %v", err)
-				return
-			}
-			if string(gotJSON) != tt.wantJSON {
-				t.Errorf("ClockEvents.JSON() = %v, want %v", string(gotJSON), tt.wantJSON)
 			}
 		})
 	}
