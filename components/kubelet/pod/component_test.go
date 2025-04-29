@@ -211,7 +211,7 @@ func Test_PodStatusJSON(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			jsonData, err := tc.status.JSON()
+			jsonData, err := json.Marshal(tc.status)
 			require.NoError(t, err)
 
 			if tc.name == "with conditions" {

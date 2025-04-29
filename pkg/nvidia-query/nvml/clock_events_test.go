@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -326,7 +327,6 @@ func TestClockEventsJSONAndYAML(t *testing.T) {
 		name        string
 		clockEvents *ClockEvents
 		wantJSON    string
-		wantYAML    string
 	}{
 		{
 			name: "valid clock events",
@@ -339,45 +339,23 @@ func TestClockEventsJSONAndYAML(t *testing.T) {
 				Supported:         true,
 			},
 			wantJSON: `{"time":"2024-01-01T00:00:00Z","uuid":"GPU-123","reasons_bitmask":8,"hw_slowdown_reasons":["test reason"],"hw_slowdown":true,"hw_thermal_slowdown":false,"hw_slowdown_power_brake":false,"supported":true}`,
-			wantYAML: `hw_slowdown: true
-hw_slowdown_power_brake: false
-hw_slowdown_reasons:
-- test reason
-hw_thermal_slowdown: false
-reasons_bitmask: 8
-supported: true
-time: "2024-01-01T00:00:00Z"
-uuid: GPU-123
-`,
 		},
 		{
 			name:        "nil clock events",
 			clockEvents: nil,
 			wantJSON:    "",
-			wantYAML:    "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test JSON marshaling
-			gotJSON, err := tt.clockEvents.JSON()
+			gotJSON, err := json.Marshal(tt.clockEvents)
 			if err != nil {
 				t.Errorf("ClockEvents.JSON() error = %v", err)
 				return
 			}
 			if string(gotJSON) != tt.wantJSON {
 				t.Errorf("ClockEvents.JSON() = %v, want %v", string(gotJSON), tt.wantJSON)
-			}
-
-			// Test YAML marshaling
-			gotYAML, err := tt.clockEvents.YAML()
-			if err != nil {
-				t.Errorf("ClockEvents.YAML() error = %v", err)
-				return
-			}
-			if string(gotYAML) != tt.wantYAML {
-				t.Errorf("ClockEvents.YAML() = %v, want %v", string(gotYAML), tt.wantYAML)
 			}
 		})
 	}

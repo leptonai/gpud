@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -208,38 +209,12 @@ func TestECCErrors_JSON(t *testing.T) {
 		Supported: true,
 	}
 
-	jsonData, err := eccErrors.JSON()
+	jsonData, err := json.Marshal(eccErrors)
 	require.NoError(t, err)
 	assert.Contains(t, string(jsonData), `"uuid":"test-uuid"`)
 	assert.Contains(t, string(jsonData), `"supported":true`)
 	assert.Contains(t, string(jsonData), `"corrected":5`)
 	assert.Contains(t, string(jsonData), `"uncorrected":2`)
-}
-
-func TestECCErrors_YAML(t *testing.T) {
-	eccErrors := ECCErrors{
-		UUID: "test-uuid",
-		Aggregate: AllECCErrorCounts{
-			Total: ECCErrorCounts{
-				Corrected:   5,
-				Uncorrected: 2,
-			},
-		},
-		Volatile: AllECCErrorCounts{
-			Total: ECCErrorCounts{
-				Corrected:   3,
-				Uncorrected: 1,
-			},
-		},
-		Supported: true,
-	}
-
-	yamlData, err := eccErrors.YAML()
-	require.NoError(t, err)
-	assert.Contains(t, string(yamlData), "uuid: test-uuid")
-	assert.Contains(t, string(yamlData), "supported: true")
-	assert.Contains(t, string(yamlData), "corrected: 5")
-	assert.Contains(t, string(yamlData), "uncorrected: 2")
 }
 
 func TestAllECCErrorCounts_FindUncorrectedErrs(t *testing.T) {

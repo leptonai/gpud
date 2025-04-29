@@ -117,7 +117,7 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 			CriticalErrorMarkedByGPUd: true,
 		}
 
-		jsonBytes, err := sxidErr.JSON()
+		jsonBytes, err := json.Marshal(sxidErr)
 		assert.NoError(t, err)
 		assert.NotNil(t, jsonBytes)
 
@@ -141,7 +141,7 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 			SXid:       123,
 		}
 
-		jsonBytes, err := sxidErr.JSON()
+		jsonBytes, err := json.Marshal(sxidErr)
 		assert.NoError(t, err)
 		assert.NotNil(t, jsonBytes)
 
