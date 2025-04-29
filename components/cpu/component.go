@@ -162,7 +162,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		cr.reason = "error calculating CPU usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -172,7 +173,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating CPU usage -- %s", err)
+		cr.reason = "error calculating CPU usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -196,7 +198,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error calculating load average -- %s", err)
+		cr.reason = "error calculating load average"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	cr.Usage.LoadAvg1Min = fmt.Sprintf("%.2f", loadAvg.Load1)
