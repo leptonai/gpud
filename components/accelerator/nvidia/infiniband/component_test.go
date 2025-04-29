@@ -19,7 +19,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -1403,19 +1402,6 @@ func TestEventsWithNoEventBucket(t *testing.T) {
 	events, err := c.Events(context.Background(), since)
 	assert.NoError(t, err)
 	assert.Nil(t, events)
-}
-
-// mockErrorEventStore is a mock implementation of eventstore.Store that returns errors
-type mockErrorEventStore struct {
-	bucketError error
-}
-
-func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
-	return nil, m.bucketError
-}
-
-func (m *mockErrorEventStore) Close() error {
-	return nil
 }
 
 // TestCloseWithNilComponents tests the Close method when components are nil
