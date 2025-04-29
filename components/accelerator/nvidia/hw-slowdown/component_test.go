@@ -1187,7 +1187,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			expectReason:  "clock events not supported for driver version",
 		},
 		{
-			name: "clock events not supported for device",
+			name: "clock events not supported",
 			nvmlInstance: &mockNVMLInstance{
 				nvmlExists:  true,
 				productName: "Test GPU",
@@ -1215,7 +1215,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return false, nil
 			},
 			expectHealthy: true,
-			expectReason:  "clock events not supported for device",
+			expectReason:  "clock events not supported",
 		},
 		{
 			name: "error getting clock events supported",
@@ -1246,7 +1246,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return false, fmt.Errorf("clock events supported error")
 			},
 			expectHealthy: false,
-			expectReason:  "error getting clock events supported for device",
+			expectReason:  "error getting clock events supported",
 		},
 		{
 			name: "error getting clock events",
@@ -1280,7 +1280,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return nvidianvml.ClockEvents{}, fmt.Errorf("clock events error")
 			},
 			expectHealthy: false,
-			expectReason:  "error getting clock events for gpu",
+			expectReason:  "error getting clock events",
 		},
 	}
 
