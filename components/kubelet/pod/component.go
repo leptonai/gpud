@@ -139,12 +139,14 @@ func (c *component) Check() components.CheckResult {
 
 	if cr.err == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("total %d pods (node %s)", len(cr.Pods), cr.NodeName)
+		cr.reason = fmt.Sprintf("check success for node %s", cr.NodeName)
+		log.Logger.Debugw(cr.reason, "node", cr.NodeName, "count", len(cr.Pods))
 	}
 
 	if c.failedCount >= c.failedCountThreshold {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("list pods from kubelet read-only port failed %d time(s)", c.failedCount)
+		cr.reason = "list pods from kubelet read-only port failed"
+		log.Logger.Errorw(cr.reason, "failedCount", c.failedCount, "error", cr.err)
 	}
 
 	return cr

@@ -19,6 +19,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func Test_componentStart(t *testing.T) {
@@ -249,7 +250,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 			serviceActive:            true,
 			listSandboxError:         nil,
 			expectedHealthy:          true,
-			expectedReasonContains:   "found 0 pod",
+			expectedReasonContains:   "ok",
 			expectedPodsLength:       0,
 			expectedServiceActive:    true,
 		},
@@ -334,12 +335,14 @@ func TestCheckOnceComprehensive(t *testing.T) {
 					if ok && st.Code() == codes.Unimplemented {
 						cr.reason = "containerd didn't enable CRI"
 					} else {
-						cr.reason = fmt.Sprintf("error listing pod sandbox status: %v", cr.err)
+						cr.reason = "error listing pod sandbox status"
 					}
+					log.Logger.Errorw(cr.reason, "error", cr.err)
 				} else {
 					cr.Pods = []pkgcontainerd.PodSandbox{}
 					cr.health = apiv1.HealthStateTypeHealthy
-					cr.reason = fmt.Sprintf("found %d pod sandbox(es)", len(cr.Pods))
+					cr.reason = "ok"
+					log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 				}
 
 				c.lastMu.Lock()
@@ -1969,7 +1972,7 @@ func Test_listAllSandboxesFunc(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, comp.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
-	assert.Equal(t, "found 1 pod sandbox(es)", comp.lastCheckResult.reason)
+	assert.Equal(t, "ok", comp.lastCheckResult.reason)
 	assert.Nil(t, comp.lastCheckResult.err)
 	assert.Equal(t, 1, len(comp.lastCheckResult.Pods))
 	assert.True(t, comp.lastCheckResult.ContainerdServiceActive)
@@ -2005,7 +2008,7 @@ func Test_listAllSandboxesFunc_with_error(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, comp.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastCheckResult.health)
-	assert.Equal(t, "error listing pod sandbox status: test error", comp.lastCheckResult.reason)
+	assert.Equal(t, "error listing pod sandbox status", comp.lastCheckResult.reason)
 	assert.NotNil(t, comp.lastCheckResult.err)
 }
 
