@@ -102,8 +102,11 @@ func cmdLogin(cliContext *cli.Context) error {
 		return fmt.Errorf("failed to get fifo file: %w", err)
 	}
 
+	// for GPUd >= v0.5, we assume "gpud login" first
+	// and then "gpud up"
+	// we still need this in case "gpud up" and then "gpud login" afterwards
 	if err := server.WriteToken(token, fifoFile); err != nil {
-		return fmt.Errorf("failed to write token: %v", err)
+		log.Logger.Warnw("failed to write token -- login before first gpud run/up", "error", err)
 	}
 
 	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, token); err != nil {

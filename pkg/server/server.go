@@ -666,9 +666,8 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 }
 
 func WriteToken(token string, fifoFile string) error {
-	var f *stdos.File
 	var err error
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 10; i++ {
 		if _, err = stdos.Stat(fifoFile); stdos.IsNotExist(err) {
 			time.Sleep(1 * time.Second)
 			continue
@@ -677,9 +676,10 @@ func WriteToken(token string, fifoFile string) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("server not ready")
+		return errors.New("server not ready")
 	}
 
+	var f *stdos.File
 	if f, err = stdos.OpenFile(fifoFile, stdos.O_WRONLY, 0600); err != nil {
 		return fmt.Errorf("failed to open fifo file: %w", err)
 	}
