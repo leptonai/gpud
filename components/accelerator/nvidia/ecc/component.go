@@ -120,22 +120,20 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		eccMode, err := c.getECCModeEnabledFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting ECC mode for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting ECC mode for device %s", uuid)
+			cr.reason = "error getting ECC mode"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.ECCModes = append(cr.ECCModes, eccMode)
 
 		eccErrors, err := c.getECCErrorsFunc(uuid, dev, eccMode.EnabledCurrent)
 		if err != nil {
-			log.Logger.Errorw("error getting ECC errors for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting ECC errors for device %s", uuid)
+			cr.reason = "error getting ECC errors"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.ECCErrors = append(cr.ECCErrors, eccErrors)
