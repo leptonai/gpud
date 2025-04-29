@@ -464,17 +464,6 @@
         }
     }
 
-
-    #result pre {
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        max-width: 800px;
-        margin: 0;
-        background-color: #f4f4f4;
-        padding: 15px;
-        border-radius: 5px;
-    }
-
     .form-container {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
         max-width: 400px;
@@ -2077,46 +2066,31 @@
 
 
 
-
-
-
 <div class="charts-row">
-    {{if .NVIDIAGPUUtilChart}}
     <div class="chart-container">
         <div id="nvidia-gpu-util-chart"></div>
     </div>
-    {{end}}
-    {{if .NVIDIAMemoryChart}}
     <div class="chart-container">
         <div id="nvidia-memory-chart"></div>
     </div>
-    {{end}}
 </div>
 
 <div class="charts-row">
-    {{if .NVIDIATemperatureChart}}
     <div class="chart-container">
         <div id="nvidia-temperature-chart"></div>
     </div>
-    {{end}}
-    {{if .NVIDIAPowerChart}}
     <div class="chart-container">
         <div id="nvidia-power-chart"></div>
     </div>
-    {{end}}
 </div>
 
 <div class="charts-row">
-    {{if .NVIDIAClockSpeedChart}}
     <div class="chart-container">
         <div id="nvidia-clock-speed-chart"></div>
     </div>
-    {{end}}
-    {{if .NVIDIAErrsChart}}
     <div class="chart-container">
         <div id="nvidia-errs-chart"></div>
     </div>
-    {{end}}
 </div>
 
 
@@ -2129,29 +2103,21 @@
     </h3>
     <div id="systemResourcesCharts" style="display: none;">
         <div class="charts-row">
-            {{if .CPUChart}}
             <div class="chart-container">
                 <div id="cpu-chart"></div>
             </div>
-            {{end}}
-            {{if .MemoryChart}}
             <div class="chart-container">
                 <div id="memory-chart"></div>
             </div>
-            {{end}}
         </div>
 
         <div class="charts-row">
-            {{if .FDChart}}
             <div class="chart-container">
                 <div id="fd-chart"></div>
             </div>
-            {{end}}
-            {{if .DiskChart}}
             <div class="chart-container">
                 <div id="disk-chart"></div>
             </div>
-            {{end}}
         </div>
     </div>
 </div>
