@@ -620,7 +620,6 @@ func TestData_getLastHealthStates(t *testing.T) {
 			// Check that extraInfo is properly populated for non-nil data
 			if tt.data != nil {
 				assert.NotEmpty(t, state.ExtraInfo["data"])
-				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 			}
 		})
 	}

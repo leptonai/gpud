@@ -920,8 +920,6 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 
 	// Verify the JSON data in the extra info
 	require.Contains(t, state.ExtraInfo, "data")
-	require.Contains(t, state.ExtraInfo, "encoding")
-	assert.Equal(t, "json", state.ExtraInfo["encoding"])
 
 	// Parse the JSON data to verify its structure
 	var parsedData map[string]interface{}

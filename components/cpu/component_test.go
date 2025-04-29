@@ -539,8 +539,6 @@ func TestComponentDataExtraInfo(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.NotNil(t, states[0].ExtraInfo)
 	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
-	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 
 	// Verify JSON contains expected data
 	jsonData := states[0].ExtraInfo["data"]

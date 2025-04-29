@@ -110,7 +110,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, "failed to get os data -- assert.AnError general error for testing", states[0].Reason)
 				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 		{
@@ -132,7 +131,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 		{
@@ -152,7 +150,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 	}

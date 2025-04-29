@@ -417,8 +417,6 @@ func TestDataGetStates(t *testing.T) {
 			// Check that ExtraInfo exists for non-nil data
 			if tt.data != nil {
 				assert.Contains(t, state.ExtraInfo, "data")
-				assert.Contains(t, state.ExtraInfo, "encoding")
-				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 
 				// Verify that the JSON encoding works
 				var decodedData map[string]interface{}
