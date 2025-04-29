@@ -120,11 +120,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		temp, err := c.getTemperatureFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting temperature for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting temperature for device %s", uuid)
+			cr.reason = "error getting temperature"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.Temperatures = append(cr.Temperatures, temp)
@@ -146,11 +145,10 @@ func (c *component) Check() components.CheckResult {
 
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
-			log.Logger.Errorw("error getting used percent for slowdown for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting used percent for slowdown for device %s", uuid)
+			cr.reason = "error getting used percent for slowdown"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(slowdownPct)
