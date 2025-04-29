@@ -503,7 +503,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to marshal spec")
 				fmt.Println("currently registered custom plugin (expect run_mode: manual)", "name", curSpec.PluginName, "componentName", componentName, "spec", string(b))
 
-				Expect(curSpec.RunMode).Should(Equal(pkgcustomplugins.SpecModeManual), "expected manual mode")
+				Expect(curSpec.RunMode).Should(Equal(string(pkgcustomplugins.SpecModeManual)), "expected manual mode")
 			}
 			Expect(csPlugins[customComponentName]).NotTo(BeNil(), "expected to be registered")
 		})
@@ -520,6 +520,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, customComponentName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			Expect(len(resp)).To(Equal(1), "expected 1 response")
+			Expect(string(resp[0].RunMode)).To(Equal(string(pkgcustomplugins.SpecModeManual)), "expected manual mode")
 
 			fmt.Printf("%+v\n", resp)
 		})
@@ -536,6 +537,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(states).ToNot(BeEmpty(), "expected states to not be empty")
 			Expect(states[0].States).To(HaveLen(1), "expected states to have 1 state")
 			Expect(states[0].States[0].Health).To(Equal(apiv1.HealthStateTypeUnhealthy), "expected health state to be unhealthy")
+			Expect(string(states[0].States[0].RunMode)).To(Equal(string(pkgcustomplugins.SpecModeManual)), "expected run mode to be manual")
 		})
 
 		randSfx2, err := randStr(10)
@@ -658,6 +660,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(states[0].States[0].ExtraInfo["name"]).To(Equal(randStrToEcho))
 			Expect(states[0].States[0].ExtraInfo["health"]).To(Equal("degraded"))
 			Expect(states[0].States[0].Time.IsZero()).Should(BeFalse(), "expected time to be set")
+			Expect(states[0].States[0].RunMode).Should(BeEmpty(), "expected run mode to be empty")
 		})
 
 		It("deregister the custom plugin", func() {

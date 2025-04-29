@@ -7,6 +7,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// RunModeType defines the run mode of a component.
+type RunModeType string
+
+const (
+	// RunModeTypeManual is the run mode that requires manual trigger to run the check.
+	RunModeTypeManual RunModeType = "manual"
+)
+
+// HealthStateType defines the health state of a component.
 type HealthStateType string
 
 const (
@@ -29,6 +38,11 @@ type HealthState struct {
 
 	// Name is the name of the state.
 	Name string `json:"name,omitempty"`
+
+	// RunMode is the run mode of the state.
+	// It can be "manual" that requires manual trigger to run the check.
+	// Or it can be empty that runs the check periodically.
+	RunMode RunModeType `json:"run_mode,omitempty"`
 
 	// Health represents the health level of the state,
 	// including StateHealthy, StateUnhealthy and StateDegraded.

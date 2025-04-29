@@ -2,6 +2,7 @@ package customplugins
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -783,7 +784,7 @@ func TestCheckResultDebugMethod(t *testing.T) {
 		},
 		{
 			name:     "with output",
-			cr:       &checkResult{output: "test debug output"},
+			cr:       &checkResult{out: []byte("test debug output")},
 			expected: "test debug output",
 		},
 	}
@@ -844,7 +845,7 @@ func TestDebugMethodViaComponentFlow(t *testing.T) {
 	lastCR := c.lastCheckResult
 	c.lastMu.RUnlock()
 
-	assert.Equal(t, lastCR.output, debug)
+	assert.Equal(t, string(lastCR.out), debug)
 }
 
 func TestDebugMethodWithModifiedOutput(t *testing.T) {
@@ -877,7 +878,7 @@ func TestDebugMethodWithModifiedOutput(t *testing.T) {
 
 	// Set a test output value
 	testOutput := "custom debug output"
-	lastCR.output = testOutput
+	lastCR.out = []byte(testOutput)
 
 	// Check that the modified output is visible through Debug()
 	assert.Equal(t, testOutput, lastCR.Debug())
@@ -1125,4 +1126,183 @@ func TestComponentCheckManualExit(t *testing.T) {
 	assert.Contains(t, rs.Summary(), "error executing state plugin -- exit status 1")
 
 	assert.Equal(t, cr.extraInfo["description"], "triggered to fail with exit code 1")
+}
+
+// TestComponent_StartWithManualRunMode tests the component's Start method with RunMode=Manual
+func TestComponent_StartWithManualRunMode(t *testing.T) {
+	// Create a component with manual run mode
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+		RunMode:    SpecModeManual,
+		Timeout: metav1.Duration{
+			Duration: time.Second,
+		},
+		Interval: metav1.Duration{
+			Duration: time.Second * 5,
+		},
+	}
+
+	// Create a cancelable context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a test component
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		spec:   spec,
+	}
+
+	// Start the component - this should not start a goroutine for periodic checks
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Give some time to ensure no check happens
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify lastCheckResult is nil (because no check was performed)
+	c.lastMu.RLock()
+	assert.Nil(t, c.lastCheckResult, "Check should not have been called for manual mode")
+	c.lastMu.RUnlock()
+}
+
+// TestComponent_ManualRunModeInHealthStates tests that the RunMode is included in HealthStates
+func TestComponent_ManualRunModeInHealthStates(t *testing.T) {
+	// Create component with RunMode=manual
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+		RunMode:    SpecModeManual,
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Set a mock lastCheckResult with RunMode
+	mockResult := &checkResult{
+		ts:            time.Now().UTC(),
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		runMode:       apiv1.RunModeTypeManual,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "test reason",
+	}
+
+	c.lastMu.Lock()
+	c.lastCheckResult = mockResult
+	c.lastMu.Unlock()
+
+	// Get the health states
+	healthStates := c.LastHealthStates()
+
+	// Verify the RunMode is in the health states
+	assert.Equal(t, 1, len(healthStates))
+	assert.Equal(t, apiv1.RunModeTypeManual, healthStates[0].RunMode)
+
+	b, err := json.Marshal(healthStates)
+	assert.NoError(t, err)
+	t.Logf("healthStates: %s", string(b))
+}
+
+// TestCheckResult_RunModeInHealthStates tests that RunMode is included in the HealthStates returned by checkResult
+func TestCheckResult_RunModeInHealthStates(t *testing.T) {
+	// Test with manual run mode
+	cr := &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		runMode:       apiv1.RunModeTypeManual,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "test reason",
+	}
+
+	states := cr.HealthStates()
+	require.Equal(t, 1, len(states))
+	assert.Equal(t, apiv1.RunModeTypeManual, states[0].RunMode)
+
+	// Test with empty run mode
+	cr = &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "test reason",
+	}
+
+	states = cr.HealthStates()
+	require.Equal(t, 1, len(states))
+	assert.Empty(t, states[0].RunMode)
+}
+
+// TestComponent_Check_SetsRunMode tests that the RunMode from spec is set in checkResult
+func TestComponent_Check_SetsRunMode(t *testing.T) {
+	// Test with manual run mode
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+		RunMode:    SpecModeManual,
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+	assert.Equal(t, apiv1.RunModeTypeManual, cr.runMode)
+
+	// Test with empty run mode
+	spec = &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+	}
+
+	c = &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	result = c.Check()
+	cr, ok = result.(*checkResult)
+	assert.True(t, ok)
+	assert.Empty(t, cr.runMode)
+}
+
+// TestComponent_LastHealthStates_DefaultRunMode tests the default HealthState when no check has been performed
+func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
+	// Test with manual run mode
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+		RunMode:    SpecModeManual,
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// No check performed yet
+	healthStates := c.LastHealthStates()
+	assert.Equal(t, 1, len(healthStates))
+	assert.Equal(t, apiv1.RunModeTypeManual, healthStates[0].RunMode)
+
+	// Test with empty run mode
+	spec = &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponent,
+	}
+
+	c = &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// No check performed yet
+	healthStates = c.LastHealthStates()
+	assert.Equal(t, 1, len(healthStates))
+	assert.Empty(t, healthStates[0].RunMode)
 }

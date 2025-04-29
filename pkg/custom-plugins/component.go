@@ -95,12 +95,13 @@ func (c *component) Start() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
+	log.Logger.Infow("checking custom plugin", "type", c.spec.Type, "runMode", c.spec.RunMode, "component", c.Name(), "plugin", c.spec.PluginName)
 
 	cr := &checkResult{
 		componentName: c.Name(),
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeType(c.spec.RunMode),
 		extraInfo:     make(map[string]string),
 	}
 	defer func() {
@@ -119,7 +120,6 @@ func (c *component) Check() components.CheckResult {
 	defer ccancel()
 
 	cr.out, cr.exitCode, cr.err = c.spec.HealthStatePlugin.executeAllSteps(cctx)
-	cr.output = string(cr.out)
 
 	// either custom parser (jsonpath) or default parser
 	// parse before processing the error/command failures
@@ -184,6 +184,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 				Time:      metav1.NewTime(time.Now().UTC()),
 				Component: c.Name(),
 				Name:      c.spec.PluginName,
+				RunMode:   apiv1.RunModeType(c.spec.RunMode),
 				Health:    apiv1.HealthStateTypeHealthy,
 				Reason:    "no data yet",
 			},
@@ -207,6 +208,7 @@ func (c *component) Close() error {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	// output of the last check commands
 	out      []byte
 	exitCode int32
 
@@ -218,15 +220,14 @@ type checkResult struct {
 	// error from the last check
 	err error
 
+	// runMode is the run mode of the last check
+	runMode apiv1.RunModeType
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
 	// extra info extracted from the output
 	extraInfo map[string]string
-
-	// output of the last check commands
-	output string
 }
 
 func (cr *checkResult) String() string {
@@ -275,6 +276,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Name:      cr.pluginName,
 		Reason:    cr.reason,
 		Error:     cr.getError(),
+		RunMode:   cr.runMode,
 		Health:    cr.health,
 		ExtraInfo: cr.extraInfo,
 	}
@@ -287,5 +289,5 @@ func (cr *checkResult) Debug() string {
 	if cr == nil {
 		return ""
 	}
-	return cr.output
+	return string(cr.out)
 }
