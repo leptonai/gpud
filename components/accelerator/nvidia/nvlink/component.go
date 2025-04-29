@@ -118,11 +118,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting nvlink for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting nvlink for device %s", uuid)
+			cr.reason = "error getting nvlink"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 

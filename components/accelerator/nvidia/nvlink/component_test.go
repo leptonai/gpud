@@ -225,7 +225,7 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting nvlink", lastCheckResult.reason)
 }
 
 func TestCheckOnce_NoDevices(t *testing.T) {
@@ -295,7 +295,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test NVLink error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting nvlink for device gpu-uuid-123",
+		reason: "error getting nvlink",
 	}
 	component.lastMu.Unlock()
 
@@ -306,7 +306,7 @@ func TestStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting nvlink for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting nvlink", state.Reason)
 	assert.Equal(t, "test NVLink error", state.Error)
 }
 
