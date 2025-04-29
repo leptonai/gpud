@@ -389,11 +389,12 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:          metav1.NewTime(time.Now().UTC()),
+				Component:     Name,
+				ComponentType: apiv1.ComponentTypeComponent,
+				Name:          Name,
+				Health:        apiv1.HealthStateTypeHealthy,
+				Reason:        "no data yet",
 			},
 		}
 	}

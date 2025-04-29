@@ -207,22 +207,24 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
 			{
-				Time:      metav1.NewTime(time.Now().UTC()),
-				Component: Name,
-				Name:      Name,
-				Health:    apiv1.HealthStateTypeHealthy,
-				Reason:    "no data yet",
+				Time:          metav1.NewTime(time.Now().UTC()),
+				Component:     Name,
+				ComponentType: apiv1.ComponentTypeComponent,
+				Name:          Name,
+				Health:        apiv1.HealthStateTypeHealthy,
+				Reason:        "no data yet",
 			},
 		}
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:          metav1.NewTime(cr.ts),
+		Component:     Name,
+		ComponentType: apiv1.ComponentTypeComponent,
+		Name:          Name,
+		Reason:        cr.reason,
+		Error:         cr.getError(),
+		Health:        cr.health,
 	}
 
 	b, _ := json.Marshal(cr)
