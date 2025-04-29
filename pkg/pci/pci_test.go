@@ -51,12 +51,6 @@ func TestParseAccessControlServices(t *testing.T) {
 	if mellanoxACSCnt != 4 {
 		t.Fatalf("expected 4 Mellanox devices, got %d", mellanoxACSCnt)
 	}
-
-	yb, err := devs.YAML()
-	if err != nil {
-		t.Fatalf("failed to marshal to YAML: %v", err)
-	}
-	t.Logf("yaml: %s", string(yb))
 }
 
 func TestParseAccessControlServicesNoFilter(t *testing.T) {

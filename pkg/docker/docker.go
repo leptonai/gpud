@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	dockerapitypes "github.com/docker/docker/api/types"
@@ -92,10 +91,6 @@ func CheckDockerRunning(ctx context.Context) bool {
 
 	_, err = cli.Ping(ctx)
 	return err == nil
-}
-
-func (s DockerContainer) JSON() ([]byte, error) {
-	return json.Marshal(s)
 }
 
 type DockerContainer struct {

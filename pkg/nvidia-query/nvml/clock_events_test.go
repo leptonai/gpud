@@ -320,69 +320,6 @@ func TestClockEventsSupportedByDevice(t *testing.T) {
 	}
 }
 
-func TestClockEventsJSONAndYAML(t *testing.T) {
-	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	tests := []struct {
-		name        string
-		clockEvents *ClockEvents
-		wantJSON    string
-		wantYAML    string
-	}{
-		{
-			name: "valid clock events",
-			clockEvents: &ClockEvents{
-				Time:              metav1.Time{Time: testTime},
-				UUID:              "GPU-123",
-				ReasonsBitmask:    reasonHWSlowdown,
-				HWSlowdownReasons: []string{"test reason"},
-				HWSlowdown:        true,
-				Supported:         true,
-			},
-			wantJSON: `{"time":"2024-01-01T00:00:00Z","uuid":"GPU-123","reasons_bitmask":8,"hw_slowdown_reasons":["test reason"],"hw_slowdown":true,"hw_thermal_slowdown":false,"hw_slowdown_power_brake":false,"supported":true}`,
-			wantYAML: `hw_slowdown: true
-hw_slowdown_power_brake: false
-hw_slowdown_reasons:
-- test reason
-hw_thermal_slowdown: false
-reasons_bitmask: 8
-supported: true
-time: "2024-01-01T00:00:00Z"
-uuid: GPU-123
-`,
-		},
-		{
-			name:        "nil clock events",
-			clockEvents: nil,
-			wantJSON:    "",
-			wantYAML:    "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test JSON marshaling
-			gotJSON, err := tt.clockEvents.JSON()
-			if err != nil {
-				t.Errorf("ClockEvents.JSON() error = %v", err)
-				return
-			}
-			if string(gotJSON) != tt.wantJSON {
-				t.Errorf("ClockEvents.JSON() = %v, want %v", string(gotJSON), tt.wantJSON)
-			}
-
-			// Test YAML marshaling
-			gotYAML, err := tt.clockEvents.YAML()
-			if err != nil {
-				t.Errorf("ClockEvents.YAML() error = %v", err)
-				return
-			}
-			if string(gotYAML) != tt.wantYAML {
-				t.Errorf("ClockEvents.YAML() = %v, want %v", string(gotYAML), tt.wantYAML)
-			}
-		})
-	}
-}
-
 func TestCreateEventFromClockEvents(t *testing.T) {
 	testTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -467,23 +404,5 @@ func TestGetClockEventsWithNotSupported(t *testing.T) {
 		assert.Equal(t, testUUID, clockEvents.UUID)
 		assert.False(t, clockEvents.Supported)
 		assert.Equal(t, uint64(0), clockEvents.ReasonsBitmask)
-	})
-}
-
-// TestClockEventsWithNilPointer tests handling of nil pointers in JSON and YAML serialization
-func TestClockEventsWithNilPointer(t *testing.T) {
-	// Test handling nil pointers for both JSON and YAML methods
-	t.Run("nil receiver for JSON()", func(t *testing.T) {
-		var clockEvents *ClockEvents
-		result, err := clockEvents.JSON()
-		assert.NoError(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("nil receiver for YAML()", func(t *testing.T) {
-		var clockEvents *ClockEvents
-		result, err := clockEvents.YAML()
-		assert.NoError(t, err)
-		assert.Nil(t, result)
 	})
 }

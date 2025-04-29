@@ -2,7 +2,6 @@
 package sxid
 
 import (
-	"encoding/json"
 	"fmt"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -30,10 +29,6 @@ type Detail struct {
 	Impact         string `json:"impact"`
 	Recovery       string `json:"recovery"`
 	OtherImpact    string `json:"other_impact"`
-}
-
-func (d Detail) JSON() ([]byte, error) {
-	return json.Marshal(d)
 }
 
 // Returns the error if found.

@@ -3,6 +3,7 @@ package v1
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ func CheckHealthz(ctx context.Context, addr string, opts ...OpOption) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	exp, err := server.DefaultHealthz.JSON()
+	exp, err := json.Marshal(server.DefaultHealthz)
 	if err != nil {
 		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
 	}
@@ -67,7 +68,7 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	exp, err := server.DefaultHealthz.JSON()
+	exp, err := json.Marshal(server.DefaultHealthz)
 	if err != nil {
 		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
 	}

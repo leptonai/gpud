@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -70,7 +71,7 @@ func TestDockerContainer_JSON(t *testing.T) {
 		PodNamespace: "test-namespace",
 	}
 
-	json, err := container.JSON()
+	json, err := json.Marshal(container)
 	require.NoError(t, err)
 	assert.Contains(t, string(json), "test-id")
 	assert.Contains(t, string(json), "test-name")
