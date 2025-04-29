@@ -164,8 +164,8 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if c.getIbstatOutputFunc == nil {
-		cr.reason = "ibstat checker not found"
 		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "ibstat checker not found"
 		return cr
 	}
 
@@ -174,11 +174,12 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if cr.err != nil {
 		if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
-			cr.reason = "ibstat command not found"
 			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = "ibstat command not found"
 		} else {
-			cr.reason = fmt.Sprintf("ibstat command failed: %v", cr.err)
 			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "ibstat command failed"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 		}
 		return cr
 	}
@@ -228,8 +229,10 @@ func (c *component) Check() components.CheckResult {
 	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
-		cr.reason = fmt.Sprintf("failed to find ibstat event: %v", err)
+		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error finding ibstat event"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -240,11 +243,12 @@ func (c *component) Check() components.CheckResult {
 
 	// insert event
 	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	err = c.eventBucket.Insert(cctx, ev)
+	cr.err = c.eventBucket.Insert(cctx, ev)
 	ccancel()
-	if err != nil {
-		cr.reason = fmt.Sprintf("failed to insert ibstat event: %v", err)
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error inserting ibstat event"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
