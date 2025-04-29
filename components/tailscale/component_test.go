@@ -144,7 +144,7 @@ func TestCheckOnce(t *testing.T) {
 			activeError:  nil,
 			expectActive: false,
 			expectError:  false,
-			expectReason: "tailscaled installed but tailscaled service is not active or failed to check (error <nil>)",
+			expectReason: "tailscaled installed but tailscaled service is not active or failed to check",
 		},
 		{
 			name:         "tailscaled installed but error checking active status",
@@ -153,7 +153,7 @@ func TestCheckOnce(t *testing.T) {
 			activeError:  errors.New("test error"),
 			expectActive: false,
 			expectError:  true,
-			expectReason: "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
+			expectReason: "tailscaled installed but tailscaled service is not active or failed to check",
 		},
 		{
 			name:         "tailscaled not installed",
@@ -303,9 +303,9 @@ func TestDataGetStates(t *testing.T) {
 			data: &checkResult{
 				err:    errors.New("test error"),
 				health: apiv1.HealthStateTypeUnhealthy,
-				reason: "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
+				reason: "tailscaled installed but tailscaled service is not active or failed to check",
 			},
-			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check (error test error)",
+			expectedReason:  "tailscaled installed but tailscaled service is not active or failed to check",
 			expectedHealth:  apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy: false,
 		},

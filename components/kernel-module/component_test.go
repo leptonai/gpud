@@ -169,7 +169,7 @@ func TestGetReason(t *testing.T) {
 			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
 			loadError:      assert.AnError,
-			wantReason:     "error getting all modules: assert.AnError general error for testing",
+			wantReason:     "error getting all modules",
 		},
 		{
 			name:           "no modules to check",
@@ -346,10 +346,10 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name:        "with error",
-			data:        &checkResult{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
+			data:        &checkResult{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules"},
 			wantHealthy: false,
 			wantHealth:  apiv1.HealthStateTypeUnhealthy,
-			wantReason:  "error getting all modules: assert.AnError general error for testing",
+			wantReason:  "error getting all modules",
 			wantError:   true,
 		},
 		{
@@ -449,7 +449,7 @@ func TestCheckOnceLogic(t *testing.T) {
 			modulesToCheck: []string{"module1"},
 			loadError:      fmt.Errorf("module load error"),
 			wantHealthy:    false,
-			wantReason:     "error getting all modules: module load error",
+			wantReason:     "error getting all modules",
 		},
 		{
 			name:           "all required modules loaded",

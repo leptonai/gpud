@@ -1122,8 +1122,8 @@ func TestComponentCheckManualExit(t *testing.T) {
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
-	assert.Contains(t, cr.reason, "error executing state plugin -- exit status 1")
-	assert.Contains(t, rs.Summary(), "error executing state plugin -- exit status 1")
+	assert.Contains(t, cr.reason, "error executing state plugin")
+	assert.Contains(t, rs.Summary(), "error executing state plugin")
 
 	assert.Equal(t, cr.extraInfo["description"], "triggered to fail with exit code 1")
 }

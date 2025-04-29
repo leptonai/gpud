@@ -116,11 +116,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		persistenceMode, err := c.getPersistenceModeFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting persistence mode for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting persistence mode for device %s", uuid)
+			cr.reason = "error getting persistence mode"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 

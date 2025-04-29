@@ -99,7 +99,8 @@ func (c *component) Check() components.CheckResult {
 	cr.LoadedModules, cr.err = c.getAllModulesFunc()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting all modules: %v", cr.err)
+		cr.reason = "error getting all modules"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 

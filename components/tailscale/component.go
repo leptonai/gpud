@@ -4,7 +4,6 @@ package tailscale
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -109,7 +108,8 @@ func (c *component) Check() components.CheckResult {
 		cr.TailscaledServiceActive, cr.err = c.checkServiceActiveFunc()
 		if !cr.TailscaledServiceActive || cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("tailscaled installed but tailscaled service is not active or failed to check (error %v)", cr.err)
+			cr.reason = "tailscaled installed but tailscaled service is not active or failed to check"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}

@@ -1061,7 +1061,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "failed to find ibstat event")
+	assert.Contains(t, data.reason, "error finding ibstat event")
 
 	// Test case: Insert method returns error
 	errorBucket.findError = nil // Reset find error
@@ -1070,7 +1070,7 @@ func TestCheckWithEventErrors(t *testing.T) {
 	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "failed to insert ibstat event")
+	assert.Contains(t, data.reason, "error inserting ibstat event")
 }
 
 // Mock event bucket that returns errors

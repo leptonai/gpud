@@ -118,11 +118,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		util, err := c.getUtilizationFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting utilization for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting utilization for device %s", uuid)
+			cr.reason = "error getting utilization"
+			log.Logger.Errorw(cr.reason, "error", err)
 			return cr
 		}
 		cr.Utilizations = append(cr.Utilizations, util)

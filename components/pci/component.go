@@ -172,7 +172,8 @@ func (c *component) Check() components.CheckResult {
 	cancel()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error listing devices: %s", cr.err)
+		cr.reason = "error listing devices"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -194,13 +195,15 @@ func (c *component) Check() components.CheckResult {
 		cancel()
 		if cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error creating event: %s", cr.err)
+			cr.reason = "error creating event"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("found %d acs enabled devices (needs to be disabled, out of %d total)", len(acsEnabledDevices), len(cr.Devices))
+	cr.reason = "found some acs enabled devices (needs to be disabled)"
+	log.Logger.Debugw(cr.reason, "enabledDevices", len(acsEnabledDevices))
 
 	return cr
 }

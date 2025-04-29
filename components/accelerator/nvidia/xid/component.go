@@ -214,8 +214,9 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if err != nil {
 		cr.err = err
-		cr.reason = fmt.Sprintf("failed to read kmsg: %v", err)
+		cr.reason = "failed to read kmsg"
 		cr.health = apiv1.HealthStateTypeUnhealthy
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 

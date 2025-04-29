@@ -142,7 +142,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error listing fuse connections %v", err)
+		cr.reason = "error listing fuse connections"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -174,11 +175,14 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		ib, err := info.JSON()
+		ib, err := json.Marshal(info)
 		if err != nil {
-			log.Logger.Errorw("error getting json of fuse connection info", "error", err)
-			continue
+			cr.err = err
+			cr.reason = "error json encoding fuse connection info"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
+			return cr
 		}
+
 		ev := apiv1.Event{
 			Time:    metav1.Time{Time: now.UTC()},
 			Name:    "fuse_connections",
@@ -194,7 +198,8 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error finding event %v", err)
+			cr.reason = "error finding event"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 		if found == nil {
@@ -203,13 +208,15 @@ func (c *component) Check() components.CheckResult {
 		if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error inserting event %v", err)
+			cr.reason = "error inserting event"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("found %d fuse connection(s)", len(cr.ConnectionInfos))
+	cr.reason = "successfully fuse connection(s)"
+	log.Logger.Debugw(cr.reason, "count", len(cr.ConnectionInfos))
 
 	return cr
 }

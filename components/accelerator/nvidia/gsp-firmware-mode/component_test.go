@@ -212,7 +212,7 @@ func TestCheck_Error(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting GSP firmware mode", lastCheckResult.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -275,7 +275,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test GSP firmware mode error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting GSP firmware mode for device gpu-uuid-123",
+		reason: "error getting GSP firmware mode",
 	}
 	component.lastMu.Unlock()
 
@@ -286,7 +286,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting GSP firmware mode", state.Reason)
 	assert.Equal(t, "test GSP firmware mode error", state.Error)
 }
 

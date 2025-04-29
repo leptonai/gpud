@@ -130,10 +130,14 @@ func TestData_getStates(t *testing.T) {
 		})
 	}
 
-	// Test with nil data
-	var nilData *checkResult
-	states := nilData.HealthStates()
-	assert.Equal(t, "no data yet", states[0].Reason)
+	// Test with nil data in a dedicated test case
+	t.Run("Nil checkResult", func(t *testing.T) {
+		var nilData *checkResult
+		states := nilData.HealthStates()
+		assert.Equal(t, "no data yet", states[0].Reason)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, Name, states[0].Name)
+	})
 }
 
 func TestDataHealthField(t *testing.T) {
@@ -354,11 +358,36 @@ func Test_componentStart(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	ctx := context.Background()
 	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
-	c, err := New(gpudInstance)
-	require.NoError(t, err)
-	events, err := c.Events(ctx, time.Now().Add(-1*time.Hour))
-	assert.NoError(t, err)
-	assert.Empty(t, events)
+
+	t.Run("Default component with no events", func(t *testing.T) {
+		c, err := New(gpudInstance)
+		require.NoError(t, err)
+		events, err := c.Events(ctx, time.Now().Add(-1*time.Hour))
+		assert.NoError(t, err)
+		assert.Empty(t, events)
+	})
+
+	t.Run("With null timestamp", func(t *testing.T) {
+		c, err := New(gpudInstance)
+		require.NoError(t, err)
+		events, err := c.Events(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Empty(t, events)
+	})
+
+	t.Run("With canceled context", func(t *testing.T) {
+		c, err := New(gpudInstance)
+		require.NoError(t, err)
+
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel() // Cancel immediately
+
+		// The current implementation of Events just returns nil, nil regardless of context
+		// so we should expect no error even with canceled context
+		events, err := c.Events(canceledCtx, time.Now().Add(-1*time.Hour))
+		assert.NoError(t, err)
+		assert.Empty(t, events)
+	})
 }
 
 func TestComponentClose(t *testing.T) {
@@ -529,7 +558,9 @@ func TestDirectCheckOnce(t *testing.T) {
 		// Verify data was saved
 		comp.lastMu.RLock()
 		assert.NotNil(t, comp.lastCheckResult)
-		assert.Equal(t, time.Now().UTC().Format("2006-01-02"), comp.lastCheckResult.ts.Format("2006-01-02"))
+		now := time.Now()
+		assert.True(t, comp.lastCheckResult.ts.After(now.Add(-5*time.Second)), "Timestamp should be recent")
+		assert.True(t, comp.lastCheckResult.ts.Before(now.Add(5*time.Second)), "Timestamp should be recent")
 		comp.lastMu.RUnlock()
 	})
 
@@ -746,30 +777,117 @@ func TestDirectCheckOnce(t *testing.T) {
 		comp.lastMu.RLock()
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
 		assert.Equal(t, containers, comp.lastCheckResult.Containers)
-		assert.Contains(t, comp.lastCheckResult.reason, "total 2 container")
+		assert.Contains(t, comp.lastCheckResult.reason, "successfully listed containers")
 		comp.lastMu.RUnlock()
 	})
 }
 
 func TestDataMarshalJSON(t *testing.T) {
-	cr := &checkResult{
-		DockerServiceActive: true,
-		Containers: []pkgdocker.DockerContainer{
-			{
-				ID:    "test-id",
-				Name:  "test-name",
-				Image: "test-image",
-			},
-		},
-		ts:  time.Now(),
-		err: nil,
+	// Create a test container
+	container := pkgdocker.DockerContainer{
+		ID:    "test-id",
+		Name:  "test-name",
+		Image: "test-image",
 	}
 
-	json, err := json.Marshal(cr)
+	cr := &checkResult{
+		DockerServiceActive: true,
+		Containers:          []pkgdocker.DockerContainer{container},
+		ts:                  time.Now(),
+		err:                 nil,
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(cr)
 	require.NoError(t, err)
-	assert.Contains(t, string(json), "test-id")
-	assert.Contains(t, string(json), "test-name")
-	assert.Contains(t, string(json), "test-image")
-	assert.Contains(t, string(json), "docker_service_active")
-	assert.Contains(t, string(json), "containers")
+
+	// Check for presence of key fields
+	assert.Contains(t, string(jsonData), "test-id")
+	assert.Contains(t, string(jsonData), "test-name")
+	assert.Contains(t, string(jsonData), "test-image")
+	assert.Contains(t, string(jsonData), "docker_service_active")
+	assert.Contains(t, string(jsonData), "containers")
+
+	// Unmarshal to verify the structure
+	var decoded struct {
+		DockerServiceActive bool                        `json:"docker_service_active"`
+		Containers          []pkgdocker.DockerContainer `json:"containers"`
+	}
+
+	err = json.Unmarshal(jsonData, &decoded)
+	require.NoError(t, err)
+
+	// Verify structure and content
+	assert.True(t, decoded.DockerServiceActive)
+	require.Len(t, decoded.Containers, 1)
+	assert.Equal(t, container.ID, decoded.Containers[0].ID)
+	assert.Equal(t, container.Name, decoded.Containers[0].Name)
+	assert.Equal(t, container.Image, decoded.Containers[0].Image)
+}
+
+func TestCheckResultString(t *testing.T) {
+	// Test with nil
+	var nilResult *checkResult
+	assert.Equal(t, "", nilResult.String())
+
+	// Test with empty containers
+	emptyResult := &checkResult{
+		Containers: []pkgdocker.DockerContainer{},
+	}
+	assert.Equal(t, "no container found", emptyResult.String())
+
+	// Test with containers
+	containersResult := &checkResult{
+		Containers: []pkgdocker.DockerContainer{
+			{ID: "id1", Name: "name1", Image: "image1", State: "running"},
+			{ID: "id2", Name: "name2", Image: "image2", State: "stopped"},
+		},
+	}
+	stringOutput := containersResult.String()
+
+	// Table header checks (case-insensitive)
+	assert.Regexp(t, "(?i)id", stringOutput)
+	assert.Regexp(t, "(?i)name", stringOutput)
+	assert.Regexp(t, "(?i)image", stringOutput)
+	assert.Regexp(t, "(?i)state", stringOutput)
+
+	// Content checks (case-sensitive)
+	assert.Contains(t, stringOutput, "id1")
+	assert.Contains(t, stringOutput, "name1")
+	assert.Contains(t, stringOutput, "image1")
+	assert.Contains(t, stringOutput, "running")
+	assert.Contains(t, stringOutput, "id2")
+	assert.Contains(t, stringOutput, "name2")
+	assert.Contains(t, stringOutput, "image2")
+	assert.Contains(t, stringOutput, "stopped")
+}
+
+func TestCheckResultSummary(t *testing.T) {
+	// Test with nil
+	var nilResult *checkResult
+	assert.Equal(t, "", nilResult.Summary())
+
+	// Test with reason
+	result := &checkResult{
+		reason: "test reason summary",
+	}
+	assert.Equal(t, "test reason summary", result.Summary())
+}
+
+func TestCheckResultHealthStateType(t *testing.T) {
+	// Test with nil
+	var nilResult *checkResult
+	assert.Equal(t, apiv1.HealthStateType(""), nilResult.HealthStateType())
+
+	// Test with health state
+	result := &checkResult{
+		health: apiv1.HealthStateTypeHealthy,
+	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+
+	// Test with unhealthy state
+	result = &checkResult{
+		health: apiv1.HealthStateTypeUnhealthy,
+	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 }

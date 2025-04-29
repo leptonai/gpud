@@ -118,11 +118,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		power, err := c.getPowerFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting power for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting power for device %s", uuid)
+			cr.reason = "error getting power"
+			log.Logger.Errorw(cr.reason, "error", err)
 			return cr
 		}
 		cr.Powers = append(cr.Powers, power)
@@ -132,11 +131,10 @@ func (c *component) Check() components.CheckResult {
 
 		usedPct, err := power.GetUsedPercent()
 		if err != nil {
-			log.Logger.Errorw("error getting used percent for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting used percent for device %s", uuid)
+			cr.reason = "error getting used percent"
+			log.Logger.Errorw(cr.reason, "error", err)
 			return cr
 		}
 		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(usedPct)

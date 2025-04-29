@@ -320,7 +320,7 @@ func TestCheck_GPMSupportError(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting GPM supported for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting GPM supported", lastCheckResult.reason)
 }
 
 func TestCheck_GPMMetricsError(t *testing.T) {
@@ -362,7 +362,7 @@ func TestCheck_GPMMetricsError(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting GPM metrics", lastCheckResult.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -429,7 +429,7 @@ func TestStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test GPM error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting GPM metrics for device gpu-uuid-123",
+		reason: "error getting GPM metrics",
 	}
 	component.lastMu.Unlock()
 
@@ -440,7 +440,7 @@ func TestStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting GPM metrics for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting GPM metrics", state.Reason)
 	assert.Equal(t, "test GPM error", state.Error)
 }
 

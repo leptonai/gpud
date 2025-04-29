@@ -267,7 +267,7 @@ func TestCheckWithNVML(t *testing.T) {
 
 	result = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
-	assert.Contains(t, result.Summary(), "error checking peermem: command failed")
+	assert.Contains(t, result.Summary(), "error checking peermem")
 }
 
 func TestLastHealthStates(t *testing.T) {

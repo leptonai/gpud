@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -156,14 +155,16 @@ func (c *component) Check() components.CheckResult {
 				cr.reason = "containerd installed and active but containerd CRI is not enabled"
 			} else {
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error listing pod sandbox status: %v", cr.err)
+				cr.reason = "error listing pod sandbox status"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 			}
 			return cr
 		}
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("found %d pod sandbox(es)", len(cr.Pods))
+	cr.reason = "successfully listed pod sandbox(es)"
+	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 
 	return cr
 }

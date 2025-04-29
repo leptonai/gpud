@@ -246,7 +246,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	assert.NotNil(t, c.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
 	assert.Equal(t, testError, c.lastCheckResult.err)
-	assert.Contains(t, c.lastCheckResult.reason, "failed to get virtual memory")
+	assert.Contains(t, c.lastCheckResult.reason, "error getting virtual memory")
 }
 
 func TestComponentCheckOnceWithBPFError(t *testing.T) {
@@ -287,7 +287,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	assert.NotNil(t, c.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
 	assert.Equal(t, testError, c.lastCheckResult.err)
-	assert.Contains(t, c.lastCheckResult.reason, "failed to get bpf jit buffer bytes")
+	assert.Contains(t, c.lastCheckResult.reason, "error getting bpf jit buffer bytes")
 }
 
 func TestCheck(t *testing.T) {

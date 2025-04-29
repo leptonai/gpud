@@ -145,7 +145,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting device count: %s", err)
+		cr.reason = "error getting device count"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	cr.GPUCount.DeviceCount = deviceCount
@@ -159,7 +160,8 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error getting memory: %s", err)
+				cr.reason = "error getting memory"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
 			cr.Memory.TotalBytes = mem.TotalBytes
@@ -175,7 +177,8 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error getting serial id: %s", err)
+				cr.reason = "error getting serial id"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
 			gpuID.SN = serialID
@@ -186,7 +189,8 @@ func (c *component) Check() components.CheckResult {
 			if err != nil {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = fmt.Sprintf("error getting minor id: %s", err)
+				cr.reason = "error getting minor id"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
 			gpuID.MinorID = strconv.Itoa(minorID)

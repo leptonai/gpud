@@ -226,7 +226,7 @@ func TestCheckOnce(t *testing.T) {
 				return nil, errors.New("failed to list connections")
 			},
 			expectedHealthy:      false,
-			expectedErrorMessage: "error listing fuse connections failed to list connections",
+			expectedErrorMessage: "error listing fuse connections",
 		},
 	}
 

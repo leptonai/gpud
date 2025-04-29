@@ -116,11 +116,10 @@ func (c *component) Check() components.CheckResult {
 	for uuid, dev := range devs {
 		mode, err := c.getGSPFirmwareModeFunc(uuid, dev)
 		if err != nil {
-			log.Logger.Errorw("error getting GSP firmware mode for device", "uuid", uuid, "error", err)
-
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting GSP firmware mode for device %s", uuid)
+			cr.reason = "error getting GSP firmware mode"
+			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 

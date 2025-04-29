@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"runtime"
 	"sync"
@@ -248,7 +247,8 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("found %d ext4 partition(s) and %d block device(s)", len(cr.ExtPartitions), len(cr.BlockDevices))
+	cr.reason = "ok"
+	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
 }
