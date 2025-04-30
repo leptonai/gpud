@@ -1,8 +1,13 @@
 package v1
 
 import (
+	"fmt"
+	"io"
 	"strings"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -272,6 +277,17 @@ type MachineInfo struct {
 	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
 }
 
+func (i *MachineInfo) RenderTable(wr io.Writer) {
+	if i.GPUInfo != nil {
+		i.GPUInfo.RenderTable(wr)
+		fmt.Fprintf(wr, "\n")
+	}
+	if i.DiskInfo != nil {
+		i.DiskInfo.RenderTable(wr)
+		fmt.Fprintf(wr, "\n")
+	}
+}
+
 type MachineCPUInfo struct {
 	Type         string `json:"type,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
@@ -293,8 +309,31 @@ type MachineGPUInstance struct {
 	MinorID string `json:"minorID,omitempty"`
 }
 
+func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {
+	fmt.Fprintf(wr, "Product: %s\n", gi.Product)
+	fmt.Fprintf(wr, "Manufacturer: %s\n", gi.Manufacturer)
+	fmt.Fprintf(wr, "Memory: %s\n", gi.Memory)
+
+	if len(gi.GPUs) > 0 {
+		table := tablewriter.NewWriter(wr)
+		table.SetHeader([]string{"UUID", "SN", "MinorID"})
+
+		for _, gpu := range gi.GPUs {
+			table.Append([]string{
+				gpu.UUID,
+				gpu.SN,
+				gpu.MinorID,
+			})
+		}
+
+		table.Render()
+	}
+}
+
 type MachineDiskInfo struct {
 	BlockDevices []MachineDiskDevice `json:"blockDevices,omitempty"`
+	// ContainerRootDisk is the disk device name that mounts the container root (such as "/var/lib/kubelet" mount point).
+	ContainerRootDisk string `json:"containerRootDisk,omitempty"`
 }
 
 type MachineDiskDevice struct {
@@ -312,6 +351,29 @@ type MachineDiskDevice struct {
 	PartUUID   string   `json:"partUUID,omitempty"`
 	Parents    []string `json:"parents,omitempty"`
 	Children   []string `json:"children,omitempty"`
+}
+
+func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
+	fmt.Fprintf(wr, "Container Root Disk: %s\n", di.ContainerRootDisk)
+
+	if len(di.BlockDevices) > 0 {
+		table := tablewriter.NewWriter(wr)
+		table.SetHeader([]string{"Name", "Type", "FSType", "Size", "Mount Point", "Parents", "Children"})
+
+		for _, blk := range di.BlockDevices {
+			table.Append([]string{
+				blk.Name,
+				blk.Type,
+				blk.FSType,
+				humanize.Bytes(uint64(blk.Size)),
+				blk.MountPoint,
+				strings.Join(blk.Parents, "\n"),
+				strings.Join(blk.Children, "\n"),
+			})
+		}
+
+		table.Render()
+	}
 }
 
 type MachineNetwork struct {

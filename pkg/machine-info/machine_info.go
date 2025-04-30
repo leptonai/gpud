@@ -4,6 +4,7 @@ package machineinfo
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -261,7 +262,26 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			Children:   bd.Children,
 		})
 	}
-	return &apiv1.MachineDiskInfo{
+
+	info := &apiv1.MachineDiskInfo{
 		BlockDevices: rs,
-	}, nil
+	}
+
+	if runtime.GOOS == "linux" {
+		_, serr := os.Stat("/var/lib/kubelet")
+		if serr != nil && !os.IsNotExist(serr) {
+			return nil, serr
+		}
+		if serr == nil {
+			out, err := pkgdisk.FindMnt(ctx, "/var/lib/kubelet")
+			if err != nil {
+				return nil, err
+			}
+			if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
+				info.ContainerRootDisk = out.Filesystems[0].Sources[0]
+			}
+		}
+	}
+
+	return info, nil
 }
