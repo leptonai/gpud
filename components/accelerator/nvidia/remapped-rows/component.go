@@ -175,7 +175,6 @@ func (c *component) Check() components.CheckResult {
 			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
 		}
 
-		b, _ := json.Marshal(cr)
 		if c.eventBucket != nil && remappedRows.RemappingPending {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
 
@@ -187,12 +186,6 @@ func (c *component) Check() components.CheckResult {
 					Name:    "row_remapping_pending",
 					Type:    apiv1.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected pending row remapping", uuid),
-					DeprecatedExtraInfo: map[string]string{
-						"gpu_id":   uuid,
-						"data":     string(b),
-						"encoding": "json",
-					},
-					DeprecatedSuggestedActions: nil,
 				},
 			)
 			ccancel()
@@ -214,12 +207,6 @@ func (c *component) Check() components.CheckResult {
 					Name:    "row_remapping_failed",
 					Type:    apiv1.EventTypeWarning,
 					Message: fmt.Sprintf("%s detected failed row remapping", uuid),
-					DeprecatedExtraInfo: map[string]string{
-						"gpu_id":   uuid,
-						"data":     string(b),
-						"encoding": "json",
-					},
-					DeprecatedSuggestedActions: nil,
 				},
 			)
 			ccancel()
@@ -339,10 +326,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
+	if len(cr.RemappedRows) > 0 {
+		b, _ := json.Marshal(cr)
+		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
 }

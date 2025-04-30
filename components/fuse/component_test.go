@@ -332,9 +332,6 @@ func TestCheckWithEventHandling(t *testing.T) {
 			assert.Contains(t, event.Message, "congested percent")
 			assert.Contains(t, event.Message, "max background percent")
 
-			// Check that the connection info is in the event details
-			assert.Contains(t, event.DeprecatedExtraInfo["encoding"], "json")
-
 			// Validate we can parse the data
 			var connData map[string]interface{}
 			err := json.Unmarshal([]byte(event.DeprecatedExtraInfo["data"]), &connData)

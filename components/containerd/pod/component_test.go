@@ -127,7 +127,6 @@ func TestDataFunctions(t *testing.T) {
 		states := cr.HealthStates()
 		assert.Len(t, states, 1)
 		assert.Contains(t, states[0].ExtraInfo, "data")
-		assert.Contains(t, states[0].ExtraInfo, "encoding")
 	})
 }
 
@@ -1131,7 +1130,6 @@ func TestData_getStates(t *testing.T) {
 			if tt.data != nil && len(tt.data.Pods) > 0 {
 				assert.NotNil(t, states[0].ExtraInfo)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
 
 				// Verify we can unmarshal the JSON data
 				var decodedData checkResult
@@ -1596,7 +1594,6 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 	// Check that ExtraInfo contains the expected data
 	assert.NotNil(t, state.ExtraInfo)
 	assert.Contains(t, state.ExtraInfo, "data")
-	assert.Contains(t, state.ExtraInfo, "encoding")
 
 	// Deserialize the data back and verify it contains the expected fields
 	var parsedData checkResult

@@ -189,8 +189,7 @@ func (c *component) Check() components.CheckResult {
 			Type:    apiv1.EventTypeCritical,
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
 			DeprecatedExtraInfo: map[string]string{
-				"data":     string(ib),
-				"encoding": "json",
+				"data": string(ib),
 			},
 		}
 
@@ -299,9 +298,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
+	state.ExtraInfo = map[string]string{"data": string(b)}
 	return apiv1.HealthStates{state}
 }
