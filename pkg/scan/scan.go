@@ -3,11 +3,13 @@ package scan
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
 	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
@@ -116,6 +118,13 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if err != nil {
 		return err
 	}
+
+	mi, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s machine info\n", checkMark)
+	mi.RenderTable(os.Stdout)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
