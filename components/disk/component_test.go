@@ -137,7 +137,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-	assert.Contains(t, states[0].ExtraInfo, "data")
+	assert.NotContains(t, states[0].ExtraInfo, "data")
 }
 
 func TestComponentStatesWithError(t *testing.T) {

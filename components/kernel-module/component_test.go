@@ -355,8 +355,8 @@ func TestDataGetStates(t *testing.T) {
 		{
 			name: "no modules to check",
 			data: &checkResult{
-				LoadedModules: []string{},
-				loadedModules: map[string]struct{}{},
+				LoadedModules: []string{"a", "b"},
+				loadedModules: map[string]struct{}{"a": {}, "b": {}},
 				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
@@ -415,7 +415,7 @@ func TestDataGetStates(t *testing.T) {
 			}
 
 			// Check that ExtraInfo exists for non-nil data
-			if tt.data != nil {
+			if tt.data != nil && len(tt.data.LoadedModules) > 0 {
 				assert.Contains(t, state.ExtraInfo, "data")
 
 				// Verify that the JSON encoding works

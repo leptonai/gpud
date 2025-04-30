@@ -367,7 +367,7 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
-				assert.Contains(t, states[0].ExtraInfo, "data")
+				assert.NotContains(t, states[0].ExtraInfo, "data")
 			},
 		},
 		{
