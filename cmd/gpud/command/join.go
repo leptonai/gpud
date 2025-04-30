@@ -71,6 +71,10 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		detectProvider = asnResult.AsnName
 	}
 
+	if cliContext.Bool("no-pubic-ip") {
+		publicIP = ""
+	}
+
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
 		var input string
