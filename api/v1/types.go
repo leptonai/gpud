@@ -278,12 +278,34 @@ type MachineInfo struct {
 }
 
 func (i *MachineInfo) RenderTable(wr io.Writer) {
-	if i.GPUInfo != nil {
-		i.GPUInfo.RenderTable(wr)
-		fmt.Fprintf(wr, "\n")
+	table := tablewriter.NewWriter(wr)
+	table.Append([]string{"GPUd Version", i.GPUdVersion})
+	table.Append([]string{"CUDA Version", i.CUDAVersion})
+	table.Append([]string{"Container Runtime Version", i.ContainerRuntimeVersion})
+	table.Append([]string{"Kernel Version", i.KernelVersion})
+	table.Append([]string{"OS Image", i.OSImage})
+
+	if i.DiskInfo != nil {
+		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
 	}
+
+	if i.GPUInfo != nil {
+		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
+		table.Append([]string{"GPU Product", i.GPUInfo.Product})
+		table.Append([]string{"GPU Manufacturer", i.GPUInfo.Manufacturer})
+		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
+	}
+
+	table.Render()
+	fmt.Fprintf(wr, "\n")
+
 	if i.DiskInfo != nil {
 		i.DiskInfo.RenderTable(wr)
+		fmt.Fprintf(wr, "\n")
+	}
+
+	if i.GPUInfo != nil {
+		i.GPUInfo.RenderTable(wr)
 		fmt.Fprintf(wr, "\n")
 	}
 }
@@ -310,12 +332,9 @@ type MachineGPUInstance struct {
 }
 
 func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {
-	fmt.Fprintf(wr, "Product: %s\n", gi.Product)
-	fmt.Fprintf(wr, "Manufacturer: %s\n", gi.Manufacturer)
-	fmt.Fprintf(wr, "Memory: %s\n", gi.Memory)
-
 	if len(gi.GPUs) > 0 {
 		table := tablewriter.NewWriter(wr)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
 		table.SetHeader([]string{"UUID", "SN", "MinorID"})
 
 		for _, gpu := range gi.GPUs {
@@ -354,10 +373,9 @@ type MachineDiskDevice struct {
 }
 
 func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
-	fmt.Fprintf(wr, "Container Root Disk: %s\n", di.ContainerRootDisk)
-
 	if len(di.BlockDevices) > 0 {
 		table := tablewriter.NewWriter(wr)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
 		table.SetHeader([]string{"Name", "Type", "FSType", "Size", "Mount Point", "Parents", "Children"})
 
 		for _, blk := range di.BlockDevices {
