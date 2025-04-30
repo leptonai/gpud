@@ -71,7 +71,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		detectProvider = asnResult.AsnName
 	}
 
-	if cliContext.Bool("no-pubic-ip") {
+	if cliContext.Bool("no-public-ip") {
 		publicIP = ""
 	}
 
