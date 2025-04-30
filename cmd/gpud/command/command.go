@@ -106,6 +106,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "endpoint for checking in",
 					Value: "mothership-machine.app.lepton.ai",
 				},
+				cli.StringFlag{
+					Name:  "gpu-count",
+					Usage: "specify count of gpu",
+				},
 			},
 		},
 		{
@@ -474,6 +478,14 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "extra-info",
 					Usage: "base64 encoded extra info to pass to control plane",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "specify the region of the machine",
+				},
+				cli.StringFlag{
+					Name:  "gpud-product",
+					Usage: "specify the GPU shape of the machine",
 				},
 			},
 		},

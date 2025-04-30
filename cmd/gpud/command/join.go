@@ -49,6 +49,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	productName := nvmlInstance.ProductName()
+	if cliContext.String("gpud-product") != "" {
+		productName = cliContext.String("gpud-product")
+	}
 
 	// network section
 	region := "unknown"
@@ -56,6 +59,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	if len(latencies) > 0 {
 		closest := latencies.Closest()
 		region = closest.RegionCode
+	}
+	if cliContext.String("region") != "" {
+		region = cliContext.String("region")
 	}
 
 	detectProvider := "unknown"
