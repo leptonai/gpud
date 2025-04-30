@@ -24,7 +24,7 @@ func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest) (
 }
 
 func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
-	log.Logger.Infow("sending login request", "url", url)
+	log.Logger.Debugw("sending login request", "url", url)
 
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -62,7 +62,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Infow("login request processed", "url", url, "machineID", resp.MachineID)
+	log.Logger.Debugw("login request processed", "url", url, "machineID", resp.MachineID)
 	return &resp, nil
 }
 

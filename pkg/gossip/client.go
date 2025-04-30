@@ -26,7 +26,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 		return nil, nil
 	}
 
-	log.Logger.Infow("sending gossip request", "url", url)
+	log.Logger.Debugw("sending gossip request", "url", url)
 
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -60,7 +60,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 		return &resp, fmt.Errorf("login request failed with status code %d (%+v)", httpResp.StatusCode, resp)
 	}
 
-	log.Logger.Infow("gossip request processed", "url", url)
+	log.Logger.Debugw("gossip request processed", "url", url)
 	return &resp, nil
 }
 
