@@ -123,6 +123,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("\n%s machine info\n", checkMark)
 	mi.RenderTable(os.Stdout)
 
 	gpudInstance := &components.GPUdInstance{
