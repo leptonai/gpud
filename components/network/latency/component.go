@@ -225,7 +225,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{"data": string(b)}
+	if len(cr.EgressLatencies) > 0 {
+		b, _ := json.Marshal(cr)
+		state.ExtraInfo = map[string]string{"data": string(b)}
+	}
 	return apiv1.HealthStates{state}
 }
