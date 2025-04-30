@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -318,11 +319,12 @@ func (cr *checkResult) String() string {
 		buf.Reset()
 		table := tablewriter.NewWriter(buf)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
-		table.SetHeader([]string{"Mount Point", "Total", "Free", "Used", "Used %"})
+		table.SetHeader([]string{"Mount Point", "Sources", "Total", "Free", "Used", "Used %"})
 		for target, usage := range cr.MountTargetUsages {
 			for _, fs := range usage.Filesystems {
 				table.Append([]string{
 					target,
+					strings.Join(fs.Sources, "\n"),
 					fs.SizeHumanized,
 					fs.AvailableHumanized,
 					fs.UsedHumanized,
