@@ -20,6 +20,7 @@ func cmdScan(cliContext *cli.Context) error {
 
 	opts := []scan.OpOption{
 		scan.WithIbstatCommand(ibstatCommand),
+		scan.WithIbstatusCommand(ibstatusCommand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))
