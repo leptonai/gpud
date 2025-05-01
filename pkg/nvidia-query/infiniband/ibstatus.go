@@ -60,7 +60,7 @@ func GetIbstatusOutput(ctx context.Context, ibstatusCommands []string) (*Ibstatu
 	if len(o.Raw) > 0 {
 		println()
 		println()
-		fmt.Println("[DEBUG] ibstatus output", o.Raw)
+		fmt.Printf("[DEBUG] ibstatus output:\n\n%q\n\n", o.Raw)
 		println()
 		println()
 
