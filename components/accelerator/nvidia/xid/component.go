@@ -232,7 +232,16 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	cr.reason = fmt.Sprintf("matched %d xid errors from %d kmsg(s)", len(cr.FoundErrors), len(kmsgs))
+
+	// only used for "gpud scan"
+	// if there are any critical errors, the health state will be unhealthy
 	cr.health = apiv1.HealthStateTypeHealthy
+	for _, foundErr := range cr.FoundErrors {
+		if foundErr.Detail != nil && foundErr.Detail.CriticalErrorMarkedByGPUd {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			break
+		}
+	}
 
 	return cr
 }
