@@ -16,7 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-var ErrNoIbstatCommand = errors.New("ibstat not found. cannot check ib state")
+var ErrNoIbstatCommand = errors.New("ibstat not found, cannot check ib state")
 
 func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutput, error) {
 	if len(ibstatCommands) == 0 || strings.TrimSpace(ibstatCommands[0]) == "" {
@@ -112,7 +112,6 @@ func ValidateIbstatOutput(s string) error {
 type IbstatOutput struct {
 	Parsed IBStatCards `json:"parsed,omitempty"`
 	Raw    string      `json:"raw"`
-	Errors []string    `json:"errors,omitempty"`
 }
 
 type IBStatCards []IBStatCard
