@@ -144,9 +144,9 @@ func (c *component) Check() components.CheckResult {
 	// nothing specified for this machine, gpud MUST skip the ib check
 	thresholds := c.getThresholdsFunc()
 	if thresholds.IsZero() {
-		cr.reason = reasonThresholdNotSetSkipped
-		cr.health = apiv1.HealthStateTypeHealthy
-		return cr
+		// cr.reason = reasonThresholdNotSetSkipped
+		// cr.health = apiv1.HealthStateTypeHealthy
+		// return cr
 	}
 
 	if c.nvmlInstance == nil {
