@@ -24,8 +24,6 @@ type IbstatusOutput struct {
 var ErrNoIbstatusCommand = errors.New("ibstatus not found, cannot check ib state")
 
 func GetIbstatusOutput(ctx context.Context, ibstatusCommands []string) (*IbstatusOutput, error) {
-	fmt.Printf("[DEBUG] GetIbstatusOutput: %q\n", ibstatusCommands)
-
 	if len(ibstatusCommands) == 0 || strings.TrimSpace(ibstatusCommands[0]) == "" {
 		return nil, ErrNoIbstatusCommand
 	}
