@@ -9,7 +9,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, gpuCount string) (*apiv1.LoginRequest, error) {
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		Network:   GetMachineNetwork(),
@@ -43,9 +43,12 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance) (*apiv1.
 	}
 	req.Resources[string(corev1.ResourceEphemeralStorage)] = volumeSize
 
-	gpuCnt, err := GetSystemResourceGPUCount(nvmlInstance)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system resource gpu count: %w", err)
+	gpuCnt := gpuCount
+	if gpuCnt == "" {
+		gpuCnt, err = GetSystemResourceGPUCount(nvmlInstance)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get system resource gpu count: %w", err)
+		}
 	}
 	if gpuCnt != "0" {
 		req.Resources["nvidia.com/gpu"] = gpuCnt
