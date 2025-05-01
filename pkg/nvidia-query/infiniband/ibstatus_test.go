@@ -229,3 +229,293 @@ func TestParseIBStatusWithSpecialCharacters(t *testing.T) {
 	require.Equal(t, "5: LinkUp [status]", parsed[0].PhysicalState)
 	require.Equal(t, "200 Gb/sec (4X HDR) high speed", parsed[0].Rate)
 }
+
+func TestSanitizeIbstatusState(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "standard format with number",
+			input:    "4: ACTIVE",
+			expected: "ACTIVE",
+		},
+		{
+			name:     "without number prefix",
+			input:    "ACTIVE",
+			expected: "ACTIVE",
+		},
+		{
+			name:     "with multiple colons",
+			input:    "4: ACTIVE: with extra",
+			expected: "4: ACTIVE: with extra",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeIbstatusState(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSanitizeIbstatusPhysicalState(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "standard format with number",
+			input:    "5: LinkUp",
+			expected: "LinkUp",
+		},
+		{
+			name:     "without number prefix",
+			input:    "LinkUp",
+			expected: "LinkUp",
+		},
+		{
+			name:     "with multiple colons",
+			input:    "5: LinkUp: with extra",
+			expected: "5: LinkUp: with extra",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeIbstatusPhysicalState(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParseIbstatusRate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{
+			name:     "standard format with units",
+			input:    "200 Gb/sec (4X HDR)",
+			expected: 200,
+		},
+		{
+			name:     "simple number",
+			input:    "400",
+			expected: 400,
+		},
+		{
+			name:     "non-numeric first part",
+			input:    "none Gb/sec",
+			expected: 0,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: 0,
+		},
+		{
+			name:     "complex format",
+			input:    "100 Gb/sec (something else)",
+			expected: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseIbstatusRate(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIBStatusesIBPorts(t *testing.T) {
+	statuses := IBStatuses{
+		{
+			Device:        "mlx5_0",
+			State:         "4: ACTIVE",
+			PhysicalState: "5: LinkUp",
+			Rate:          "200 Gb/sec (4X HDR)",
+		},
+		{
+			Device:        "mlx5_1",
+			State:         "1: DOWN",
+			PhysicalState: "2: Disabled",
+			Rate:          "400 Gb/sec (4X NDR)",
+		},
+	}
+
+	ports := statuses.IBPorts()
+
+	require.Equal(t, 2, len(ports))
+
+	// Check first port
+	require.Equal(t, "mlx5_0", ports[0].Device)
+	require.Equal(t, "ACTIVE", ports[0].State)
+	require.Equal(t, "LinkUp", ports[0].PhysicalState)
+	require.Equal(t, 200, ports[0].Rate)
+
+	// Check second port
+	require.Equal(t, "mlx5_1", ports[1].Device)
+	require.Equal(t, "DOWN", ports[1].State)
+	require.Equal(t, "Disabled", ports[1].PhysicalState)
+	require.Equal(t, 400, ports[1].Rate)
+}
+
+// TestIBStatusesCheckPortsAndRate tests the CheckPortsAndRate method of IBStatuses
+func TestIBStatusesCheckPortsAndRate(t *testing.T) {
+	tests := []struct {
+		name         string
+		statuses     IBStatuses
+		atLeastPorts int
+		atLeastRate  int
+		wantErr      bool
+	}{
+		{
+			name: "all ports active and meeting threshold",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 2,
+			atLeastRate:  200,
+			wantErr:      false,
+		},
+		{
+			name: "insufficient port count",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 3,
+			atLeastRate:  200,
+			wantErr:      true,
+		},
+		{
+			name: "insufficient rate",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 2,
+			atLeastRate:  400,
+			wantErr:      true,
+		},
+		{
+			name: "some ports disabled",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "1: DOWN",
+					PhysicalState: "2: Disabled",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 2,
+			atLeastRate:  200,
+			wantErr:      true,
+		},
+		{
+			name: "some ports polling",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "2: INIT",
+					PhysicalState: "3: Polling",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 2,
+			atLeastRate:  200,
+			wantErr:      true,
+		},
+		{
+			name:         "empty statuses",
+			statuses:     IBStatuses{},
+			atLeastPorts: 1,
+			atLeastRate:  200,
+			wantErr:      true,
+		},
+		{
+			name: "zero threshold",
+			statuses: IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec (4X HDR)",
+				},
+			},
+			atLeastPorts: 0,
+			atLeastRate:  0,
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.statuses.CheckPortsAndRate(tt.atLeastPorts, tt.atLeastRate)
+			if tt.wantErr {
+				require.Error(t, err, "Expected an error but got none")
+			} else {
+				require.NoError(t, err, "Expected no error but got one")
+			}
+		})
+	}
+}

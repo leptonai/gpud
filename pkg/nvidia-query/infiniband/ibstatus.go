@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -90,6 +91,78 @@ type IBStatus struct {
 	Rate          string `json:"rate"`
 	BaseLid       string `json:"base lid"`
 	LinkLayer     string `json:"link_layer"`
+}
+
+func (devs IBStatuses) IBPorts() []IBPort {
+	ibports := make([]IBPort, 0)
+	for _, dev := range devs {
+		ibports = append(ibports, IBPort{
+			Device:        dev.Device,
+			State:         sanitizeIbstatusState(dev.State),
+			PhysicalState: sanitizeIbstatusPhysicalState(dev.PhysicalState),
+			Rate:          parseIbstatusRate(dev.Rate),
+		})
+	}
+	return ibports
+}
+
+// "4: ACTIVE" becomes "ACTIVE"
+func sanitizeIbstatusState(state string) string {
+	split := strings.Split(state, ":")
+	if len(split) == 2 {
+		return strings.TrimSpace(split[1])
+	}
+	return state
+}
+
+// "5: LinkUp" becomes "LinkUp"
+func sanitizeIbstatusPhysicalState(state string) string {
+	split := strings.Split(state, ":")
+	if len(split) == 2 {
+		return strings.TrimSpace(split[1])
+	}
+	return state
+}
+
+// "200 Gb/sec (4X HDR)" becomes 200
+func parseIbstatusRate(rate string) int {
+	split := strings.Fields(strings.TrimSpace(rate))
+	if len(split) > 0 {
+		s := strings.TrimSpace(split[0])
+		if n, err := strconv.Atoi(s); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+// CheckPortsAndRate checks if the number of active IB port devices matches expectations.
+func (devs IBStatuses) CheckPortsAndRate(atLeastPorts int, atLeastRate int) error {
+	if atLeastPorts == 0 && atLeastRate == 0 {
+		return nil
+	}
+
+	// select all "up" devices, and count the ones that match the expected rate with ">="
+	_, portNamesWithLinkUp := CheckPortsAndRate(devs.IBPorts(), []string{"LinkUp"}, "", atLeastRate)
+	if len(portNamesWithLinkUp) >= atLeastPorts {
+		return nil
+	}
+
+	errMsg := fmt.Sprintf("only %d ports (>= %d Gb/s) are active, expect at least %d", len(portNamesWithLinkUp), atLeastRate, atLeastPorts)
+	log.Logger.Warnw(errMsg, "totalPorts", len(devs), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
+
+	pm, portNamesWithDisabledOrPolling := CheckPortsAndRate(devs.IBPorts(), []string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored
+	if len(portNamesWithDisabledOrPolling) > 0 {
+		// some ports must be missing -- construct error message accordingly
+		msgs := make([]string, 0)
+		for state, names := range pm {
+			msgs = append(msgs, fmt.Sprintf("%d device(s) found %s (%s)", len(names), state, strings.Join(names, ", ")))
+		}
+		sort.Strings(msgs)
+		errMsg += fmt.Sprintf("; %s", strings.Join(msgs, "; "))
+	}
+
+	return errors.New(errMsg)
 }
 
 var (

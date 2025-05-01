@@ -69,7 +69,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -77,7 +77,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -90,7 +90,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonNoIbIssueFoundFromIbstat,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
@@ -99,7 +99,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -121,7 +121,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -129,7 +129,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -151,7 +151,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Down",
 							PhysicalState: "Disabled",
@@ -159,7 +159,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Down",
 							PhysicalState: "Disabled",
@@ -194,7 +194,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Inactive",
 							PhysicalState: "LinkUp",
@@ -202,7 +202,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Inactive",
 							PhysicalState: "LinkUp",
@@ -215,7 +215,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonNoIbIssueFoundFromIbstat,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
@@ -224,7 +224,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -232,7 +232,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Down",
 							PhysicalState: "Disabled",
@@ -240,7 +240,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_2",
+						Device: "mlx5_2",
 						Port1: infiniband.IBStatPort{
 							State:         "Inactive",
 							PhysicalState: "LinkUp",
@@ -262,7 +262,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -270,7 +270,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_1",
+						Device: "mlx5_1",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -278,7 +278,7 @@ func TestEvaluate(t *testing.T) {
 						},
 					},
 					{
-						Name: "mlx5_2",
+						Device: "mlx5_2",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -300,7 +300,7 @@ func TestEvaluate(t *testing.T) {
 				Raw: "",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
@@ -378,7 +378,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
 				AtLeastRate:  400, // Expected rate for H100 cards
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonNoIbIssueFoundFromIbstat,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
@@ -387,7 +387,7 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastPorts: 12,  // Total number of ports in test data
 				AtLeastRate:  100, // Minimum rate that includes all ports
 			},
-			wantReason: reasonNoIbIssueFound,
+			wantReason: reasonNoIbIssueFoundFromIbstat,
 			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
@@ -764,7 +764,7 @@ func mockGetIbstatOutput(ctx context.Context, ibstatCommands []string) (*infinib
 		Raw: "mock output",
 		Parsed: infiniband.IBStatCards{
 			{
-				Name: "mlx5_0",
+				Device: "mlx5_0",
 				Port1: infiniband.IBStatPort{
 					State:         "Active",
 					PhysicalState: "LinkUp",
@@ -821,9 +821,9 @@ func TestLastHealthStates(t *testing.T) {
 
 	// Test with data
 	mockData := &checkResult{
-		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "test reason",
-		err:    fmt.Errorf("test error"),
+		health:    apiv1.HealthStateTypeUnhealthy,
+		reason:    "test reason",
+		errIbstat: fmt.Errorf("test error"),
 	}
 	c.lastMu.Lock()
 	c.lastCheckResult = mockData
@@ -853,7 +853,7 @@ func TestDataString(t *testing.T) {
 		IbstatOutput: &infiniband.IbstatOutput{
 			Parsed: infiniband.IBStatCards{
 				{
-					Name: "mlx5_0",
+					Device: "mlx5_0",
 					Port1: infiniband.IBStatPort{
 						State:         "Active",
 						PhysicalState: "LinkUp",
@@ -906,7 +906,7 @@ func TestDataGetError(t *testing.T) {
 	assert.Equal(t, "", cr.getError())
 
 	// Test with error
-	cr = &checkResult{err: errors.New("test error")}
+	cr = &checkResult{errIbstat: errors.New("test error")}
 	assert.Equal(t, "test error", cr.getError())
 }
 
@@ -922,6 +922,9 @@ func TestComponentCheckErrorCases(t *testing.T) {
 		cancel: ccancel,
 		getIbstatOutputFunc: func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error) {
 			return nil, errors.New("ibstat error")
+		},
+		getIbstatusOutputFunc: func(ctx context.Context, ibstatusCommands []string) (*infiniband.IbstatusOutput, error) {
+			return nil, errors.New("ibstatus error")
 		},
 		getThresholdsFunc: mockGetThresholds,
 		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
@@ -948,7 +951,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 	data, ok = result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, reasonMissingIbstatOutput, data.reason)
+	assert.Equal(t, reasonMissingIbstatIbstatusOutput, data.reason)
 
 	// Test case: ibstat command not found
 	c = &component{
@@ -1372,7 +1375,7 @@ func TestComponentCheckOrder(t *testing.T) {
 				Raw: "mock output",
 				Parsed: infiniband.IBStatCards{
 					{
-						Name: "mlx5_0",
+						Device: "mlx5_0",
 						Port1: infiniband.IBStatPort{
 							State:         "Active",
 							PhysicalState: "LinkUp",
