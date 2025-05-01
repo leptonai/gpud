@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetIbstatOutput(t *testing.T) {
+func TestGetIbstatOutputError(t *testing.T) {
 	tests := []struct {
 		name           string
 		ibstatCommand  []string
@@ -74,14 +74,14 @@ func TestGetIbstatOutput(t *testing.T) {
 			name:           "parsing error",
 			ibstatCommand:  []string{"echo", "invalid ibstat output"},
 			expectedError:  ErrIbstatOutputNoCardFound,
-			expectedOutput: "invalid ibstat output\n",
+			expectedOutput: "invalid ibstat output",
 			wantParsed:     false,
 			isDynamicError: false,
 		},
 		{
 			name:           "command with error exit code",
-			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 1"},
-			expectedError:  errors.New("failed to run ibstat command:"),
+			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 255"},
+			expectedError:  errors.New("command exited with error: exit status 255"),
 			expectedOutput: "",
 			wantParsed:     false,
 			isDynamicError: true,
@@ -124,6 +124,17 @@ func TestGetIbstatOutput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetIbstatOutputFailWithPartialOutput(t *testing.T) {
+	command := "cat " + filepath.Join("testdata", "ibstat.39.0.a100.failed.ibpanic.exit-255.0") + " && exit 255"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	output, err := GetIbstatOutput(ctx, []string{command})
+	require.Equal(t, "command exited with error: exit status 255", err.Error())
+	require.NotNil(t, output)
+	require.Equal(t, len(output.Parsed), 8)
 }
 
 func TestParseIBStat(t *testing.T) {

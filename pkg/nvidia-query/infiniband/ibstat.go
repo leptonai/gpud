@@ -11,7 +11,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	pkg_file "github.com/leptonai/gpud/pkg/file"
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -22,7 +22,7 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 	if len(ibstatCommands) == 0 || strings.TrimSpace(ibstatCommands[0]) == "" {
 		return nil, ErrNoIbstatCommand
 	}
-	if _, err := pkg_file.LocateExecutable(strings.Split(ibstatCommands[0], " ")[0]); err != nil {
+	if _, err := pkgfile.LocateExecutable(strings.Split(ibstatCommands[0], " ")[0]); err != nil {
 		return nil, ErrNoIbstatCommand
 	}
 
@@ -34,36 +34,44 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 		cmdOpts = append(cmdOpts, process.WithRunAsBashScript())
 	}
 
-	p, err := process.New(cmdOpts...)
-	if err != nil {
-		return nil, err
+	p, runErr := process.New(cmdOpts...)
+	if runErr != nil {
+		return nil, runErr
 	}
 	defer func() {
 		if err := p.Close(ctx); err != nil {
 			log.Logger.Warnw("failed to abort command", "err", err)
 		}
 	}()
-	b, err := p.StartAndWaitForCombinedOutput(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run ibstat command: %w", err)
+	b, runErr := p.StartAndWaitForCombinedOutput(ctx)
+	o := &IbstatOutput{
+		Raw: strings.TrimSpace(string(b)),
 	}
 
-	o := &IbstatOutput{
-		Raw: string(b),
+	var parseErr error
+
+	// still parse the partial output
+	// even if the ibstat command failed
+	if len(o.Raw) > 0 {
+		o.Parsed, parseErr = ParseIBStat(o.Raw)
+		if parseErr != nil {
+			log.Logger.Warnw("failed to parse ibstat output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw), "error", parseErr)
+		} else {
+			log.Logger.Infow("ibstat parsed", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
+		}
 	}
-	if len(strings.TrimSpace(o.Raw)) == 0 {
-		log.Logger.Warnw("ibstat returned empty output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
+
+	if runErr != nil {
+		return o, runErr
+	}
+	if parseErr != nil {
+		return o, fmt.Errorf("failed to parse ibstat output: %w", parseErr)
+	}
+	if len(o.Raw) == 0 {
 		return o, ErrIbstatOutputEmpty
 	}
 
-	o.Parsed, err = ParseIBStat(o.Raw)
-	if err != nil {
-		log.Logger.Warnw("failed to parse ibstat output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw), "error", err)
-	} else {
-		log.Logger.Infow("ibstat parsed", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw))
-	}
-
-	return o, err
+	return o, nil
 }
 
 // CheckInfiniband checks if the infiniband ports are up and running with the expected thresholds.

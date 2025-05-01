@@ -449,6 +449,32 @@ func TestComponentCheck(t *testing.T) {
 	assert.NotNil(t, data.IbstatOutput)
 }
 
+func TestComponentCheckWithPartialOutput(t *testing.T) {
+	t.Parallel()
+
+	command := "cat " + filepath.Join("testdata", "ibstat.39.0.a100.failed.ibpanic.exit-255.0") + " && exit 255"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c := &component{
+		ctx:                 ctx,
+		cancel:              cancel,
+		getIbstatOutputFunc: infiniband.GetIbstatOutput,
+		getThresholdsFunc:   mockGetThresholds,
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "A100"},
+		toolOverwrites: nvidia_common.ToolOverwrites{
+			IbstatCommand: command,
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "ibstat command failed with partial output", data.reason)
+}
+
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 

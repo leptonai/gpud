@@ -180,6 +180,12 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "ibstat command failed"
 			log.Logger.Errorw(cr.reason, "error", cr.err)
+
+			if cr.IbstatOutput != nil && len(cr.IbstatOutput.Parsed) > 0 {
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = "ibstat command failed with partial output"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
+			}
 		}
 		return cr
 	}
