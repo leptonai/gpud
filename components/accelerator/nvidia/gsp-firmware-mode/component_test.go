@@ -76,6 +76,24 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+// mockNVMLNotExistsInstance implements the nvidianvml.Instance with NVMLExists returning false
+type mockNVMLNotExistsInstance struct {
+	*mockNVMLInstance
+}
+
+func (m *mockNVMLNotExistsInstance) NVMLExists() bool {
+	return false
+}
+
+// mockNoProductNameInstance implements the nvidianvml.Instance with ProductName returning empty
+type mockNoProductNameInstance struct {
+	*mockNVMLInstance
+}
+
+func (m *mockNoProductNameInstance) ProductName() string {
+	return ""
+}
+
 // MockGSPFirmwareModeComponent creates a component with mocked functions for testing
 func MockGSPFirmwareModeComponent(
 	ctx context.Context,
@@ -212,7 +230,7 @@ func TestCheck_Error(t *testing.T) {
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
 	assert.Equal(t, errExpected, lastCheckResult.err)
-	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", lastCheckResult.reason)
+	assert.Equal(t, "error getting GSP firmware mode", lastCheckResult.reason)
 }
 
 func TestCheck_NoDevices(t *testing.T) {
@@ -275,7 +293,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	component.lastCheckResult = &checkResult{
 		err:    errors.New("test GSP firmware mode error"),
 		health: apiv1.HealthStateTypeUnhealthy,
-		reason: "error getting GSP firmware mode for device gpu-uuid-123",
+		reason: "error getting GSP firmware mode",
 	}
 	component.lastMu.Unlock()
 
@@ -286,7 +304,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 	state := states[0]
 	assert.Equal(t, Name, state.Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, "error getting GSP firmware mode for device gpu-uuid-123", state.Reason)
+	assert.Equal(t, "error getting GSP firmware mode", state.Reason)
 	assert.Equal(t, "test GSP firmware mode error", state.Error)
 }
 
@@ -387,6 +405,195 @@ func TestData_GetError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.data.getError()
 			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCheck_NilNVMLInstance(t *testing.T) {
+	ctx := context.Background()
+	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
+	component.nvmlInstance = nil
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", cr.reason)
+}
+
+func TestCheck_NVMLNotExists(t *testing.T) {
+	ctx := context.Background()
+	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
+
+	// Create a base mock
+	baseMock := &mockNVMLInstance{
+		devicesFunc: component.nvmlInstance.Devices,
+	}
+
+	// Create the specialized mock
+	mockInst := &mockNVMLNotExistsInstance{
+		mockNVMLInstance: baseMock,
+	}
+
+	// Save original and replace with our mock
+	origInstance := component.nvmlInstance
+	component.nvmlInstance = mockInst
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", cr.reason)
+
+	// Restore the original for cleanup
+	component.nvmlInstance = origInstance
+}
+
+func TestCheck_NoProductName(t *testing.T) {
+	ctx := context.Background()
+	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
+
+	// Create a base mock
+	baseMock := &mockNVMLInstance{
+		devicesFunc: component.nvmlInstance.Devices,
+	}
+
+	// Create the specialized mock
+	mockInst := &mockNoProductNameInstance{
+		mockNVMLInstance: baseMock,
+	}
+
+	// Save original and replace with our mock
+	origInstance := component.nvmlInstance
+	component.nvmlInstance = mockInst
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", cr.reason)
+
+	// Restore the original
+	component.nvmlInstance = origInstance
+}
+
+func TestCheckResult_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		cr       *checkResult
+		expected string
+	}{
+		{
+			name:     "nil check result",
+			cr:       nil,
+			expected: "",
+		},
+		{
+			name: "empty GSP firmware modes",
+			cr: &checkResult{
+				GSPFirmwareModes: []nvidianvml.GSPFirmwareMode{},
+			},
+			expected: "no data",
+		},
+		{
+			name: "with GSP firmware modes",
+			cr: &checkResult{
+				GSPFirmwareModes: []nvidianvml.GSPFirmwareMode{
+					{
+						UUID:      "gpu-uuid-123",
+						Enabled:   true,
+						Supported: true,
+					},
+					{
+						UUID:      "gpu-uuid-456",
+						Enabled:   false,
+						Supported: true,
+					},
+				},
+			},
+			expected: "", // We'll check that output is not empty and contains UUIDs
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cr.String()
+
+			if tt.expected != "" {
+				assert.Equal(t, tt.expected, result)
+			} else if tt.cr != nil && len(tt.cr.GSPFirmwareModes) > 0 {
+				// For the case with GSP firmware modes, just check that result is not empty and contains the UUIDs
+				assert.NotEmpty(t, result)
+				for _, mode := range tt.cr.GSPFirmwareModes {
+					assert.Contains(t, result, mode.UUID)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckResult_Summary(t *testing.T) {
+	tests := []struct {
+		name     string
+		cr       *checkResult
+		expected string
+	}{
+		{
+			name:     "nil check result",
+			cr:       nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			cr: &checkResult{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cr.Summary()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCheckResult_HealthStateType(t *testing.T) {
+	tests := []struct {
+		name     string
+		cr       *checkResult
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil check result",
+			cr:       nil,
+			expected: "",
+		},
+		{
+			name: "healthy",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cr.HealthStateType()
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
