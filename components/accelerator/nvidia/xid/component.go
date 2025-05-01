@@ -290,9 +290,9 @@ func (cr *checkResult) String() string {
 			action = strings.Join(actions, ", ")
 		}
 
-		critical := false
+		criticality := "unknown"
 		if foundErr.Detail != nil {
-			critical = foundErr.Detail.CriticalErrorMarkedByGPUd
+			criticality = string(foundErr.Detail.EventType)
 		}
 
 		buf := bytes.NewBuffer(nil)
@@ -304,7 +304,7 @@ func (cr *checkResult) String() string {
 			fmt.Sprintf("%d", foundErr.Xid),
 			foundErr.DeviceUUID,
 			foundErr.Detail.Name,
-			strconv.FormatBool(critical),
+			criticality,
 			action,
 		})
 		table.Render()
