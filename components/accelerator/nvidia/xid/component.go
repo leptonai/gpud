@@ -278,7 +278,7 @@ func (cr *checkResult) String() string {
 	}
 
 	now := time.Now().UTC()
-	header := []string{"Time", "XID", "DeviceUUID", "Name", "Critical", "Action(s)"}
+	header := []string{"Time", "XID", "DeviceUUID", "Name", "Criticality", "Action(s)"}
 	outputs := make([]string, 0, len(cr.FoundErrors))
 	for _, foundErr := range cr.FoundErrors {
 		action := "unknown"
