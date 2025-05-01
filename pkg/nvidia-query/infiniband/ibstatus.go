@@ -58,12 +58,6 @@ func GetIbstatusOutput(ctx context.Context, ibstatusCommands []string) (*Ibstatu
 	// still parse the partial output
 	// even if the ibstat command failed
 	if len(o.Raw) > 0 {
-		println()
-		println()
-		fmt.Printf("[DEBUG] ibstatus output:\n\n%q\n\n", o.Raw)
-		println()
-		println()
-
 		o.Parsed, parseErr = ParseIBStatus(o.Raw)
 		if parseErr != nil {
 			log.Logger.Warnw("failed to parse ibstatus output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw), "error", parseErr)
@@ -182,11 +176,6 @@ func ParseIBStatus(input string) (IBStatuses, error) {
 	if len(input) == 0 {
 		return nil, ErrIbstatusOutputEmpty
 	}
-
-	// in case the input has un-escaped characters
-	input = strings.ReplaceAll(input, `\n`, `
-`)
-	input = strings.ReplaceAll(input, `\t`, `    `)
 
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
