@@ -178,7 +178,7 @@ func (c *component) Check() components.CheckResult {
 		// this fallback is only used when the "ibstat" command fails
 		// then we don't care if this fallback "ibstatus" command fails
 		// as long as the following "ibstat" command succeeds
-		log.Logger.Errorw("ibstatus command failed", "error", cr.errIbstatus)
+		log.Logger.Warnw("ibstatus command failed", "error", cr.errIbstatus)
 	}
 
 	// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
