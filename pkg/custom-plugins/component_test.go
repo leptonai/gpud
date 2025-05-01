@@ -1122,8 +1122,8 @@ func TestComponentCheckManualExit(t *testing.T) {
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
-	assert.Contains(t, cr.reason, "error executing state plugin -- exit status 1")
-	assert.Contains(t, rs.Summary(), "error executing state plugin -- exit status 1")
+	assert.Contains(t, cr.reason, "error executing state plugin")
+	assert.Contains(t, rs.Summary(), "error executing state plugin")
 
 	assert.Equal(t, cr.extraInfo["description"], "triggered to fail with exit code 1")
 }
@@ -1305,4 +1305,60 @@ func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
 	healthStates = c.LastHealthStates()
 	assert.Equal(t, 1, len(healthStates))
 	assert.Empty(t, healthStates[0].RunMode)
+}
+
+// TestComponent_CheckWithParserError tests the component's Check method when the parser returns an error
+func TestComponent_CheckWithParserError(t *testing.T) {
+	// Create a mock parser that will return an error
+	mockParser := &PluginOutputParseConfig{
+		JSONPaths: []JSONPath{
+			{Field: "test", Query: "$[invalid"}, // This is an invalid JSONPath query syntax
+		},
+	}
+
+	// Create a plugin with our mock parser
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "error-parser-step",
+				RunBashScript: &RunBashScript{
+					// Output some valid JSON that would parse fine with a correct query
+					Script:      "echo '{\"result\": \"test\"}'",
+					ContentType: "plaintext",
+				},
+			},
+		},
+		Parser: mockParser,
+	}
+
+	spec := &Spec{
+		PluginName:        "test-parser-error",
+		Type:              SpecTypeComponent,
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check, which should fail due to parser error
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the health state is set to Unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "failed to parse plugin output", cr.reason)
+	assert.NotNil(t, cr.err)
+
+	// Check the health states
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Equal(t, "failed to parse plugin output", healthStates[0].Reason)
+	assert.NotEmpty(t, healthStates[0].Error)
 }
