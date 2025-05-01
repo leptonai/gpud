@@ -58,6 +58,12 @@ func GetIbstatusOutput(ctx context.Context, ibstatusCommands []string) (*Ibstatu
 	// still parse the partial output
 	// even if the ibstat command failed
 	if len(o.Raw) > 0 {
+		println()
+		println()
+		fmt.Println("[DEBUG] ibstatus output", o.Raw)
+		println()
+		println()
+
 		o.Parsed, parseErr = ParseIBStatus(o.Raw)
 		if parseErr != nil {
 			log.Logger.Warnw("failed to parse ibstatus output", "exitCode", p.ExitCode(), "rawInputSize", len(o.Raw), "error", parseErr)
