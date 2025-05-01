@@ -1466,3 +1466,223 @@ func TestCheckResultWithIbstatusOutput(t *testing.T) {
 	assert.Contains(t, result, "DEVICE")
 	assert.Contains(t, result, "LINK LAYER")
 }
+
+// Test checkResult methods directly to increase method-level coverage
+func TestCheckResultMethodsDirectCoverage(t *testing.T) {
+	t.Parallel()
+
+	// Create a result with defined values
+	result := &checkResult{
+		IbstatOutput: &infiniband.IbstatOutput{
+			Raw: "test raw data for ibstat",
+			Parsed: infiniband.IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: infiniband.IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          200,
+					},
+				},
+			},
+		},
+		IbstatusOutput: &infiniband.IbstatusOutput{
+			Raw: "test raw data for ibstatus",
+			Parsed: infiniband.IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec",
+					LinkLayer:     "InfiniBand",
+				},
+			},
+		},
+		errIbstat:   errors.New("test ibstat error"),
+		errIbstatus: errors.New("test ibstatus error"),
+		reason:      "test reason",
+		health:      apiv1.HealthStateTypeUnhealthy,
+		ts:          time.Now().UTC(),
+	}
+
+	// Test Summary method
+	summaryOutput := result.Summary()
+	assert.Equal(t, "test reason", summaryOutput)
+
+	// Test HealthStateType method
+	healthType := result.HealthStateType()
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthType)
+
+	// Test getError method
+	errorOutput := result.getError()
+	assert.Equal(t, "test ibstat error", errorOutput)
+
+	// Test with ibstat error nil
+	resultWithoutIbstatError := &checkResult{
+		errIbstat:   nil,
+		errIbstatus: errors.New("ibstatus error"),
+	}
+	assert.Equal(t, "ibstatus error", resultWithoutIbstatError.getError())
+
+	// Test HealthStates method
+	healthStates := result.HealthStates()
+	assert.Equal(t, 1, len(healthStates))
+	assert.Equal(t, Name, healthStates[0].Component)
+	assert.Equal(t, Name, healthStates[0].Name)
+	assert.Equal(t, "test reason", healthStates[0].Reason)
+	assert.Equal(t, "test ibstat error", healthStates[0].Error)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.NotNil(t, healthStates[0].ExtraInfo)
+
+	// Test HealthStates with nil IbstatOutput
+	resultWithoutIbstatOutput := &checkResult{
+		reason: "test reason without output",
+		health: apiv1.HealthStateTypeHealthy,
+		ts:     time.Now().UTC(),
+	}
+	healthStatesWithoutOutput := resultWithoutIbstatOutput.HealthStates()
+	assert.Equal(t, 1, len(healthStatesWithoutOutput))
+	assert.Equal(t, "test reason without output", healthStatesWithoutOutput[0].Reason)
+	assert.Nil(t, healthStatesWithoutOutput[0].ExtraInfo)
+}
+
+// Test complete coverage of the component.String method with various combinations of outputs
+func TestComponentStringWithVariousOutputs(t *testing.T) {
+	t.Parallel()
+
+	// Test with nil
+	var nilResult *checkResult
+	assert.Equal(t, "", nilResult.String())
+	// Also test other methods on nil
+	assert.Equal(t, "", nilResult.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), nilResult.HealthStateType())
+	assert.Equal(t, "", nilResult.getError())
+	nilResultHealthStates := nilResult.HealthStates()
+	assert.NotNil(t, nilResultHealthStates)
+	assert.Equal(t, 1, len(nilResultHealthStates))
+	assert.Equal(t, "no data yet", nilResultHealthStates[0].Reason)
+
+	// Test with no data
+	emptyResult := &checkResult{}
+	assert.Equal(t, "no data", emptyResult.String())
+	// Also test other methods on empty result
+	assert.Equal(t, "", emptyResult.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), emptyResult.HealthStateType())
+	assert.Equal(t, "", emptyResult.getError())
+	emptyResultHealthStates := emptyResult.HealthStates()
+	assert.NotNil(t, emptyResultHealthStates)
+	assert.Equal(t, 1, len(emptyResultHealthStates))
+
+	// Test with only ibstat output
+	ibstatResult := &checkResult{
+		IbstatOutput: &infiniband.IbstatOutput{
+			Parsed: infiniband.IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: infiniband.IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          200,
+					},
+				},
+			},
+		},
+		reason: "test ibstat reason",
+		health: apiv1.HealthStateTypeHealthy,
+		ts:     time.Now().UTC(),
+	}
+	ibstatStr := ibstatResult.String()
+	assert.Contains(t, ibstatStr, "PORT DEVICE NAME")
+	assert.Contains(t, ibstatStr, "mlx5_0")
+	assert.NotContains(t, ibstatStr, "LINK LAYER")
+	// Also test other methods
+	assert.Equal(t, "test ibstat reason", ibstatResult.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, ibstatResult.HealthStateType())
+	assert.Equal(t, "", ibstatResult.getError())
+	ibstatResultHealthStates := ibstatResult.HealthStates()
+	assert.NotNil(t, ibstatResultHealthStates)
+	assert.Equal(t, 1, len(ibstatResultHealthStates))
+	assert.Equal(t, "test ibstat reason", ibstatResultHealthStates[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, ibstatResultHealthStates[0].Health)
+
+	// Test with only ibstatus output
+	ibstatusResult := &checkResult{
+		IbstatusOutput: &infiniband.IbstatusOutput{
+			Parsed: infiniband.IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec",
+					LinkLayer:     "InfiniBand",
+				},
+			},
+		},
+		reason:      "test ibstatus reason",
+		health:      apiv1.HealthStateTypeUnhealthy,
+		errIbstatus: errors.New("test ibstatus error"),
+		ts:          time.Now().UTC(),
+	}
+	ibstatusStr := ibstatusResult.String()
+	assert.Contains(t, ibstatusStr, "DEVICE")
+	assert.Contains(t, ibstatusStr, "mlx5_0")
+	assert.Contains(t, ibstatusStr, "LINK LAYER")
+	assert.Contains(t, ibstatusStr, "InfiniBand")
+	// Also test other methods
+	assert.Equal(t, "test ibstatus reason", ibstatusResult.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, ibstatusResult.HealthStateType())
+	assert.Equal(t, "test ibstatus error", ibstatusResult.getError())
+	ibstatusResultHealthStates := ibstatusResult.HealthStates()
+	assert.NotNil(t, ibstatusResultHealthStates)
+	assert.Equal(t, 1, len(ibstatusResultHealthStates))
+	assert.Equal(t, "test ibstatus reason", ibstatusResultHealthStates[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, ibstatusResultHealthStates[0].Health)
+	assert.Equal(t, "test ibstatus error", ibstatusResultHealthStates[0].Error)
+
+	// Test with both outputs
+	bothResult := &checkResult{
+		IbstatOutput: &infiniband.IbstatOutput{
+			Parsed: infiniband.IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: infiniband.IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          200,
+					},
+				},
+			},
+		},
+		IbstatusOutput: &infiniband.IbstatusOutput{
+			Parsed: infiniband.IBStatuses{
+				{
+					Device:        "mlx5_0",
+					State:         "4: ACTIVE",
+					PhysicalState: "5: LinkUp",
+					Rate:          "200 Gb/sec",
+					LinkLayer:     "InfiniBand",
+				},
+			},
+		},
+		reason:      "test both reason",
+		health:      apiv1.HealthStateTypeHealthy,
+		errIbstat:   errors.New("test ibstat error"),
+		errIbstatus: errors.New("test ibstatus error"),
+		ts:          time.Now().UTC(),
+	}
+	bothStr := bothResult.String()
+	assert.Contains(t, bothStr, "PORT DEVICE NAME")
+	assert.Contains(t, bothStr, "DEVICE")
+	assert.Contains(t, bothStr, "mlx5_0")
+	assert.Contains(t, bothStr, "LINK LAYER")
+	// Also test other methods
+	assert.Equal(t, "test both reason", bothResult.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, bothResult.HealthStateType())
+	assert.Equal(t, "test ibstat error", bothResult.getError())
+	bothResultHealthStates := bothResult.HealthStates()
+	assert.NotNil(t, bothResultHealthStates)
+	assert.Equal(t, 1, len(bothResultHealthStates))
+	assert.Equal(t, "test both reason", bothResultHealthStates[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, bothResultHealthStates[0].Health)
+	assert.Equal(t, "test ibstat error", bothResultHealthStates[0].Error)
+}

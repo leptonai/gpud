@@ -171,19 +171,24 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	// only used for fallback, if ibstat command fails
-	// so we don't care if this fallback fails
-	// as long as the following "ibstat" command succeeds
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	cr.IbstatusOutput, cr.errIbstatus = c.getIbstatusOutputFunc(cctx, []string{c.toolOverwrites.IbstatusCommand})
 	ccancel()
 	if cr.errIbstatus != nil {
+		// this fallback is only used when the "ibstat" command fails
+		// then we don't care if this fallback "ibstatus" command fails
+		// as long as the following "ibstat" command succeeds
 		log.Logger.Errorw("ibstatus command failed", "error", cr.errIbstatus)
 	}
 
+	// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
+	// but can still return the partial output with the correct data
+	// if there's any partial data, we should use it
+	// and only fallback to "ibstatus" if there's no data from "ibstat"
 	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
 	cr.IbstatOutput, cr.errIbstat = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
 	ccancel()
+
 	if cr.errIbstat != nil {
 		if errors.Is(cr.errIbstat, infiniband.ErrNoIbstatCommand) {
 			cr.health = apiv1.HealthStateTypeHealthy
@@ -195,6 +200,25 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	// no event bucket, no need for timeseries data checks
+	// (e.g., "gpud scan" one-off checks)
+	if c.eventBucket == nil {
+		cr.reason = reasonMissingEventBucket
+		cr.health = apiv1.HealthStateTypeHealthy
+		return cr
+	}
+
+	// neither "ibstat" nor "ibstatus" command returned any data
+	// then we just skip the evaluation
+	if cr.errIbstat == nil && cr.IbstatOutput == nil &&
+		cr.errIbstatus == nil && cr.IbstatusOutput == nil {
+		cr.reason = reasonMissingIbstatIbstatusOutput
+		cr.health = apiv1.HealthStateTypeHealthy
+		log.Logger.Errorw(cr.reason)
+		return cr
+	}
+
+	// whether ibstat command failed or not, we use the entire/partial output
 	if cr.IbstatOutput != nil {
 		// whether ibstat command failed or not (e.g., one port device is wrongly mapped)
 		// but we got the entire/partial output from "ibstat" command
@@ -205,25 +229,8 @@ func (c *component) Check() components.CheckResult {
 		cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
 	} else if cr.IbstatusOutput != nil {
 		// ibstat command failed and no output
-		// we only fallback to the second data source "ibstatus"
-		// if the first "ibstat" command has no output
+		// then we need fallback to the second data source "ibstatus"
 		cr.reason, cr.health = evaluateIbstatusOutputAgainstThresholds(cr.IbstatusOutput, thresholds)
-	}
-
-	if cr.errIbstat == nil && cr.IbstatOutput == nil &&
-		cr.errIbstatus == nil && cr.IbstatusOutput == nil {
-		cr.reason = reasonMissingIbstatIbstatusOutput
-		cr.health = apiv1.HealthStateTypeHealthy
-		log.Logger.Errorw(cr.reason)
-		return cr
-	}
-
-	// no event bucket, no need for timeseries data checks
-	// (e.g., "gpud scan" one-off checks)
-	if c.eventBucket == nil {
-		cr.reason = reasonMissingEventBucket
-		cr.health = apiv1.HealthStateTypeHealthy
-		return cr
 	}
 
 	// we only care about unhealthy events, no need to persist healthy events
