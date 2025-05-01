@@ -36,6 +36,7 @@ var (
 	autoUpdateExitCode int
 
 	ibstatCommand   string
+	ibstatusCommand string
 	pluginSpecsFile string
 
 	enablePluginAPI bool
@@ -215,6 +216,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstatus-command",
+					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
+					Destination: &ibstatusCommand,
 					Hidden:      true,
 				},
 				cli.StringFlag{
@@ -433,6 +440,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstatus-command",
+					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
+					Destination: &ibstatusCommand,
 					Hidden:      true,
 				},
 			},

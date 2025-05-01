@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetIbstatOutput(t *testing.T) {
+func TestGetIbstatOutputError(t *testing.T) {
 	tests := []struct {
 		name           string
 		ibstatCommand  []string
@@ -74,14 +74,14 @@ func TestGetIbstatOutput(t *testing.T) {
 			name:           "parsing error",
 			ibstatCommand:  []string{"echo", "invalid ibstat output"},
 			expectedError:  ErrIbstatOutputNoCardFound,
-			expectedOutput: "invalid ibstat output\n",
+			expectedOutput: "invalid ibstat output",
 			wantParsed:     false,
 			isDynamicError: false,
 		},
 		{
 			name:           "command with error exit code",
-			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 1"},
-			expectedError:  errors.New("failed to run ibstat command:"),
+			ibstatCommand:  []string{"sh", "-c", "echo 'some output' >&2; exit 255"},
+			expectedError:  errors.New("command exited with error: exit status 255"),
 			expectedOutput: "",
 			wantParsed:     false,
 			isDynamicError: true,
@@ -126,6 +126,17 @@ func TestGetIbstatOutput(t *testing.T) {
 	}
 }
 
+func TestGetIbstatOutputFailWithPartialOutput(t *testing.T) {
+	command := "cat " + filepath.Join("testdata", "ibstat.39.0.a100.failed.ibpanic.exit-255.0") + " && exit 255"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	output, err := GetIbstatOutput(ctx, []string{command})
+	require.Equal(t, "command exited with error: exit status 255", err.Error())
+	require.NotNil(t, output)
+	require.Equal(t, len(output.Parsed), 8)
+}
+
 func TestParseIBStat(t *testing.T) {
 	input := `CA 'mlx5_0'
 	CA type: MT4129
@@ -153,7 +164,7 @@ func TestParseIBStat(t *testing.T) {
 	assert.Len(t, parsed, 1)
 	if len(parsed) > 0 {
 		card := parsed[0]
-		assert.Equal(t, "mlx5_0", card.Name)
+		assert.Equal(t, "mlx5_0", card.Device)
 		assert.Equal(t, "MT4129", card.Type)
 		assert.Equal(t, "28.39.1002", card.FirmwareVersion)
 		assert.Equal(t, "Active", card.Port1.State)
@@ -180,92 +191,99 @@ func TestParseIBStatFiles(t *testing.T) {
 	}
 }
 
-func TestParseIBStatCountByRates(t *testing.T) {
-	tt := []struct {
-		fileName               string
-		expectedPhysicalStates []string
-		expectedState          string
-		expectedAtLeastRate    int
-		expectedCount          int
-		expectedPortNames      []string
+func TestValidateIbstatOutput(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError error
 	}{
 		{
-			fileName:               "testdata/ibstat.47.0.a100.all.active.0",
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedAtLeastRate:    200,
-			expectedCount:          9,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
+			name: "both state down and physical state disabled",
+			input: `
+CA 'mlx5_0'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.1002
+	Hardware version: 0
+	Node GUID: 0xa088c20300bb3514
+	System image GUID: 0xa088c20300bb3514
+	Port 1:
+		State: Down
+		Physical state: Disabled
+		Rate: 40
+		Link layer: Ethernet
+`,
+			expectedError: ErrIbstatOutputBrokenStateDown,
 		},
 		{
-			fileName:               "testdata/ibstat.47.0.a100.all.active.0",
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedAtLeastRate:    100,
-			expectedCount:          9,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8"},
+			name: "state down but physical state up",
+			input: `
+CA 'mlx5_0'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.1002
+	Hardware version: 0
+	Node GUID: 0xa088c20300bb3514
+	System image GUID: 0xa088c20300bb3514
+	Port 1:
+		State: Down
+		Physical state: LinkUp
+		Rate: 40
+		Link layer: Ethernet
+`,
+			expectedError: ErrIbstatOutputBrokenStateDown,
 		},
 		{
-			fileName:               "testdata/ibstat.47.0.h100.all.active.0",
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedAtLeastRate:    400,
-			expectedCount:          8,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
+			name: "state active but physical state disabled",
+			input: `
+CA 'mlx5_0'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.1002
+	Hardware version: 0
+	Node GUID: 0xa088c20300bb3514
+	System image GUID: 0xa088c20300bb3514
+	Port 1:
+		State: Active
+		Physical state: Disabled
+		Rate: 40
+		Link layer: Ethernet
+`,
+			expectedError: ErrIbstatOutputBrokenPhysicalDisabled,
 		},
 		{
-			fileName:               "testdata/ibstat.47.0.h100.all.active.1",
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedAtLeastRate:    400,
-			expectedCount:          8,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
+			name: "state and physical state both good",
+			input: `
+CA 'mlx5_0'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.1002
+	Hardware version: 0
+	Node GUID: 0xa088c20300bb3514
+	System image GUID: 0xa088c20300bb3514
+	Port 1:
+		State: Active
+		Physical state: LinkUp
+		Rate: 40
+		Link layer: Ethernet
+`,
+			expectedError: nil,
 		},
 		{
-			fileName:               "testdata/ibstat.47.0.h100.some.down.0",
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedAtLeastRate:    400,
-			expectedCount:          8,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_11", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_9"},
-		},
-		{
-			fileName:               "testdata/ibstat.47.0.h100.some.down.1",
-			expectedAtLeastRate:    400,
-			expectedPhysicalStates: []string{"LinkUp"},
-			expectedState:          "Active",
-			expectedCount:          6,
-			expectedPortNames:      []string{"mlx5_0", "mlx5_10", "mlx5_3", "mlx5_4", "mlx5_6", "mlx5_9"},
-		},
-		{
-			fileName:               "testdata/ibstat.47.0.h100.some.down.with.polling.1",
-			expectedPhysicalStates: []string{"Disabled", "Polling"},
-			expectedState:          "",
-			expectedAtLeastRate:    0,
-			expectedCount:          2,
-			expectedPortNames:      []string{"mlx5_11", "mlx5_5"},
+			name:          "empty input",
+			input:         "",
+			expectedError: nil,
 		},
 	}
-	for _, tc := range tt {
-		t.Run(tc.fileName, func(t *testing.T) {
-			content, err := os.ReadFile(tc.fileName)
-			if err != nil {
-				t.Fatalf("Failed to read file %s: %v", tc.fileName, err)
-			}
-			parsed, err := ParseIBStat(string(content))
-			if err != nil {
-				t.Fatalf("Failed to parse ibstat file %s: %v", tc.fileName, err)
-			}
-			_, matched := parsed.match(
-				tc.expectedPhysicalStates,
-				tc.expectedState,
-				tc.expectedAtLeastRate,
-			)
-			if len(matched) != tc.expectedCount {
-				t.Errorf("Expected %d cards, got %d", tc.expectedCount, len(matched))
-			}
-			if !reflect.DeepEqual(matched, tc.expectedPortNames) {
-				t.Errorf("Expected %v, got %v", tc.expectedPortNames, matched)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateIbstatOutput(tt.input)
+			if tt.expectedError == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.ErrorIs(t, err, tt.expectedError)
 			}
 		})
 	}
@@ -388,20 +406,20 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "all ports active and matching rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_3",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_3",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
 			atLeastPorts: 4,
@@ -412,12 +430,12 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "all ports active with higher rate than required",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
 				},
 			},
 			atLeastPorts: 2,
@@ -428,12 +446,12 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "all ports disabled but with matching rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
 			atLeastPorts: 2,
@@ -444,20 +462,20 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "some ports down",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_3",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_3",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
 			atLeastPorts: 4,
@@ -468,12 +486,12 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "wrong rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
 				},
 			},
 			atLeastPorts: 2,
@@ -484,16 +502,16 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "mixed rates with lower threshold",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
 				},
 			},
 			atLeastPorts: 2,
@@ -504,16 +522,16 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "mixed states with empty expected state matches all",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
 			atLeastPorts: 3,
@@ -524,20 +542,20 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "mixed states with empty expected state matches all and with polling state",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_3",
-					Port1: IBStatPort{State: "Init", PhysicalState: "Polling", Rate: 200},
+					Device: "mlx5_3",
+					Port1:  IBStatPort{State: "Init", PhysicalState: "Polling", Rate: 200},
 				},
 			},
 			atLeastPorts: 3,
@@ -548,16 +566,16 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "mixed states with wrong rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "LinkUp", Rate: 100},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100},
 				},
 			},
 			atLeastPorts: 3,
@@ -575,20 +593,20 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "some ports disabled but with high enough rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_3",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_3",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
 			atLeastPorts: 4,
@@ -599,20 +617,20 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "some ports disabled but with high enough rate but missing ports/rates",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 				{
-					Name:  "mlx5_2",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_2",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 				{
-					Name:  "mlx5_3",
-					Port1: IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Device: "mlx5_3",
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
 			atLeastPorts: 0,
@@ -623,8 +641,8 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "zero required ports",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
 			atLeastPorts: 0,
@@ -635,12 +653,12 @@ func TestValidateIBPorts(t *testing.T) {
 			name: "zero required rate",
 			cards: IBStatCards{
 				{
-					Name:  "mlx5_0",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
+					Device: "mlx5_0",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
 				},
 				{
-					Name:  "mlx5_1",
-					Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
+					Device: "mlx5_1",
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
 				},
 			},
 			atLeastPorts: 2,
@@ -680,4 +698,113 @@ func TestParseIBStatNoCardFound(t *testing.T) {
 	`
 	_, err := ParseIBStat(input)
 	assert.ErrorIs(t, err, ErrIbstatOutputNoCardFound, "Expected ErrIbstatOutputNoCardFound when no cards found")
+}
+
+func TestCheckInfiniband(t *testing.T) {
+	tests := []struct {
+		name           string
+		ibstatCommand  string
+		threshold      ExpectedPortStates
+		expectedError  error
+		mockOutputFile string
+		wantErr        bool
+	}{
+		{
+			name:           "all ports active and meeting threshold",
+			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
+			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 200},
+			expectedError:  nil,
+			mockOutputFile: "",
+			wantErr:        false,
+		},
+		{
+			name:           "insufficient port count",
+			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
+			threshold:      ExpectedPortStates{AtLeastPorts: 10, AtLeastRate: 200},
+			expectedError:  errors.New("only 9 ports (>= 200 Gb/s) are active, expect at least 10"),
+			mockOutputFile: "",
+			wantErr:        true,
+		},
+		{
+			name:           "insufficient rate",
+			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
+			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400},
+			expectedError:  errors.New("only 0 ports (>= 400 Gb/s) are active, expect at least 8"),
+			mockOutputFile: "",
+			wantErr:        true,
+		},
+		{
+			name:           "command not found",
+			ibstatCommand:  "nonexistent_command",
+			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 200},
+			expectedError:  ErrNoIbstatCommand,
+			mockOutputFile: "",
+			wantErr:        true,
+		},
+		{
+			name:           "zero threshold",
+			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
+			threshold:      ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
+			expectedError:  nil,
+			mockOutputFile: "",
+			wantErr:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			err := CheckInfiniband(ctx, tt.ibstatCommand, tt.threshold)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.expectedError != nil && !errors.Is(err, tt.expectedError) {
+					if !strings.Contains(err.Error(), tt.expectedError.Error()) {
+						t.Errorf("expected error containing %v, got %v", tt.expectedError, err)
+					}
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestIBStatCardsIBPorts(t *testing.T) {
+	cards := IBStatCards{
+		{
+			Device: "mlx5_0",
+			Port1: IBStatPort{
+				State:         "Active",
+				PhysicalState: "LinkUp",
+				Rate:          200,
+			},
+		},
+		{
+			Device: "mlx5_1",
+			Port1: IBStatPort{
+				State:         "Down",
+				PhysicalState: "Disabled",
+				Rate:          400,
+			},
+		},
+	}
+
+	ports := cards.IBPorts()
+
+	require.Equal(t, 2, len(ports))
+
+	// Check first port
+	require.Equal(t, "mlx5_0", ports[0].Device)
+	require.Equal(t, "Active", ports[0].State)
+	require.Equal(t, "LinkUp", ports[0].PhysicalState)
+	require.Equal(t, 200, ports[0].Rate)
+
+	// Check second port
+	require.Equal(t, "mlx5_1", ports[1].Device)
+	require.Equal(t, "Down", ports[1].State)
+	require.Equal(t, "Disabled", ports[1].PhysicalState)
+	require.Equal(t, 400, ports[1].Rate)
 }
