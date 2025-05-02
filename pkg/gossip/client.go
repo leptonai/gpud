@@ -60,7 +60,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 		return &resp, fmt.Errorf("login request failed with status code %d (%+v)", httpResp.StatusCode, resp)
 	}
 
-	log.Logger.Debugw("gossip request processed", "url", url)
+	log.Logger.Debugw("gossip request processed", "data", string(b), "url", url)
 	return &resp, nil
 }
 
