@@ -117,24 +117,25 @@ type PluginOutputParseConfig struct {
 
 // JSONPath represents a JSON path to the output fields.
 type JSONPath struct {
-	// Query defines the JSONPath query path to extract for.
+	// Query defines the JSONPath query path to extract with.
 	// ref. https://pkg.go.dev/github.com/PaesslerAG/jsonpath#section-readme
 	// ref. https://en.wikipedia.org/wiki/JSONPath
 	// ref. https://goessner.net/articles/JsonPath/
 	Query string `json:"query"`
-	// FieldName defines the field name to represent this query result.
+	// Field defines the field name to use in the extra_info data
+	// for this JSON path query output.
 	Field string `json:"field"`
 
-	// Filter is the match rule for the field value.
+	// Expect is the match rule for the field value.
 	// It not set, the field value is not checked.
 	// If set, the field value is checked against the match rule.
 	// If set but mismatched, the health state is set to "Unhealthy".
-	Filter *Filter `json:"filter,omitempty"`
+	Expect *MatchRule `json:"expect,omitempty"`
 }
 
-// Filter represents an expected output match rule
+// MatchRule represents an expected output match rule
 // for the plugin output.
-type Filter struct {
+type MatchRule struct {
 	// Regex is the regex to match the output.
 	Regex *string `json:"regex,omitempty"`
 }
@@ -142,7 +143,7 @@ type Filter struct {
 // checkMatchRule checks if the input matches the match rule.
 // It returns true if the input matches the match rule, otherwise false.
 // It returns an error if the match rule is invalid.
-func (filter *Filter) checkMatchRule(input string) (bool, error) {
+func (filter *MatchRule) checkMatchRule(input string) (bool, error) {
 	if filter == nil {
 		// no rule then it matches
 		return true, nil
@@ -161,7 +162,7 @@ func (filter *Filter) checkMatchRule(input string) (bool, error) {
 	return true, nil
 }
 
-func (rule *Filter) describeRule() string {
+func (rule *MatchRule) describeRule() string {
 	if rule == nil {
 		return ""
 	}

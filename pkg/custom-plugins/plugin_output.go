@@ -80,14 +80,15 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 
 		if p == nil {
 			// key not found and match rule is not set, we skip it
-			if jsonPath.Filter == nil {
+			if jsonPath.Expect == nil {
 				continue
 			}
 
+			// key not found and match rule set, thus treat it as mismatch
 			results[jsonPath.Field] = extractedField{
 				fieldName: jsonPath.Field,
 				matched:   false,
-				rule:      jsonPath.Filter.describeRule(),
+				rule:      jsonPath.Expect.describeRule(),
 			}
 			continue
 		}
@@ -97,7 +98,7 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 			return nil, fmt.Errorf("failed to convert value for path %q to string: %w", jsonPath.Query, err)
 		}
 
-		match, err := jsonPath.Filter.checkMatchRule(strVal)
+		match, err := jsonPath.Expect.checkMatchRule(strVal)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check match rule for path %q: %w", jsonPath.Query, err)
 		}
@@ -106,7 +107,7 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 			fieldName:  jsonPath.Field,
 			fieldValue: strVal,
 			matched:    match,
-			rule:       jsonPath.Filter.describeRule(),
+			rule:       jsonPath.Expect.describeRule(),
 		}
 	}
 

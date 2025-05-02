@@ -12,7 +12,7 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
 
@@ -45,7 +45,7 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
 
@@ -78,12 +78,12 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "false" case-insensitively
             regex: "(?i)^false$"
         - query: $.nothere
           field: nothere
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
 

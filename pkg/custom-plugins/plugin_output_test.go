@@ -143,14 +143,14 @@ Following text`))
 				{
 					Field: "status",
 					Query: "$.status",
-					Filter: &Filter{
+					Expect: &MatchRule{
 						Regex: stringPtr("healthy"),
 					},
 				},
 				{
 					Field: "count",
 					Query: "$.count",
-					Filter: &Filter{
+					Expect: &MatchRule{
 						Regex: stringPtr(`^\d+$`),
 					},
 				},
@@ -171,7 +171,7 @@ Following text`))
 				{
 					Field: "status",
 					Query: "$.status",
-					Filter: &Filter{
+					Expect: &MatchRule{
 						Regex: stringPtr("unhealthy"), // This won't match
 					},
 				},
@@ -191,7 +191,7 @@ Following text`))
 				{
 					Field: "status",
 					Query: "$.status",
-					Filter: &Filter{
+					Expect: &MatchRule{
 						Regex: stringPtr(`[invalid regex`),
 					},
 				},
@@ -787,7 +787,7 @@ func TestExtractExtraInfoWithJSONPaths(t *testing.T) {
 func TestMatchRule_CheckMatchRule(t *testing.T) {
 	tests := []struct {
 		name      string
-		rule      *Filter
+		rule      *MatchRule
 		input     string
 		wantMatch bool
 		wantRule  string
@@ -795,7 +795,7 @@ func TestMatchRule_CheckMatchRule(t *testing.T) {
 	}{
 		{
 			name:      "empty rule should match anything",
-			rule:      &Filter{},
+			rule:      &MatchRule{},
 			input:     "any string",
 			wantMatch: true,
 			wantRule:  "",
@@ -803,7 +803,7 @@ func TestMatchRule_CheckMatchRule(t *testing.T) {
 		},
 		{
 			name: "regex that matches",
-			rule: &Filter{
+			rule: &MatchRule{
 				Regex: stringPtr(`^\d+$`),
 			},
 			input:     "12345",
@@ -813,7 +813,7 @@ func TestMatchRule_CheckMatchRule(t *testing.T) {
 		},
 		{
 			name: "regex that doesn't match",
-			rule: &Filter{
+			rule: &MatchRule{
 				Regex: stringPtr(`^\d+$`),
 			},
 			input:     "abc123",
@@ -823,7 +823,7 @@ func TestMatchRule_CheckMatchRule(t *testing.T) {
 		},
 		{
 			name: "invalid regex",
-			rule: &Filter{
+			rule: &MatchRule{
 				Regex: stringPtr(`[invalid regex`),
 			},
 			input:     "test",
