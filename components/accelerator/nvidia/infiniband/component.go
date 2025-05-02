@@ -186,17 +186,17 @@ func (c *component) Check() components.CheckResult {
 	// if there's any partial data, we should use it
 	// and only fallback to "ibstatus" if there's no data from "ibstat"
 	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	cr.IbstatOutput, cr.errIbstat = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
+	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
 	ccancel()
 
-	if cr.errIbstat != nil {
-		if errors.Is(cr.errIbstat, infiniband.ErrNoIbstatCommand) {
+	if cr.err != nil {
+		if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = "ibstat command not found"
 		} else {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "ibstat command failed"
-			log.Logger.Errorw(cr.reason, "error", cr.errIbstat)
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 		}
 	}
 
@@ -210,7 +210,7 @@ func (c *component) Check() components.CheckResult {
 
 	// neither "ibstat" nor "ibstatus" command returned any data
 	// then we just skip the evaluation
-	if cr.errIbstat == nil && cr.IbstatOutput == nil &&
+	if cr.err == nil && cr.IbstatOutput == nil &&
 		cr.errIbstatus == nil && cr.IbstatusOutput == nil {
 		cr.reason = reasonMissingIbstatIbstatusOutput
 		cr.health = apiv1.HealthStateTypeHealthy
@@ -262,10 +262,10 @@ func (c *component) Check() components.CheckResult {
 	found, err := c.eventBucket.Find(cctx, ev)
 	ccancel()
 	if err != nil {
-		cr.errIbstat = err
+		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error finding ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.errIbstat)
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -276,12 +276,12 @@ func (c *component) Check() components.CheckResult {
 
 	// insert event
 	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	cr.errIbstat = c.eventBucket.Insert(cctx, ev)
+	cr.err = c.eventBucket.Insert(cctx, ev)
 	ccancel()
-	if cr.errIbstat != nil {
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error inserting ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.errIbstat)
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -338,8 +338,8 @@ type checkResult struct {
 
 	// timestamp of the last check
 	ts time.Time
-	// error from the last check with "ibstat" command
-	errIbstat error
+	// error from the last check with "ibstat" command and other operations
+	err error
 	// error from the last check with "ibstatus" command
 	errIbstatus error
 
@@ -417,8 +417,8 @@ func (cr *checkResult) getError() string {
 	if cr == nil {
 		return ""
 	}
-	if cr.errIbstat != nil {
-		return cr.errIbstat.Error()
+	if cr.err != nil {
+		return cr.err.Error()
 	}
 	if cr.errIbstatus != nil {
 		return cr.errIbstatus.Error()
