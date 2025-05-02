@@ -222,7 +222,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	nvmlInstance, err := nvidianvml.New()
+	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
