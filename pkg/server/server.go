@@ -335,68 +335,9 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		componentNames = append(componentNames, c.Name())
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ticker.Reset(20 * time.Minute)
-			}
-
-			total, err := metrics.ReadRegisteredTotal(pkgmetrics.DefaultGatherer())
-			if err != nil {
-				log.Logger.Errorw("failed to get registered total", "error", err)
-				continue
-			}
-
-			log.Logger.Debugw("components status",
-				"inflight_components", total,
-			)
-		}
-	}()
-
-	// track metrics every hour
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ticker.Reset(time.Hour)
-			}
-
-			if err := gpudstate.RecordMetrics(ctx, dbRW); err != nil {
-				log.Logger.Errorw("failed to record metrics", "error", err)
-			}
-		}
-	}()
-
-	// compact the state database every retention period
-	if config.CompactPeriod.Duration > 0 {
-		go func() {
-			ticker := time.NewTicker(config.CompactPeriod.Duration)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					ticker.Reset(config.CompactPeriod.Duration)
-				}
-
-				if err := sqlite.Compact(ctx, dbRW); err != nil {
-					log.Logger.Errorw("failed to compact state database", "error", err)
-				}
-			}
-		}()
-	} else {
-		log.Logger.Debugw("compact period is not set, skipping compacting")
-	}
+	go printRegistered(ctx)
+	go recordInternalMetrics(ctx, dbRW)
+	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
 	uid, err := gpudstate.ReadMachineID(ctx, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -447,59 +388,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
-
-	go func(nvmlInstance nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer) {
-		defer func() {
-			if nvmlInstance != nil {
-				if err := nvmlInstance.Shutdown(); err != nil {
-					log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
-				}
-			}
-			if metricsSyncer != nil {
-				metricsSyncer.Stop()
-			}
-		}()
-
-		srv := &http.Server{
-			Addr:    config.Address,
-			Handler: router,
-			TLSConfig: &tls.Config{
-				Certificates: []tls.Certificate{cert},
-			},
-		}
-		log.Logger.Infof("serving %s", config.Address)
-
-		// Start HTTPS server
-		err = srv.ListenAndServeTLS("", "")
-		if err != nil {
-			s.Stop()
-			log.Logger.Fatalf("serve %v failure %v", config.Address, err)
-		}
-	}(nvmlInstance, syncer)
-
-	go func() {
-		ticker := time.NewTicker(2 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance)
-			if err != nil {
-				log.Logger.Errorw("failed to create gossip request", "error", err)
-			} else {
-				if _, err = gossip.SendRequest(ctx, endpoint, *gossipReq); err != nil {
-					log.Logger.Errorw("failed to gossip", "error", err)
-				} else {
-					log.Logger.Debugw("successfully sent gossip")
-				}
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
+	go s.startListener(nvmlInstance, syncer, config, router, cert)
+	go s.sendGossip(ctx, uid, nvmlInstance, endpoint)
 
 	return s, nil
 }
@@ -694,4 +584,118 @@ func WriteToken(token string, fifoFile string) error {
 		return fmt.Errorf("failed to write token: %w", err)
 	}
 	return nil
+}
+
+func printRegistered(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(20 * time.Minute)
+		}
+
+		total, err := metrics.ReadRegisteredTotal(pkgmetrics.DefaultGatherer())
+		if err != nil {
+			log.Logger.Errorw("failed to get registered total", "error", err)
+			continue
+		}
+
+		log.Logger.Debugw("components status",
+			"inflight_components", total,
+		)
+	}
+}
+
+func recordInternalMetrics(ctx context.Context, db *sql.DB) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(time.Hour)
+		}
+
+		if err := gpudstate.RecordMetrics(ctx, db); err != nil {
+			log.Logger.Errorw("failed to record metrics", "error", err)
+		}
+	}
+}
+
+func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
+	if compactPeriod <= 0 {
+		log.Logger.Debugw("compact period is not set, skipping compacting")
+		return
+	}
+
+	ticker := time.NewTicker(compactPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ticker.Reset(compactPeriod)
+		}
+
+		if err := sqlite.Compact(ctx, db); err != nil {
+			log.Logger.Errorw("failed to compact state database", "error", err)
+		}
+	}
+}
+
+func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidianvml.Instance, endpoint string) {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance)
+		if err != nil {
+			log.Logger.Errorw("failed to create gossip request", "error", err)
+		} else {
+			if _, err = gossip.SendRequest(ctx, endpoint, *gossipReq); err != nil {
+				log.Logger.Errorw("failed to gossip", "error", err)
+			} else {
+				log.Logger.Debugw("successfully sent gossip")
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer, config *lepconfig.Config, router *gin.Engine, cert tls.Certificate) {
+	defer func() {
+		if nvmlInstance != nil {
+			if err := nvmlInstance.Shutdown(); err != nil {
+				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
+			}
+		}
+		if metricsSyncer != nil {
+			metricsSyncer.Stop()
+		}
+	}()
+
+	srv := &http.Server{
+		Addr:    config.Address,
+		Handler: router,
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		},
+	}
+
+	log.Logger.Infow("serving", "address", config.Address)
+	err := srv.ListenAndServeTLS("", "")
+	if err != nil {
+		s.Stop()
+		log.Logger.Fatalw("serve failed", "address", config.Address, "error", err)
+	}
 }
