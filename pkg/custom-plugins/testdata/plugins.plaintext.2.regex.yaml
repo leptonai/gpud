@@ -12,9 +12,20 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
+
+        - query: $.action
+          field: action
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
+        - query: $.suggestion
+          field: suggestion
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
 
     steps:
       - name: Run health check
@@ -22,7 +33,7 @@
           content_type: plaintext
           script: |
             echo "hello world no JSON yet"
-            echo '{"name": "test", "result": "healthy", "passed": true}'
+            echo '{"name": "test", "result": "healthy", "passed": true, "action": "reboot me 1", "suggestion": "reboot me 2"}'
             echo "thank you"
 
   run_mode: ""
@@ -45,9 +56,20 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
+
+        - query: $.action
+          field: action
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
+        - query: $.suggestion
+          field: suggestion
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
 
     steps:
       - name: Run health check
@@ -55,7 +77,7 @@
           content_type: plaintext
           script: |
             echo "hello world no JSON yet"
-            echo '{"name": "test", "result": "unhealthy", "passed": false}'
+            echo '{"name": "test", "result": "unhealthy", "passed": false, "action": "reboot me 1", "suggestion": "reboot me 2"}'
             echo "done"
 
   run_mode: ""
@@ -78,12 +100,12 @@
           field: error
         - query: $.passed
           field: passed
-          filter:
+          expect:
             # regex to match "false" case-insensitively
             regex: "(?i)^false$"
         - query: $.nothere
           field: nothere
-          filter:
+          expect:
             # regex to match "true" case-insensitively
             regex: "(?i)^true$"
 

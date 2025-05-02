@@ -38,26 +38,29 @@ func (po *PluginOutputParseConfig) extractExtraInfo(input []byte) (map[string]ex
 	}
 
 	if po.JSONPaths != nil {
-		return extractExtraInfoWithJSONPaths(input, po.JSONPaths)
+		return applyJSONPaths(input, po.JSONPaths)
 	}
 
 	return nil, nil
 }
 
 type extractedField struct {
-	fieldName  string
-	fieldValue string
-	matched    bool
-	rule       string
+	fieldName     string
+	fieldValue    string
+	expectRule    string
+	expectMatched bool
+
+	// suggestedActions maps from the suggested action name to its description/field value.
+	suggestedActions map[string]string
 }
 
-// extractExtraInfoWithJSONPaths extracts extra information from the plugin output
+// applyJSONPaths extracts extra information from the plugin output
 // using JSON paths. The input jsonPaths is a slice of JSONPath defining field names,
 // and their corresponding JSON paths, and match rules (optional).
 // It returns a map of field names and the corresponding values in string format.
 // The second map is the map of field names and boolean values whether the value matches the match rule.
 // If the key is not found, it skips to simply ignore the key, and returns no error.
-func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[string]extractedField, error) {
+func applyJSONPaths(input []byte, jsonPaths []JSONPath) (map[string]extractedField, error) {
 	if len(input) == 0 || len(jsonPaths) == 0 {
 		return nil, nil
 	}
@@ -80,34 +83,52 @@ func extractExtraInfoWithJSONPaths(input []byte, jsonPaths []JSONPath) (map[stri
 
 		if p == nil {
 			// key not found and match rule is not set, we skip it
-			if jsonPath.Filter == nil {
+			if jsonPath.Expect == nil {
 				continue
 			}
 
+			// key not found and match rule set, thus treat it as mismatch
 			results[jsonPath.Field] = extractedField{
-				fieldName: jsonPath.Field,
-				matched:   false,
-				rule:      jsonPath.Filter.describeRule(),
+				fieldName:     jsonPath.Field,
+				expectRule:    jsonPath.Expect.describeRule(),
+				expectMatched: false,
 			}
 			continue
 		}
 
-		strVal, err := anyToString(p)
+		matchedValue, err := anyToString(p)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert value for path %q to string: %w", jsonPath.Query, err)
 		}
 
-		match, err := jsonPath.Filter.checkMatchRule(strVal)
+		expectMatched, err := jsonPath.Expect.doesMatch(matchedValue)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check match rule for path %q: %w", jsonPath.Query, err)
 		}
 
-		results[jsonPath.Field] = extractedField{
-			fieldName:  jsonPath.Field,
-			fieldValue: strVal,
-			matched:    match,
-			rule:       jsonPath.Filter.describeRule(),
+		d := extractedField{
+			fieldName:     jsonPath.Field,
+			fieldValue:    matchedValue,
+			expectRule:    jsonPath.Expect.describeRule(),
+			expectMatched: expectMatched,
 		}
+
+		if len(jsonPath.SuggestedActions) > 0 {
+			for k, rule := range jsonPath.SuggestedActions {
+				matched, err := rule.doesMatch(matchedValue)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check match rule for path %q for suggested action %q: %w", jsonPath.Query, k, err)
+				}
+				if matched {
+					if d.suggestedActions == nil {
+						d.suggestedActions = make(map[string]string)
+					}
+					d.suggestedActions[k] = matchedValue
+				}
+			}
+		}
+
+		results[jsonPath.Field] = d
 	}
 
 	return results, nil

@@ -3,6 +3,7 @@ package customplugins
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,7 +103,6 @@ func (c *component) Check() components.CheckResult {
 		pluginName:    c.spec.PluginName,
 		ts:            time.Now().UTC(),
 		runMode:       apiv1.RunModeType(c.spec.RunMode),
-		extraInfo:     make(map[string]string),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -125,7 +125,7 @@ func (c *component) Check() components.CheckResult {
 	// parse before processing the error/command failures
 	// since we still want to process the output even if the plugin failed
 	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
-		matchResults, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		extraInfo, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
 		if exErr != nil {
 			log.Logger.Errorw("error extracting extra info", "error", exErr)
 
@@ -135,20 +135,43 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
-		if len(matchResults) > 0 {
-			for k, result := range matchResults {
-				cr.extraInfo[k] = result.fieldValue
+		if len(extraInfo) > 0 {
+			cr.extraInfo = make(map[string]string)
+			suggestedActions := make(map[string]string)
+			for k, data := range extraInfo {
+				cr.extraInfo[k] = data.fieldValue
 
-				if !result.matched {
+				if !data.expectMatched {
 					log.Logger.Warnw("rule cannot find the matching value (marking unhealthy)",
 						"component", c.Name(),
 						"field", k,
-						"value", result.fieldValue,
-						"rule", result.rule,
+						"value", data.fieldValue,
+						"rule", data.expectRule,
 					)
 
 					cr.health = apiv1.HealthStateTypeUnhealthy
 					cr.reason = "unexpected plugin output"
+				}
+
+				if len(data.suggestedActions) > 0 {
+					for actionName, desc := range data.suggestedActions {
+						if prev := suggestedActions[actionName]; prev != "" {
+							desc = fmt.Sprintf("%s, %s", prev, desc)
+						}
+						suggestedActions[actionName] = desc
+					}
+				}
+			}
+			if len(suggestedActions) > 0 {
+				descriptions := make([]string, 0)
+				repairActions := make([]apiv1.RepairActionType, 0)
+				for actionName, desc := range suggestedActions {
+					descriptions = append(descriptions, desc)
+					repairActions = append(repairActions, apiv1.RepairActionType(actionName))
+				}
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description:   strings.Join(descriptions, "\n"),
+					RepairActions: repairActions,
 				}
 			}
 		}
@@ -230,6 +253,8 @@ type checkResult struct {
 	reason string
 	// extra info extracted from the output
 	extraInfo map[string]string
+	// suggested actions extracted from the output
+	suggestedActions *apiv1.SuggestedActions
 }
 
 func (cr *checkResult) String() string {
@@ -274,15 +299,16 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:          metav1.NewTime(cr.ts),
-		Component:     cr.componentName,
-		ComponentType: apiv1.ComponentTypeCustomPlugin,
-		Name:          cr.pluginName,
-		Reason:        cr.reason,
-		Error:         cr.getError(),
-		RunMode:       cr.runMode,
-		Health:        cr.health,
-		ExtraInfo:     cr.extraInfo,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        cr.componentName,
+		ComponentType:    apiv1.ComponentTypeCustomPlugin,
+		Name:             cr.pluginName,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		RunMode:          cr.runMode,
+		Health:           cr.health,
+		ExtraInfo:        cr.extraInfo,
+		SuggestedActions: cr.suggestedActions,
 	}
 	return apiv1.HealthStates{state}
 }
