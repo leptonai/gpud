@@ -34,7 +34,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance   nvidianvml.Instance
+	loadNVML func() nvidianvml.Instance
+
 	toolOverwrites nvidia_common.ToolOverwrites
 
 	eventBucket eventstore.Bucket
@@ -51,10 +52,13 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                   cctx,
-		cancel:                ccancel,
-		nvmlInstance:          gpudInstance.NVMLInstance,
-		toolOverwrites:        gpudInstance.NVIDIAToolOverwrites,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		loadNVML: gpudInstance.LoadNVMLInstance,
+
+		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
+
 		getIbstatOutputFunc:   infiniband.GetIbstatOutput,
 		getIbstatusOutputFunc: infiniband.GetIbstatusOutput,
 		getThresholdsFunc:     GetDefaultExpectedPortStates,
@@ -149,17 +153,18 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	if c.nvmlInstance == nil {
+	if c.loadNVML == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
 		return cr
 	}
-	if !c.nvmlInstance.NVMLExists() {
+	nvmlInstance := c.loadNVML()
+	if nvmlInstance == nil || !nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
-	if c.nvmlInstance.ProductName() == "" {
+	if nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr

@@ -222,11 +222,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		}
 	}()
 
-	nvmlInstance, err := nvidianvml.New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-	}
-
 	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
@@ -245,29 +240,13 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if err := metricstate.CreateTableMetrics(ctx, dbRW, metricstate.DefaultTableName); err != nil {
 		return nil, fmt.Errorf("failed to create metrics table: %w", err)
 	}
-	go func() {
-		dur := config.RetentionPeriod.Duration
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-				purged, err := metricstate.PurgeMetrics(ctx, dbRW, metricstate.DefaultTableName, before)
-				if err != nil {
-					log.Logger.Warnw("failed to purge metrics", "error", err)
-				} else {
-					log.Logger.Debugw("purged metrics", "purged", purged)
-				}
-			}
-		}
-	}()
+	go purgeMetrics(ctx, dbRW, config.RetentionPeriod.Duration)
 
+	loadNVMLInstance := nvidianvml.CreateLoadInstanceFunc()
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
-		NVMLInstance:         nvmlInstance,
+		LoadNVMLInstance:     loadNVMLInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
 		Annotations: config.Annotations,
@@ -388,8 +367,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	}
 
 	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
-	go s.startListener(nvmlInstance, syncer, config, router, cert)
-	go s.sendGossip(ctx, uid, nvmlInstance, endpoint)
+	go s.startListener(loadNVMLInstance, syncer, config, router, cert)
+	go s.sendGossip(ctx, uid, loadNVMLInstance, endpoint)
 
 	return s, nil
 }
@@ -648,11 +627,13 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	}
 }
 
-func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidianvml.Instance, endpoint string) {
+func (s *Server) sendGossip(ctx context.Context, uid string, loadNVML func() nvidianvml.Instance, endpoint string) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	for {
+		// load every time to avoid stale nvml instance
+		nvmlInstance := loadNVML()
 		gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance)
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
@@ -672,8 +653,9 @@ func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidia
 	}
 }
 
-func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer, config *lepconfig.Config, router *gin.Engine, cert tls.Certificate) {
+func (s *Server) startListener(loadNVML func() nvidianvml.Instance, metricsSyncer *pkgmetricssyncer.Syncer, config *lepconfig.Config, router *gin.Engine, cert tls.Certificate) {
 	defer func() {
+		nvmlInstance := loadNVML()
 		if nvmlInstance != nil {
 			if err := nvmlInstance.Shutdown(); err != nil {
 				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
@@ -697,5 +679,24 @@ func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *
 	if err != nil {
 		s.Stop()
 		log.Logger.Fatalw("serve failed", "address", config.Address, "error", err)
+	}
+}
+
+func purgeMetrics(ctx context.Context, dbRW *sql.DB, retentionPeriod time.Duration) {
+	dur := retentionPeriod
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(dur):
+			now := time.Now().UTC()
+			before := now.Add(-dur)
+			purged, err := metricstate.PurgeMetrics(ctx, dbRW, metricstate.DefaultTableName, before)
+			if err != nil {
+				log.Logger.Warnw("failed to purge metrics", "error", err)
+			} else {
+				log.Logger.Debugw("purged metrics", "purged", purged)
+			}
+		}
 	}
 }

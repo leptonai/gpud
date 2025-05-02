@@ -30,7 +30,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.Instance
+	loadNVML func() nvidianvml.Instance
 
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
@@ -47,7 +47,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		nvmlInstance: gpudInstance.NVMLInstance,
+		loadNVML: gpudInstance.LoadNVMLInstance,
 
 		checkLsmodPeermemModuleFunc: querypeermem.CheckLsmodPeermemModule,
 	}
@@ -131,17 +131,18 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.nvmlInstance == nil {
+	if c.loadNVML == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
 		return cr
 	}
-	if !c.nvmlInstance.NVMLExists() {
+	nvmlInstance := c.loadNVML()
+	if nvmlInstance == nil || !nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
-	if c.nvmlInstance.ProductName() == "" {
+	if nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr

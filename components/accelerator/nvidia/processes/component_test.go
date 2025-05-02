@@ -82,8 +82,8 @@ func TestNew(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -99,8 +99,8 @@ func TestComponentName(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -115,8 +115,8 @@ func TestStartAndClose(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -137,8 +137,8 @@ func TestEvents(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -170,8 +170,8 @@ func TestCheck(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -222,8 +222,8 @@ func TestCheckError(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -254,8 +254,8 @@ func TestLastHealthStates(t *testing.T) {
 
 	// Create a mock GPUdInstance with the required fields
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	comp, err := New(gpudInstance)
@@ -388,8 +388,8 @@ func TestCheckEdgeCases(t *testing.T) {
 
 	t.Run("nil NVML instance", func(t *testing.T) {
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: nil,
+			RootCtx:          ctx,
+			LoadNVMLInstance: nil,
 		}
 
 		comp, err := New(gpudInstance)
@@ -410,8 +410,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		}
 
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: mockInstance,
+			RootCtx:          ctx,
+			LoadNVMLInstance: mockInstance,
 		}
 
 		comp, err := New(gpudInstance)
@@ -449,8 +449,8 @@ func TestCheckEdgeCases(t *testing.T) {
 		}
 
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: mockInstance,
+			RootCtx:          ctx,
+			LoadNVMLInstance: mockInstance,
 		}
 
 		comp, err := New(gpudInstance)

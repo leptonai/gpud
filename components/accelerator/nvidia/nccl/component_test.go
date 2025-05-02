@@ -147,7 +147,7 @@ func TestCheck(t *testing.T) {
 
 	t.Run("nil nvmlInstance", func(t *testing.T) {
 		comp := &component{
-			nvmlInstance: nil,
+			loadNVML: nil,
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
@@ -164,8 +164,8 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
 		comp := &component{
-			nvmlInstance: mockNvml,
-			readAllKmsg:  nil,
+			loadNVML:    mockNvml,
+			readAllKmsg: nil,
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
@@ -187,9 +187,9 @@ func TestCheck(t *testing.T) {
 		}
 
 		comp := &component{
-			ctx:          context.Background(),
-			nvmlInstance: mockNvml,
-			readAllKmsg:  mockReadAllKmsg,
+			ctx:         context.Background(),
+			loadNVML:    mockNvml,
+			readAllKmsg: mockReadAllKmsg,
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
@@ -215,9 +215,9 @@ func TestCheck(t *testing.T) {
 		}
 
 		comp := &component{
-			ctx:          context.Background(),
-			nvmlInstance: mockNvml,
-			readAllKmsg:  mockReadAllKmsg,
+			ctx:         context.Background(),
+			loadNVML:    mockNvml,
+			readAllKmsg: mockReadAllKmsg,
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)
@@ -246,9 +246,9 @@ func TestCheck(t *testing.T) {
 		}
 
 		comp := &component{
-			ctx:          context.Background(),
-			nvmlInstance: mockNvml,
-			readAllKmsg:  mockReadAllKmsg,
+			ctx:         context.Background(),
+			loadNVML:    mockNvml,
+			readAllKmsg: mockReadAllKmsg,
 		}
 		result := comp.Check()
 		assert.NotNil(t, result)

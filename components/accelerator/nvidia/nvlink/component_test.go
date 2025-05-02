@@ -100,7 +100,7 @@ func MockNVLinkComponent(
 	return &component{
 		ctx:           cctx,
 		cancel:        cancel,
-		nvmlInstance:  mockInstance,
+		loadNVML:      mockInstance,
 		getNVLinkFunc: getNVLinkFunc,
 	}
 }
@@ -113,8 +113,8 @@ func TestNew(t *testing.T) {
 
 	// Create a GPUdInstance for the New function
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -129,7 +129,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getNVLinkFunc, "getNVLinkFunc should be set")
 }
 
@@ -535,8 +535,8 @@ func TestCheckOnce_NilNVMLInstance(t *testing.T) {
 
 	// Create component with nil nvmlInstance
 	component := &component{
-		ctx:          ctx,
-		nvmlInstance: nil,
+		ctx:      ctx,
+		loadNVML: nil,
 	}
 
 	result := component.Check()
@@ -558,8 +558,8 @@ func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
 	}
 
 	component := &component{
-		ctx:          ctx,
-		nvmlInstance: mockInstance,
+		ctx:      ctx,
+		loadNVML: mockInstance,
 	}
 
 	result := component.Check()

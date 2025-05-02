@@ -27,7 +27,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance           nvidianvml.Instance
+	loadNVML func() nvidianvml.Instance
+
 	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error)
 
 	lastMu          sync.RWMutex
@@ -37,9 +38,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                    cctx,
-		cancel:                 ccancel,
-		nvmlInstance:           gpudInstance.NVMLInstance,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		loadNVML: gpudInstance.LoadNVMLInstance,
+
 		getGSPFirmwareModeFunc: nvidianvml.GetGSPFirmwareMode,
 	}
 	return c, nil
@@ -96,23 +99,24 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.nvmlInstance == nil {
+	if c.loadNVML == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
 		return cr
 	}
-	if !c.nvmlInstance.NVMLExists() {
+	nvmlInstance := c.loadNVML()
+	if nvmlInstance == nil || !nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
-	if c.nvmlInstance.ProductName() == "" {
+	if nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
 	}
 
-	devs := c.nvmlInstance.Devices()
+	devs := nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		mode, err := c.getGSPFirmwareModeFunc(uuid, dev)
 		if err != nil {

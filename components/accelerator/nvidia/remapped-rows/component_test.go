@@ -189,9 +189,9 @@ func TestNew(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -246,9 +246,9 @@ func TestEvents(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -316,9 +316,9 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   mockStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       mockStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -463,9 +463,9 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -691,9 +691,9 @@ func TestComponentStates(t *testing.T) {
 
 			// Create a GPUdInstance
 			gpudInstance := &components.GPUdInstance{
-				RootCtx:      ctx,
-				NVMLInstance: nvmlInstance,
-				EventStore:   eventStore,
+				RootCtx:          ctx,
+				LoadNVMLInstance: nvmlInstance,
+				EventStore:       eventStore,
 			}
 
 			comp, err := New(gpudInstance)
@@ -784,9 +784,9 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -846,9 +846,9 @@ func TestComponentStatesWithNilData(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -914,9 +914,9 @@ func TestStateTransitions(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -1057,9 +1057,9 @@ func TestRemappedRowsThresholds(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -1156,9 +1156,9 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nvmlInstance,
-		EventStore:   eventStore,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nvmlInstance,
+		EventStore:       eventStore,
 	}
 
 	comp, err := New(gpudInstance)
@@ -1300,9 +1300,9 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 
 			// Create a GPUdInstance
 			gpudInstance := &components.GPUdInstance{
-				RootCtx:      ctx,
-				NVMLInstance: nvmlInstance,
-				EventStore:   eventStore,
+				RootCtx:          ctx,
+				LoadNVMLInstance: nvmlInstance,
+				EventStore:       eventStore,
 			}
 
 			comp, err := New(gpudInstance)
@@ -1430,9 +1430,9 @@ func TestComponentWithNoNVML(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: nil, // No NVML
-		EventStore:   nil,
+		RootCtx:          ctx,
+		LoadNVMLInstance: nil, // No NVML
+		EventStore:       nil,
 	}
 
 	comp, err := New(gpudInstance)

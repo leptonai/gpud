@@ -65,7 +65,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance nvidianvml.Instance
+	loadNVML func() nvidianvml.Instance
 
 	libraries   map[string][]string
 	searchOpts  []file.OpOption
@@ -78,14 +78,16 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: gpudInstance.NVMLInstance,
-		findLibrary:  file.FindLibrary,
+		ctx:         cctx,
+		cancel:      ccancel,
+		loadNVML:    gpudInstance.LoadNVMLInstance,
+		findLibrary: file.FindLibrary,
 	}
 
 	searchDirs := make(map[string]any)
-	if c.nvmlInstance != nil && c.nvmlInstance.NVMLExists() {
+
+	nvmlInstance := c.loadNVML()
+	if nvmlInstance != nil && nvmlInstance.NVMLExists() {
 		c.libraries = defaultNVIDIALibraries
 		for _, dir := range defaultNVIDIALibrariesSearchDirs {
 			searchDirs[dir] = struct{}{}

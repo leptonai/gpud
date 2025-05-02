@@ -31,7 +31,7 @@ func MockPowerComponent(
 	return &component{
 		ctx:          cctx,
 		cancel:       cancel,
-		nvmlInstance: mockNVMLInstance,
+		loadNVML:     mockNVMLInstance,
 		getPowerFunc: getPowerFunc,
 	}
 }
@@ -95,8 +95,8 @@ func TestNew(t *testing.T) {
 
 	// Create a mock GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -110,7 +110,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getPowerFunc, "getPowerFunc should be set")
 }
 

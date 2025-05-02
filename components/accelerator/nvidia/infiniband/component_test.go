@@ -435,7 +435,7 @@ func TestComponentCheck(t *testing.T) {
 
 	// Case 2: With NVML but missing product name
 	nvmlMock := &mockNVMLInstance{exists: true, productName: ""}
-	c.nvmlInstance = nvmlMock
+	c.loadNVML = nvmlMock
 	result = c.Check()
 	data, ok = result.(*checkResult)
 	require.True(t, ok)
@@ -906,7 +906,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			return nil, errors.New("ibstatus error")
 		},
 		getThresholdsFunc: mockGetThresholds,
-		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		loadNVML:          &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 	}
 
 	result := c.Check()
@@ -923,7 +923,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			return nil, infiniband.ErrNoIbstatCommand
 		},
 		getThresholdsFunc: mockGetThresholds,
-		nvmlInstance:      &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		loadNVML:          &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 	}
 
 	result = c.Check()
@@ -995,7 +995,7 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 	c := &component{
 		ctx:                 cctx,
 		cancel:              ccancel,
-		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		loadNVML:            &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		getIbstatOutputFunc: nil, // Set to nil explicitly
 		getThresholdsFunc:   mockGetThresholds,
 	}
@@ -1243,7 +1243,7 @@ func TestComponentUsingIbstatusOutput(t *testing.T) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
 		},
@@ -1278,7 +1278,7 @@ func TestComponentWithBothOutputFunctions(t *testing.T) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
 		},
@@ -1311,7 +1311,7 @@ func TestComponentWithIbstatusError(t *testing.T) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
 		},
@@ -1347,7 +1347,7 @@ func TestComponentFallbackToIbstatus(t *testing.T) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
 		},
@@ -1382,7 +1382,7 @@ func TestComponentBothOutputFail(t *testing.T) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
 		},

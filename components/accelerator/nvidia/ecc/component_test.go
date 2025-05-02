@@ -105,7 +105,7 @@ func MockECCComponent(
 	return &component{
 		ctx:                   cctx,
 		cancel:                cancel,
-		nvmlInstance:          mockInstance,
+		loadNVML:              mockInstance,
 		getECCModeEnabledFunc: getECCModeEnabledFunc,
 		getECCErrorsFunc:      getECCErrorsFunc,
 	}
@@ -118,8 +118,8 @@ func TestNew(t *testing.T) {
 	}
 
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -134,7 +134,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getECCModeEnabledFunc, "getECCModeEnabledFunc should be set")
 	assert.NotNil(t, tc.getECCErrorsFunc, "getECCErrorsFunc should be set")
 }
@@ -635,7 +635,7 @@ func TestCheck_NilNvmlInstance(t *testing.T) {
 	component := &component{
 		ctx:                   cctx,
 		cancel:                cancel,
-		nvmlInstance:          nil,
+		loadNVML:              nil,
 		getECCModeEnabledFunc: nil,
 		getECCErrorsFunc:      nil,
 	}
@@ -666,7 +666,7 @@ func TestCheck_NvmlNotLoaded(t *testing.T) {
 	component := &component{
 		ctx:                   cctx,
 		cancel:                cancel,
-		nvmlInstance:          mockInstance,
+		loadNVML:              mockInstance,
 		getECCModeEnabledFunc: nil,
 		getECCErrorsFunc:      nil,
 	}

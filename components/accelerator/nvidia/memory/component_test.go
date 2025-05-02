@@ -87,7 +87,7 @@ func MockMemoryComponent(
 	return &component{
 		ctx:           cctx,
 		cancel:        cancel,
-		nvmlInstance:  nvmlInstance,
+		loadNVML:      nvmlInstance,
 		getMemoryFunc: getMemoryFunc,
 	}
 }
@@ -98,8 +98,8 @@ func TestNew(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockNVMLInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockNVMLInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -113,7 +113,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getMemoryFunc, "getMemoryFunc should be set")
 }
 

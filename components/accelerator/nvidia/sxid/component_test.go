@@ -339,7 +339,7 @@ func TestSXIDComponent_Check(t *testing.T) {
 	mockNVML := &MockNVMLInstance{
 		exists: true,
 	}
-	component.nvmlInstance = mockNVML
+	component.loadNVML = mockNVML
 
 	// Mock the readAllKmsg function to return test data
 	mockMessages := []kmsg.Message{
@@ -378,7 +378,7 @@ func TestSXIDComponent_Check_Error(t *testing.T) {
 	mockNVML := &MockNVMLInstance{
 		exists: true,
 	}
-	component.nvmlInstance = mockNVML
+	component.loadNVML = mockNVML
 
 	// Mock the readAllKmsg function to return an error
 	component.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
@@ -404,7 +404,7 @@ func TestSXIDComponent_Check_NoNVML(t *testing.T) {
 	defer cleanup()
 
 	// Set nvmlInstance to nil to simulate no NVML
-	component.nvmlInstance = nil
+	component.loadNVML = nil
 
 	// Run the check
 	result := component.Check()

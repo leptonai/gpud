@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -116,9 +117,11 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
 
-	nvmlInstance, err := nvidianvml.New()
-	if err != nil {
-		return err
+	loadNVMLInstance := nvidianvml.CreateLoadInstanceFunc()
+
+	nvmlInstance := loadNVMLInstance()
+	if nvmlInstance == nil {
+		return errors.New("NVIDIA NVML library is not loaded")
 	}
 
 	mi, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
@@ -139,7 +142,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
-		NVMLInstance: nvmlInstance,
+		LoadNVMLInstance: loadNVMLInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
 			IbstatCommand:   op.ibstatCommand,
 			IbstatusCommand: op.ibstatusCommand,

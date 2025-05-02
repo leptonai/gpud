@@ -97,7 +97,7 @@ func MockPersistenceModeComponent(
 	return &component{
 		ctx:                    cctx,
 		cancel:                 cancel,
-		nvmlInstance:           mockInstance,
+		loadNVML:               mockInstance,
 		getPersistenceModeFunc: getPersistenceModeFunc,
 	}
 }
@@ -119,7 +119,7 @@ func MockPersistenceModeComponentWithNVMLExists(
 	return &component{
 		ctx:                    cctx,
 		cancel:                 cancel,
-		nvmlInstance:           mockInstance,
+		loadNVML:               mockInstance,
 		getPersistenceModeFunc: getPersistenceModeFunc,
 	}
 }
@@ -131,8 +131,8 @@ func TestNew(t *testing.T) {
 	}
 
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -147,7 +147,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getPersistenceModeFunc, "getPersistenceModeFunc should be set")
 }
 
@@ -329,9 +329,9 @@ func TestCheck_NilNVMLInstance(t *testing.T) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	component := &component{
-		ctx:          cctx,
-		cancel:       cancel,
-		nvmlInstance: nil, // Explicitly set to nil
+		ctx:      cctx,
+		cancel:   cancel,
+		loadNVML: nil, // Explicitly set to nil
 	}
 
 	result := component.Check()

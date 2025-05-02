@@ -30,7 +30,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	nvmlInstance       nvidianvml.Instance
+	loadNVML func() nvidianvml.Instance
+
 	getDeviceCountFunc func() (int, error)
 	getMemoryFunc      func(uuid string, dev device.Device) (nvidianvml.Memory, error)
 	getSerialFunc      func(uuid string, dev device.Device) (string, error)
@@ -43,9 +44,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                cctx,
-		cancel:             ccancel,
-		nvmlInstance:       gpudInstance.NVMLInstance,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		loadNVML: gpudInstance.LoadNVMLInstance,
+
 		getDeviceCountFunc: nvidiaquery.CountAllDevicesFromDevDir,
 		getMemoryFunc:      nvidianvml.GetMemory,
 		getSerialFunc:      nvidianvml.GetSerial,
@@ -105,27 +108,28 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.nvmlInstance == nil {
+	if c.loadNVML == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
 		return cr
 	}
-	if !c.nvmlInstance.NVMLExists() {
+	nvmlInstance := c.loadNVML()
+	if nvmlInstance == nil || !nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
-	if c.nvmlInstance.ProductName() == "" {
+	if nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
 	}
 
-	cr.Product.Name = c.nvmlInstance.ProductName()
-	cr.Product.Architecture = c.nvmlInstance.Architecture()
-	cr.Product.Brand = c.nvmlInstance.Brand()
+	cr.Product.Name = nvmlInstance.ProductName()
+	cr.Product.Architecture = nvmlInstance.Architecture()
+	cr.Product.Brand = nvmlInstance.Brand()
 
-	cr.Driver.Version = c.nvmlInstance.DriverVersion()
+	cr.Driver.Version = nvmlInstance.DriverVersion()
 	if cr.Driver.Version == "" {
 		cr.err = fmt.Errorf("driver version is empty")
 		cr.health = apiv1.HealthStateTypeUnhealthy
@@ -133,7 +137,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	cr.CUDA.Version = c.nvmlInstance.CUDAVersion()
+	cr.CUDA.Version = nvmlInstance.CUDAVersion()
 	if cr.CUDA.Version == "" {
 		cr.err = fmt.Errorf("CUDA version is empty")
 		cr.health = apiv1.HealthStateTypeUnhealthy
@@ -151,7 +155,7 @@ func (c *component) Check() components.CheckResult {
 	}
 	cr.GPUCount.DeviceCount = deviceCount
 
-	devs := c.nvmlInstance.Devices()
+	devs := nvmlInstance.Devices()
 	cr.GPUCount.Attached = len(devs)
 
 	for uuid, dev := range devs {

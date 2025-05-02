@@ -62,7 +62,9 @@ func TestCheck(t *testing.T) {
 
 	// Create a mock NVML instance that returns true for NVMLExists
 	mockNVMLInstance := &mockNVMLInstance{exists: true}
-	comp.nvmlInstance = mockNVMLInstance
+	comp.loadNVML = func() nvidianvml.Instance {
+		return mockNVMLInstance
+	}
 
 	// Test with no bad env vars set
 	result := comp.Check()
@@ -149,7 +151,9 @@ func TestCustomCheckEnvFunc(t *testing.T) {
 
 	// Create a mock NVML instance that returns true for NVMLExists
 	mockNVMLInstance := &mockNVMLInstance{exists: true}
-	comp.nvmlInstance = mockNVMLInstance
+	comp.loadNVML = func() nvidianvml.Instance {
+		return mockNVMLInstance
+	}
 
 	// Set custom environment check function that always returns true
 	comp.checkEnvFunc = func(key string) bool {
@@ -286,7 +290,9 @@ func TestPeriodicCheck(t *testing.T) {
 
 	// Create a mock NVML instance that returns true for NVMLExists
 	mockNVMLInstance := &mockNVMLInstance{exists: true}
-	comp.nvmlInstance = mockNVMLInstance
+	comp.loadNVML = func() nvidianvml.Instance {
+		return mockNVMLInstance
+	}
 
 	// Create a flag to track if the check function was called
 	called := false
@@ -380,7 +386,7 @@ func TestCheckWithNilNVML(t *testing.T) {
 	comp := c.(*component)
 
 	// Set NVML instance to nil
-	comp.nvmlInstance = nil
+	comp.loadNVML = nil
 
 	// Test check with nil NVML
 	result := comp.Check()
@@ -398,7 +404,9 @@ func TestCheckWithNVMLNotExisting(t *testing.T) {
 
 	// Set NVML instance that returns false for NVMLExists
 	mockNVMLInstance := &mockNVMLInstance{exists: false}
-	comp.nvmlInstance = mockNVMLInstance
+	comp.loadNVML = func() nvidianvml.Instance {
+		return mockNVMLInstance
+	}
 
 	// Test check with NVML not existing
 	result := comp.Check()
@@ -431,7 +439,9 @@ func TestCheckAllEnvVarsForCoverage(t *testing.T) {
 	comp := c.(*component)
 
 	mockNVMLInstance := &mockNVMLInstance{exists: true}
-	comp.nvmlInstance = mockNVMLInstance
+	comp.loadNVML = func() nvidianvml.Instance {
+		return mockNVMLInstance
+	}
 
 	// Set all env vars to "1" one by one to test each case
 	for key := range BAD_CUDA_ENV_KEYS {

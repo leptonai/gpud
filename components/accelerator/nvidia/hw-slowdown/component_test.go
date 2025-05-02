@@ -258,7 +258,7 @@ func TestCheckOnce(t *testing.T) {
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				loadNVML:         mockNVML,
 				// Initialize lastCheckResult to avoid nil pointer dereference
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
@@ -368,7 +368,7 @@ func TestComponentStates(t *testing.T) {
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
 		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		loadNVML:         mockNVML,
 		lastCheckResult: &checkResult{
 			ts:     time.Now(),
 			health: apiv1.HealthStateTypeHealthy,
@@ -517,7 +517,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 				evaluationWindow: tc.window,
 				threshold:        tc.thresholdPerMinute,
 				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				loadNVML:         mockNVML,
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
 					health: apiv1.HealthStateTypeHealthy,
@@ -583,7 +583,7 @@ func TestComponentName(t *testing.T) {
 	c := &component{
 		ctx:              ctx,
 		cancel:           cancel,
-		nvmlInstance:     mockNVML,
+		loadNVML:         mockNVML,
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 		eventBucket:      bucket,
@@ -657,7 +657,7 @@ func TestComponentStart(t *testing.T) {
 	c := &component{
 		ctx:              ctx,
 		cancel:           cancel,
-		nvmlInstance:     mockNVML,
+		loadNVML:         mockNVML,
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 		eventBucket:      bucket,
@@ -765,7 +765,7 @@ func TestComponentEvents(t *testing.T) {
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
 		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		loadNVML:         mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -849,7 +849,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		evaluationWindow: window,
 		threshold:        thresholdFrequency,
 		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		loadNVML:         mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -1045,9 +1045,9 @@ func TestNewComponent(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			instance := &components.GPUdInstance{
-				RootCtx:      context.Background(),
-				NVMLInstance: tc.nvmlInstance,
-				EventStore:   tc.eventStore,
+				RootCtx:          context.Background(),
+				LoadNVMLInstance: tc.nvmlInstance,
+				EventStore:       tc.eventStore,
 			}
 
 			comp, err := New(instance)
@@ -1293,7 +1293,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			c := &component{
 				ctx:              ctx,
 				cancel:           cancel,
-				nvmlInstance:     tc.nvmlInstance,
+				loadNVML:         tc.nvmlInstance,
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				lastCheckResult: &checkResult{

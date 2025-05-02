@@ -26,7 +26,19 @@ type GPUdInstance struct {
 
 	KernelModulesToCheck []string
 
-	NVMLInstance         nvidianvml.Instance
+	// LoadNVMLInstance loads the NVML instance.
+	//
+	// If the host supports AND installs the NVML library correctly,
+	// it returns the corresponding NVML instance.
+	//
+	// If the host has not installed the NVML library yet,
+	// the nvml initialization function should fail.
+	// If the nvml not found error is returned as expected,
+	// this returns a no-op nvml instance.
+	// Otherwise, it returns nil.
+	// Each component must handle both cases.
+	LoadNVMLInstance func() nvidianvml.Instance
+
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
 	Annotations map[string]string

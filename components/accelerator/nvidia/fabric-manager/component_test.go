@@ -44,7 +44,7 @@ func TestComponentEvents(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		loadNVML:          &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 
@@ -197,7 +197,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		loadNVML:          &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
 		checkFMExistsFunc: func() bool { return false },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -281,7 +281,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	comp := &component{
 		ctx:               context.Background(),
 		cancel:            func() {},
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		loadNVML:          &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -410,7 +410,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		loadNVML:          &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
@@ -476,7 +476,7 @@ func TestCheckAllBranches(t *testing.T) {
 			comp := &component{
 				ctx:               context.Background(),
 				cancel:            func() {},
-				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+				loadNVML:          &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
 				checkFMExistsFunc: func() bool { return tc.fmExists },
 				checkFMActiveFunc: func() bool { return tc.fmActive },
 			}
@@ -619,7 +619,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			c := &component{
 				ctx:               ctx,
 				cancel:            cancel,
-				nvmlInstance:      tt.nvmlInstance,
+				loadNVML:          tt.nvmlInstance,
 				checkFMExistsFunc: tt.checkFMExistsFunc,
 				checkFMActiveFunc: tt.checkFMActiveFunc,
 			}
@@ -661,7 +661,7 @@ func TestCheck_FabricManagerNotSupported(t *testing.T) {
 	comp := &component{
 		ctx:               context.Background(),
 		cancel:            func() {},
-		nvmlInstance:      mockInstance,
+		loadNVML:          mockInstance,
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
@@ -696,8 +696,8 @@ func TestCheckWithEmptyProductName(t *testing.T) {
 
 	// Create component with mock
 	c := &component{
-		ctx:          context.Background(),
-		nvmlInstance: mockNVML,
+		ctx:      context.Background(),
+		loadNVML: mockNVML,
 	}
 
 	// Call Check

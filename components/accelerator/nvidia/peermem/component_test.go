@@ -191,8 +191,8 @@ func TestComponentName(t *testing.T) {
 func TestNewComponent(t *testing.T) {
 	// Test creating a component with nil NVML instance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      context.Background(),
-		NVMLInstance: nil,
+		RootCtx:          context.Background(),
+		LoadNVMLInstance: nil,
 	}
 
 	comp, err := New(gpudInstance)
@@ -201,8 +201,8 @@ func TestNewComponent(t *testing.T) {
 
 	// Test creating a component with NVML instance
 	gpudInstance = &components.GPUdInstance{
-		RootCtx:      context.Background(),
-		NVMLInstance: &mockNVMLInstance{exists: true},
+		RootCtx:          context.Background(),
+		LoadNVMLInstance: &mockNVMLInstance{exists: true},
 	}
 
 	comp, err = New(gpudInstance)
@@ -234,7 +234,7 @@ func TestCheckWithNVML(t *testing.T) {
 	c := &component{
 		ctx:                         context.Background(),
 		cancel:                      func() {},
-		nvmlInstance:                &mockNVMLInstance{exists: true},
+		loadNVML:                    &mockNVMLInstance{exists: true},
 		checkLsmodPeermemModuleFunc: mockChecker.Check,
 	}
 

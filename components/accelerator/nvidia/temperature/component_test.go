@@ -83,9 +83,9 @@ func MockTemperatureComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
-		ctx:          cctx,
-		cancel:       cancel,
-		nvmlInstance: nvmlInstance,
+		ctx:      cctx,
+		cancel:   cancel,
+		loadNVML: nvmlInstance,
 	}
 
 	if getTemperatureFunc != nil {
@@ -101,8 +101,8 @@ func TestNew(t *testing.T) {
 
 	// Create a GPUdInstance with the mock NVML
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockNVML,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockNVML,
 	}
 
 	c, err := New(gpudInstance)
@@ -117,7 +117,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getTemperatureFunc, "getTemperatureFunc should be set")
 }
 

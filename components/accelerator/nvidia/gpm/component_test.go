@@ -148,7 +148,7 @@ func MockGPMComponent(
 	return &component{
 		ctx:                 cctx,
 		cancel:              cancel,
-		nvmlInstance:        mockInstance,
+		loadNVML:            mockInstance,
 		getGPMSupportedFunc: getGPMSupportedFunc,
 		getGPMMetricsFunc:   getGPMMetricsFunc,
 	}
@@ -163,8 +163,8 @@ func TestNew(t *testing.T) {
 	}
 
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -178,7 +178,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getGPMSupportedFunc, "getGPMSupportedFunc should be set")
 	assert.NotNil(t, tc.getGPMMetricsFunc, "getGPMMetricsFunc should be set")
 }
@@ -691,7 +691,7 @@ func TestCheck_NVMLInstanceNil(t *testing.T) {
 	ctx := context.Background()
 
 	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
-	component.nvmlInstance = nil
+	component.loadNVML = nil
 
 	result := component.Check()
 
@@ -709,7 +709,7 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 	}
 
 	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
-	component.nvmlInstance = mockInstance
+	component.loadNVML = mockInstance
 
 	result := component.Check()
 

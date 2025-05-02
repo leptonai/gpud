@@ -94,7 +94,7 @@ func createMockGPUdInstance(ctx context.Context, nvmlInstance nvidianvml.Instanc
 	return &components.GPUdInstance{
 		RootCtx:              ctx,
 		KernelModulesToCheck: []string{},
-		NVMLInstance:         nvmlInstance,
+		LoadNVMLInstance:     nvmlInstance,
 		NVIDIAToolOverwrites: common.ToolOverwrites{},
 		Annotations:          make(map[string]string),
 		DBRO:                 nil,

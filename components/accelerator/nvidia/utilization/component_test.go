@@ -92,7 +92,7 @@ func MockUtilizationComponent(
 	comp := &component{
 		ctx:                cctx,
 		cancel:             cancel,
-		nvmlInstance:       mockInstance,
+		loadNVML:           mockInstance,
 		getUtilizationFunc: getUtilizationFunc,
 	}
 
@@ -111,8 +111,8 @@ func TestNew(t *testing.T) {
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockNVMLInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockNVMLInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -126,7 +126,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getUtilizationFunc, "getUtilizationFunc should be set")
 }
 
@@ -516,9 +516,9 @@ func TestCheck_NilNVMLInstance(t *testing.T) {
 	// Create component with nil NVML instance
 	cctx, cancel := context.WithCancel(ctx)
 	comp := &component{
-		ctx:          cctx,
-		cancel:       cancel,
-		nvmlInstance: nil, // Explicitly nil
+		ctx:      cctx,
+		cancel:   cancel,
+		loadNVML: nil, // Explicitly nil
 	}
 
 	result := comp.Check()
@@ -545,9 +545,9 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 	cctx, cancel := context.WithCancel(ctx)
 	comp := &component{
-		ctx:          cctx,
-		cancel:       cancel,
-		nvmlInstance: mockInstance,
+		ctx:      cctx,
+		cancel:   cancel,
+		loadNVML: mockInstance,
 	}
 
 	result := comp.Check()

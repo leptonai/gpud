@@ -109,7 +109,7 @@ func MockGSPFirmwareModeComponent(
 	return &component{
 		ctx:                    cctx,
 		cancel:                 cancel,
-		nvmlInstance:           mockInstance,
+		loadNVML:               mockInstance,
 		getGSPFirmwareModeFunc: getGSPFirmwareModeFunc,
 	}
 }
@@ -121,8 +121,8 @@ func TestNew(t *testing.T) {
 	}
 
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 
 	c, err := New(gpudInstance)
@@ -136,7 +136,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
+	assert.NotNil(t, tc.loadNVML, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getGSPFirmwareModeFunc, "getGSPFirmwareModeFunc should be set")
 }
 
@@ -412,7 +412,7 @@ func TestData_GetError(t *testing.T) {
 func TestCheck_NilNVMLInstance(t *testing.T) {
 	ctx := context.Background()
 	component := MockGSPFirmwareModeComponent(ctx, nil, nil).(*component)
-	component.nvmlInstance = nil
+	component.loadNVML = nil
 
 	result := component.Check()
 	cr, ok := result.(*checkResult)
@@ -428,7 +428,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 	// Create a base mock
 	baseMock := &mockNVMLInstance{
-		devicesFunc: component.nvmlInstance.Devices,
+		devicesFunc: component.loadNVML.Devices,
 	}
 
 	// Create the specialized mock
@@ -437,8 +437,8 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 	}
 
 	// Save original and replace with our mock
-	origInstance := component.nvmlInstance
-	component.nvmlInstance = mockInst
+	origInstance := component.loadNVML
+	component.loadNVML = mockInst
 
 	result := component.Check()
 	cr, ok := result.(*checkResult)
@@ -448,7 +448,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 	assert.Equal(t, "NVIDIA NVML library is not loaded", cr.reason)
 
 	// Restore the original for cleanup
-	component.nvmlInstance = origInstance
+	component.loadNVML = origInstance
 }
 
 func TestCheck_NoProductName(t *testing.T) {
@@ -457,7 +457,7 @@ func TestCheck_NoProductName(t *testing.T) {
 
 	// Create a base mock
 	baseMock := &mockNVMLInstance{
-		devicesFunc: component.nvmlInstance.Devices,
+		devicesFunc: component.loadNVML.Devices,
 	}
 
 	// Create the specialized mock
@@ -466,8 +466,8 @@ func TestCheck_NoProductName(t *testing.T) {
 	}
 
 	// Save original and replace with our mock
-	origInstance := component.nvmlInstance
-	component.nvmlInstance = mockInst
+	origInstance := component.loadNVML
+	component.loadNVML = mockInst
 
 	result := component.Check()
 	cr, ok := result.(*checkResult)
@@ -477,7 +477,7 @@ func TestCheck_NoProductName(t *testing.T) {
 	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", cr.reason)
 
 	// Restore the original
-	component.nvmlInstance = origInstance
+	component.loadNVML = origInstance
 }
 
 func TestCheckResult_String(t *testing.T) {

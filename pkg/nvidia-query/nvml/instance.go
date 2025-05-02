@@ -3,6 +3,7 @@ package nvml
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -53,6 +54,47 @@ type Instance interface {
 
 	// Shutdown shuts down the NVML library.
 	Shutdown() error
+}
+
+// CreateLoadInstanceFunc creates a function that loads the NVML instance.
+// It is thread-safe and will return the existing instance if it is already initialized.
+func CreateLoadInstanceFunc() func() Instance {
+	var (
+		inst Instance
+		mu   sync.Mutex
+	)
+
+	return func() Instance {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if inst != nil {
+			_, ok := inst.(*noOpInstance)
+			if !ok {
+				// already initialized with nvml
+				// thus returning existing one
+				// in order to avoid redundant initialization
+				return inst
+			}
+
+			// already initialized as no-op
+			// thus check again if nvml is loaded
+		}
+
+		notInitializedBefore := inst == nil
+
+		// either initialized with no-op or not initialized (nil)
+		// retry to initialize nvml
+		var err error
+		inst, err = New()
+		if err != nil {
+			log.Logger.Errorw("failed to initialize nvml", "error", err)
+		} else if notInitializedBefore {
+			log.Logger.Infow("was not initialized before, but now successfully initialized NVML")
+		}
+
+		return inst
+	}
 }
 
 // New creates a new instance of the NVML library.

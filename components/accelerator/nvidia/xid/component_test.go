@@ -360,9 +360,9 @@ func TestNewWithDifferentConfigurations(t *testing.T) {
 
 	t.Run("with nil event store", func(t *testing.T) {
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			EventStore:   nil,
-			NVMLInstance: nil,
+			RootCtx:          ctx,
+			EventStore:       nil,
+			LoadNVMLInstance: nil,
 		}
 
 		comp, err := New(gpudInstance)
@@ -400,8 +400,8 @@ func TestCheck(t *testing.T) {
 
 	t.Run("with no NVML instance", func(t *testing.T) {
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: nil,
+			RootCtx:          ctx,
+			LoadNVMLInstance: nil,
 		}
 
 		comp, err := New(gpudInstance)
@@ -416,8 +416,8 @@ func TestCheck(t *testing.T) {
 		// Using a properly implemented mock
 		mockedNVML := createMockNVMLInstance()
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: mockedNVML,
+			RootCtx:          ctx,
+			LoadNVMLInstance: mockedNVML,
 		}
 
 		comp, err := New(gpudInstance)
@@ -435,8 +435,8 @@ func TestCheck(t *testing.T) {
 		// Using a properly implemented mock
 		mockedNVML := createMockNVMLInstance()
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: mockedNVML,
+			RootCtx:          ctx,
+			LoadNVMLInstance: mockedNVML,
 		}
 
 		comp, err := New(gpudInstance)
@@ -456,8 +456,8 @@ func TestCheck(t *testing.T) {
 		// Using a properly implemented mock
 		mockedNVML := createMockNVMLInstance()
 		gpudInstance := &components.GPUdInstance{
-			RootCtx:      ctx,
-			NVMLInstance: mockedNVML,
+			RootCtx:          ctx,
+			LoadNVMLInstance: mockedNVML,
 		}
 
 		comp, err := New(gpudInstance)

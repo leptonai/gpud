@@ -236,15 +236,15 @@ func TestNew(t *testing.T) {
 	}
 
 	gpudInstance := &components.GPUdInstance{
-		RootCtx:      ctx,
-		NVMLInstance: mockInstance,
+		RootCtx:          ctx,
+		LoadNVMLInstance: mockInstance,
 	}
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
 
 	c, ok := comp.(*component)
 	require.True(t, ok)
-	assert.Equal(t, mockInstance, c.nvmlInstance)
+	assert.Equal(t, mockInstance, c.loadNVML)
 	assert.NotNil(t, c.getClockSpeedFunc)
 	assert.NotNil(t, c.ctx)
 	assert.NotNil(t, c.cancel)
@@ -264,9 +264,9 @@ func TestComponent_Start(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:          ctx,
-		cancel:       cancel,
-		nvmlInstance: mockInstance,
+		ctx:      ctx,
+		cancel:   cancel,
+		loadNVML: mockInstance,
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, nil
 		},
@@ -327,7 +327,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 	// Test successful case
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
@@ -357,7 +357,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 	testErr := errors.New("test error")
 	c = &component{
 		ctx: ctx,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
@@ -381,8 +381,8 @@ func TestComponent_CheckOnce(t *testing.T) {
 func TestComponent_Check_NilNVML(t *testing.T) {
 	ctx := context.Background()
 	c := &component{
-		ctx:          ctx,
-		nvmlInstance: nil,
+		ctx:      ctx,
+		loadNVML: nil,
 	}
 
 	result := c.Check()
@@ -400,7 +400,7 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 	ctx := context.Background()
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			nvmlExists: false,
 		},
 	}
@@ -433,7 +433,7 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 
 	c := &component{
 		ctx: ctx,
-		nvmlInstance: &mockNVMLInstance{
+		loadNVML: &mockNVMLInstance{
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
