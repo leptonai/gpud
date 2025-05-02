@@ -294,6 +294,7 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
 		table.Append([]string{"GPU Product", i.GPUInfo.Product})
 		table.Append([]string{"GPU Manufacturer", i.GPUInfo.Manufacturer})
+		table.Append([]string{"GPU Architecture", i.GPUInfo.Architecture})
 		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
 	}
 
@@ -318,9 +319,16 @@ type MachineCPUInfo struct {
 }
 
 type MachineGPUInfo struct {
-	Product      string `json:"product,omitempty"`
+	// Product may be "NVIDIA-Graphics-Device" for NVIDIA GB200.
+	Product string `json:"product,omitempty"`
+
+	// Manufacturer is "NVIDIA" for NVIDIA GPUs (same as Brand).
 	Manufacturer string `json:"manufacturer,omitempty"`
-	Memory       string `json:"memory,omitempty"`
+
+	// Architecture is "blackwell" for NVIDIA GB200.
+	Architecture string `json:"architecture,omitempty"`
+
+	Memory string `json:"memory,omitempty"`
 
 	// GPUs is the GPU info of the machine.
 	GPUs []MachineGPUInstance `json:"gpus,omitempty"`
