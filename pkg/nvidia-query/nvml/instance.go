@@ -61,7 +61,7 @@ type Instance interface {
 // New creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
 func New() (Instance, error) {
-	return newInstance(nil, nil)
+	return newInstance(context.TODO(), nil)
 }
 
 // NewWithExitOnSuccessfulLoad creates a new instance of the NVML library.
