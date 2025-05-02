@@ -497,7 +497,7 @@ sudo gpud join
 					Usage: "specify the region of the machine",
 				},
 				cli.StringFlag{
-					Name:  "gpud-product",
+					Name:  "gpu-product",
 					Usage: "specify the GPU shape of the machine",
 				},
 			},

@@ -49,8 +49,8 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	productName := nvmlInstance.ProductName()
-	if cliContext.String("gpud-product") != "" {
-		productName = cliContext.String("gpud-product")
+	if cliContext.String("gpu-product") != "" {
+		productName = cliContext.String("gpu-product")
 	}
 
 	// network section
