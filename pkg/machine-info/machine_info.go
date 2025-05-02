@@ -195,8 +195,7 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
 	info := &apiv1.MachineGPUInfo{
 		Product:      nvmlInstance.ProductName(),
-		Manufacturer: "NVIDIA",
-		Brand:        nvmlInstance.Brand(),
+		Manufacturer: nvmlInstance.Brand(),
 		Architecture: nvmlInstance.Architecture(),
 	}
 
