@@ -2,6 +2,8 @@ package customplugins
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,8 +93,8 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, "healthy", result["health"].fieldValue)
 		assert.Equal(t, "all systems operational", result["message"].fieldValue)
-		assert.True(t, result["health"].matched)
-		assert.True(t, result["message"].matched)
+		assert.True(t, result["health"].expectMatched)
+		assert.True(t, result["message"].expectMatched)
 	})
 
 	t.Run("valid JSON with non-existent path should return empty result", func(t *testing.T) {
@@ -119,7 +121,7 @@ Following text`))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 		assert.Equal(t, "healthy", result["health"].fieldValue)
-		assert.True(t, result["health"].matched)
+		assert.True(t, result["health"].expectMatched)
 	})
 
 	t.Run("nested JSON values should be extracted and converted to strings", func(t *testing.T) {
@@ -133,8 +135,8 @@ Following text`))
 		assert.NoError(t, err)
 		assert.Equal(t, "42", result["nested_val"].fieldValue)
 		assert.Equal(t, "[1,2,3]", result["array_val"].fieldValue)
-		assert.True(t, result["nested_val"].matched)
-		assert.True(t, result["array_val"].matched)
+		assert.True(t, result["nested_val"].expectMatched)
+		assert.True(t, result["array_val"].expectMatched)
 	})
 
 	t.Run("with match rules", func(t *testing.T) {
@@ -161,8 +163,8 @@ Following text`))
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, "healthy", result["status"].fieldValue)
 		assert.Equal(t, "10", result["count"].fieldValue)
-		assert.True(t, result["status"].matched)
-		assert.True(t, result["count"].matched)
+		assert.True(t, result["status"].expectMatched)
+		assert.True(t, result["count"].expectMatched)
 	})
 
 	t.Run("with failing match rules", func(t *testing.T) {
@@ -181,8 +183,8 @@ Following text`))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 		assert.Equal(t, "healthy", result["status"].fieldValue)
-		assert.False(t, result["status"].matched)
-		assert.Equal(t, "unhealthy", result["status"].rule)
+		assert.False(t, result["status"].expectMatched)
+		assert.Equal(t, "unhealthy", result["status"].expectRule)
 	})
 
 	t.Run("with invalid match rule", func(t *testing.T) {
@@ -760,7 +762,7 @@ func TestExtractExtraInfoWithJSONPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := extractExtraInfoWithJSONPaths(tt.input, tt.jsonPaths)
+			result, err := applyJSONPaths(tt.input, tt.jsonPaths)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -835,7 +837,7 @@ func TestMatchRule_CheckMatchRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			match, err := tt.rule.checkMatchRule(tt.input)
+			match, err := tt.rule.doesMatch(tt.input)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -859,7 +861,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-// Additional test function to improve coverage of extractExtraInfoWithJSONPaths
+// Additional test function to improve coverage of applyJSONPaths
 func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 	t.Run("parseFirstJSON returns non-nil but empty map", func(t *testing.T) {
 		// This JSON has opening and closing braces but no content
@@ -867,7 +869,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		jsonPaths := []JSONPath{
 			{Field: "some_field", Query: "$.nonexistent"},
 		}
-		result, err := extractExtraInfoWithJSONPaths(emptyJSON, jsonPaths)
+		result, err := applyJSONPaths(emptyJSON, jsonPaths)
 		assert.NoError(t, err)
 		assert.Empty(t, result)
 	})
@@ -883,7 +885,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 
 		// The actual test just verifies we have good coverage of the normal path
 		// since we can't easily simulate the failure
-		result, err := extractExtraInfoWithJSONPaths(jsonData, jsonPaths)
+		result, err := applyJSONPaths(jsonData, jsonPaths)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 		assert.Equal(t, "healthy", result["status"].fieldValue)
@@ -908,7 +910,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 			{Field: "missing2", Query: "$.p.q.r"},
 		}
 
-		result, err := extractExtraInfoWithJSONPaths(jsonData, jsonPaths)
+		result, err := applyJSONPaths(jsonData, jsonPaths)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, "value1", result["exists1"].fieldValue)
@@ -933,7 +935,7 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 			{Field: "status", Query: "$.status"},
 		}
 
-		result, err := extractExtraInfoWithJSONPaths(jsonData, jsonPaths)
+		result, err := applyJSONPaths(jsonData, jsonPaths)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 	})
@@ -945,8 +947,539 @@ func TestExtractExtraInfoWithJSONPaths_EdgeCases(t *testing.T) {
 		jsonPaths := []JSONPath{
 			{Field: "status", Query: "$.status"},
 		}
-		result, err := extractExtraInfoWithJSONPaths(input, jsonPaths)
+		result, err := applyJSONPaths(input, jsonPaths)
 		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+// TestApplyJSONPathsWithSuggestedActions tests the suggestedActions functionality
+func TestApplyJSONPathsWithSuggestedActions(t *testing.T) {
+	jsonData := []byte(`{
+		"status": "unhealthy",
+		"temperature": 95,
+		"utilization": 100,
+		"memory": "low",
+		"errors": ["error1", "error2"]
+	}`)
+
+	tests := []struct {
+		name            string
+		jsonPaths       []JSONPath
+		expectedMatch   map[string]bool
+		expectedValue   map[string]string
+		expectedActions map[string]map[string]string
+	}{
+		{
+			name: "basic suggested action on exact match",
+			jsonPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"reset_system": {
+							Regex: stringPtr("unhealthy"),
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"status": true},
+			expectedValue: map[string]string{"status": "unhealthy"},
+			expectedActions: map[string]map[string]string{
+				"status": {"reset_system": "unhealthy"},
+			},
+		},
+		{
+			name: "suggested action with regex match",
+			jsonPaths: []JSONPath{
+				{
+					Field: "temperature",
+					Query: "$.temperature",
+					SuggestedActions: map[string]MatchRule{
+						"reduce_load": {
+							Regex: stringPtr(`^[89][0-9]$|^100$`), // 90-100
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"temperature": true},
+			expectedValue: map[string]string{"temperature": "95"},
+			expectedActions: map[string]map[string]string{
+				"temperature": {"reduce_load": "95"},
+			},
+		},
+		{
+			name: "multiple suggested actions for one field",
+			jsonPaths: []JSONPath{
+				{
+					Field: "memory",
+					Query: "$.memory",
+					SuggestedActions: map[string]MatchRule{
+						"restart_service": {
+							Regex: stringPtr("low"),
+						},
+						"check_leak": {
+							Regex: stringPtr("low"),
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"memory": true},
+			expectedValue: map[string]string{"memory": "low"},
+			expectedActions: map[string]map[string]string{
+				"memory": {
+					"restart_service": "low",
+					"check_leak":      "low",
+				},
+			},
+		},
+		{
+			name: "no suggested action matches",
+			jsonPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"reset_system": {
+							Regex: stringPtr("critical"), // Won't match "unhealthy"
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"status": true},
+			expectedValue: map[string]string{"status": "unhealthy"},
+			expectedActions: map[string]map[string]string{
+				"status": {},
+			},
+		},
+		{
+			name: "multiple fields with different suggested actions",
+			jsonPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"restart_service": {
+							Regex: stringPtr("unhealthy"),
+						},
+					},
+				},
+				{
+					Field: "temperature",
+					Query: "$.temperature",
+					SuggestedActions: map[string]MatchRule{
+						"thermal_check": {
+							Regex: stringPtr(`^9[0-9]$|^100$`), // 90-100
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"status": true, "temperature": true},
+			expectedValue: map[string]string{"status": "unhealthy", "temperature": "95"},
+			expectedActions: map[string]map[string]string{
+				"status":      {"restart_service": "unhealthy"},
+				"temperature": {"thermal_check": "95"},
+			},
+		},
+		{
+			name: "suggested action with invalid regex should cause error",
+			jsonPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"invalid_action": {
+							Regex: stringPtr("[invalid regex"),
+						},
+					},
+				},
+			},
+			expectedMatch:   map[string]bool{},
+			expectedValue:   map[string]string{},
+			expectedActions: map[string]map[string]string{},
+		},
+		{
+			name: "suggested action on complex array value",
+			jsonPaths: []JSONPath{
+				{
+					Field: "errors",
+					Query: "$.errors",
+					SuggestedActions: map[string]MatchRule{
+						"check_errors": {
+							// Any non-empty array will trigger this action
+							Regex: stringPtr(`^\[.*\]$`),
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]bool{"errors": true},
+			expectedValue: map[string]string{"errors": `["error1","error2"]`},
+			expectedActions: map[string]map[string]string{
+				"errors": {"check_errors": `["error1","error2"]`},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := applyJSONPaths(jsonData, tt.jsonPaths)
+
+			if tt.name == "suggested action with invalid regex should cause error" {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			if len(tt.expectedMatch) == 0 {
+				assert.Empty(t, result)
+				return
+			}
+
+			// Check that all expected fields exist with correct values
+			for field, expectedValue := range tt.expectedValue {
+				assert.Contains(t, result, field)
+				assert.Equal(t, expectedValue, result[field].fieldValue)
+
+				// Check suggested actions
+				if expectedActions, ok := tt.expectedActions[field]; ok {
+					if len(expectedActions) == 0 {
+						assert.Empty(t, result[field].suggestedActions)
+					} else {
+						assert.Equal(t, len(expectedActions), len(result[field].suggestedActions))
+						for actionName, expectedDesc := range expectedActions {
+							assert.Contains(t, result[field].suggestedActions, actionName)
+							assert.Equal(t, expectedDesc, result[field].suggestedActions[actionName])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestApplyJSONPathsEdgeCasesWithSuggestedActions tests edge cases for the suggestedActions functionality
+func TestApplyJSONPathsEdgeCasesWithSuggestedActions(t *testing.T) {
+	t.Run("empty input with suggested actions", func(t *testing.T) {
+		jsonPaths := []JSONPath{
+			{
+				Field: "status",
+				Query: "$.status",
+				SuggestedActions: map[string]MatchRule{
+					"restart": {
+						Regex: stringPtr("error"),
+					},
+				},
+			},
+		}
+		result, err := applyJSONPaths([]byte{}, jsonPaths)
+		assert.Nil(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("path not found with suggested actions", func(t *testing.T) {
+		jsonPaths := []JSONPath{
+			{
+				Field: "nonexistent",
+				Query: "$.nonexistent",
+				SuggestedActions: map[string]MatchRule{
+					"restart": {
+						Regex: stringPtr(".*"),
+					},
+				},
+			},
+		}
+		result, err := applyJSONPaths([]byte(`{"status":"ok"}`), jsonPaths)
+		assert.Nil(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("invalid json with suggested actions", func(t *testing.T) {
+		jsonPaths := []JSONPath{
+			{
+				Field: "status",
+				Query: "$.status",
+				SuggestedActions: map[string]MatchRule{
+					"restart": {
+						Regex: stringPtr("error"),
+					},
+				},
+			},
+		}
+		result, err := applyJSONPaths([]byte(`{invalid json}`), jsonPaths)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("one valid path and one invalid path with suggested actions", func(t *testing.T) {
+		jsonPaths := []JSONPath{
+			{
+				Field: "status",
+				Query: "$.status",
+				SuggestedActions: map[string]MatchRule{
+					"restart": {
+						Regex: stringPtr("error"),
+					},
+				},
+			},
+			{
+				Field: "invalid",
+				Query: "$.[invalid", // Invalid JSONPath syntax
+				SuggestedActions: map[string]MatchRule{
+					"fix": {
+						Regex: stringPtr(".*"),
+					},
+				},
+			},
+		}
+		result, err := applyJSONPaths([]byte(`{"status":"error"}`), jsonPaths)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// TestMatchRule_DescribeRule tests the describeRule method of MatchRule
+func TestMatchRule_DescribeRule(t *testing.T) {
+	tests := []struct {
+		name        string
+		rule        *MatchRule
+		expectedStr string
+	}{
+		{
+			name:        "nil rule",
+			rule:        nil,
+			expectedStr: "",
+		},
+		{
+			name:        "empty rule",
+			rule:        &MatchRule{},
+			expectedStr: "",
+		},
+		{
+			name: "rule with regex",
+			rule: &MatchRule{
+				Regex: stringPtr("^test$"),
+			},
+			expectedStr: "^test$",
+		},
+		{
+			name: "rule with nil regex",
+			rule: &MatchRule{
+				Regex: nil,
+			},
+			expectedStr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var result string
+			if tt.rule != nil {
+				result = tt.rule.describeRule()
+			} else {
+				var nilRule *MatchRule
+				result = nilRule.describeRule()
+			}
+			assert.Equal(t, tt.expectedStr, result)
+		})
+	}
+}
+
+// TestApplyJSONPathsWithRebootSuggestedAction tests the SuggestedActions functionality
+// specifically for REBOOT_SYSTEM action that matches both lowercase and uppercase "reboot"
+func TestApplyJSONPathsWithRebootSuggestedAction(t *testing.T) {
+	tests := []struct {
+		name           string
+		jsonData       []byte
+		expectedAction string
+		shouldMatch    bool
+	}{
+		{
+			name: "lowercase reboot",
+			jsonData: []byte(`{
+				"message": "system needs reboot to apply updates"
+			}`),
+			expectedAction: "system needs reboot to apply updates",
+			shouldMatch:    true,
+		},
+		{
+			name: "uppercase REBOOT",
+			jsonData: []byte(`{
+				"message": "REBOOT required"
+			}`),
+			expectedAction: "REBOOT required",
+			shouldMatch:    true,
+		},
+		{
+			name: "mixed case Reboot",
+			jsonData: []byte(`{
+				"message": "Reboot suggested"
+			}`),
+			expectedAction: "Reboot suggested",
+			shouldMatch:    true,
+		},
+		{
+			name: "no match",
+			jsonData: []byte(`{
+				"message": "system is healthy"
+			}`),
+			expectedAction: "system is healthy",
+			shouldMatch:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create JSONPath with REBOOT_SYSTEM action rule that matches any case of "reboot"
+			jsonPaths := []JSONPath{
+				{
+					Field: "message",
+					Query: "$.message",
+					SuggestedActions: map[string]MatchRule{
+						"REBOOT_SYSTEM": {
+							// Case insensitive regex for "reboot"
+							Regex: stringPtr(`(?i).*reboot.*`),
+						},
+					},
+				},
+			}
+
+			result, err := applyJSONPaths(tt.jsonData, jsonPaths)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, 1, len(result))
+
+			// Extract the message field
+			field, exists := result["message"]
+			assert.True(t, exists)
+			assert.Equal(t, tt.expectedAction, field.fieldValue)
+
+			// Check if REBOOT_SYSTEM action was matched as expected
+			if tt.shouldMatch {
+				assert.NotNil(t, field.suggestedActions)
+				assert.Contains(t, field.suggestedActions, "REBOOT_SYSTEM")
+				assert.Equal(t, tt.expectedAction, field.suggestedActions["REBOOT_SYSTEM"])
+			} else {
+				if field.suggestedActions != nil {
+					assert.NotContains(t, field.suggestedActions, "REBOOT_SYSTEM")
+				}
+			}
+		})
+	}
+}
+
+// TestApplyJSONPathsWithDuplicatedActionName tests the component's logic for merging
+// multiple descriptions for the same suggested action name
+func TestApplyJSONPathsWithDuplicatedActionName(t *testing.T) {
+	// Create a JSON with multiple fields that will trigger the same action name
+	jsonData := []byte(`{
+		"temperature": 95,
+		"pressure": "critical",
+		"fan_speed": "low"
+	}`)
+
+	// Define JSONPaths with the same action name for different fields
+	jsonPaths := []JSONPath{
+		{
+			Field: "temperature",
+			Query: "$.temperature",
+			SuggestedActions: map[string]MatchRule{
+				"MAINTENANCE_REQUIRED": {
+					Regex: stringPtr(`9[0-9]`), // Will match "95"
+				},
+			},
+		},
+		{
+			Field: "pressure",
+			Query: "$.pressure",
+			SuggestedActions: map[string]MatchRule{
+				"MAINTENANCE_REQUIRED": {
+					Regex: stringPtr("critical"), // Will match "critical"
+				},
+			},
+		},
+		{
+			Field: "fan_speed",
+			Query: "$.fan_speed",
+			SuggestedActions: map[string]MatchRule{
+				"MAINTENANCE_REQUIRED": {
+					Regex: stringPtr("low"), // Will match "low"
+				},
+			},
+		},
+	}
+
+	// Apply the JSON paths
+	result, err := applyJSONPaths(jsonData, jsonPaths)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// We expect 3 fields in the result
+	assert.Equal(t, 3, len(result))
+
+	// Check each field has the correct suggested action
+	tempField, exists := result["temperature"]
+	assert.True(t, exists)
+	assert.Equal(t, "95", tempField.fieldValue)
+	assert.Contains(t, tempField.suggestedActions, "MAINTENANCE_REQUIRED")
+	assert.Equal(t, "95", tempField.suggestedActions["MAINTENANCE_REQUIRED"])
+
+	pressureField, exists := result["pressure"]
+	assert.True(t, exists)
+	assert.Equal(t, "critical", pressureField.fieldValue)
+	assert.Contains(t, pressureField.suggestedActions, "MAINTENANCE_REQUIRED")
+	assert.Equal(t, "critical", pressureField.suggestedActions["MAINTENANCE_REQUIRED"])
+
+	fanField, exists := result["fan_speed"]
+	assert.True(t, exists)
+	assert.Equal(t, "low", fanField.fieldValue)
+	assert.Contains(t, fanField.suggestedActions, "MAINTENANCE_REQUIRED")
+	assert.Equal(t, "low", fanField.suggestedActions["MAINTENANCE_REQUIRED"])
+
+	// Now, let's create a component test that specifically tests the merging
+	// This simulates what happens in component.go where the descriptions get merged
+	// if they have the same action name
+	mergedActions := make(map[string]string)
+
+	// Add actions from each field to the map - this simulates the code in component.go
+	for _, data := range result {
+		for actionName, desc := range data.suggestedActions {
+			if prev := mergedActions[actionName]; prev != "" {
+				desc = fmt.Sprintf("%s, %s", prev, desc)
+			}
+			mergedActions[actionName] = desc
+		}
+	}
+
+	// Verify we have a single action name with all values concatenated
+	assert.Equal(t, 1, len(mergedActions))
+	assert.Contains(t, mergedActions, "MAINTENANCE_REQUIRED")
+
+	// The concatenated result should contain all three values
+	mergedDesc := mergedActions["MAINTENANCE_REQUIRED"]
+	assert.Contains(t, mergedDesc, "95")
+	assert.Contains(t, mergedDesc, "critical")
+	assert.Contains(t, mergedDesc, "low")
+
+	// There should be exactly 2 commas in the merged description
+	commaCount := strings.Count(mergedDesc, ",")
+	assert.Equal(t, 2, commaCount, "There should be exactly 2 commas in the merged description")
+
+	// Verify the format is correct by ensuring all three fields are present
+	// The format should be "value1, value2, value3" but the order may vary
+	parts := strings.Split(mergedDesc, ", ")
+	assert.Equal(t, 3, len(parts), "Expected 3 parts separated by commas")
+
+	// Check all values are included in the parts (order doesn't matter)
+	values := []string{"95", "critical", "low"}
+	for _, value := range values {
+		found := false
+		for _, part := range parts {
+			if part == value {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Value %s should be in merged description", value)
+	}
 }
