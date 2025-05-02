@@ -318,9 +318,18 @@ type MachineCPUInfo struct {
 }
 
 type MachineGPUInfo struct {
-	Product      string `json:"product,omitempty"`
+	// Product may be "NVIDIA-Graphics-Device" for NVIDIA GB200.
+	Product string `json:"product,omitempty"`
+
+	// Brand is "NVIDIA" for NVIDIA GPUs.
+	Brand string `json:"brand,omitempty"`
+
 	Manufacturer string `json:"manufacturer,omitempty"`
-	Memory       string `json:"memory,omitempty"`
+
+	// Architecture is "blackwell" for NVIDIA GB200.
+	Architecture string `json:"architecture,omitempty"`
+
+	Memory string `json:"memory,omitempty"`
 
 	// GPUs is the GPU info of the machine.
 	GPUs []MachineGPUInstance `json:"gpus,omitempty"`

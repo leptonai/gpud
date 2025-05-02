@@ -31,6 +31,8 @@ type Instance interface {
 	ProductName() string
 
 	// Architecture returns the architecture of the GPU.
+	// GB200 may return "NVIDIA-Graphics-Device" for the product name
+	// but "blackwell" for architecture.
 	Architecture() string
 
 	// Brand returns the brand of the GPU.
