@@ -245,7 +245,7 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Device", "FS Type", "Congested % %"})
+	table.SetHeader([]string{"Device", "FS Type", "Congested %", "Max Background %"})
 	for _, info := range cr.ConnectionInfos {
 		table.Append([]string{info.DeviceName, info.Fstype, fmt.Sprintf("%.2f %%", info.CongestedPercent), fmt.Sprintf("%.2f %%", info.MaxBackgroundPercent)})
 	}
