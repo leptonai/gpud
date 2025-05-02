@@ -62,7 +62,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Debugw("login request processed", "url", url, "machineID", resp.MachineID)
+	log.Logger.Debugw("login request processed", "data", string(b), "url", url, "machineID", resp.MachineID)
 	return &resp, nil
 }
 
