@@ -1,8 +1,11 @@
 package nvml
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -58,9 +61,52 @@ type Instance interface {
 // New creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
 func New() (Instance, error) {
+	return newInstance(nil, nil)
+}
+
+// NewWithExitOnSuccessfulLoad creates a new instance of the NVML library.
+// If NVML is not installed, it returns no-op nvml instance.
+// It also calls the exit function when NVML is successfully loaded.
+// The exit function is only called when the NVML library is not found.
+// Other errors are returned as is.
+func NewWithExitOnSuccessfulLoad(ctx context.Context) (Instance, error) {
+	return newInstance(ctx, refreshNVMLAndExit)
+}
+
+// refreshNVMLAndExit exits 0 if NVML is successfully loaded.
+// Otherwise, keeps retrying until NVML is successfully loaded.
+func refreshNVMLAndExit(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	log.Logger.Infow("starting NVML load refresh loop")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		log.Logger.Debugw("retrying NVML load")
+		_, err := nvmllib.New()
+		if err == nil {
+			log.Logger.Infow("NVML loaded successfully, now exiting")
+			os.Exit(0)
+		}
+		log.Logger.Debugw("NVML load failed", "error", err)
+	}
+}
+
+// newInstance creates a new instance of the NVML library.
+// If NVML is not installed, it returns no-op nvml instance.
+// The "refreshNVML" function is only called when the NVML library is not found.
+func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) (Instance, error) {
 	nvmlLib, err := nvmllib.New()
 	if err != nil {
 		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
+			if refreshNVML != nil {
+				go refreshNVML(refreshCtx)
+			}
 			return NewNoOp(), nil
 		}
 		return nil, err
