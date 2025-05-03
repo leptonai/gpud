@@ -39,7 +39,7 @@ run_mode: string    # Optional, defaults to "auto"
 timeout: duration   # Optional, defaults to 1 minute (e.g., "1m")
 interval: duration  # Optional, must be >= 1 minute if specified
 
-# For component_list type
+# For component_list type, specify exactly one of:
 component_list: string[]  # Required for component_list type, unless component_list_file is specified
 component_list_file: string  # Optional, path to file containing component list
 
