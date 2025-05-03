@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -29,7 +30,7 @@ func TestLoad(t *testing.T) {
 	plugin := plugins[0]
 	assert.Equal(t, "nvidia-smi", plugin.PluginName)
 	assert.Equal(t, "bnZpZGlhLXNtaQo=", plugin.HealthStatePlugin.Steps[0].RunBashScript.Script)
-	assert.Equal(t, SpecModeManual, plugin.RunMode)
+	assert.Equal(t, string(apiv1.RunModeTypeManual), plugin.RunMode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugin.Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugin.Interval)
 }
@@ -302,7 +303,7 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 	assert.Equal(t, "Run nvidia-smi", plugins[0].HealthStatePlugin.Steps[1].Name)
 	assert.Equal(t, "plaintext", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
 	assert.Equal(t, "echo 'State script'", plugins[0].HealthStatePlugin.Steps[1].RunBashScript.Script)
-	assert.Equal(t, SpecModeManual, plugins[0].RunMode)
+	assert.Equal(t, string(apiv1.RunModeTypeManual), plugins[0].RunMode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[0].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[0].Interval)
 
@@ -315,7 +316,7 @@ func TestLoadPlaintextPlugins(t *testing.T) {
 	assert.Equal(t, "Run python scripts", plugins[1].HealthStatePlugin.Steps[1].Name)
 	assert.Equal(t, "plaintext", plugins[1].HealthStatePlugin.Steps[1].RunBashScript.ContentType)
 	assert.Contains(t, plugins[1].HealthStatePlugin.Steps[1].RunBashScript.Script, "python3 test.py")
-	assert.Equal(t, SpecModeManual, plugins[1].RunMode)
+	assert.Equal(t, string(apiv1.RunModeTypeManual), plugins[1].RunMode)
 	assert.Equal(t, metav1.Duration{Duration: 10 * time.Second}, plugins[1].Timeout)
 	assert.Equal(t, metav1.Duration{Duration: 1 * time.Minute}, plugins[1].Interval)
 }
@@ -927,7 +928,7 @@ func TestHealthStatePlugin_executeAllSteps(t *testing.T) {
 						},
 					},
 				},
-				RunMode: SpecModeManual,
+				RunMode: string(apiv1.RunModeTypeManual),
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectOutput: false,

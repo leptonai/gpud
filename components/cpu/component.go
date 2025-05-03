@@ -264,6 +264,10 @@ type Usage struct {
 	LoadAvg15Min string `json:"load_avg_15min"`
 }
 
+func (cr *checkResult) ComponentName() string {
+	return Name
+}
+
 func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""

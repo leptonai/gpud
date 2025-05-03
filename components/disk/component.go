@@ -273,6 +273,10 @@ type checkResult struct {
 	reason string
 }
 
+func (cr *checkResult) ComponentName() string {
+	return Name
+}
+
 func (cr *checkResult) String() string {
 	if cr == nil || len(cr.ExtPartitions) == 0 {
 		return ""

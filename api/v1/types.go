@@ -12,14 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// RunModeType defines the run mode of a component.
-type RunModeType string
-
-const (
-	// RunModeTypeManual is the run mode that requires manual trigger to run the check.
-	RunModeTypeManual RunModeType = "manual"
-)
-
 // HealthStateType defines the health state of a component.
 type HealthStateType string
 
@@ -36,6 +28,17 @@ type ComponentType string
 const (
 	// ComponentTypeCustomPlugin represents a custom plugin of GPUd.
 	ComponentTypeCustomPlugin ComponentType = "custom-plugin"
+)
+
+// RunModeType defines the run mode of a component.
+type RunModeType string
+
+const (
+	// RunModeTypeAuto is the run mode that runs automatically with the specified interval
+	// when enabled as a component.
+	RunModeTypeAuto RunModeType = "auto"
+	// RunModeTypeManual is the run mode that requires manual trigger to run the check.
+	RunModeTypeManual RunModeType = "manual"
 )
 
 // HealthState represents the health state of a component.
