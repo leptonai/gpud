@@ -100,7 +100,7 @@ steps:
     run_bash_script:
       script: |
         #!/bin/bash
-        df -h | grep ${NAME}
+        df -h 
 ```
 
 #### Component List with Parameters
