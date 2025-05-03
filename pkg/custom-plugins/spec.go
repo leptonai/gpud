@@ -108,10 +108,10 @@ func (spec *Spec) Validate() error {
 			if component == "" {
 				return fmt.Errorf("component name cannot be empty in component list")
 			}
-			// Split on ':' to get name/run_mode and parameter
+			// Split on ':' to get name#run_mode and parameter
 			parts := strings.SplitN(component, ":", 2)
-			// Split on '/' to get name and run_mode
-			nameParts := strings.SplitN(parts[0], "/", 2)
+			// Split on '#' to get name and run_mode
+			nameParts := strings.SplitN(parts[0], "#", 2)
 			if nameParts[0] == "" {
 				return fmt.Errorf("component name cannot be empty in component list")
 			}
@@ -129,12 +129,12 @@ func (spec *Spec) Validate() error {
 		// Create a new plugin for each component in the list
 		expandedPlugins := make([]*Plugin, 0, len(spec.ComponentList))
 		for _, component := range spec.ComponentList {
-			// Split on ':' to get name/run_mode and parameter
+			// Split on ':' to get name#run_mode and parameter
 			parts := strings.SplitN(component, ":", 2)
-			// Split on '/' to get name and run_mode
-			nameParts := strings.SplitN(parts[0], "/", 2)
+			// Split on '#' to get name and run_mode
+			nameParts := strings.SplitN(parts[0], "#", 2)
 			name := nameParts[0]
-			runMode := spec.RunMode // Use default run_mode
+			runMode := spec.RunMode // Default to parent's run_mode
 			if len(nameParts) > 1 {
 				runMode = nameParts[1]
 			}

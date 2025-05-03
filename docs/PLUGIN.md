@@ -53,53 +53,108 @@ health_state_plugin:
 
 ## Component List Format
 
-When using `component_list` or `component_list_file`, each component can be specified in one of these formats:
+Each component in the list can be specified in one of four formats:
 
-1. **Full Format**: `name/run_mode:param`
+1. **Full Format**: `name#run_mode:param`
    - `name`: Component name
-   - `run_mode`: Optional run mode override
+   - `run_mode`: Optional run mode (auto, manual, once)
    - `param`: Optional parameter
 
-2. **Run Mode Only**: `name/run_mode`
+2. **Run Mode Only**: `name#run_mode`
    - `name`: Component name
-   - `run_mode`: Optional run mode override
+   - `run_mode`: Optional run mode (auto, manual, once)
 
 3. **Parameter Only**: `name:param`
    - `name`: Component name
-   - `param`: Parameter
+   - `param`: Optional parameter
 
 4. **Name Only**: `name`
    - Just the component name
 
 ### Parameter Inheritance and Priority
 
-When using `component_list` or `component_list_file`, certain parameters are inherited from the parent plugin specification. The priority order for these parameters is:
+The plugin system supports parameter inheritance with the following priority order:
 
-1. **run_mode**:
-   - Highest priority: Component-specific run_mode (e.g., `name/run_mode`)
+1. **Run Mode Priority**:
+   - Highest priority: Component-specific run_mode (e.g., `name#run_mode`)
    - Middle priority: Parent plugin's run_mode
-   - Default: "manual" if not specified
+   - Lowest priority: Default run_mode (auto)
 
-2. **timeout**:
-   - Always inherited from parent plugin
-   - Default: 1 minute if not specified in parent
+2. **Timeout and Interval**:
+   - Always inherited from the parent plugin
+   - No component-specific overrides
 
-3. **interval**:
-   - Always inherited from parent plugin
-   - Must be >= 1 minute if specified
-   - Default: No interval (runs once) if not specified
+### Examples
 
-Example with parameter inheritance:
+#### Simple Component with Parameter
+```yaml
+plugin_name: "disk-space-check"
+type: "component"
+run_mode: "auto"
+interval: "1m"
+timeout: "30s"
+steps:
+  - name: "check-disk-space"
+    run_bash_script:
+      script: |
+        #!/bin/bash
+        df -h | grep ${NAME}
+```
+
+#### Component List with Parameters
 ```yaml
 plugin_name: "multi-disk-check"
-type: "component_list"
-run_mode: "auto"  # Parent run_mode
-timeout: 30s      # Parent timeout
-interval: 5m      # Parent interval
+type: "component"
+run_mode: "auto"
+interval: "1m"
+timeout: "30s"
 component_list:
-  - "root/auto:/"         # Uses parent timeout and interval, explicit run_mode
-  - "home/manual:/home"   # Uses parent timeout and interval, overrides run_mode
-  - "var:/var"            # Uses parent timeout, interval, and run_mode
+  - "/"              # Root filesystem
+  - "/home"          # Home directory
+  - "/var#manual"    # Manual check for /var
+  - "/tmp:--inodes"  # Check inodes for /tmp
+steps:
+  - name: "check-disk-space"
+    run_bash_script:
+      script: |
+        #!/bin/bash
+        df -h ${PAR} | grep ${NAME}
+        if [ $? -eq 0 ]; then
+          echo "Disk space OK for ${NAME}"
+        else
+          echo "Disk space check failed for ${NAME}"
+          exit 1
+        fi
+```
+
+#### Component List File
+```yaml
+plugin_name: "multi-disk-check"
+type: "component"
+run_mode: "auto"
+interval: "1m"
+timeout: "30s"
+component_list_file: "/etc/gpud/disk-list.txt"
+steps:
+  - name: "check-disk-space"
+    run_bash_script:
+      script: |
+        #!/bin/bash
+        df -h ${PAR} | grep ${NAME}
+        if [ $? -eq 0 ]; then
+          echo "Disk space OK for ${NAME}"
+        else
+          echo "Disk space check failed for ${NAME}"
+          exit 1
+        fi
+```
+
+Where `/etc/gpud/disk-list.txt` contains:
+```
+/              # Root filesystem
+/home          # Home directory
+/var#manual    # Manual check for /var
+/tmp:--inodes  # Check inodes for /tmp
 ```
 
 ## Component List File Format

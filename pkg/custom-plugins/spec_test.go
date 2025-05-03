@@ -1925,3 +1925,49 @@ backup               # Name only
 		assert.NoError(t, err)
 	}
 }
+
+func TestComponentListWithRunMode(t *testing.T) {
+	spec := &Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponentList,
+		RunMode:    "auto",
+		ComponentList: []string{
+			"component1#manual",
+			"component2#auto",
+			"component3#once",
+			"component4:-p1",
+			"component5#manual:-p2",
+		},
+		HealthStatePlugin: &HealthStatePlugin{
+			Steps: []Step{
+				{
+					Name: "test-step",
+					RunBashScript: &RunBashScript{
+						Script: "echo ${NAME} ${PAR}",
+					},
+				},
+			},
+		},
+	}
+
+	err := spec.Validate()
+	assert.NoError(t, err)
+
+	plugins, err := spec.Expand()
+	assert.NoError(t, err)
+	assert.Len(t, plugins, 5)
+
+	// Check run modes
+	assert.Equal(t, "manual", plugins[0].RunMode)
+	assert.Equal(t, "auto", plugins[1].RunMode)
+	assert.Equal(t, "once", plugins[2].RunMode)
+	assert.Equal(t, "auto", plugins[3].RunMode) // Inherits from parent
+	assert.Equal(t, "manual", plugins[4].RunMode)
+
+	// Check parameters
+	assert.Equal(t, "", plugins[0].ComponentList[0])
+	assert.Equal(t, "", plugins[1].ComponentList[0])
+	assert.Equal(t, "", plugins[2].ComponentList[0])
+	assert.Equal(t, "-p1", plugins[3].ComponentList[0])
+	assert.Equal(t, "-p2", plugins[4].ComponentList[0])
+}
