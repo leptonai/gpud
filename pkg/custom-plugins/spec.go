@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/template"
 	"time"
 
 	"sigs.k8s.io/yaml"
@@ -40,6 +39,11 @@ func LoadSpecs(path string) (Specs, error) {
 		return nil, err
 	}
 
+	pluginSpecs, err = pluginSpecs.ExpandComponentList()
+	if err != nil {
+		return nil, err
+	}
+
 	for i := range pluginSpecs {
 		if err := pluginSpecs[i].Validate(); err != nil {
 			return nil, err
@@ -64,25 +68,25 @@ const (
 	DefaultTimeout      = time.Minute
 )
 
-// Validate validates the plugin spec.
-func (spec *Spec) Validate() error {
-	switch spec.Type {
-	case SpecTypeInit, SpecTypeComponent, SpecTypeComponentList:
-	default:
-		return ErrInvalidPluginType
-	}
+// ExpandComponentList expands the component list into multiple components.
+func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
+	expandedSpecs := make([]Spec, 0)
 
-	if len(spec.PluginName) > MaxPluginNameLength {
-		return fmt.Errorf("plugin name is too long: %s", spec.PluginName)
-	}
+	for _, spec := range pluginSpecs {
+		if spec.Type != SpecTypeComponentList {
+			expandedSpecs = append(expandedSpecs, spec)
+			continue
+		}
 
-	if spec.Type == SpecTypeComponentList {
-		// Handle component_list_file if present
 		if spec.ComponentListFile != "" {
+			// Fail if component list is not empty
+			if len(spec.ComponentList) > 0 {
+				return nil, fmt.Errorf("component list must be empty when using component_list_file")
+			}
 			// Read the file
 			content, err := os.ReadFile(spec.ComponentListFile)
 			if err != nil {
-				return fmt.Errorf("failed to read component list file %s: %w", spec.ComponentListFile, err)
+				return nil, fmt.Errorf("failed to read component list file %s: %w", spec.ComponentListFile, err)
 			}
 
 			// Split into lines and trim whitespace
@@ -96,38 +100,33 @@ func (spec *Spec) Validate() error {
 			}
 
 			if len(spec.ComponentList) == 0 {
-				return fmt.Errorf("component list file %s is empty", spec.ComponentListFile)
+				return nil, fmt.Errorf("component list file %s is empty", spec.ComponentListFile)
 			}
 		}
 
-		if len(spec.ComponentList) == 0 {
-			return fmt.Errorf("component list cannot be empty for type %s", SpecTypeComponentList)
-		}
 		// Validate each component name in the list
 		for _, component := range spec.ComponentList {
 			if component == "" {
-				return fmt.Errorf("component name cannot be empty in component list")
+				return nil, fmt.Errorf("component name cannot be empty in component list")
 			}
 			// Split on ':' to get name#run_mode and parameter
 			parts := strings.SplitN(component, ":", 2)
 			// Split on '#' to get name and run_mode
 			nameParts := strings.SplitN(parts[0], "#", 2)
 			if nameParts[0] == "" {
-				return fmt.Errorf("component name cannot be empty in component list")
+				return nil, fmt.Errorf("component name cannot be empty in component list")
 			}
 		}
-	} else if spec.ComponentName() == "" {
-		return ErrComponentNameRequired
-	}
 
-	if spec.HealthStatePlugin == nil {
-		return ErrMissingStatePlugin
-	}
+		if spec.ComponentName() == "" {
+			return nil, ErrComponentNameRequired
+		}
 
-	// If this is a component list, expand it into multiple components
-	if spec.Type == SpecTypeComponentList {
+		if spec.HealthStatePlugin == nil {
+			return nil, ErrMissingStatePlugin
+		}
+
 		// Create a new plugin for each component in the list
-		expandedPlugins := make([]*Plugin, 0, len(spec.ComponentList))
 		for _, component := range spec.ComponentList {
 			// Split on ':' to get name#run_mode and parameter
 			parts := strings.SplitN(component, ":", 2)
@@ -144,9 +143,16 @@ func (spec *Spec) Validate() error {
 			}
 
 			// Create a new plugin with substituted parameters
-			expandedPlugin := &Plugin{
-				Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
-				Parser: spec.HealthStatePlugin.Parser,
+			expandedPlugin := Spec{
+				PluginName:        name,
+				Type:             SpecTypeComponent,
+				RunMode:          runMode,
+				HealthStatePlugin: &Plugin{
+					Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
+					Parser: spec.HealthStatePlugin.Parser,
+				},
+				Timeout:           spec.Timeout,
+				Interval:          spec.Interval,
 			}
 
 			// Copy and substitute each step
@@ -158,7 +164,7 @@ func (spec *Spec) Validate() error {
 					script = strings.ReplaceAll(script, "${PAR}", param)
 					script = strings.ReplaceAll(script, "${PAR1}", param)
 
-					expandedPlugin.Steps[i] = Step{
+					expandedPlugin.HealthStatePlugin.Steps[i] = Step{
 						Name: step.Name,
 						RunBashScript: &RunBashScript{
 							ContentType: step.RunBashScript.ContentType,
@@ -168,22 +174,24 @@ func (spec *Spec) Validate() error {
 				}
 			}
 
-			// Create a new spec for this component
-			componentSpec := &Spec{
-				PluginName:        name,
-				Type:             SpecTypeComponent,
-				RunMode:          runMode,
-				HealthStatePlugin: expandedPlugin,
-				Timeout:           spec.Timeout,
-				Interval:          spec.Interval,
-			}
-
-			expandedPlugins = append(expandedPlugins, expandedPlugin)
+			expandedSpecs = append(expandedSpecs, expandedPlugin)
 		}
+	}
 
-		// Replace the original plugin with the first expanded plugin
-		spec.HealthStatePlugin = expandedPlugins[0]
-		// The rest of the expanded plugins will be handled by the caller
+	return expandedSpecs, nil
+}
+
+// Validate validates the plugin spec.
+func (spec *Spec) Validate() error {
+	switch spec.Type {
+	// Allow only init and component types, not component list which should have been expanded by this point
+	case SpecTypeInit, SpecTypeComponent:
+	default:
+		return ErrInvalidPluginType
+	}
+
+	if len(spec.PluginName) > MaxPluginNameLength {
+		return fmt.Errorf("plugin name is too long: %s", spec.PluginName)
 	}
 
 	if err := spec.HealthStatePlugin.Validate(); err != nil {

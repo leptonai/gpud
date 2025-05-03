@@ -1938,7 +1938,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 			"component4:-p1",
 			"component5#manual:-p2",
 		},
-		HealthStatePlugin: &HealthStatePlugin{
+		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
 					Name: "test-step",
@@ -1953,7 +1953,9 @@ func TestComponentListWithRunMode(t *testing.T) {
 	err := spec.Validate()
 	assert.NoError(t, err)
 
-	plugins, err := spec.Expand()
+	// Create a Specs slice with our test spec
+	specs := Specs{*spec}
+	plugins, err := specs.ExpandComponentList()
 	assert.NoError(t, err)
 	assert.Len(t, plugins, 5)
 
