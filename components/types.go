@@ -65,6 +65,9 @@ type HealthSettable interface {
 // CheckResult is the data type that represents the result of
 // a component health state check.
 type CheckResult interface {
+	// ComponentName returns the name of the component that produced this check result.
+	ComponentName() string
+
 	// String returns a string representation of the data.
 	// Describes the data in a human-readable format.
 	fmt.Stringer

@@ -22,8 +22,8 @@ func TestComponentSpecsExecuteInOrder(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(results))
 
-	for k, v := range results {
-		t.Logf("%q: %q", k, v.Summary())
+	for _, rs := range results {
+		t.Logf("%q: %q", rs.ComponentName(), rs.Summary())
 	}
 }
 

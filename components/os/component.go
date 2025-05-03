@@ -212,6 +212,10 @@ type Uptimes struct {
 	BootTimeUnixSeconds uint64 `json:"boot_time_unix_seconds"`
 }
 
+func (cr *checkResult) ComponentName() string {
+	return Name
+}
+
 func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""

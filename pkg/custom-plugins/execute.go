@@ -9,9 +9,7 @@ import (
 
 // ExecuteInOrder executes all the plugins in the specs, in sequence.
 // This is ONLY used for dry-run plugins from the spec.
-func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) (map[string]components.CheckResult, error) {
-	results := make(map[string]components.CheckResult)
-
+func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) ([]components.CheckResult, error) {
 	// execute "init" type plugins first
 	sort.Slice(specs, func(i, j int) bool {
 		// "init" type first
@@ -21,6 +19,7 @@ func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) (map[st
 		return specs[i].Type == "init"
 	})
 
+	results := make([]components.CheckResult, 0, len(specs))
 	for _, spec := range specs {
 		initFunc := spec.NewInitFunc()
 		if initFunc == nil {
@@ -33,8 +32,9 @@ func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) (map[st
 		}
 
 		checkResult := comp.Check()
-		results[comp.Name()] = checkResult
 		_ = comp.Close()
+
+		results = append(results, checkResult)
 		log.Logger.Infow("executed custom plugin", "component", comp.Name())
 	}
 	return results, nil

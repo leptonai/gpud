@@ -51,6 +51,10 @@ func (m *mockComponent) Close() error {
 // mockCheckResult implements the CheckResult interface for testing
 type mockCheckResult struct{}
 
+func (r *mockCheckResult) ComponentName() string {
+	return "mock-component"
+}
+
 func (r *mockCheckResult) String() string {
 	return "mock check result"
 }

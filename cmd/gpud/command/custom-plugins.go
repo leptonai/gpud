@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"time"
@@ -96,22 +97,31 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 	}
 
 	println()
+	for _, rs := range results {
+		debugger, ok := rs.(components.CheckResultDebugger)
+		if ok {
+			fmt.Printf("\n### Component %q output\n\n%s\n\n", rs.ComponentName(), debugger.Debug())
+		}
+	}
+
+	println()
+	fmt.Printf("### Results\n\n")
 	table = tablewriter.NewWriter(os.Stdout)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetRowLine(true)
 	table.SetAutoWrapText(false)
 	table.SetHeader([]string{"Component", "Health State", "Summary", "Error", "Run Mode", "Extra Info"})
-	for k, v := range results {
+	for _, rs := range results {
 		healthState := checkMark + " " + string(apiv1.HealthStateTypeHealthy)
-		if v.HealthStateType() != apiv1.HealthStateTypeHealthy {
-			healthState = warningSign + " " + string(v.HealthStateType())
+		if rs.HealthStateType() != apiv1.HealthStateTypeHealthy {
+			healthState = warningSign + " " + string(rs.HealthStateType())
 		}
 
 		err := ""
 		runMode := ""
 		extraInfo := ""
 
-		states := v.HealthStates()
+		states := rs.HealthStates()
 		if len(states) > 0 {
 			err = states[0].Error
 			runMode = string(states[0].RunMode)
@@ -120,7 +130,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 			extraInfo = string(b)
 		}
 
-		table.Append([]string{k, healthState, v.Summary(), err, runMode, extraInfo})
+		table.Append([]string{rs.ComponentName(), healthState, rs.Summary(), err, runMode, extraInfo})
 	}
 	table.Render()
 	println()
