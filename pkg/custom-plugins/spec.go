@@ -172,7 +172,6 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 					script := step.RunBashScript.Script
 					script = strings.ReplaceAll(script, "${NAME}", name)
 					script = strings.ReplaceAll(script, "${PAR}", param)
-					script = strings.ReplaceAll(script, "${PAR1}", param)
 
 					expandedPlugin.HealthStatePlugin.Steps[i] = Step{
 						Name: step.Name,
