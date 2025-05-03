@@ -64,6 +64,8 @@ Each component in the list can be specified in one of four formats:
    - `name`: Component name
    - `run_mode`: Optional run mode (auto, manual, once)
 
+   **Note:** Please check availability of option `once`, as `once` will be added in a future revision.
+
 3. **Parameter Only**: `name:param`
    - `name`: Component name
    - `param`: Optional parameter
@@ -151,24 +153,33 @@ steps:
 
 Where `/etc/gpud/disk-list.txt` contains:
 ```
-/              # Root filesystem
-/home          # Home directory
-/var#manual    # Manual check for /var
-/tmp:--inodes  # Check inodes for /tmp
+# Root filesystem
+/        
+# Home directory      
+/home      
+# Manual check for /var    
+/var#manual   
+# Check inodes for /tmp 
+/tmp:--inodes  
 ```
 
 ## Component List File Format
 
-The `component_list_file` should be a plain text file with one component per line. Each line follows the same format as described in the Component List Format section above. Empty lines and lines starting with `#` are ignored.
+The `component_list_file` should be a plain text file with one component per line. Each line follows the same format as described in the Component List Format section above. Empty lines and lines starting with `#` as the first character are ignored. (If you need to create a plugin with a name starting with # you could do so by indenting with a white space.)
 
 Example `components.txt`:
 ```text
 # This is a comment
-root/auto:/          # Full format with run_mode and param
-home/auto:/home      # Full format with run_mode and param
-var/auto             # Run mode only
-data:param1          # Parameter only
-backup               # Name only
+# Full format with run_mode and param
+root#auto:/        
+# Full format with run_mode and param 
+home#auto:/home    
+# Run mode only  
+var#auto        
+# Parameter only     
+data:param1    
+# Name only      
+backup               
 
 # Another comment
 ```
@@ -183,7 +194,7 @@ The file is read line by line, with:
 
 In your bash scripts, you can use these variables:
 - `${NAME}` - Component name
-- `${PAR}` or `${PAR1}` - Component parameter
+- `${PAR}` - Component parameter(s)
 
 ## Examples
 
