@@ -225,8 +225,6 @@ func TestDataGetStatesWithExtraInfo(t *testing.T) {
 
 	// Check extraInfo contains JSON data
 	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
-	assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 
 	// Verify the JSON data contains our fields
 	jsonData := states[0].ExtraInfo["data"]

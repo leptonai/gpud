@@ -123,7 +123,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting uptime: %s", err)
+		cr.reason = "error getting uptime"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -138,7 +139,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting process count: %s", err)
+		cr.reason = "error getting process count"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -150,7 +152,8 @@ func (c *component) Check() components.CheckResult {
 	}
 	if cr.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("too many zombie processes: %d (threshold: %d)", cr.ProcessCountZombieProcesses, c.zombieProcessCountThreshold)
+		cr.reason = fmt.Sprintf("too many zombie processes (threshold: %d)", c.zombieProcessCountThreshold)
+		log.Logger.Errorw(cr.reason, "count", cr.ProcessCountZombieProcesses)
 		return cr
 	}
 
@@ -278,10 +281,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
+	state.ExtraInfo = map[string]string{"data": string(b)}
 	return apiv1.HealthStates{state}
 }
 

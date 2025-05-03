@@ -1,8 +1,13 @@
 package v1
 
 import (
+	"fmt"
+	"io"
 	"strings"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -272,6 +277,41 @@ type MachineInfo struct {
 	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
 }
 
+func (i *MachineInfo) RenderTable(wr io.Writer) {
+	table := tablewriter.NewWriter(wr)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.Append([]string{"GPUd Version", i.GPUdVersion})
+	table.Append([]string{"CUDA Version", i.CUDAVersion})
+	table.Append([]string{"Container Runtime Version", i.ContainerRuntimeVersion})
+	table.Append([]string{"Kernel Version", i.KernelVersion})
+	table.Append([]string{"OS Image", i.OSImage})
+
+	if i.DiskInfo != nil {
+		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
+	}
+
+	if i.GPUInfo != nil {
+		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
+		table.Append([]string{"GPU Product", i.GPUInfo.Product})
+		table.Append([]string{"GPU Manufacturer", i.GPUInfo.Manufacturer})
+		table.Append([]string{"GPU Architecture", i.GPUInfo.Architecture})
+		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
+	}
+
+	table.Render()
+	fmt.Fprintf(wr, "\n")
+
+	if i.DiskInfo != nil {
+		i.DiskInfo.RenderTable(wr)
+		fmt.Fprintf(wr, "\n")
+	}
+
+	if i.GPUInfo != nil {
+		i.GPUInfo.RenderTable(wr)
+		fmt.Fprintf(wr, "\n")
+	}
+}
+
 type MachineCPUInfo struct {
 	Type         string `json:"type,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
@@ -279,9 +319,16 @@ type MachineCPUInfo struct {
 }
 
 type MachineGPUInfo struct {
-	Product      string `json:"product,omitempty"`
+	// Product may be "NVIDIA-Graphics-Device" for NVIDIA GB200.
+	Product string `json:"product,omitempty"`
+
+	// Manufacturer is "NVIDIA" for NVIDIA GPUs (same as Brand).
 	Manufacturer string `json:"manufacturer,omitempty"`
-	Memory       string `json:"memory,omitempty"`
+
+	// Architecture is "blackwell" for NVIDIA GB200.
+	Architecture string `json:"architecture,omitempty"`
+
+	Memory string `json:"memory,omitempty"`
 
 	// GPUs is the GPU info of the machine.
 	GPUs []MachineGPUInstance `json:"gpus,omitempty"`
@@ -293,8 +340,28 @@ type MachineGPUInstance struct {
 	MinorID string `json:"minorID,omitempty"`
 }
 
+func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {
+	if len(gi.GPUs) > 0 {
+		table := tablewriter.NewWriter(wr)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader([]string{"UUID", "SN", "MinorID"})
+
+		for _, gpu := range gi.GPUs {
+			table.Append([]string{
+				gpu.UUID,
+				gpu.SN,
+				gpu.MinorID,
+			})
+		}
+
+		table.Render()
+	}
+}
+
 type MachineDiskInfo struct {
 	BlockDevices []MachineDiskDevice `json:"blockDevices,omitempty"`
+	// ContainerRootDisk is the disk device name that mounts the container root (such as "/var/lib/kubelet" mount point).
+	ContainerRootDisk string `json:"containerRootDisk,omitempty"`
 }
 
 type MachineDiskDevice struct {
@@ -312,6 +379,28 @@ type MachineDiskDevice struct {
 	PartUUID   string   `json:"partUUID,omitempty"`
 	Parents    []string `json:"parents,omitempty"`
 	Children   []string `json:"children,omitempty"`
+}
+
+func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
+	if len(di.BlockDevices) > 0 {
+		table := tablewriter.NewWriter(wr)
+		table.SetAlignment(tablewriter.ALIGN_CENTER)
+		table.SetHeader([]string{"Name", "Type", "FSType", "Size", "Mount Point", "Parents", "Children"})
+
+		for _, blk := range di.BlockDevices {
+			table.Append([]string{
+				blk.Name,
+				blk.Type,
+				blk.FSType,
+				humanize.Bytes(uint64(blk.Size)),
+				blk.MountPoint,
+				strings.Join(blk.Parents, "\n"),
+				strings.Join(blk.Children, "\n"),
+			})
+		}
+
+		table.Render()
+	}
 }
 
 type MachineNetwork struct {

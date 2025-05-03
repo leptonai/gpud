@@ -587,6 +587,13 @@ func TestData_getLastHealthStates(t *testing.T) {
 		{
 			name: "healthy data",
 			data: &checkResult{
+				NVLinks: []nvidianvml.NVLink{
+					{
+						UUID:      "gpu-uuid-123",
+						Supported: true,
+						States:    []nvidianvml.NVLinkState{},
+					},
+				},
 				health: apiv1.HealthStateTypeHealthy,
 				reason: "all good",
 			},
@@ -596,6 +603,13 @@ func TestData_getLastHealthStates(t *testing.T) {
 		{
 			name: "unhealthy data with error",
 			data: &checkResult{
+				NVLinks: []nvidianvml.NVLink{
+					{
+						UUID:      "gpu-uuid-123",
+						Supported: true,
+						States:    []nvidianvml.NVLinkState{},
+					},
+				},
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "something wrong",
 				err:    errors.New("test error"),
@@ -620,7 +634,6 @@ func TestData_getLastHealthStates(t *testing.T) {
 			// Check that extraInfo is properly populated for non-nil data
 			if tt.data != nil {
 				assert.NotEmpty(t, state.ExtraInfo["data"])
-				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 			}
 		})
 	}

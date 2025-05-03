@@ -296,8 +296,6 @@ func Test_getLastHealthStates(t *testing.T) {
 			if len(tc.data.Pods) > 0 {
 				require.NotNil(t, states[0].ExtraInfo)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			}
 		})
 	}
@@ -857,7 +855,6 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 			if len(tc.data.Pods) > 0 {
 				assert.NotNil(t, states[0].ExtraInfo)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
 			}
 		})
 	}

@@ -48,7 +48,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		Pprof:            false,
 		EnableAutoUpdate: true,
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand: options.IbstatCommand,
+			IbstatCommand:   options.IbstatCommand,
+			IbstatusCommand: options.IbstatusCommand,
 		},
 	}
 

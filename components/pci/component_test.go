@@ -367,8 +367,7 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 				assert.Equal(t, "failed to get pci data -- "+assert.AnError.Error(), states[0].Reason)
 				assert.Equal(t, assert.AnError.Error(), states[0].Error)
-				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
+				assert.NotContains(t, states[0].ExtraInfo, "data")
 			},
 		},
 		{
@@ -389,7 +388,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, "no acs enabled devices found", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 	}

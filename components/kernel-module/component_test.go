@@ -169,7 +169,7 @@ func TestGetReason(t *testing.T) {
 			modulesToLoad:  nil,
 			modulesToCheck: []string{"module1"},
 			loadError:      assert.AnError,
-			wantReason:     "error getting all modules: assert.AnError general error for testing",
+			wantReason:     "error getting all modules",
 		},
 		{
 			name:           "no modules to check",
@@ -346,17 +346,17 @@ func TestDataGetStates(t *testing.T) {
 		},
 		{
 			name:        "with error",
-			data:        &checkResult{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules: assert.AnError general error for testing"},
+			data:        &checkResult{err: assert.AnError, health: apiv1.HealthStateTypeUnhealthy, reason: "error getting all modules"},
 			wantHealthy: false,
 			wantHealth:  apiv1.HealthStateTypeUnhealthy,
-			wantReason:  "error getting all modules: assert.AnError general error for testing",
+			wantReason:  "error getting all modules",
 			wantError:   true,
 		},
 		{
 			name: "no modules to check",
 			data: &checkResult{
-				LoadedModules: []string{},
-				loadedModules: map[string]struct{}{},
+				LoadedModules: []string{"a", "b"},
+				loadedModules: map[string]struct{}{"a": {}, "b": {}},
 				health:        apiv1.HealthStateTypeHealthy,
 				reason:        "all modules are loaded",
 			},
@@ -415,10 +415,8 @@ func TestDataGetStates(t *testing.T) {
 			}
 
 			// Check that ExtraInfo exists for non-nil data
-			if tt.data != nil {
+			if tt.data != nil && len(tt.data.LoadedModules) > 0 {
 				assert.Contains(t, state.ExtraInfo, "data")
-				assert.Contains(t, state.ExtraInfo, "encoding")
-				assert.Equal(t, "json", state.ExtraInfo["encoding"])
 
 				// Verify that the JSON encoding works
 				var decodedData map[string]interface{}
@@ -449,7 +447,7 @@ func TestCheckOnceLogic(t *testing.T) {
 			modulesToCheck: []string{"module1"},
 			loadError:      fmt.Errorf("module load error"),
 			wantHealthy:    false,
-			wantReason:     "error getting all modules: module load error",
+			wantReason:     "error getting all modules",
 		},
 		{
 			name:           "all required modules loaded",

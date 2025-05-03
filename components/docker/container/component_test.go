@@ -317,7 +317,6 @@ func TestDataGetStates(t *testing.T) {
 			if len(tt.data.Containers) > 0 {
 				assert.NotNil(t, states[0].ExtraInfo)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Contains(t, states[0].ExtraInfo, "encoding")
 			}
 		})
 	}

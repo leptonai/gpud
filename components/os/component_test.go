@@ -110,7 +110,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, "failed to get os data -- assert.AnError general error for testing", states[0].Reason)
 				assert.Equal(t, "assert.AnError general error for testing", states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 		{
@@ -121,18 +120,17 @@ func TestData_GetStates(t *testing.T) {
 					Version: "5.15.0",
 				},
 				health: apiv1.HealthStateTypeUnhealthy,
-				reason: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold),
+				reason: fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold),
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-				expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
+				expected := fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold)
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 		{
@@ -152,7 +150,6 @@ func TestData_GetStates(t *testing.T) {
 				assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
-				assert.Equal(t, "json", states[0].ExtraInfo["encoding"])
 			},
 		},
 	}
@@ -776,7 +773,7 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	data := result.(*checkResult)
 	assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
+	expectedReason := fmt.Sprintf("too many zombie processes (threshold: %d)", threshold)
 	assert.Equal(t, expectedReason, data.reason)
 }
 
@@ -1023,10 +1020,10 @@ func TestData_SummaryComprehensive(t *testing.T) {
 			name: "unhealthy with zombie processes",
 			data: &checkResult{
 				ProcessCountZombieProcesses: defaultZombieProcessCountThreshold + 10,
-				reason:                      fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
+				reason:                      fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold),
 				health:                      apiv1.HealthStateTypeUnhealthy,
 			},
-			expected: fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+10, defaultZombieProcessCountThreshold),
+			expected: fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold),
 		},
 		{
 			name: "unhealthy with uptime error",
@@ -1163,7 +1160,7 @@ func TestCountProcessesByStatusFuncVariations(t *testing.T) {
 
 		assert.Equal(t, threshold+1, data.ProcessCountZombieProcesses)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-		expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", threshold+1, threshold)
+		expectedReason := fmt.Sprintf("too many zombie processes (threshold: %d)", threshold)
 		assert.Equal(t, expectedReason, data.reason)
 	})
 
@@ -1194,7 +1191,7 @@ func TestCountProcessesByStatusFuncVariations(t *testing.T) {
 
 		assert.Equal(t, zombieCount, data.ProcessCountZombieProcesses)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-		expectedReason := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", zombieCount, threshold)
+		expectedReason := fmt.Sprintf("too many zombie processes (threshold: %d)", threshold)
 		assert.Equal(t, expectedReason, data.reason)
 	})
 

@@ -189,8 +189,7 @@ func (c *component) Check() components.CheckResult {
 			Type:    apiv1.EventTypeCritical,
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
 			DeprecatedExtraInfo: map[string]string{
-				"data":     string(ib),
-				"encoding": "json",
+				"data": string(ib),
 			},
 		}
 
@@ -246,7 +245,7 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Device", "FS Type", "Congested % %"})
+	table.SetHeader([]string{"Device", "FS Type", "Congested %", "Max Background %"})
 	for _, info := range cr.ConnectionInfos {
 		table.Append([]string{info.DeviceName, info.Fstype, fmt.Sprintf("%.2f %%", info.CongestedPercent), fmt.Sprintf("%.2f %%", info.MaxBackgroundPercent)})
 	}
@@ -299,9 +298,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
+	state.ExtraInfo = map[string]string{"data": string(b)}
 	return apiv1.HealthStates{state}
 }

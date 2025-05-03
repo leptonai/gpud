@@ -116,7 +116,8 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error measuring egress latencies: %v", cr.err)
+		cr.reason = "error measuring egress latencies"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -134,7 +135,8 @@ func (c *component) Check() components.CheckResult {
 
 	if len(exceededMsgs) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("checked egress latencies for %d edge servers, and no issue found", len(cr.EgressLatencies))
+		cr.reason = "checked egress latencies and no issue found"
+		log.Logger.Debugw(cr.reason, "servers", len(cr.EgressLatencies))
 	} else {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = strings.Join(exceededMsgs, "; ")
@@ -225,10 +227,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Health:    cr.health,
 	}
 
-	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
+	if len(cr.EgressLatencies) > 0 {
+		b, _ := json.Marshal(cr)
+		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
 }

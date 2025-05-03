@@ -36,6 +36,7 @@ var (
 	autoUpdateExitCode int
 
 	ibstatCommand   string
+	ibstatusCommand string
 	pluginSpecsFile string
 
 	enablePluginAPI bool
@@ -102,9 +103,21 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "lepton.ai workspace token for checking in",
 				},
 				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
+				},
+				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
 					Value: "mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:  "gpu-count",
+					Usage: "specify count of gpu",
 				},
 			},
 		},
@@ -211,6 +224,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstatus-command",
+					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
+					Destination: &ibstatusCommand,
 					Hidden:      true,
 				},
 				cli.StringFlag{
@@ -431,6 +450,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Destination: &ibstatCommand,
 					Hidden:      true,
 				},
+				cli.StringFlag{
+					Name:        "ibstatus-command",
+					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
+					Destination: &ibstatusCommand,
+					Hidden:      true,
+				},
 			},
 		},
 		{
@@ -460,6 +485,10 @@ sudo gpud join
 					Usage: "node group to join",
 				},
 				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
+				},
+				cli.StringFlag{
 					Name:  "private-ip",
 					Usage: "can specify private ip for internal network",
 				},
@@ -474,6 +503,14 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "extra-info",
 					Usage: "base64 encoded extra info to pass to control plane",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "specify the region of the machine",
+				},
+				cli.StringFlag{
+					Name:  "gpu-product",
+					Usage: "specify the GPU shape of the machine",
 				},
 			},
 		},

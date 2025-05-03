@@ -140,24 +140,9 @@ func ParseFindMntOutput(output string) (*FindMntOutput, error) {
 			return nil, err
 		}
 
-		// e.g.,
-		// "/dev/mapper/vgroot-lvroot[/var/lib/lxc/ny2g2r14hh2-lxc/rootfs]"
-		// becomes
-		// ["/dev/mapper/vgroot-lvroot", "/var/lib/lxc/ny2g2r14hh2-lxc/rootfs"]
-		src := strings.TrimSuffix(rawMntOutput.Source, "]")
-		sources := make([]string, 0)
-		for _, s := range strings.Split(src, "[") {
-			if s == "" {
-				continue
-			}
-			for _, ss := range strings.Split(s, ",") {
-				sources = append(sources, strings.TrimSpace(ss))
-			}
-		}
-
 		o.Filesystems = append(o.Filesystems, FoundMnt{
 			MountedPoint: rawMntOutput.Target,
-			Sources:      sources,
+			Sources:      extractMntSources(rawMntOutput.Source),
 			Fstype:       rawMntOutput.Fstype,
 
 			SizeHumanized: rawMntOutput.Size,
@@ -174,4 +159,29 @@ func ParseFindMntOutput(output string) (*FindMntOutput, error) {
 		})
 	}
 	return o, nil
+}
+
+// extractMntSources extracts mount sources from the findmnt source output.
+//
+// e.g.,
+// "/dev/mapper/vgroot-lvroot[/var/lib/lxc/ny2g2r14hh2-lxc/rootfs]"
+// becomes
+// ["/dev/mapper/vgroot-lvroot", "/var/lib/lxc/ny2g2r14hh2-lxc/rootfs"]
+//
+// e.g.,
+// "/dev/mapper/lepton_vg-lepton_lv[/kubelet]"
+// becomes
+// ["/dev/mapper/lepton_vg-lepton_lv", "/kubelet"]
+func extractMntSources(input string) []string {
+	src := strings.TrimSuffix(input, "]")
+	sources := make([]string, 0)
+	for _, s := range strings.Split(src, "[") {
+		if s == "" {
+			continue
+		}
+		for _, ss := range strings.Split(s, ",") {
+			sources = append(sources, strings.TrimSpace(ss))
+		}
+	}
+	return sources
 }

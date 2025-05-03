@@ -278,11 +278,13 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 	p.cmd = p.createCmd()
 
 	// ref. "os/exec" "CombinedOutput"
-	var b bytes.Buffer
-	p.cmd.Stdout = &b
-	p.cmd.Stderr = &b
+	b := bytes.NewBuffer(nil)
+	p.cmd.Stdout = b
+	p.cmd.Stderr = b
 	if err := p.cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start command: %w", err)
+		// may fail from the command error (e.g., exit 255)
+		// we still return the partial output
+		return b.Bytes(), fmt.Errorf("failed to start command: %w", err)
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
 
@@ -291,7 +293,9 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 	p.startedMu.Unlock()
 
 	if err := p.cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("command exited with error: %w", err)
+		// may fail from the command error (e.g., exit 255)
+		// we still return the partial output
+		return b.Bytes(), fmt.Errorf("command exited with error: %w", err)
 	}
 
 	return b.Bytes(), nil

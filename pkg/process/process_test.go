@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcess(t *testing.T) {
@@ -613,6 +615,39 @@ func TestStartAndWaitForCombinedOutputAlreadyStarted(t *testing.T) {
 	if err != ErrProcessAlreadyStarted {
 		t.Errorf("expected ErrProcessAlreadyStarted but got %v", err)
 	}
+}
+
+func TestStartAndWaitForCombinedOutputWithStartNonZeroExitCode(t *testing.T) {
+	p, err := New(
+		WithCommand("sh", "-c", "echo 1 && exit 255"),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	_, err = p.StartAndWaitForCombinedOutput(ctx)
+	cancel()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "command exited with error: exit status 255")
+}
+
+func TestStartAndWaitForCombinedOutputWithNonZeroExitCode(t *testing.T) {
+	command := `
+echo hello 1
+echo hello 2
+echo hello 3
+exit 255
+`
+	p, err := New(
+		WithBashScriptContentsToRun(command),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	out, err := p.StartAndWaitForCombinedOutput(ctx)
+	cancel()
+	require.Equal(t, out, []byte("hello 1\nhello 2\nhello 3\n"))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "command exited with error: exit status 255")
 }
 
 func TestStartAndWaitForCombinedOutputWithLongOutput(t *testing.T) {

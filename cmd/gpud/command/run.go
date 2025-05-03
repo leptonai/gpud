@@ -44,6 +44,7 @@ func cmdRun(cliContext *cli.Context) error {
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),
+		config.WithIbstatusCommand(ibstatusCommand),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

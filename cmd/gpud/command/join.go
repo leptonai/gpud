@@ -1,10 +1,8 @@
 package command
 
 import (
-	"archive/tar"
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,7 +21,6 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/process"
 )
 
 func cmdJoin(cliContext *cli.Context) (retErr error) {
@@ -53,6 +49,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	productName := nvmlInstance.ProductName()
+	if cliContext.String("gpu-product") != "" {
+		productName = cliContext.String("gpu-product")
+	}
 
 	// network section
 	region := "unknown"
@@ -60,6 +59,9 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	if len(latencies) > 0 {
 		closest := latencies.Closest()
 		region = closest.RegionCode
+	}
+	if cliContext.String("region") != "" {
+		region = cliContext.String("region")
 	}
 
 	detectProvider := "unknown"
@@ -73,6 +75,8 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 
 	if cliContext.Bool("no-public-ip") {
 		publicIP = ""
+	} else if cliContext.String("public-ip") != "" {
+		publicIP = cliContext.String("public-ip")
 	}
 
 	if !cliContext.Bool("skip-interactive") {
@@ -190,104 +194,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}
-	cctx, ccancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer ccancel()
-	if err := handleJoinResponse(cctx, response.Body); err != nil {
-		return err
-	}
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
-	return nil
-}
-
-func handleJoinResponse(ctx context.Context, body io.Reader) error {
-	dir, err := untarFiles("/tmp/", body)
-	if err != nil {
-		return err
-	}
-	scriptPath := filepath.Join(dir, "join.sh")
-	return runCommand(ctx, scriptPath, nil)
-}
-
-func untarFiles(targetDir string, body io.Reader) (string, error) {
-	var dir string
-	gzipReader, err := gzip.NewReader(body)
-	if err != nil {
-		return "", fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzipReader.Close()
-
-	tarReader := tar.NewReader(gzipReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-
-		fpath := filepath.Join(targetDir, header.Name)
-		if dir == "" {
-			dir = fpath
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(fpath, os.ModePerm); err != nil {
-				panic(err)
-			}
-		case tar.TypeReg:
-			outFile, err := os.Create(fpath)
-			if err != nil {
-				panic(err)
-			}
-			defer outFile.Close()
-
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				panic(err)
-			}
-		}
-	}
-	return dir, nil
-}
-
-func runCommand(ctx context.Context, script string, result *string) error {
-	var ops []process.OpOption
-
-	p, err := process.New(append(ops, process.WithCommand("bash", script))...)
-	if err != nil {
-		return err
-	}
-	if result != nil {
-		go func() {
-			stdoutReader := p.StdoutReader()
-			if stdoutReader == nil {
-				log.Logger.Errorf("failed to read stdout: %v", err)
-				return
-			}
-			rawResult, err := io.ReadAll(p.StdoutReader())
-			if err != nil {
-				log.Logger.Errorf("failed to read stout: %v", err)
-				return
-			}
-			*result = strings.TrimSpace(string(rawResult))
-		}()
-	}
-	if err = p.Start(ctx); err != nil {
-		return err
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err = <-p.Wait():
-		if err != nil {
-			return err
-		}
-	}
-	if err := p.Close(ctx); err != nil {
-		return err
-	}
 	return nil
 }
 

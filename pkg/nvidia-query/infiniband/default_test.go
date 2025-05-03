@@ -107,3 +107,49 @@ func TestSupportsInfinibandPortRate(t *testing.T) {
 		})
 	}
 }
+
+func TestExpectedPortStatesIsZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		eps      *ExpectedPortStates
+		expected bool
+	}{
+		{
+			name:     "nil pointer",
+			eps:      nil,
+			expected: true,
+		},
+		{
+			name:     "zero ports and zero rate",
+			eps:      &ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
+			expected: true,
+		},
+		{
+			name:     "negative ports and zero rate",
+			eps:      &ExpectedPortStates{AtLeastPorts: -1, AtLeastRate: 0},
+			expected: true,
+		},
+		{
+			name:     "zero ports and positive rate",
+			eps:      &ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 100},
+			expected: true,
+		},
+		{
+			name:     "positive ports and zero rate",
+			eps:      &ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 0},
+			expected: true,
+		},
+		{
+			name:     "positive ports and positive rate",
+			eps:      &ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.eps.IsZero()
+			assert.Equal(t, tt.expected, result, "IsZero() returned unexpected result")
+		})
+	}
+}

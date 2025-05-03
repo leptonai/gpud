@@ -3,11 +3,15 @@ package scan
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
+	"github.com/leptonai/gpud/pkg/log"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	nvidiainfiniband "github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 
 	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
@@ -117,12 +121,28 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		return err
 	}
 
+	mi, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s machine info\n", checkMark)
+	mi.RenderTable(os.Stdout)
+
+	if mi.GPUInfo != nil && mi.GPUInfo.Product != "" {
+		threshold, err := nvidiainfiniband.SupportsInfinibandPortRate(mi.GPUInfo.Product)
+		if err == nil {
+			log.Logger.Infow("setting default expected port states", "product", mi.GPUInfo.Product, "at_least_ports", threshold.AtLeastPorts, "at_least_rate", threshold.AtLeastRate)
+			componentsacceleratornvidiainfiniband.SetDefaultExpectedPortStates(threshold)
+		}
+	}
+
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand: op.ibstatCommand,
+			IbstatCommand:   op.ibstatCommand,
+			IbstatusCommand: op.ibstatusCommand,
 		},
 
 		EventStore:       nil,

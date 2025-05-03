@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1002,7 +1003,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, "test-healthy", spec.PluginName)
 		assert.Equal(t, SpecTypeComponent, spec.Type)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
-		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
+		assert.Equal(t, 6, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
 		initFunc := spec.NewInitFunc()
 		assert.NotNil(t, initFunc)
@@ -1027,6 +1028,13 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, cr.extraInfo["result"], "healthy")
 		assert.Equal(t, cr.extraInfo["error"], "")
 		assert.Equal(t, cr.extraInfo["passed"], "true")
+
+		assert.Equal(t, cr.extraInfo["action"], "reboot me 1")
+		assert.Equal(t, cr.extraInfo["suggestion"], "reboot me 2")
+
+		assert.Contains(t, cr.suggestedActions.Description, "reboot me 1")
+		assert.Contains(t, cr.suggestedActions.Description, "reboot me 2")
+		assert.Contains(t, cr.suggestedActions.RepairActions[0], string(apiv1.RepairActionTypeRebootSystem))
 	})
 
 	t.Run("test-unhealthy", func(t *testing.T) {
@@ -1034,7 +1042,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, "test-unhealthy", spec.PluginName)
 		assert.Equal(t, SpecTypeComponent, spec.Type)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
-		assert.Equal(t, 4, len(spec.HealthStatePlugin.Parser.JSONPaths))
+		assert.Equal(t, 6, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
 		initFunc := spec.NewInitFunc()
 		assert.NotNil(t, initFunc)
@@ -1059,6 +1067,13 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, cr.extraInfo["result"], "unhealthy")
 		assert.Equal(t, cr.extraInfo["error"], "")
 		assert.Equal(t, cr.extraInfo["passed"], "false")
+
+		assert.Equal(t, cr.extraInfo["action"], "reboot me 1")
+		assert.Equal(t, cr.extraInfo["suggestion"], "reboot me 2")
+
+		assert.Contains(t, cr.suggestedActions.Description, "reboot me 1")
+		assert.Contains(t, cr.suggestedActions.Description, "reboot me 2")
+		assert.Contains(t, cr.suggestedActions.RepairActions[0], string(apiv1.RepairActionTypeRebootSystem))
 	})
 
 	t.Run("test-unhealthy-with-missing-field", func(t *testing.T) {
@@ -1122,8 +1137,8 @@ func TestComponentCheckManualExit(t *testing.T) {
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
-	assert.Contains(t, cr.reason, "error executing state plugin -- exit status 1")
-	assert.Contains(t, rs.Summary(), "error executing state plugin -- exit status 1")
+	assert.Contains(t, cr.reason, "error executing state plugin")
+	assert.Contains(t, rs.Summary(), "error executing state plugin")
 
 	assert.Equal(t, cr.extraInfo["description"], "triggered to fail with exit code 1")
 }
@@ -1305,4 +1320,444 @@ func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
 	healthStates = c.LastHealthStates()
 	assert.Equal(t, 1, len(healthStates))
 	assert.Empty(t, healthStates[0].RunMode)
+}
+
+// TestComponent_CheckWithParserError tests the component's Check method when the parser returns an error
+func TestComponent_CheckWithParserError(t *testing.T) {
+	// Create a mock parser that will return an error
+	mockParser := &PluginOutputParseConfig{
+		JSONPaths: []JSONPath{
+			{Field: "test", Query: "$[invalid"}, // This is an invalid JSONPath query syntax
+		},
+	}
+
+	// Create a plugin with our mock parser
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "error-parser-step",
+				RunBashScript: &RunBashScript{
+					// Output some valid JSON that would parse fine with a correct query
+					Script:      "echo '{\"result\": \"test\"}'",
+					ContentType: "plaintext",
+				},
+			},
+		},
+		Parser: mockParser,
+	}
+
+	spec := &Spec{
+		PluginName:        "test-parser-error",
+		Type:              SpecTypeComponent,
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check, which should fail due to parser error
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the health state is set to Unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "failed to parse plugin output", cr.reason)
+	assert.NotNil(t, cr.err)
+
+	// Check the health states
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Equal(t, "failed to parse plugin output", healthStates[0].Reason)
+	assert.NotEmpty(t, healthStates[0].Error)
+}
+
+// TestComponent_CheckWithSuggestedActions tests the component's Check method with suggested actions
+func TestComponent_CheckWithSuggestedActions(t *testing.T) {
+	// Create a mock state plugin with output that will trigger suggested actions
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-with-suggested-actions",
+				RunBashScript: &RunBashScript{
+					Script:      `echo '{"status": "unhealthy", "temperature": 95, "error": "High temperature"}'`,
+					ContentType: "plaintext",
+				},
+			},
+		},
+		// Add a parser with suggested actions
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					Expect: &MatchRule{
+						Regex: stringPtr("healthy"),
+					},
+					SuggestedActions: map[string]MatchRule{
+						"restart_service": {
+							Regex: stringPtr("unhealthy"),
+						},
+					},
+				},
+				{
+					Field: "temperature",
+					Query: "$.temperature",
+					Expect: &MatchRule{
+						Regex: stringPtr(`^[0-8][0-9]$`), // 0-89
+					},
+					SuggestedActions: map[string]MatchRule{
+						"reduce_load": {
+							Regex: stringPtr(`^9[0-9]$|^100$`), // 90-100
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-suggested-actions",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the health is set to Unhealthy due to the failed expectation
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "unexpected plugin output", cr.reason)
+
+	// Verify that the suggestedActions field has been populated
+	assert.NotNil(t, cr.suggestedActions)
+	assert.Contains(t, cr.suggestedActions.Description, "unhealthy")
+	assert.Contains(t, cr.suggestedActions.Description, "95")
+
+	// Verify that the repair actions contain both expected actions
+	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("restart_service"))
+	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("reduce_load"))
+
+	// Verify that the health states include the suggested actions
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.NotNil(t, healthStates[0].SuggestedActions)
+	assert.Equal(t, cr.suggestedActions.Description, healthStates[0].SuggestedActions.Description)
+	assert.Equal(t, cr.suggestedActions.RepairActions, healthStates[0].SuggestedActions.RepairActions)
+}
+
+// TestComponent_CheckWithPartialSuggestedActions tests the component's Check method with only some fields matching suggested actions
+func TestComponent_CheckWithPartialSuggestedActions(t *testing.T) {
+	// Create a mock state plugin with output where only some fields will trigger suggested actions
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-with-partial-actions",
+				RunBashScript: &RunBashScript{
+					Script:      `echo '{"status": "warning", "temperature": 85, "error": "Minor issue"}'`,
+					ContentType: "plaintext",
+				},
+			},
+		},
+		// Parser with rules where only some will trigger actions
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"restart_service": {
+							Regex: stringPtr("unhealthy"), // Won't match "warning"
+						},
+						"log_warning": {
+							Regex: stringPtr("warning"), // Will match
+						},
+					},
+				},
+				{
+					Field: "temperature",
+					Query: "$.temperature",
+					SuggestedActions: map[string]MatchRule{
+						"reduce_load": {
+							Regex: stringPtr(`^9[0-9]$|^100$`), // Won't match 85
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-partial-actions",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the health (should be healthy since no expect rules are set)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+
+	// Verify that the suggestedActions field has been populated
+	assert.NotNil(t, cr.suggestedActions)
+	assert.Contains(t, cr.suggestedActions.Description, "warning")
+
+	// Only one repair action should be present
+	assert.Len(t, cr.suggestedActions.RepairActions, 1)
+	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("log_warning"))
+	assert.NotContains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("restart_service"))
+	assert.NotContains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("reduce_load"))
+
+	// Verify that the health states include the correct suggested actions
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.NotNil(t, healthStates[0].SuggestedActions)
+	assert.Equal(t, cr.suggestedActions.Description, healthStates[0].SuggestedActions.Description)
+	assert.Equal(t, cr.suggestedActions.RepairActions, healthStates[0].SuggestedActions.RepairActions)
+}
+
+// TestComponent_CheckWithInvalidSuggestedActionRule tests the component's Check method with an invalid suggested action rule
+func TestComponent_CheckWithInvalidSuggestedActionRule(t *testing.T) {
+	// Create a mock state plugin with an invalid regex in the suggested action rule
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-with-invalid-rule",
+				RunBashScript: &RunBashScript{
+					Script:      `echo '{"status": "unhealthy"}'`,
+					ContentType: "plaintext",
+				},
+			},
+		},
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{
+					Field: "status",
+					Query: "$.status",
+					SuggestedActions: map[string]MatchRule{
+						"invalid_action": {
+							Regex: stringPtr("[invalid regex"), // Invalid regex pattern
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-invalid-action-rule",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check, should fail due to invalid regex
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the health is set to Unhealthy due to parser error
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "failed to parse plugin output", cr.reason)
+	assert.NotNil(t, cr.err)
+	assert.Contains(t, cr.err.Error(), "invalid regex")
+}
+
+// TestComponent_CheckWithRebootSuggestedAction tests the component's Check method with REBOOT_SYSTEM suggested action
+func TestComponent_CheckWithRebootSuggestedAction(t *testing.T) {
+	// Create a mock state plugin that outputs a message containing "reboot" text
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-with-reboot-action",
+				RunBashScript: &RunBashScript{
+					Script:      `echo '{"status": "maintenance", "message": "System requires reboot"}'`,
+					ContentType: "plaintext",
+				},
+			},
+		},
+		// Add a parser with REBOOT_SYSTEM suggested action
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{
+					Field: "message",
+					Query: "$.message",
+					SuggestedActions: map[string]MatchRule{
+						"REBOOT_SYSTEM": {
+							// Case insensitive regex for "reboot"
+							Regex: stringPtr(`(?i).*reboot.*`),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-reboot-suggestion",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify health is Healthy since no expect rule is set
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+
+	// Verify that the suggestedActions field has been populated with REBOOT_SYSTEM
+	assert.NotNil(t, cr.suggestedActions)
+	assert.Contains(t, cr.suggestedActions.Description, "System requires reboot")
+
+	// Verify REBOOT_SYSTEM action is present
+	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("REBOOT_SYSTEM"))
+
+	// Verify that the health states include the suggested actions
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.NotNil(t, healthStates[0].SuggestedActions)
+	assert.Equal(t, cr.suggestedActions.Description, healthStates[0].SuggestedActions.Description)
+	assert.Equal(t, cr.suggestedActions.RepairActions, healthStates[0].SuggestedActions.RepairActions)
+}
+
+// TestComponent_CheckWithDuplicateActionNames tests the component's Check method
+// when multiple fields suggest the same action but with different descriptions
+func TestComponent_CheckWithDuplicateActionNames(t *testing.T) {
+	// Create a mock state plugin that outputs multiple fields
+	// where different fields suggest the same action
+	statePlugin := &Plugin{
+		Steps: []Step{
+			{
+				Name: "json-output-with-duplicate-actions",
+				RunBashScript: &RunBashScript{
+					Script: `echo '{
+						"temperature": 95,
+						"pressure": "critical",
+						"fan_speed": "low"
+					}'`,
+					ContentType: "plaintext",
+				},
+			},
+		},
+		// Add a parser where multiple fields suggest the same action name
+		Parser: &PluginOutputParseConfig{
+			JSONPaths: []JSONPath{
+				{
+					Field: "temperature",
+					Query: "$.temperature",
+					SuggestedActions: map[string]MatchRule{
+						"MAINTENANCE_REQUIRED": {
+							Regex: stringPtr(`^9[0-9]$|^100$`), // 90-100
+						},
+					},
+				},
+				{
+					Field: "pressure",
+					Query: "$.pressure",
+					SuggestedActions: map[string]MatchRule{
+						"MAINTENANCE_REQUIRED": {
+							Regex: stringPtr("critical"),
+						},
+					},
+				},
+				{
+					Field: "fan_speed",
+					Query: "$.fan_speed",
+					SuggestedActions: map[string]MatchRule{
+						"MAINTENANCE_REQUIRED": {
+							Regex: stringPtr("low"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spec := &Spec{
+		PluginName:        "test-duplicate-actions",
+		HealthStatePlugin: statePlugin,
+		Timeout: metav1.Duration{
+			Duration: time.Second * 10,
+		},
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Run the check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify it's healthy since no expect rules are set
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+
+	// Verify that the suggestedActions field has been populated
+	assert.NotNil(t, cr.suggestedActions)
+
+	// The main check: verify that all values are present in the Description,
+	// concatenated with commas
+	assert.Contains(t, cr.suggestedActions.Description, "95")
+	assert.Contains(t, cr.suggestedActions.Description, "critical")
+	assert.Contains(t, cr.suggestedActions.Description, "low")
+
+	// Verify that there's exactly one MAINTENANCE_REQUIRED action despite
+	// being triggered by three different fields
+	actionCount := 0
+	for _, action := range cr.suggestedActions.RepairActions {
+		if action == "MAINTENANCE_REQUIRED" {
+			actionCount++
+		}
+	}
+	assert.Equal(t, 1, actionCount, "Expected exactly one MAINTENANCE_REQUIRED action")
+
+	// Also verify that at least two commas are present in the description since
+	// we have three values that should be concatenated
+	commaCount := strings.Count(cr.suggestedActions.Description, ",")
+	assert.GreaterOrEqual(t, commaCount, 2, "Expected at least 2 commas in the description")
 }

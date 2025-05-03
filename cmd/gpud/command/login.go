@@ -79,7 +79,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		}
 	}()
 
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance)
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, cliContext.String("gpu-count"), cliContext.String("private-ip"), cliContext.String("public-ip"))
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}

@@ -105,7 +105,6 @@ func TestDataGetStates(t *testing.T) {
 	assert.Equal(t, "found 1 ext4 partitions and 1 block devices", states[0].Reason)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
 }
 
 func TestDataGetError(t *testing.T) {
@@ -138,8 +137,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 	assert.Equal(t, "disk", states[0].Name)
 	assert.Contains(t, states[0].Error, "failed to get disk data")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-	assert.Contains(t, states[0].ExtraInfo, "data")
-	assert.Contains(t, states[0].ExtraInfo, "encoding")
+	assert.NotContains(t, states[0].ExtraInfo, "data")
 }
 
 func TestComponentStatesWithError(t *testing.T) {

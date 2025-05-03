@@ -128,39 +128,53 @@ type PluginOutputParseConfig struct {
 
 // JSONPath represents a JSON path to the output fields.
 type JSONPath struct {
-	// Query defines the JSONPath query path to extract for.
+	// Query defines the JSONPath query path to extract with.
 	// ref. https://pkg.go.dev/github.com/PaesslerAG/jsonpath#section-readme
 	// ref. https://en.wikipedia.org/wiki/JSONPath
 	// ref. https://goessner.net/articles/JsonPath/
 	Query string `json:"query"`
-	// FieldName defines the field name to represent this query result.
+	// Field defines the field name to use in the extra_info data
+	// for this JSON path query output.
 	Field string `json:"field"`
 
-	// Filter is the match rule for the field value.
-	// It not set, the field value is not checked.
-	// If set, the field value is checked against the match rule.
-	// If set but mismatched, the health state is set to "Unhealthy".
-	Filter *Filter `json:"filter,omitempty"`
+	// Expect defines the expected field "value" match rule.
+	//
+	// It not set, the field value is not checked,
+	// which means "missing field" for this query does not
+	// make the health state to be "Unhealthy".
+	//
+	// If set, the field value must be matched for this rule.
+	// In such case, the "missing field" or "mismatch" make
+	// the health state to be "Unhealthy".
+	Expect *MatchRule `json:"expect,omitempty"`
+
+	// SuggestedActions maps from the suggested action name,
+	// to the match rule for the field value.
+	//
+	// If the field value matches the rule,
+	// the health state reports the corresponding
+	// suggested action (the key of the matching rule).
+	SuggestedActions map[string]MatchRule `json:"suggested_actions,omitempty"`
 }
 
-// Filter represents an expected output match rule
+// MatchRule represents an expected output match rule
 // for the plugin output.
-type Filter struct {
+type MatchRule struct {
 	// Regex is the regex to match the output.
 	Regex *string `json:"regex,omitempty"`
 }
 
-// checkMatchRule checks if the input matches the match rule.
+// doesMatch checks if the input matches the match rule.
 // It returns true if the input matches the match rule, otherwise false.
 // It returns an error if the match rule is invalid.
-func (filter *Filter) checkMatchRule(input string) (bool, error) {
-	if filter == nil {
+func (rule *MatchRule) doesMatch(input string) (bool, error) {
+	if rule == nil {
 		// no rule then it matches
 		return true, nil
 	}
 
-	if filter.Regex != nil {
-		rule := *filter.Regex
+	if rule.Regex != nil {
+		rule := *rule.Regex
 
 		re, err := regexp.Compile(rule)
 		if err != nil {
@@ -172,7 +186,7 @@ func (filter *Filter) checkMatchRule(input string) (bool, error) {
 	return true, nil
 }
 
-func (rule *Filter) describeRule() string {
+func (rule *MatchRule) describeRule() string {
 	if rule == nil {
 		return ""
 	}

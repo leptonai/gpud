@@ -120,7 +120,8 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting interfaces: %v", err)
+		cr.reason = "error getting interfaces"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -136,25 +137,28 @@ func (c *component) Check() components.CheckResult {
 		cctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
 		cr.Packages, cr.err = gpud_manager.GlobalController.Status(cctx)
 		cancel()
-		if err != nil {
+		if cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting package status: %v", err)
+			cr.reason = "error getting package status"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
 
 	cr.GPUdPID = os.Getpid()
 	cr.GPUdUsageFileDescriptors, cr.err = file.GetCurrentProcessUsage()
-	if err != nil {
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting current process usage: %v", err)
+		cr.reason = "error getting current process usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
 	cr.GPUdUsageMemoryInBytes, cr.err = memory.GetCurrentProcessRSSInBytes()
-	if err != nil {
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting current process RSS: %v", err)
+		cr.reason = "error getting current process RSS"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	cr.GPUdUsageMemoryHumanized = humanize.Bytes(cr.GPUdUsageMemoryInBytes)
@@ -163,19 +167,21 @@ func (c *component) Check() components.CheckResult {
 		cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 		cr.GPUdUsageDBInBytes, cr.err = sqlite.ReadDBSize(cctx, c.dbRO)
 		ccancel()
-		if err != nil {
+		if cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting DB size: %v", err)
+			cr.reason = "error getting DB size"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
 		cr.GPUdUsageDBHumanized = humanize.Bytes(cr.GPUdUsageDBInBytes)
 	}
 
-	curMetrics, err := sqlite.ReadMetrics(c.gatherer)
-	if err != nil {
-		cr.err = err
+	var curMetrics sqlite.Metrics
+	curMetrics, cr.err = sqlite.ReadMetrics(c.gatherer)
+	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting SQLite metrics: %v", err)
+		cr.reason = "error getting SQLite metrics"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -196,7 +202,8 @@ func (c *component) Check() components.CheckResult {
 	cr.GPUdStartTimeInUnixTime, cr.err = uptime.GetCurrentProcessStartTimeInUnixTime()
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("error getting GPUd start time: %v", err)
+		cr.reason = "error getting GPUd start time"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
 		return cr
 	}
 	cr.GPUdStartTimeHumanized = humanize.Time(time.Unix(int64(cr.GPUdStartTimeInUnixTime), 0))
@@ -336,9 +343,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{
-		"data":     string(b),
-		"encoding": "json",
-	}
+	state.ExtraInfo = map[string]string{"data": string(b)}
 	return apiv1.HealthStates{state}
 }
