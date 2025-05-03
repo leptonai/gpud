@@ -23,6 +23,8 @@ Init plugins are used for one-time setup tasks when GPUd starts. They're perfect
 - Initializing monitoring tools
 - Setting up logging
 
+See the Examples section (in this document below) for an example use of the init plugin.
+
 ### Component Plugins
 Component plugins run periodically to monitor system health. They can be:
 - **Single Component**: One health check with one configuration
