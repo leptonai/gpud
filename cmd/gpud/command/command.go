@@ -40,6 +40,8 @@ var (
 	pluginSpecsFile string
 
 	enablePluginAPI bool
+
+	customPluginsRun bool
 )
 
 const (
@@ -223,24 +225,26 @@ sudo rm /etc/systemd/system/gpud.service
 					Destination: &autoUpdateExitCode,
 					Value:       -1,
 				},
+				cli.StringFlag{
+					Name:        "plugin-specs-file",
+					Usage:       "sets the plugin specs file (leave empty for default, useful for testing)",
+					Destination: &pluginSpecsFile,
+					Hidden:      true,
+				},
 
 				// only for testing
 				cli.StringFlag{
 					Name:        "ibstat-command",
 					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
 					Destination: &ibstatCommand,
+					Value:       "ibstat",
 					Hidden:      true,
 				},
 				cli.StringFlag{
 					Name:        "ibstatus-command",
 					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
 					Destination: &ibstatusCommand,
-					Hidden:      true,
-				},
-				cli.StringFlag{
-					Name:        "plugin-specs-file",
-					Usage:       "sets the plugin specs file (leave empty for default, useful for testing)",
-					Destination: &pluginSpecsFile,
+					Value:       "ibstatus",
 					Hidden:      true,
 				},
 				&cli.BoolFlag{
@@ -516,6 +520,41 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "gpu-product",
 					Usage: "specify the GPU shape of the machine",
+				},
+			},
+		},
+
+		// for diagnose + quick scanning
+		{
+			Name:    "custom-plugins",
+			Aliases: []string{"cs", "plugin", "plugins"},
+
+			Usage:  "checks/runs custom plugins",
+			Action: cmdCustomPlugins,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
+				&cli.BoolFlag{
+					Name:        "run,r",
+					Usage:       "run the custom plugins (default: false)",
+					Destination: &customPluginsRun,
+				},
+
+				// only for testing
+				cli.StringFlag{
+					Name:        "ibstat-command",
+					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
+					Destination: &ibstatCommand,
+					Hidden:      true,
+				},
+				cli.StringFlag{
+					Name:        "ibstatus-command",
+					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
+					Destination: &ibstatusCommand,
+					Hidden:      true,
 				},
 			},
 		},

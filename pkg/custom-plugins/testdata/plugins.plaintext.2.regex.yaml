@@ -36,7 +36,7 @@
             echo '{"name": "test", "result": "healthy", "passed": true, "action": "reboot me 1", "suggestion": "reboot me 2"}'
             echo "thank you"
 
-  run_mode: ""
+  run_mode: auto
 
   timeout: 1m
   interval: 10m
@@ -80,7 +80,7 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false, "action": "reboot me 1", "suggestion": "reboot me 2"}'
             echo "done"
 
-  run_mode: ""
+  run_mode: auto
 
   timeout: 1m
   interval: 10m
@@ -118,7 +118,53 @@
             echo '{"name": "test", "result": "unhealthy", "passed": false}'
             echo "done"
 
-  run_mode: ""
+  run_mode: auto
 
   timeout: 1m
   interval: 10m
+
+########################################
+- plugin_name: exit-0
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.description
+          field: description
+    steps:
+      - name: Exit 0
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo '{"description": "calling exit 0"}'
+
+            exit 0
+
+  run_mode: auto
+
+  timeout: 1m
+  interval: 100m
+
+########################################
+- plugin_name: exit-1
+  type: component
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: $.description
+          field: description
+    steps:
+      - name: Exit 1
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            echo '{"description": "calling exit 1"}'
+
+            exit 1
+
+  run_mode: auto
+
+  timeout: 1m
+  interval: 100m

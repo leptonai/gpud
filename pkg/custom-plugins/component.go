@@ -66,7 +66,7 @@ func (c *component) Name() string { return c.spec.ComponentName() }
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
-	if c.spec.RunMode == SpecModeManual {
+	if c.spec.RunMode == string(apiv1.RunModeTypeManual) {
 		log.Logger.Infow("custom plugin is in manual mode, skipping start", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 		return nil
 	}
@@ -262,7 +262,7 @@ func (cr *checkResult) String() string {
 		return ""
 	}
 
-	return string(cr.out) + "\n\n" + fmt.Sprintf("(exit code %d)", cr.exitCode)
+	return string(cr.out) + "\n" + fmt.Sprintf("(exit code %d)", cr.exitCode)
 }
 
 func (cr *checkResult) Summary() string {
