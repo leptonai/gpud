@@ -103,6 +103,14 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "lepton.ai workspace token for checking in",
 				},
 				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
+				},
+				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
 					Value: "mothership-machine.app.lepton.ai",
@@ -475,6 +483,10 @@ sudo gpud join
 				cli.StringFlag{
 					Name:  "node-group",
 					Usage: "node group to join",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
 				},
 				cli.StringFlag{
 					Name:  "private-ip",
