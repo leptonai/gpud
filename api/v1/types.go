@@ -247,7 +247,6 @@ func EventTypeFromString(s string) EventType {
 type MachineInfo struct {
 	// GPUdVersion represents the current version of GPUd
 	GPUdVersion string `json:"gpudVersion,omitempty"`
-
 	// GPUDriverVersion represents the current version of GPU driver installed
 	GPUDriverVersion string `json:"gpuDriverVersion,omitempty"`
 	// CUDAVersion represents the current version of cuda library.
@@ -266,6 +265,8 @@ type MachineInfo struct {
 	MachineID string `json:"machineID,omitempty"`
 	// BootID is collected by GPUd.
 	BootID string `json:"bootID,omitempty"`
+	// Hostname is the current host of machine
+	Hostname string `json:"hostname,omitempty"`
 	// Uptime represents when the machine up
 	Uptime metav1.Time `json:"uptime,omitempty"`
 

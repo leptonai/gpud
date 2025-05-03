@@ -29,6 +29,7 @@ import (
 )
 
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+	hostname, _ := os.Hostname()
 	info := &apiv1.MachineInfo{
 		GPUdVersion: version.Version,
 
@@ -41,6 +42,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		SystemUUID:              pkghost.SystemUUID(),
 		MachineID:               pkghost.OSMachineID(),
 		BootID:                  pkghost.BootID(),
+		Hostname:                hostname,
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
 
 		CPUInfo: GetMachineCPUInfo(),
@@ -62,14 +64,14 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		}
 
 		if pkgcontainerd.CheckContainerdInstalled() && pkgcontainerd.CheckContainerdRunning(ctx) {
-			version, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
+			containerdVersion, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
 			if err != nil {
 				log.Logger.Warnw("failed to check containerd version", "error", err)
 			} else {
-				if !strings.HasPrefix(version, "containerd://") {
-					version = "containerd://" + version
+				if !strings.HasPrefix(containerdVersion, "containerd://") {
+					containerdVersion = "containerd://" + containerdVersion
 				}
-				info.ContainerRuntimeVersion = version
+				info.ContainerRuntimeVersion = containerdVersion
 			}
 		}
 	}
@@ -173,13 +175,13 @@ func GetMachineLocation() *apiv1.MachineLocation {
 	}
 }
 
-// GetSystemResourceLogicalCores returns the system GPU resource of the machine
+// GetSystemResourceGPUCount returns the system GPU resource of the machine
 // with the GPU count, using the type defined in "corev1.ResourceName"
 // in https://pkg.go.dev/k8s.io/api/core/v1#ResourceName.
 // It represents the GPU count with the key "nvidia.com/gpu" or "nvidia.com/gpu.count".
 // Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
 //
-// This is different than the device count in DCGM.
+// This is different from the device count in DCGM.
 // ref. "CountDevEntry" in "nvvs/plugin_src/software/Software.cpp"
 // ref. https://github.com/NVIDIA/DCGM/blob/903d745504f50153be8293f8566346f9de3b3c93/nvvs/plugin_src/software/Software.cpp#L220-L249
 func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error) {
@@ -201,12 +203,12 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 
 	for uuid, dev := range nvmlInstance.Devices() {
 		if info.Memory == "" {
-			mem, err := nvidianvml.GetMemory(uuid, dev)
+			gpuMemory, err := nvidianvml.GetMemory(uuid, dev)
 			if err != nil {
 				return nil, err
 			}
 
-			qty := resource.NewQuantity(int64(mem.TotalBytes), resource.DecimalSI)
+			qty := resource.NewQuantity(int64(gpuMemory.TotalBytes), resource.DecimalSI)
 			info.Memory = qty.String()
 		}
 
