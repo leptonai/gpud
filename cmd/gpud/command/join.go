@@ -75,6 +75,8 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 
 	if cliContext.Bool("no-public-ip") {
 		publicIP = ""
+	} else if cliContext.String("public-ip") != "" {
+		publicIP = cliContext.String("public-ip")
 	}
 
 	if !cliContext.Bool("skip-interactive") {

@@ -9,12 +9,18 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, gpuCount string) (*apiv1.LoginRequest, error) {
+func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, gpuCount string, privateIP string, publicIP string) (*apiv1.LoginRequest, error) {
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		Network:   GetMachineNetwork(),
 		Location:  GetMachineLocation(),
 		Resources: map[string]string{},
+	}
+	if privateIP != "" {
+		req.Network.PrivateIP = privateIP
+	}
+	if publicIP != "" {
+		req.Network.PublicIP = publicIP
 	}
 
 	req.Provider = GetProvider(req.Network.PublicIP)
