@@ -95,7 +95,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -181,10 +185,10 @@ func (c *component) Check() components.CheckResult {
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 			cr.err = c.eventBucket.Insert(
 				cctx,
-				apiv1.Event{
-					Time:    metav1.Time{Time: cr.ts},
+				eventstore.Event{
+					Time:    cr.ts,
 					Name:    "row_remapping_pending",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: fmt.Sprintf("%s detected pending row remapping", uuid),
 				},
 			)
@@ -202,10 +206,10 @@ func (c *component) Check() components.CheckResult {
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 			cr.err = c.eventBucket.Insert(
 				cctx,
-				apiv1.Event{
-					Time:    metav1.Time{Time: cr.ts},
+				eventstore.Event{
+					Time:    cr.ts,
 					Name:    "row_remapping_failed",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: fmt.Sprintf("%s detected failed row remapping", uuid),
 				},
 			)

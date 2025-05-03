@@ -31,30 +31,30 @@ func (m *mockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(apiv1.Events), args.Error(1)
+	return args.Get(0).(eventstore.Events), args.Error(1)
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
 func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -161,8 +161,34 @@ func TestCheck(t *testing.T) {
 		assert.Contains(t, result.Summary(), "NVIDIA NVML instance is nil")
 	})
 
+	t.Run("nvml exists but no product name", func(t *testing.T) {
+		mockNvml := new(mockNVMLInstance)
+		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("ProductName").Return("")
+
+		comp := &component{
+			nvmlInstance: mockNvml,
+		}
+		result := comp.Check()
+		assert.NotNil(t, result)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+		assert.Contains(t, result.Summary(), "NVIDIA NVML is loaded but GPU is not detected")
+	})
+
+	t.Run("nvml does not exist", func(t *testing.T) {
+		mockNvml := new(mockNVMLInstance)
+		mockNvml.On("NVMLExists").Return(false)
+
+		comp := &component{
+			nvmlInstance: mockNvml,
+		}
+		result := comp.Check()
+		assert.NotNil(t, result)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+		assert.Contains(t, result.Summary(), "NVIDIA NVML library is not loaded")
+	})
+
 	t.Run("nil readAllKmsg", func(t *testing.T) {
-		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
@@ -180,14 +206,12 @@ func TestCheck(t *testing.T) {
 	})
 
 	t.Run("readAllKmsg returns error", func(t *testing.T) {
-		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
-		// Mock readAllKmsg that returns an error
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return nil, assert.AnError
 		}
@@ -204,14 +228,12 @@ func TestCheck(t *testing.T) {
 	})
 
 	t.Run("no matching messages", func(t *testing.T) {
-		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
-		// Mock readAllKmsg that returns messages but none match
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
@@ -232,14 +254,12 @@ func TestCheck(t *testing.T) {
 	})
 
 	t.Run("with matching messages", func(t *testing.T) {
-		// Mock nvmlInstance that returns true for NVMLExists
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
 
-		// Mock readAllKmsg that returns messages with NCCL errors
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
@@ -277,6 +297,12 @@ func TestDataMethods(t *testing.T) {
 		assert.Equal(t, "", cr.String())
 		assert.Equal(t, "", cr.Summary())
 		assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+		assert.Equal(t, "", cr.getError())
+
+		states := cr.HealthStates()
+		require.Len(t, states, 1)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, "no data yet", states[0].Reason)
 	})
 
 	t.Run("empty data", func(t *testing.T) {
@@ -287,6 +313,12 @@ func TestDataMethods(t *testing.T) {
 		assert.Equal(t, "matched 0 kmsg(s)", cr.String())
 		assert.Equal(t, "test reason", cr.Summary())
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+		assert.Equal(t, "", cr.getError())
+
+		states := cr.HealthStates()
+		require.Len(t, states, 1)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, "test reason", states[0].Reason)
 	})
 
 	t.Run("data with matched kmsg(s)", func(t *testing.T) {
@@ -297,10 +329,18 @@ func TestDataMethods(t *testing.T) {
 			},
 			health: apiv1.HealthStateTypeUnhealthy,
 			reason: "matched kmsg(s)",
+			err:    assert.AnError,
 		}
 		assert.Equal(t, "matched 2 kmsg(s)", cr.String())
 		assert.Equal(t, "matched kmsg(s)", cr.Summary())
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		assert.Equal(t, assert.AnError.Error(), cr.getError())
+
+		states := cr.HealthStates()
+		require.Len(t, states, 1)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, "matched kmsg(s)", states[0].Reason)
+		assert.Equal(t, assert.AnError.Error(), states[0].Error)
 	})
 }
 
@@ -335,14 +375,13 @@ func TestComponentEvents(t *testing.T) {
 
 	// Create mock event bucket
 	mockEventBucket := new(mockEventBucket)
-	testTime := metav1.Now()
-	testEvents := apiv1.Events{
+	testTime := time.Now()
+	testEvents := eventstore.Events{
 		{
-			Time:                testTime,
-			Name:                "test-nccl-error",
-			Type:                "Warning",
-			Message:             "This is a test NCCL error",
-			DeprecatedExtraInfo: map[string]string{"log_line": "test-error-line"},
+			Time:    testTime,
+			Name:    "test-nccl-error",
+			Type:    "Warning",
+			Message: "This is a test NCCL error",
 		},
 	}
 
@@ -351,7 +390,6 @@ func TestComponentEvents(t *testing.T) {
 
 	comp := &component{
 		eventBucket: mockEventBucket,
-		// We don't set kmsgSyncer here since we don't need it for the test
 	}
 
 	// Call Events
@@ -378,7 +416,6 @@ func TestComponentClose(t *testing.T) {
 
 	comp := &component{
 		eventBucket: mockEventBucket,
-		// We don't set kmsgSyncer here since we'll handle it in our assertions
 	}
 
 	err := comp.Close()
@@ -431,7 +468,6 @@ func TestMatchFunctionality(t *testing.T) {
 			t.Parallel()
 			gotEvent, gotMessage := Match(tc.input)
 			assert.Equal(t, tc.wantEvent, gotEvent)
-			// Only check message if we expect a match
 			if tc.wantEvent != "" {
 				assert.NotEmpty(t, gotMessage)
 			}
@@ -440,6 +476,8 @@ func TestMatchFunctionality(t *testing.T) {
 }
 
 func TestLastHealthStates(t *testing.T) {
+	t.Parallel()
+
 	// Create a minimal component instance for testing
 	c := &component{}
 

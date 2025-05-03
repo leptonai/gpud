@@ -9,9 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
-func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) apiv1.Event {
+func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) eventstore.Event {
 	sxidErr := sxidErrorEventDetail{
 		SXid:       sxid,
 		DataSource: "test",
@@ -21,26 +22,26 @@ func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType
 		},
 	}
 	sxidData, _ := json.Marshal(sxidErr)
-	ret := apiv1.Event{
-		Name:                EventNameErrorSXid,
-		Type:                eventType,
-		DeprecatedExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData)},
+	ret := eventstore.Event{
+		Name:      EventNameErrorSXid,
+		Type:      string(eventType),
+		ExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData)},
 	}
 	if !eventTime.IsZero() {
-		ret.Time = metav1.Time{Time: eventTime}
+		ret.Time = eventTime
 	}
 	return ret
 }
 
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
-		state := evolveHealthyState(apiv1.Events{})
+		state := evolveHealthyState(eventstore.Events{})
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Equal(t, "SXIDComponent is healthy", state.Reason)
 	})
 
 	t.Run("critical sxid", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			createSXidEvent(time.Time{}, 123, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
@@ -49,7 +50,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			createSXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events)
@@ -58,7 +59,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("reboot recover", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			{Name: "reboot"},
 			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
@@ -67,7 +68,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("reboot multiple time cannot recover", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
 			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
@@ -80,7 +81,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("SetHealthy", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			{Name: "SetHealthy"},
 			createSXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
@@ -90,11 +91,11 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("invalid sxid", func(t *testing.T) {
-		events := apiv1.Events{
+		events := eventstore.Events{
 			{
-				Name:                EventNameErrorSXid,
-				Type:                apiv1.EventTypeFatal,
-				DeprecatedExtraInfo: map[string]string{EventKeyErrorSXidData: "invalid json"},
+				Name:      EventNameErrorSXid,
+				Type:      string(apiv1.EventTypeFatal),
+				ExtraInfo: map[string]string{EventKeyErrorSXidData: "invalid json"},
 			},
 		}
 		state := evolveHealthyState(events)

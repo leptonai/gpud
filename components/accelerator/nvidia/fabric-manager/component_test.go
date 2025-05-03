@@ -66,15 +66,11 @@ func TestComponentEvents(t *testing.T) {
 		Name:    "fabricmanager_nvswitch_non_fatal_error",
 		Type:    "Warning",
 		Message: "NVSwitch non-fatal error detected",
-		DeprecatedExtraInfo: map[string]string{
-			"log_line": "[ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61",
-		},
 	}
 
 	assert.Equal(t, expectedEvent.Name, events[0].Name)
 	assert.Equal(t, expectedEvent.Type, events[0].Type)
 	assert.Equal(t, expectedEvent.Message, events[0].Message)
-	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
 	states := comp.LastHealthStates()
@@ -166,12 +162,12 @@ func TestEventsWithProcessor(t *testing.T) {
 	}
 
 	// Insert a test event directly into the store
-	testEvent := apiv1.Event{
-		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+	testEvent := eventstore.Event{
+		Time:    time.Now().Add(-30 * time.Minute),
 		Name:    "test-error",
 		Message: "This is a test error",
 		Type:    "Warning",
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			"log_line": "test-error-line",
 		},
 	}

@@ -9,10 +9,10 @@ import (
 
 	procs "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -20,14 +20,14 @@ import (
 
 // MockRebootEventStore is a mock implementation of the RebootEventStore interface
 type MockRebootEventStore struct {
-	events apiv1.Events
+	events eventstore.Events
 }
 
 func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return m.events, nil
 }
 
@@ -38,7 +38,7 @@ func (m *ErrorRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *ErrorRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *ErrorRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return nil, errors.New("mock event store error")
 }
 
@@ -173,11 +173,11 @@ func TestComponent(t *testing.T) {
 
 	// Create a RebootEventStore implementation
 	mockRebootStore := &MockRebootEventStore{
-		events: apiv1.Events{
+		events: eventstore.Events{
 			{
-				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+				Time:    time.Now().Add(-1 * time.Hour),
 				Name:    "reboot",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "Test reboot event",
 			},
 		},
@@ -355,11 +355,11 @@ func TestComponent_States(t *testing.T) {
 // TestMockRebootEventStore tests the mock implementation of RebootEventStore
 func TestMockRebootEventStore(t *testing.T) {
 	mock := &MockRebootEventStore{
-		events: apiv1.Events{
+		events: eventstore.Events{
 			{
-				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+				Time:    time.Now().Add(-1 * time.Hour),
 				Name:    "reboot",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "Test reboot event",
 			},
 		},
@@ -376,7 +376,7 @@ func TestMockRebootEventStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, events, 1)
 	assert.Equal(t, "reboot", events[0].Name)
-	assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), events[0].Type)
 	assert.Equal(t, "Test reboot event", events[0].Message)
 }
 
@@ -679,7 +679,7 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 	assert.Equal(t, "os kernel version 5.15.0", states[0].Reason)
 }
 
-// TestComponent_CheckWithUptimeError directly injects an uptime error
+// TestComponent_CheckWithUptimeError tests the Check method with mocked process error
 func TestComponent_CheckWithUptimeError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -815,11 +815,11 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 
 	// Create a reboot event store with some events
 	mockStore := &MockRebootEventStore{
-		events: apiv1.Events{
+		events: eventstore.Events{
 			{
-				Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+				Time:    time.Now().Add(-1 * time.Hour),
 				Name:    "test-reboot",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "Test reboot event",
 			},
 		},
@@ -1262,4 +1262,257 @@ func TestCountProcessesByStatusFuncVariations(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 		assert.Contains(t, data.reason, "os kernel version")
 	})
+}
+
+// TestComponent_UptimeCalculation tests that uptime calculation is correct
+func TestComponent_UptimeCalculation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Mock a specific boot time for testing
+	bootTime := time.Now().Add(-24 * time.Hour) // 24 hours ago
+	uptimeSeconds := uint64(24 * 60 * 60)       // 24 hours in seconds
+
+	// Create a test result with controlled uptime values
+	testData := &checkResult{
+		ts: time.Now().UTC(),
+		Uptimes: Uptimes{
+			Seconds:             uptimeSeconds,
+			BootTimeUnixSeconds: uint64(bootTime.Unix()),
+		},
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "os uptime test",
+	}
+
+	// Inject the test data
+	comp.lastMu.Lock()
+	comp.lastCheckResult = testData
+	comp.lastMu.Unlock()
+
+	// Verify the String() output includes the uptime information
+	data := comp.lastCheckResult
+	output := data.String()
+
+	// Since String() uses humanize.RelTime which is dynamic, we just check that it contains "Uptime"
+	assert.Contains(t, output, "Uptime")
+}
+
+// TestComponent_DetailedStringOutput tests the String() method provides detailed output
+func TestComponent_DetailedStringOutput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Create a test result with comprehensive data
+	testData := &checkResult{
+		VirtualizationEnvironment: pkghost.VirtualizationEnvironment{Type: "kvm"},
+		SystemManufacturer:        "Test Manufacturer",
+		Kernel: Kernel{
+			Arch:    "x86_64",
+			Version: "5.15.0-custom",
+		},
+		Platform: Platform{
+			Name:    "ubuntu",
+			Family:  "debian",
+			Version: "22.04",
+		},
+		Uptimes: Uptimes{
+			Seconds:             3600,
+			BootTimeUnixSeconds: uint64(time.Now().UTC().Add(-1 * time.Hour).Unix()),
+		},
+		ProcessCountZombieProcesses: 42,
+		health:                      apiv1.HealthStateTypeHealthy,
+		reason:                      "test reason",
+		ts:                          time.Now().UTC(),
+	}
+
+	// Inject the test data
+	comp.lastMu.Lock()
+	comp.lastCheckResult = testData
+	comp.lastMu.Unlock()
+
+	// Verify the String() output includes all the key information
+	data := comp.lastCheckResult
+	output := data.String()
+
+	assert.Contains(t, output, "VM Type")
+	assert.Contains(t, output, "kvm")
+	assert.Contains(t, output, "Kernel Arch")
+	assert.Contains(t, output, "x86_64")
+	assert.Contains(t, output, "Kernel Version")
+	assert.Contains(t, output, "5.15.0-custom")
+	assert.Contains(t, output, "Platform Name")
+	assert.Contains(t, output, "ubuntu")
+	assert.Contains(t, output, "Platform Version")
+	assert.Contains(t, output, "22.04")
+	assert.Contains(t, output, "Zombie Process Count")
+	assert.Contains(t, output, "42")
+}
+
+// TestComponent_ExtraInfoInHealthState tests that extra info is included in health states
+func TestComponent_ExtraInfoInHealthState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Create test data
+	testData := &checkResult{
+		Kernel: Kernel{
+			Version: "5.15.0",
+		},
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "test reason",
+		ts:     time.Now().UTC(),
+	}
+
+	// Inject the test data
+	comp.lastMu.Lock()
+	comp.lastCheckResult = testData
+	comp.lastMu.Unlock()
+
+	// Get health states
+	states := comp.LastHealthStates()
+	assert.Len(t, states, 1)
+
+	// Verify extra info is included and contains JSON data
+	assert.Contains(t, states[0].ExtraInfo, "data")
+	extraData := states[0].ExtraInfo["data"]
+	assert.Contains(t, extraData, "kernel")
+	assert.Contains(t, extraData, "5.15.0")
+}
+
+// TestComponent_ContextCancelation tests behavior with a canceled context
+func TestComponent_ContextCancelation(t *testing.T) {
+	// Create a context that we can cancel
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+
+	// Start the component
+	err = c.Start()
+	assert.NoError(t, err)
+
+	// Cancel the context
+	cancel()
+
+	// Allow time for cancellation to propagate
+	time.Sleep(100 * time.Millisecond)
+
+	// Component should be closed and not processing anymore
+	comp := c.(*component)
+	select {
+	case <-comp.ctx.Done():
+		// Success - context was canceled
+	default:
+		t.Fatal("Component context was not canceled")
+	}
+
+	// Cleanup
+	err = c.Close()
+	assert.NoError(t, err)
+}
+
+// TestComponent_JsonMarshalCheckResult tests JSON marshaling of checkResult
+func TestComponent_JsonMarshalCheckResult(t *testing.T) {
+	// Create a test checkResult
+	cr := &checkResult{
+		VirtualizationEnvironment: pkghost.VirtualizationEnvironment{Type: "kvm"},
+		SystemManufacturer:        "Test Manufacturer",
+		Kernel: Kernel{
+			Arch:    "x86_64",
+			Version: "5.15.0",
+		},
+		Platform: Platform{
+			Name:    "ubuntu",
+			Version: "22.04",
+		},
+		ProcessCountZombieProcesses: 5,
+		health:                      apiv1.HealthStateTypeHealthy,
+		reason:                      "test reason",
+		ts:                          time.Now().UTC(),
+	}
+
+	// Get health states which marshals to JSON in ExtraInfo
+	states := cr.HealthStates()
+	assert.Len(t, states, 1)
+
+	// Verify JSON data in ExtraInfo
+	jsonData := states[0].ExtraInfo["data"]
+	assert.NotEmpty(t, jsonData)
+	assert.Contains(t, jsonData, "\"kernel\":")
+	assert.Contains(t, jsonData, "\"virtualization_environment\":")
+	assert.Contains(t, jsonData, "\"process_count_zombie_processes\":5")
+}
+
+// TestComponent_CheckResultMethods tests the methods of the checkResult struct
+func TestComponent_CheckResultMethods(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     *checkResult
+		wantErr  string
+		wantType apiv1.HealthStateType
+		summary  string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			wantErr:  "",
+			wantType: "",
+			summary:  "",
+		},
+		{
+			name: "with error",
+			data: &checkResult{
+				err:    errors.New("test error"),
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "test reason with error",
+			},
+			wantErr:  "test error",
+			wantType: apiv1.HealthStateTypeUnhealthy,
+			summary:  "test reason with error",
+		},
+		{
+			name: "healthy data",
+			data: &checkResult{
+				health: apiv1.HealthStateTypeHealthy,
+				reason: "test healthy reason",
+			},
+			wantErr:  "",
+			wantType: apiv1.HealthStateTypeHealthy,
+			summary:  "test healthy reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantErr, tt.data.getError())
+			assert.Equal(t, tt.wantType, tt.data.HealthStateType())
+			assert.Equal(t, tt.summary, tt.data.Summary())
+		})
+	}
 }

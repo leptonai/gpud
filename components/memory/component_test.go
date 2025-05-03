@@ -10,7 +10,6 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -61,30 +60,30 @@ func (m *MockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(apiv1.Events), args.Error(1)
+	return args.Get(0).(eventstore.Events), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -152,13 +151,14 @@ func TestComponentStates(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
-	testTime := metav1.Now()
-	testEvents := apiv1.Events{
+	testTime := time.Now()
+	testEvents := eventstore.Events{
 		{
-			Time:    testTime,
-			Name:    Name,
-			Type:    apiv1.EventType("test"),
-			Message: "Test event",
+			Time:      testTime,
+			Name:      Name,
+			Type:      "test",
+			Message:   "Test event",
+			Component: Name,
 		},
 	}
 
@@ -175,7 +175,8 @@ func TestComponentEvents(t *testing.T) {
 	events, err := c.Events(context.Background(), since)
 
 	assert.NoError(t, err)
-	assert.Equal(t, testEvents, events)
+	assert.Equal(t, 1, len(events))
+	assert.Equal(t, Name, events[0].Name)
 	mockEventBucket.AssertCalled(t, "Get", mock.Anything, since)
 }
 
@@ -211,7 +212,7 @@ func TestComponentCheckOnce(t *testing.T) {
 	}
 
 	// Test
-	_ = c.Check()
+	result := c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastCheckResult)
@@ -220,6 +221,18 @@ func TestComponentCheckOnce(t *testing.T) {
 	assert.Equal(t, mockVMStat.Used, c.lastCheckResult.UsedBytes)
 	assert.Equal(t, uint64(1024*1024), c.lastCheckResult.BPFJITBufferBytes)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+
+	// Test result methods
+	cr := c.lastCheckResult
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+	assert.Contains(t, cr.String(), "Total")
+	assert.Contains(t, cr.String(), "Used")
+	assert.Contains(t, cr.String(), "Available")
+
+	// Test Summary method
+	assert.Equal(t, "ok", cr.Summary())
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 }
 
 func TestComponentCheckOnceWithVMError(t *testing.T) {
@@ -240,13 +253,15 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	}
 
 	// Test
-	_ = c.Check()
+	result := c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
 	assert.Equal(t, testError, c.lastCheckResult.err)
 	assert.Contains(t, c.lastCheckResult.reason, "error getting virtual memory")
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 }
 
 func TestComponentCheckOnceWithBPFError(t *testing.T) {
@@ -281,13 +296,73 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	// Test
-	_ = c.Check()
+	result := c.Check()
 
 	// Verify
 	assert.NotNil(t, c.lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
 	assert.Equal(t, testError, c.lastCheckResult.err)
 	assert.Contains(t, c.lastCheckResult.reason, "error getting bpf jit buffer bytes")
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+}
+
+func TestClose(t *testing.T) {
+	mockEventBucket := new(MockEventBucket)
+	mockEventBucket.On("Close").Return()
+
+	mockKmsg := new(MockKmsgSyncer)
+	mockKmsg.On("Close").Return(nil)
+
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: mockEventBucket,
+		kmsgSyncer:  nil, // We can't directly set this as a mock due to type safety
+	}
+
+	// Set the kmsgSyncer field directly for testing
+	// This is a workaround to avoid type issues
+	c.Close()
+
+	mockEventBucket.AssertCalled(t, "Close")
+}
+
+func TestNilEventBucket(t *testing.T) {
+	c := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+	}
+
+	events, err := c.Events(context.Background(), time.Now())
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+}
+
+func TestStart(t *testing.T) {
+	// Mock virtual memory function with a basic implementation to avoid nil pointer
+	mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		return &mem.VirtualMemoryStat{
+			Total:     1024,
+			Available: 512,
+			Used:      512,
+		}, nil
+	}
+
+	c := &component{
+		ctx:                  context.Background(),
+		cancel:               func() {},
+		getVirtualMemoryFunc: mockGetVMFunc,
+	}
+
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Let's make sure the goroutine runs at least once
+	time.Sleep(10 * time.Millisecond)
+
+	// Cleanup
+	c.Close()
 }
 
 func TestCheck(t *testing.T) {

@@ -10,11 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/sqlite"
+	"github.com/stretchr/testify/assert"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func Test_defaultTableName(t *testing.T) {
@@ -91,17 +90,14 @@ func TestTableInsertsReads(t *testing.T) {
 
 	first := time.Now().UTC()
 
-	events := apiv1.Events{}
+	events := Events{}
 	eventsN := 10
 	for i := 0; i < eventsN; i++ {
-		events = append(events, apiv1.Event{
-			Time:    metav1.Time{Time: first.Add(time.Duration(i) * time.Second)},
+		events = append(events, Event{
+			Time:    first.Add(time.Duration(i) * time.Second),
 			Name:    "kmsg",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: fmt.Sprintf("OOM event %d occurred", i),
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{fmt.Sprintf("oom_reaper: reaped process %d (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0", i)},
-			},
 		})
 	}
 
@@ -141,30 +137,21 @@ func TestGetEventsTimeRange(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time: metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
+			Time: baseTime.Add(-10 * time.Minute),
 			Name: "kmsg",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"old event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 		{
-			Time: metav1.Time{Time: baseTime.Add(-5 * time.Minute)},
+			Time: baseTime.Add(-5 * time.Minute),
 			Name: "kmsg",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"mid event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 		{
-			Time: metav1.Time{Time: baseTime},
+			Time: baseTime,
 			Name: "kmsg",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"recent event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 	}
 
@@ -181,7 +168,6 @@ func TestGetEventsTimeRange(t *testing.T) {
 	recentEvents, err := bucket.Get(ctx, baseTime.Add(-2*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(recentEvents))
-	assert.Equal(t, "recent event", recentEvents[0].DeprecatedSuggestedActions.DeprecatedDescriptions[0])
 }
 
 func TestEmptyResults(t *testing.T) {
@@ -225,30 +211,21 @@ func TestMultipleEventTypes(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time: metav1.Time{Time: baseTime},
+			Time: baseTime,
 			Name: "kmsg",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"oom event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 		{
-			Time: metav1.Time{Time: baseTime.Add(1 * time.Second)},
+			Time: baseTime.Add(1 * time.Second),
 			Name: "syslog",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"edac event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 		{
-			Time: metav1.Time{Time: baseTime.Add(2 * time.Second)},
+			Time: baseTime.Add(2 * time.Second),
 			Name: "kmsg",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"cgroup event"},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		},
 	}
 
@@ -262,9 +239,9 @@ func TestMultipleEventTypes(t *testing.T) {
 	assert.Equal(t, 3, len(results))
 
 	// Verify events are in descending order
-	assert.Equal(t, apiv1.EventTypeWarning, results[0].Type)
-	assert.Equal(t, apiv1.EventTypeWarning, results[1].Type)
-	assert.Equal(t, apiv1.EventTypeWarning, results[2].Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), results[0].Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), results[1].Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), results[2].Type)
 }
 
 func TestPurgePartial(t *testing.T) {
@@ -285,24 +262,18 @@ func TestPurgePartial(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-			Name:                "kmsg",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "old_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"old event"},
-			},
+			Time:      baseTime.Add(-10 * time.Minute),
+			Name:      "kmsg",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "old_event"},
 		},
 		{
-			Time:                metav1.Time{Time: baseTime},
-			Name:                "kmsg",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "new_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"recent event"},
-			},
+			Time:      baseTime,
+			Name:      "kmsg",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "new_event"},
 		},
 	}
 
@@ -319,16 +290,16 @@ func TestPurgePartial(t *testing.T) {
 	remaining, err := bucket.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
-	extraInfoJSON, err := json.Marshal(remaining[0].DeprecatedExtraInfo)
+	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
 
 	// Try to find old event by ExtraInfo
-	oldEvent := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-		Name:                "test",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"id": "old_event"},
+	oldEvent := Event{
+		Time:      baseTime.Add(-10 * time.Minute),
+		Name:      "test",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
 	assert.NoError(t, err)
@@ -353,14 +324,11 @@ func TestFindEvent(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	testEvent := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-		Name:                "kmsg",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"a": "b"},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"old event"},
-		},
+	testEvent := Event{
+		Time:      baseTime.Add(-10 * time.Minute),
+		Name:      "kmsg",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"a": "b"},
 	}
 
 	// Test finding non-existent event
@@ -377,8 +345,7 @@ func TestFindEvent(t *testing.T) {
 	assert.Equal(t, testEvent.Time.Unix(), found.Time.Unix())
 	assert.Equal(t, testEvent.Name, found.Name)
 	assert.Equal(t, testEvent.Type, found.Type)
-	assert.Equal(t, testEvent.DeprecatedExtraInfo, found.DeprecatedExtraInfo)
-	assert.Equal(t, testEvent.DeprecatedSuggestedActions.DeprecatedDescriptions[0], found.DeprecatedSuggestedActions.DeprecatedDescriptions[0])
+	assert.Equal(t, testEvent.ExtraInfo, found.ExtraInfo)
 }
 
 func TestFindEventPartialMatch(t *testing.T) {
@@ -399,27 +366,21 @@ func TestFindEventPartialMatch(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	testEvent := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime},
-		Name:                "kmsg",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"a": "b"},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"original details"},
-		},
+	testEvent := Event{
+		Time:      baseTime,
+		Name:      "kmsg",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"a": "b"},
 	}
-
 	assert.NoError(t, bucket.Insert(ctx, testEvent))
 
 	// Test finding with matching timestamp/source/type but different details
-	searchEvent := apiv1.Event{
-		Time:                metav1.Time{Time: testEvent.Time.Time},
-		Name:                testEvent.Name,
-		Type:                testEvent.Type,
-		DeprecatedExtraInfo: testEvent.DeprecatedExtraInfo,
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"different details"},
-		},
+	testEvent.ExtraInfo["a"] = "c"
+	searchEvent := Event{
+		Time:      testEvent.Time,
+		Name:      testEvent.Name,
+		Type:      testEvent.Type,
+		ExtraInfo: testEvent.ExtraInfo,
 	}
 
 	found, err := bucket.Find(ctx, searchEvent)
@@ -445,24 +406,18 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:                metav1.Time{Time: baseTime},
-			Name:                "kmsg",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"a": "b", "c": "d"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"first event"},
-			},
+			Time:      baseTime,
+			Name:      "kmsg",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"a": "b", "c": "d"},
 		},
 		{
-			Time:                metav1.Time{Time: baseTime},
-			Name:                "kmsg",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"a": "b"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"second event"},
-			},
+			Time:      baseTime,
+			Name:      "kmsg",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"a": "b"},
 		},
 	}
 
@@ -472,26 +427,16 @@ func TestFindEventMultipleMatches(t *testing.T) {
 	}
 
 	// Search should return the first matching event
-	searchEvent := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime},
-		Name:                "kmsg",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"a": "b"},
+	searchEvent := Event{
+		Time:      baseTime,
+		Name:      "kmsg",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"a": "b"},
 	}
 
 	found, err := bucket.Find(ctx, searchEvent)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-
-	// Should match one of the events
-	foundMatch := false
-	for _, ev := range events {
-		if found.DeprecatedSuggestedActions.DeprecatedDescriptions[0] == ev.DeprecatedSuggestedActions.DeprecatedDescriptions[0] {
-			foundMatch = true
-			break
-		}
-	}
-	assert.True(t, foundMatch, "Found event should match one of the inserted events")
 }
 
 func TestEventWithIDs(t *testing.T) {
@@ -512,16 +457,13 @@ func TestEventWithIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	event := apiv1.Event{
-		Time: metav1.Time{Time: baseTime},
+	event := Event{
+		Time: baseTime,
 		Name: "nvidia-smi",
-		Type: apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{
+		Type: string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{
 			"xid":      "123",
 			"gpu_uuid": "gpu-123",
-		},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"GPU error details"},
 		},
 	}
 
@@ -532,11 +474,11 @@ func TestEventWithIDs(t *testing.T) {
 	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, event.DeprecatedExtraInfo, found.DeprecatedExtraInfo)
+	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 
 	// Test find with partial ExtraInfo match
-	partialEvent := apiv1.Event{
-		Time: metav1.Time{Time: event.Time.Time},
+	partialEvent := Event{
+		Time: event.Time,
 		Name: event.Name,
 		Type: event.Type,
 	}
@@ -546,11 +488,11 @@ func TestEventWithIDs(t *testing.T) {
 	assert.Nil(t, found, "Should not find event with different ExtraInfo")
 
 	// Test find with different ExtraInfo
-	differentEvent := apiv1.Event{
-		Time: metav1.Time{Time: event.Time.Time},
+	differentEvent := Event{
+		Time: event.Time,
 		Name: event.Name,
 		Type: event.Type,
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			"xid":      "different",
 			"gpu_uuid": "different-gpu",
 		},
@@ -579,14 +521,11 @@ func TestNullEventIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	event := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime},
-		Name:                "kmsg",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"Event with null ExtraInfo"},
-		},
+	event := Event{
+		Time:      baseTime,
+		Name:      "kmsg",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{},
 	}
 
 	// Test insert and find with null ExtraInfo
@@ -596,7 +535,7 @@ func TestNullEventIDs(t *testing.T) {
 	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, len(found.DeprecatedExtraInfo), 0)
+	assert.Equal(t, len(found.ExtraInfo), 0)
 }
 
 func TestPurgeWithEventIDs(t *testing.T) {
@@ -617,24 +556,18 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-			Name:                "test",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "old_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"old event"},
-			},
+			Time:      baseTime.Add(-10 * time.Minute),
+			Name:      "test",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "old_event"},
 		},
 		{
-			Time:                metav1.Time{Time: baseTime},
-			Name:                "test",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "new_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"new event"},
-			},
+			Time:      baseTime,
+			Name:      "test",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "new_event"},
 		},
 	}
 
@@ -652,16 +585,16 @@ func TestPurgeWithEventIDs(t *testing.T) {
 	remaining, err := bucket.Get(ctx, baseTime.Add(-15*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
-	extraInfoJSON, err := json.Marshal(remaining[0].DeprecatedExtraInfo)
+	extraInfoJSON, err := json.Marshal(remaining[0].ExtraInfo)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"id":"new_event"}`, string(extraInfoJSON))
 
 	// Try to find old event by ExtraInfo
-	oldEvent := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime.Add(-10 * time.Minute)},
-		Name:                "test",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"id": "old_event"},
+	oldEvent := Event{
+		Time:      baseTime.Add(-10 * time.Minute),
+		Name:      "test",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"id": "old_event"},
 	}
 	found, err := bucket.Find(ctx, oldEvent)
 	assert.NoError(t, err)
@@ -699,13 +632,10 @@ func TestContextCancellation(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	event := apiv1.Event{
-		Time: metav1.Time{Time: time.Now().UTC()},
+	event := Event{
+		Time: time.Now().UTC(),
 		Name: "test",
-		Type: apiv1.EventTypeWarning,
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"Test details"},
-		},
+		Type: string(apiv1.EventTypeWarning),
 	}
 
 	err = bucket.Insert(canceledCtx, event)
@@ -742,13 +672,10 @@ func TestConcurrentAccess(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := apiv1.Event{
-				Time: metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
+			event := Event{
+				Time: baseTime.Add(time.Duration(i) * time.Second),
 				Name: "concurrent",
-				Type: apiv1.EventTypeWarning,
-				DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-					DeprecatedDescriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
-				},
+				Type: string(apiv1.EventTypeWarning),
 			}
 			assert.NoError(t, bucket.Insert(ctx, event))
 		}
@@ -791,26 +718,20 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:                metav1.Time{Time: time.Now().UTC()},
-			Name:                "test;source",
-			Type:                apiv1.EventTypeWarning,
-			Message:             "message with special chars: !@#$%^&*()",
-			DeprecatedExtraInfo: map[string]string{"special chars": "!@#$%^&*()"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"details with special chars"},
-			},
+			Time:      time.Now().UTC(),
+			Name:      "test;source",
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "message with special chars: !@#$%^&*()",
+			ExtraInfo: map[string]string{"special chars": "!@#$%^&*()"},
 		},
 		{
-			Time:                metav1.Time{Time: time.Now().UTC()},
-			Name:                "unicode_source_🔥",
-			Type:                apiv1.EventTypeWarning,
-			Message:             "unicode message: 你好",
-			DeprecatedExtraInfo: map[string]string{"unicode info": "你好"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"unicode details: 世界！"},
-			},
+			Time:      time.Now().UTC(),
+			Name:      "unicode_source_🔥",
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "unicode message: 你好",
+			ExtraInfo: map[string]string{"unicode info": "你好"},
 		},
 	}
 
@@ -825,8 +746,7 @@ func TestSpecialCharactersInEvents(t *testing.T) {
 		assert.Equal(t, event.Name, found.Name)
 		assert.Equal(t, event.Type, found.Type)
 		assert.Equal(t, event.Message, found.Message)
-		assert.Equal(t, event.DeprecatedExtraInfo, found.DeprecatedExtraInfo)
-		assert.Equal(t, event.DeprecatedSuggestedActions.DeprecatedDescriptions[0], found.DeprecatedSuggestedActions.DeprecatedDescriptions[0])
+		assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 	}
 }
 
@@ -853,13 +773,10 @@ func TestLargeEventDetails(t *testing.T) {
 		largeDetail[i] = byte('a' + (i % 26))
 	}
 
-	event := apiv1.Event{
-		Time: metav1.Time{Time: time.Now().UTC()},
+	event := Event{
+		Time: time.Now().UTC(),
 		Name: "test",
-		Type: apiv1.EventTypeWarning,
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{string(largeDetail)},
-		},
+		Type: string(apiv1.EventTypeWarning),
 	}
 
 	err = bucket.Insert(ctx, event)
@@ -868,7 +785,6 @@ func TestLargeEventDetails(t *testing.T) {
 	found, err := bucket.Find(ctx, event)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-	assert.Equal(t, event.DeprecatedSuggestedActions.DeprecatedDescriptions[0], found.DeprecatedSuggestedActions.DeprecatedDescriptions[0])
 }
 
 func TestTimestampBoundaries(t *testing.T) {
@@ -899,13 +815,10 @@ func TestTimestampBoundaries(t *testing.T) {
 	}
 
 	for _, ts := range timestamps {
-		event := apiv1.Event{
-			Time: metav1.Time{Time: time.Unix(ts, 0)},
+		event := Event{
+			Time: time.Unix(ts, 0),
 			Name: "test",
-			Type: apiv1.EventTypeWarning,
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{fmt.Sprintf("timestamp: %d", ts)},
-			},
+			Type: string(apiv1.EventTypeWarning),
 		}
 
 		err = bucket.Insert(ctx, event)
@@ -951,14 +864,11 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent inserts
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := apiv1.Event{
-				Time:                metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
-				Name:                "concurrent",
-				Type:                apiv1.EventTypeWarning,
-				DeprecatedExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
-				DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-					DeprecatedDescriptions: []string{fmt.Sprintf("Concurrent event %d", i)},
-				},
+			event := Event{
+				Time:      baseTime.Add(time.Duration(i) * time.Second),
+				Name:      "concurrent",
+				Type:      string(apiv1.EventTypeWarning),
+				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
 			assert.NoError(t, bucket.Insert(ctx, event))
 		}
@@ -968,15 +878,15 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	// Concurrent reads
 	go func() {
 		for i := 0; i < eventCount; i++ {
-			event := apiv1.Event{
-				Time:                metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
-				Name:                "concurrent",
-				Type:                apiv1.EventTypeWarning,
-				DeprecatedExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
+			event := Event{
+				Time:      baseTime.Add(time.Duration(i) * time.Second),
+				Name:      "concurrent",
+				Type:      string(apiv1.EventTypeWarning),
+				ExtraInfo: map[string]string{fmt.Sprintf("info_%d", i): fmt.Sprintf("Concurrent event %d", i)},
 			}
 			found, err := bucket.Find(ctx, event)
 			if err == nil && found != nil {
-				assert.Equal(t, event.DeprecatedExtraInfo, found.DeprecatedExtraInfo)
+				assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 			}
 		}
 		done <- true
@@ -995,7 +905,7 @@ func TestConcurrentWritesWithDifferentIDs(t *testing.T) {
 	infoMap := make(map[string]bool)
 	for _, event := range events {
 		// Convert the entire ExtraInfo map to a string for comparison
-		infoStr := fmt.Sprintf("%v", event.DeprecatedExtraInfo)
+		infoStr := fmt.Sprintf("%v", event.ExtraInfo)
 		assert.False(t, infoMap[infoStr], "Duplicate extra info found")
 		infoMap[infoStr] = true
 	}
@@ -1019,29 +929,29 @@ func TestEventMessage(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:    metav1.Time{Time: baseTime},
+			Time:    baseTime,
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "Test message with normal text",
 		},
 		{
-			Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
+			Time:    baseTime.Add(1 * time.Second),
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "", // Empty message
 		},
 		{
-			Time:    metav1.Time{Time: baseTime.Add(2 * time.Second)},
+			Time:    baseTime.Add(2 * time.Second),
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "Message with special chars: !@#$%^&*()",
 		},
 		{
-			Time:    metav1.Time{Time: baseTime.Add(3 * time.Second)},
+			Time:    baseTime.Add(3 * time.Second),
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "Unicode message: 你好世界",
 		},
 	}
@@ -1058,10 +968,10 @@ func TestEventMessage(t *testing.T) {
 	}
 
 	// Test finding with message as part of search criteria
-	searchEvent := apiv1.Event{
-		Time:    metav1.Time{Time: baseTime},
+	searchEvent := Event{
+		Time:    baseTime,
 		Name:    "test",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: "Test message with normal text",
 	}
 	found, err := bucket.Find(ctx, searchEvent)
@@ -1070,10 +980,10 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, searchEvent.Message, found.Message)
 
 	// Test finding with empty message
-	emptyMessageEvent := apiv1.Event{
-		Time:    metav1.Time{Time: baseTime.Add(1 * time.Second)},
+	emptyMessageEvent := Event{
+		Time:    baseTime.Add(1 * time.Second),
 		Name:    "test",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: "",
 	}
 	found, err = bucket.Find(ctx, emptyMessageEvent)
@@ -1082,10 +992,10 @@ func TestEventMessage(t *testing.T) {
 	assert.Equal(t, "", found.Message)
 
 	// Test finding with non-matching message
-	nonMatchingEvent := apiv1.Event{
-		Time:    metav1.Time{Time: baseTime},
+	nonMatchingEvent := Event{
+		Time:    baseTime,
 		Name:    "test",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: "Non-matching message",
 	}
 	found, err = bucket.Find(ctx, nonMatchingEvent)
@@ -1102,43 +1012,6 @@ func TestEventMessage(t *testing.T) {
 		expectedMsg := events[len(events)-1-i].Message
 		assert.Equal(t, expectedMsg, event.Message)
 	}
-}
-
-func TestNilSuggestedActions(t *testing.T) {
-	t.Parallel()
-
-	testTableName := "test_table"
-
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	store, err := New(dbRW, dbRO, 0)
-	assert.NoError(t, err)
-	bucket, err := store.Bucket(testTableName)
-	assert.NoError(t, err)
-	defer bucket.Close()
-
-	baseTime := time.Now().UTC()
-	event := apiv1.Event{
-		Time:                       metav1.Time{Time: baseTime},
-		Name:                       "test",
-		Type:                       apiv1.EventTypeWarning,
-		Message:                    "Test message",
-		DeprecatedExtraInfo:        map[string]string{"key": "value"},
-		DeprecatedSuggestedActions: nil, // Explicitly set to nil
-	}
-
-	// Test insert and find with nil SuggestedActions
-	err = bucket.Insert(ctx, event)
-	assert.NoError(t, err)
-
-	found, err := bucket.Find(ctx, event)
-	assert.NoError(t, err)
-	assert.NotNil(t, found)
-	assert.Nil(t, found.DeprecatedSuggestedActions)
 }
 
 func TestInvalidJSONHandling(t *testing.T) {
@@ -1160,28 +1033,24 @@ func TestInvalidJSONHandling(t *testing.T) {
 
 	// Insert a valid event first
 	baseTime := time.Now().UTC()
-	event := apiv1.Event{
-		Time:                metav1.Time{Time: baseTime},
-		Name:                "test",
-		Type:                apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{"key": "value"},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{"test action"},
-		},
+	event := Event{
+		Time:      baseTime,
+		Name:      "test",
+		Type:      string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{"key": "value"},
 	}
 	err = bucket.Insert(ctx, event)
 	assert.NoError(t, err)
 
 	// Manually insert invalid JSON into the database
 	_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO %s (timestamp, name, type, extra_info, suggested_actions)
-		VALUES (?, ?, ?, ?, ?)`,
+		INSERT INTO %s (timestamp, name, type, extra_info)
+		VALUES (?, ?, ?, ?)`,
 		bucket.Name()),
 		baseTime.Add(time.Second).Unix(),
 		"test",
-		apiv1.EventTypeWarning,
+		string(apiv1.EventTypeWarning),
 		"{invalid_json", // Invalid JSON for ExtraInfo
-		"{invalid_json", // Invalid JSON for SuggestedActions
 	)
 	assert.NoError(t, err)
 
@@ -1215,15 +1084,12 @@ func TestLongEventFields(t *testing.T) {
 		longMap[fmt.Sprintf("key_%d", i)] = longString
 	}
 
-	event := apiv1.Event{
-		Time:                metav1.Time{Time: time.Now().UTC()},
-		Name:                longString,
-		Type:                apiv1.EventTypeWarning,
-		Message:             longString,
-		DeprecatedExtraInfo: longMap,
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			DeprecatedDescriptions: []string{longString},
-		},
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      longString,
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   longString,
+		ExtraInfo: longMap,
 	}
 
 	// Test insert and retrieval of event with very long fields
@@ -1235,8 +1101,7 @@ func TestLongEventFields(t *testing.T) {
 	assert.NotNil(t, found)
 	assert.Equal(t, event.Name, found.Name)
 	assert.Equal(t, event.Message, found.Message)
-	assert.Equal(t, event.DeprecatedExtraInfo, found.DeprecatedExtraInfo)
-	assert.Equal(t, event.DeprecatedSuggestedActions.DeprecatedDescriptions[0], found.DeprecatedSuggestedActions.DeprecatedDescriptions[0])
+	assert.Equal(t, event.ExtraInfo, found.ExtraInfo)
 }
 
 func TestConcurrentTableCreation(t *testing.T) {
@@ -1308,10 +1173,10 @@ func TestEventTypeValidation(t *testing.T) {
 
 	baseTime := time.Now().UTC()
 	for i, eventType := range validTypes {
-		event := apiv1.Event{
-			Time:    metav1.Time{Time: baseTime.Add(time.Duration(i) * time.Second)},
+		event := Event{
+			Time:    baseTime.Add(time.Duration(i) * time.Second),
 			Name:    "test",
-			Type:    eventType,
+			Type:    string(eventType),
 			Message: fmt.Sprintf("Test message for %s", eventType),
 		}
 
@@ -1321,7 +1186,7 @@ func TestEventTypeValidation(t *testing.T) {
 		found, err := bucket.Find(ctx, event)
 		assert.NoError(t, err)
 		assert.NotNil(t, found)
-		assert.Equal(t, eventType, found.Type)
+		assert.Equal(t, string(eventType), found.Type)
 	}
 
 	// Verify all events can be retrieved
@@ -1354,24 +1219,18 @@ func TestRetentionPurge(t *testing.T) {
 	defer bucket.Close()
 
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:                metav1.Time{Time: baseTime.Add(-15 * time.Second)},
-			Name:                "test",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "old_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"old event"},
-			},
+			Time:      baseTime.Add(-15 * time.Second),
+			Name:      "test",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "old_event"},
 		},
 		{
-			Time:                metav1.Time{Time: baseTime.Add(-5 * time.Second)},
-			Name:                "test",
-			Type:                apiv1.EventTypeWarning,
-			DeprecatedExtraInfo: map[string]string{"id": "new_event"},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"new event"},
-			},
+			Time:      baseTime.Add(-5 * time.Second),
+			Name:      "test",
+			Type:      string(apiv1.EventTypeWarning),
+			ExtraInfo: map[string]string{"id": "new_event"},
 		},
 	}
 
@@ -1385,7 +1244,7 @@ func TestRetentionPurge(t *testing.T) {
 	remaining, err := bucket.Get(ctx, baseTime.Add(-20*time.Second))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
-	assert.Equal(t, "new_event", remaining[0].DeprecatedExtraInfo["id"])
+	assert.Equal(t, "new_event", remaining[0].ExtraInfo["id"])
 }
 
 func TestLatest(t *testing.T) {
@@ -1412,41 +1271,32 @@ func TestLatest(t *testing.T) {
 
 	// Insert events with different timestamps
 	baseTime := time.Now().UTC()
-	events := apiv1.Events{
+	events := Events{
 		{
-			Time:    metav1.Time{Time: baseTime.Add(-10 * time.Second)},
+			Time:    baseTime.Add(-10 * time.Second),
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "old event",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"id": "event1",
 			},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"old event action"},
-			},
 		},
 		{
-			Time:    metav1.Time{Time: baseTime},
+			Time:    baseTime,
 			Name:    "test",
-			Type:    apiv1.EventTypeInfo,
+			Type:    string(apiv1.EventTypeInfo),
 			Message: "latest event",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"id": "event2",
 			},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"latest event action"},
-			},
 		},
 		{
-			Time:    metav1.Time{Time: baseTime.Add(-5 * time.Second)},
+			Time:    baseTime.Add(-5 * time.Second),
 			Name:    "test",
-			Type:    apiv1.EventTypeCritical,
+			Type:    string(apiv1.EventTypeCritical),
 			Message: "middle event",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"id": "event3",
-			},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				DeprecatedDescriptions: []string{"middle event action"},
 			},
 		},
 	}
@@ -1465,9 +1315,8 @@ func TestLatest(t *testing.T) {
 	// Verify it's the event with the most recent timestamp
 	assert.Equal(t, baseTime.Unix(), latestEvent.Time.Unix())
 	assert.Equal(t, "latest event", latestEvent.Message)
-	assert.Equal(t, apiv1.EventTypeInfo, latestEvent.Type)
-	assert.Equal(t, "event2", latestEvent.DeprecatedExtraInfo["id"])
-	assert.Equal(t, "latest event action", latestEvent.DeprecatedSuggestedActions.DeprecatedDescriptions[0])
+	assert.Equal(t, string(apiv1.EventTypeInfo), latestEvent.Type)
+	assert.Equal(t, "event2", latestEvent.ExtraInfo["id"])
 
 	// Test with canceled context
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -1488,20 +1337,20 @@ func TestLatest(t *testing.T) {
 func TestCompareEvent(t *testing.T) {
 	tests := []struct {
 		name     string
-		eventA   apiv1.Event
-		eventB   apiv1.Event
+		eventA   Event
+		eventB   Event
 		expected bool
 	}{
 		{
 			name: "same events",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventA: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventB: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
@@ -1510,14 +1359,14 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "different key-value pairs",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventA: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventB: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "different_value",
 				},
@@ -1526,14 +1375,14 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "eventB missing key",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventA: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventB: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
 			},
@@ -1541,13 +1390,13 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "eventA missing key",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventA: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventB: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 					"key2": "value2",
 				},
@@ -1556,21 +1405,21 @@ func TestCompareEvent(t *testing.T) {
 		},
 		{
 			name: "empty events",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{},
+			eventA: Event{
+				ExtraInfo: map[string]string{},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{},
+			eventB: Event{
+				ExtraInfo: map[string]string{},
 			},
 			expected: true,
 		},
 		{
 			name: "one empty event",
-			eventA: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{},
+			eventA: Event{
+				ExtraInfo: map[string]string{},
 			},
-			eventB: apiv1.Event{
-				DeprecatedExtraInfo: map[string]string{
+			eventB: Event{
+				ExtraInfo: map[string]string{
 					"key1": "value1",
 				},
 			},

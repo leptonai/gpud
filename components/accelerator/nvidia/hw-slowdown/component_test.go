@@ -344,13 +344,13 @@ func TestComponentStates(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	// Create test events
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+			Time:    time.Now().Add(-5 * time.Minute),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
@@ -440,12 +440,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: 0,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := apiv1.Event{
-					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
+				event := eventstore.Event{
+					Time:    time.Now().UTC().Add(-5 * time.Minute),
 					Name:    "hw_slowdown",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: "HW Slowdown detected",
-					DeprecatedExtraInfo: map[string]string{
+					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -460,12 +460,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: -0.6,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := apiv1.Event{
-					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
+				event := eventstore.Event{
+					Time:    time.Now().UTC().Add(-5 * time.Minute),
 					Name:    "hw_slowdown",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: "HW Slowdown detected",
-					DeprecatedExtraInfo: map[string]string{
+					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -716,22 +716,22 @@ func TestComponentEvents(t *testing.T) {
 	defer bucket.Close()
 
 	// Insert test events
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
+			Time:    time.Now().Add(-2 * time.Hour),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+			Time:    time.Now().Add(-1 * time.Hour),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-1",
 			},
 		},
@@ -894,12 +894,12 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		// Distribute events evenly within the window
 		eventTime := now.Add(-time.Duration(i*(windowMinutes/totalEventsToInsert)) * time.Minute)
 
-		event := apiv1.Event{
-			Time:    metav1.Time{Time: eventTime},
+		event := eventstore.Event{
+			Time:    eventTime,
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		}

@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -326,7 +327,7 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 	tests := []struct {
 		name        string
 		clockEvents ClockEvents
-		want        *apiv1.Event
+		want        *eventstore.Event
 	}{
 		{
 			name: "no hardware slowdown reasons",
@@ -343,12 +344,12 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 				UUID:              "GPU-123",
 				HWSlowdownReasons: []string{"reason1", "reason2"},
 			},
-			want: &apiv1.Event{
-				Time:    metav1.Time{Time: testTime},
+			want: &eventstore.Event{
+				Time:    testTime,
 				Name:    "hw_slowdown",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "reason1, reason2",
-				DeprecatedExtraInfo: map[string]string{
+				ExtraInfo: map[string]string{
 					"data_source": "nvml",
 					"gpu_uuid":    "GPU-123",
 				},

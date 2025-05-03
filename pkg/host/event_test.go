@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -46,7 +44,7 @@ func TestRecordEvent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
 		assert.Equal(t, "reboot", events[0].Name)
-		assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
+		assert.Equal(t, string(apiv1.EventTypeWarning), events[0].Type)
 		assert.Equal(t, recentTime.Unix(), events[0].Time.Unix())
 	})
 
@@ -92,7 +90,7 @@ func TestRecordEvent(t *testing.T) {
 		assert.NoError(t, err)
 		require.Len(t, events, 1)
 
-		existingTime := events[0].Time.Time
+		existingTime := events[0].Time
 
 		// Try to record with same timestamp
 		mockLastReboot := func(ctx context.Context) (time.Time, error) {
@@ -138,10 +136,10 @@ func TestGetEvents(t *testing.T) {
 	}
 
 	for _, e := range events {
-		err = bucket.Insert(ctx, apiv1.Event{
-			Time:    metav1.Time{Time: e.time},
+		err = bucket.Insert(ctx, eventstore.Event{
+			Time:    e.time,
 			Name:    e.name,
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: e.message,
 		})
 		require.NoError(t, err)
@@ -160,7 +158,7 @@ func TestGetEvents(t *testing.T) {
 		retrievedEvents, err := getEvents(ctx, store, now.Add(-2*time.Hour))
 		assert.NoError(t, err)
 		assert.Len(t, retrievedEvents, 1)
-		assert.Equal(t, events[2].time.Unix(), retrievedEvents[0].Time.Time.Unix())
+		assert.Equal(t, events[2].time.Unix(), retrievedEvents[0].Time.Unix())
 	})
 }
 
@@ -284,17 +282,17 @@ func TestOSEventStore(t *testing.T) {
 		require.NoError(t, err)
 
 		now := time.Now()
-		testEvents := apiv1.Events{
+		testEvents := eventstore.Events{
 			{
-				Time:    metav1.Time{Time: now.Add(-2 * time.Hour)},
+				Time:    now.Add(-2 * time.Hour),
 				Name:    "reboot",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "test event 1",
 			},
 			{
-				Time:    metav1.Time{Time: now.Add(-1 * time.Hour)},
+				Time:    now.Add(-1 * time.Hour),
 				Name:    "reboot",
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 				Message: "test event 2",
 			},
 		}

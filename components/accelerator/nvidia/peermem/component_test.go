@@ -3,6 +3,7 @@ package peermem
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -10,10 +11,12 @@ import (
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -72,14 +75,16 @@ func (m *mockNVMLInstance) Shutdown() error {
 
 // mockEventBucket implements eventstore.Bucket
 type mockEventBucket struct {
-	events map[time.Time]apiv1.Events
+	events []eventstore.Event
+	mu     sync.RWMutex
 	closed bool
 	name   string
+	getErr error
 }
 
 func newMockEventBucket() *mockEventBucket {
 	return &mockEventBucket{
-		events: make(map[time.Time]apiv1.Events),
+		events: make([]eventstore.Event, 0),
 		name:   "mock-bucket",
 	}
 }
@@ -88,90 +93,104 @@ func (m *mockEventBucket) Name() string {
 	return m.name
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, ev apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, ev eventstore.Event) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.closed {
 		return errors.New("bucket is closed")
 	}
-
-	now := time.Now()
-	if m.events[now] == nil {
-		m.events[now] = make(apiv1.Events, 0)
-	}
-	m.events[now] = append(m.events[now], ev)
+	m.events = append(m.events, ev)
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.closed {
 		return nil, errors.New("bucket is closed")
 	}
 
-	for _, events := range m.events {
-		for _, event := range events {
-			if event.Name == ev.Name && event.Component == ev.Component {
-				return &event, nil
-			}
+	for i := range m.events {
+		if m.events[i].Name == ev.Name && m.events[i].Component == ev.Component {
+			return &m.events[i], nil
 		}
 	}
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.closed {
 		return nil, errors.New("bucket is closed")
 	}
 
-	var result apiv1.Events
-	for t, events := range m.events {
-		if t.After(since) || t.Equal(since) {
-			result = append(result, events...)
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+
+	var result eventstore.Events
+	for _, event := range m.events {
+		if !event.Time.Before(since) {
+			result = append(result, event)
 		}
 	}
 	return result, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.closed {
 		return nil, errors.New("bucket is closed")
 	}
 
-	var latest *apiv1.Event
-	var latestTime time.Time
+	if len(m.events) == 0 {
+		return nil, nil
+	}
 
-	for t, events := range m.events {
-		if latest == nil || t.After(latestTime) {
-			if len(events) > 0 {
-				latestEvent := events[0]
-				latest = &latestEvent
-				latestTime = t
-			}
+	latest := m.events[0]
+	for i := 1; i < len(m.events); i++ {
+		if m.events[i].Time.After(latest.Time) {
+			latest = m.events[i]
 		}
 	}
 
-	return latest, nil
+	return &latest, nil
 }
 
 func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.closed {
 		return 0, errors.New("bucket is closed")
 	}
 
 	beforeTime := time.Unix(beforeTimestamp, 0)
 	count := 0
+	var remainingEvents []eventstore.Event
 
-	for t, events := range m.events {
-		if t.Before(beforeTime) {
-			count += len(events)
-			delete(m.events, t)
+	for _, event := range m.events {
+		if event.Time.Before(beforeTime) {
+			count++
+		} else {
+			remainingEvents = append(remainingEvents, event)
 		}
 	}
+	m.events = remainingEvents
 
 	return count, nil
 }
 
+// Close marks the mock bucket as closed.
 func (m *mockEventBucket) Close() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.closed = true
 }
+
+// Ensure mockEventBucket satisfies the interface
+var _ eventstore.Bucket = (*mockEventBucket)(nil)
 
 // mockPeermemChecker mocks the CheckLsmodPeermemModule function
 type mockPeermemChecker struct {
@@ -181,6 +200,13 @@ type mockPeermemChecker struct {
 
 func (m *mockPeermemChecker) Check(ctx context.Context) (*querypeermem.LsmodPeermemModuleOutput, error) {
 	return m.output, m.err
+}
+
+// Mock EventStore for testing New error path
+type mockErrorEventStore struct{}
+
+func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return nil, errors.New("failed to create bucket")
 }
 
 func TestComponentName(t *testing.T) {
@@ -210,10 +236,40 @@ func TestNewComponent(t *testing.T) {
 	assert.NotNil(t, comp)
 }
 
+func TestNewComponentError(t *testing.T) {
+	// Test creating a component when event store fails to create bucket
+	// Note: Bucket creation only happens on Linux.
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      context.Background(),
+		NVMLInstance: &mockNVMLInstance{exists: true},
+		EventStore:   &mockErrorEventStore{},
+	}
+
+	comp, err := New(gpudInstance)
+
+	if runtime.GOOS == "linux" {
+		assert.Error(t, err)
+		assert.Nil(t, comp)
+		if err != nil { // Avoid panic on nil err
+			assert.Contains(t, err.Error(), "failed to create bucket")
+		}
+	} else {
+		// On non-Linux, bucket creation is skipped, so New should succeed
+		assert.NoError(t, err)
+		require.NotNil(t, comp)
+		// Assert that the event bucket was not assigned
+		peermemComp, ok := comp.(*component)
+		require.True(t, ok)
+		assert.Nil(t, peermemComp.eventBucket)
+	}
+}
+
 func TestCheckWithNoNVML(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	c := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	result := c.Check()
@@ -324,27 +380,45 @@ func TestEvents(t *testing.T) {
 	}
 
 	// Test when eventBucket is nil
+	tempBucket := c.eventBucket
 	c.eventBucket = nil
 	events, err := c.Events(context.Background(), time.Now().Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.Nil(t, events)
+	c.eventBucket = tempBucket // Restore
 
 	// Test when eventBucket is not nil
-	c.eventBucket = mockBucket
-
-	// Add some events
 	since := time.Now().Add(-time.Hour)
-	mockEvent := apiv1.Event{
-		Name:    "test-event",
-		Time:    metav1.Time{Time: time.Now()},
-		Message: "test message",
+	now := time.Now()
+	mockStoreEvent := eventstore.Event{
+		Name:      "test-event",
+		Time:      now,
+		Message:   "test message",
+		Component: Name,
+		Type:      string(apiv1.EventTypeInfo),
 	}
-	_ = mockBucket.Insert(context.Background(), mockEvent)
+	_ = mockBucket.Insert(context.Background(), mockStoreEvent)
+
+	expectedAPIEvent := apiv1.Event{
+		Name:      "test-event",
+		Time:      metav1.Time{Time: now},
+		Message:   "test message",
+		Component: Name,
+		Type:      apiv1.EventTypeInfo,
+	}
 
 	events, err = c.Events(context.Background(), since)
 	assert.NoError(t, err)
 	assert.Len(t, events, 1)
-	assert.Equal(t, "test-event", events[0].Name)
+	assert.Equal(t, expectedAPIEvent, events[0])
+
+	// Test Get error path
+	mockBucket.getErr = errors.New("failed to get events") // Simulate error
+	events, err = c.Events(context.Background(), since)
+	assert.Error(t, err)
+	assert.Nil(t, events)
+	assert.Equal(t, "failed to get events", err.Error())
+	mockBucket.getErr = nil // Reset error for subsequent tests if any
 }
 
 func TestDataMethods(t *testing.T) {
@@ -407,6 +481,19 @@ func TestClose(t *testing.T) {
 	err := c.Close()
 	assert.NoError(t, err)
 	assert.True(t, mockBucket.closed)
+}
+
+func TestCloseWithNilBucket(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := &component{
+		ctx:         ctx,
+		cancel:      cancel,
+		eventBucket: nil, // Explicitly set to nil
+	}
+
+	err := c.Close()
+	assert.NoError(t, err) // Close should not error if bucket is nil
 }
 
 func TestStart(t *testing.T) {
