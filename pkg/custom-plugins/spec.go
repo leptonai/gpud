@@ -39,18 +39,7 @@ func LoadSpecs(path string) (Specs, error) {
 		return nil, err
 	}
 
-	pluginSpecs, err = pluginSpecs.ExpandComponentList()
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range pluginSpecs {
-		if err := pluginSpecs[i].Validate(); err != nil {
-			return nil, err
-		}
-	}
-
-	return pluginSpecs, nil
+	return pluginSpecs.ExpandedValidate()
 }
 
 var (
@@ -67,6 +56,22 @@ const (
 	MaxPluginNameLength = 128
 	DefaultTimeout      = time.Minute
 )
+
+// ExpandedValidate expands the component list and validates all specs.
+func (pluginSpecs Specs) ExpandedValidate() (Specs, error) {
+	pluginSpecs, err := pluginSpecs.ExpandComponentList()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range pluginSpecs {
+		if err := pluginSpecs[i].Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	return pluginSpecs, nil
+}
 
 // ExpandComponentList expands the component list into multiple components.
 func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
@@ -144,15 +149,15 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 			// Create a new plugin with substituted parameters
 			expandedPlugin := Spec{
-				PluginName:        name,
-				Type:             SpecTypeComponent,
-				RunMode:          runMode,
+				PluginName: name,
+				Type:       SpecTypeComponent,
+				RunMode:    runMode,
 				HealthStatePlugin: &Plugin{
 					Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
 					Parser: spec.HealthStatePlugin.Parser,
 				},
-				Timeout:           spec.Timeout,
-				Interval:          spec.Interval,
+				Timeout:  spec.Timeout,
+				Interval: spec.Interval,
 			}
 
 			// Copy and substitute each step
@@ -184,7 +189,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
 	switch spec.Type {
-	// Allow only init and component types, not component list which should have been expanded by this point
+	// Allow only init and component types, not component list which should have been expanded by this point.
 	case SpecTypeInit, SpecTypeComponent:
 	default:
 		return ErrInvalidPluginType
@@ -193,7 +198,13 @@ func (spec *Spec) Validate() error {
 	if len(spec.PluginName) > MaxPluginNameLength {
 		return fmt.Errorf("plugin name is too long: %s", spec.PluginName)
 	}
+	if spec.ComponentName() == "" {
+		return ErrComponentNameRequired
+	}
 
+	if spec.HealthStatePlugin == nil {
+		return ErrMissingStatePlugin
+	}
 	if err := spec.HealthStatePlugin.Validate(); err != nil {
 		return err
 	}
