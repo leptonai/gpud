@@ -213,7 +213,7 @@ health_state_plugin:
         content_type: "plaintext"
         script: |
           #!/bin/bash
-          df -h | grep ${NAME}
+          df -h | grep /var
           if [ $? -eq 0 ]; then
             echo "Disk space OK"
             exit 0
