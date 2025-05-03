@@ -35,7 +35,7 @@ Plugins are configured using YAML files. Here's the basic structure:
 ```yaml
 plugin_name: string  # Required, max 128 chars
 type: string        # Required, one of: "init", "component", "component_list"
-run_mode: string    # Optional, defaults to "manual"
+run_mode: string    # Optional, defaults to "auto"
 timeout: duration   # Optional, defaults to 1 minute (e.g., "1m")
 interval: duration  # Optional, must be >= 1 minute if specified
 
