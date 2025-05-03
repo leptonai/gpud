@@ -92,6 +92,7 @@ type Session struct {
 
 	machineID string
 	endpoint  string
+	token     string
 
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
@@ -127,7 +128,7 @@ func (c *closeOnce) Done() chan any {
 	return c.closer
 }
 
-func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Session, error) {
+func NewSession(ctx context.Context, endpoint string, token string, opts ...OpOption) (*Session, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -147,6 +148,7 @@ func NewSession(ctx context.Context, endpoint string, opts ...OpOption) (*Sessio
 
 		endpoint:  endpoint,
 		machineID: op.machineID,
+		token:     token,
 
 		metricsStore:       op.metricsStore,
 		componentsRegistry: op.componentsRegistry,
@@ -222,13 +224,14 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 	}
 }
 
-func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType string, body io.Reader) (*http.Request, error) {
+func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint+"/api/v1/session", body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("machine_id", machineID)
 	req.Header.Set("session_type", sessionType)
+	req.Header.Set("token", token)
 	return req, nil
 }
 
@@ -244,7 +247,7 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
-	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "write", reader)
+	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "write", s.token, reader)
 	if err != nil {
 		log.Logger.Debugf("session writer: error creating request: %v", err)
 		return
@@ -305,7 +308,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 		close(readerExit)
 	}()
 
-	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "read", nil)
+	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "read", s.token, nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
 		close(pipeFinishCh)

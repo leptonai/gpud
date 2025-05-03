@@ -19,6 +19,7 @@ import (
 	"net/url"
 	stdos "os"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -148,6 +149,11 @@ type Server struct {
 	session            *session.Session
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+}
+
+type UserToken struct {
+	userToken string
+	mu        sync.RWMutex
 }
 
 func createURL(endpoint string) string {
@@ -387,9 +393,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		admin.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
-	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore)
+	userToken := &UserToken{}
+	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
-	go s.sendGossip(ctx, uid, nvmlInstance, endpoint)
+	go s.sendGossip(ctx, uid, nvmlInstance, endpoint, userToken)
 
 	return s, nil
 }
@@ -480,11 +487,14 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoint string, metricsStore pkgmetrics.Store) {
+func (s *Server) updateToken(ctx context.Context, db *sql.DB, machineID string, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, uid); err == nil {
+	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, machineID); err == nil {
 		userToken = dbToken
+		token.mu.Lock()
+		token.userToken = userToken
+		token.mu.Unlock()
 	}
 
 	if userToken != "" {
@@ -492,7 +502,8 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 		s.session, err = session.NewSession(
 			ctx,
 			endpoint,
-			session.WithMachineID(uid),
+			userToken,
+			session.WithMachineID(machineID),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -533,13 +544,17 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, uid string, endpoi
 
 		pipe.Close()
 		if userToken != "" {
+			token.mu.Lock()
+			token.userToken = userToken
+			token.mu.Unlock()
 			if s.session != nil {
 				s.session.Stop()
 			}
 			s.session, err = session.NewSession(
 				ctx,
 				endpoint,
-				session.WithMachineID(uid),
+				userToken,
+				session.WithMachineID(machineID),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -648,12 +663,19 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	}
 }
 
-func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidianvml.Instance, endpoint string) {
+func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
+	var token string
 	for {
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance)
+		userToken.mu.RLock()
+		token = userToken.userToken
+		userToken.mu.RUnlock()
+		if token == "" {
+			continue
+		}
+		gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance, token)
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
 		} else {

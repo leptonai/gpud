@@ -28,11 +28,6 @@ const (
 	SpecTypeComponentList = "component_list"
 )
 
-const (
-	// SpecModeManual is the mode of the plugin that is used to run manually.
-	SpecModeManual = "manual"
-)
-
 // Specs is a list of plugin specs.
 type Specs []Spec
 
@@ -44,6 +39,7 @@ type Spec struct {
 	PluginName string `json:"plugin_name"`
 
 	// Type defines the plugin type.
+	// Possible values: "init", "component".
 	Type string `json:"type"`
 
 	// ComponentList is a list of component names for SpecTypeComponentList.
@@ -54,15 +50,22 @@ type Spec struct {
 	// Each line can be a simple name or "name:param" format.
 	ComponentListFile string `json:"component_list_file,omitempty"`
 
+	// RunMode defines the run mode of the plugin.
+	// Possible values: "auto", "manual".
+	//
+	// RunMode is set to "auto" to run the plugin periodically, with the specified interval.
+	//
 	// RunMode is set to "manual" to run the plugin only when explicitly triggered.
 	// The manual mode plugin is only registered but not run periodically.
 	// - GPUd does not run this even once.
 	// - GPUd does not run this periodically.
 	//
-	// This "manual" mode is only applicable to "component" type plugins.
-	// The "init" type plugins are always run only once.
+	// This "auto" mode is only applicable to "component" type plugins.
+	// This "auto" mode is not applicable to "init" type plugins.
 	//
-	// If not set, the plugin is run periodically by default.
+	// The "init" type plugins are always run only once.
+	// This "manual" mode is only applicable to "component" type plugins.
+	// This "manual" mode is not applicable to "init" type plugins.
 	RunMode string `json:"run_mode"`
 
 	// HealthStatePlugin defines the plugin instructions

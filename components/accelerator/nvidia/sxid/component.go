@@ -259,6 +259,10 @@ type FoundError struct {
 	SXidError
 }
 
+func (cr *checkResult) ComponentName() string {
+	return Name
+}
+
 func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""

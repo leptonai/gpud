@@ -157,7 +157,7 @@ func TestCheckResult_String(t *testing.T) {
 		exitCode: 1,
 	}
 
-	expected := "test output\n\n(exit code 1)"
+	expected := "test output\n(exit code 1)"
 	assert.Equal(t, expected, cr.String())
 
 	// Test nil case
@@ -996,7 +996,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	testFile := filepath.Join("testdata", "plugins.plaintext.2.regex.yaml")
 	specs, err := LoadSpecs(testFile)
 	assert.NoError(t, err)
-	assert.Len(t, specs, 3)
+	assert.Len(t, specs, 5)
 
 	t.Run("test-healthy", func(t *testing.T) {
 		spec := specs[0]
@@ -1107,6 +1107,62 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 		assert.Equal(t, cr.extraInfo["error"], "")
 		assert.Equal(t, cr.extraInfo["passed"], "false")
 	})
+
+	t.Run("test-exit-0", func(t *testing.T) {
+		spec := specs[3]
+		assert.Equal(t, "exit-0", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(0), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())
+		assert.Contains(t, cr.reason, `ok`)
+		assert.Contains(t, rs.Summary(), `ok`)
+		assert.Equal(t, cr.extraInfo["description"], "calling exit 0")
+	})
+
+	t.Run("test-exit-1", func(t *testing.T) {
+		spec := specs[4]
+		assert.Equal(t, "exit-1", spec.PluginName)
+		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
+		assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
+
+		initFunc := spec.NewInitFunc()
+		assert.NotNil(t, initFunc)
+
+		comp, err := initFunc(&components.GPUdInstance{RootCtx: context.Background()})
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		rs := comp.Check()
+		assert.NotNil(t, rs)
+
+		cr, ok := rs.(*checkResult)
+		assert.True(t, ok)
+		assert.Equal(t, int32(1), cr.exitCode)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, rs.HealthStateType())
+		assert.Contains(t, cr.reason, `error executing state plugin (exit code: 1)`)
+		assert.Contains(t, rs.Summary(), `error executing state plugin (exit code: 1)`)
+		assert.Equal(t, cr.extraInfo["description"], "calling exit 1")
+	})
 }
 
 func TestComponentCheckManualExit(t *testing.T) {
@@ -1149,7 +1205,7 @@ func TestComponent_StartWithManualRunMode(t *testing.T) {
 	spec := &Spec{
 		PluginName: "test-plugin",
 		Type:       SpecTypeComponent,
-		RunMode:    SpecModeManual,
+		RunMode:    string(apiv1.RunModeTypeManual),
 		Timeout: metav1.Duration{
 			Duration: time.Second,
 		},
@@ -1188,7 +1244,7 @@ func TestComponent_ManualRunModeInHealthStates(t *testing.T) {
 	spec := &Spec{
 		PluginName: "test-plugin",
 		Type:       SpecTypeComponent,
-		RunMode:    SpecModeManual,
+		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
 	c := &component{
@@ -1256,7 +1312,7 @@ func TestComponent_Check_SetsRunMode(t *testing.T) {
 	spec := &Spec{
 		PluginName: "test-plugin",
 		Type:       SpecTypeComponent,
-		RunMode:    SpecModeManual,
+		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
 	c := &component{
@@ -1292,7 +1348,7 @@ func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
 	spec := &Spec{
 		PluginName: "test-plugin",
 		Type:       SpecTypeComponent,
-		RunMode:    SpecModeManual,
+		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
 	c := &component{

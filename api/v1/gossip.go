@@ -4,6 +4,7 @@ package v1
 type GossipRequest struct {
 	MachineID   string       `json:"machineID"`
 	MachineInfo *MachineInfo `json:"machineInfo,omitempty"`
+	Token       string       `json:"token,omitempty"`
 }
 
 // GossipResponse is the response for the gossip request.

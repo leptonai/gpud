@@ -121,6 +121,18 @@ UPDATE %s SET %s = ? WHERE %s = ?;
 	return err
 }
 
+func DeleteLoginInfo(ctx context.Context, dbRW *sql.DB) error {
+	query := fmt.Sprintf(`
+DELETE * FROM %s;
+`,
+		TableNameMachineMetadata,
+	)
+	start := time.Now()
+	_, err := dbRW.ExecContext(ctx, query)
+	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+	return err
+}
+
 func GetComponents(ctx context.Context, db *sql.DB, machineID string) (string, error) {
 	query := fmt.Sprintf(`
 SELECT COALESCE(%s, '') FROM %s WHERE %s = ?

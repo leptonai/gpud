@@ -16,12 +16,15 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
 )
@@ -126,7 +129,32 @@ func (s *Session) serve() {
 
 		case "delete":
 			go s.delete()
-
+		case "logout":
+			stateFile, err := config.DefaultStateFile()
+			if err != nil {
+				log.Logger.Errorw("failed to get state file", "error", err)
+				response.Error = err.Error()
+				break
+			}
+			dbRW, err := sqlite.Open(stateFile)
+			if err != nil {
+				log.Logger.Errorw("failed to open state file", "error", err)
+				response.Error = err.Error()
+				dbRW.Close()
+				break
+			}
+			if err = gpudstate.DeleteLoginInfo(ctx, dbRW); err != nil {
+				log.Logger.Errorw("failed to delete login info", "error", err)
+				response.Error = err.Error()
+				dbRW.Close()
+				break
+			}
+			dbRW.Close()
+			err = pkghost.Stop(s.ctx, pkghost.WithDelaySeconds(10))
+			if err != nil {
+				log.Logger.Errorf("failed to trigger stop gpud: %v", err)
+				response.Error = err.Error()
+			}
 		case "setHealthy":
 			log.Logger.Infow("setHealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {

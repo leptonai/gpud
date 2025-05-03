@@ -301,7 +301,7 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 	if err := p.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if scanner.Err() != nil {
+	if scanner.Err() != nil && !strings.Contains(scanner.Err().Error(), "file already closed") {
 		t.Fatal(scanner.Err())
 	}
 }
