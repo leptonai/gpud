@@ -23,6 +23,9 @@ const (
 	// SpecTypeComponent is the type of the plugin that is used to run as a component.
 	// Meant to be run periodically.
 	SpecTypeComponent = "component"
+	// SpecTypeComponentList is the type of the plugin that is used to run as multiple components.
+	// Each item in the component list becomes a separate component.
+	SpecTypeComponentList = "component_list"
 )
 
 const (
@@ -42,6 +45,14 @@ type Spec struct {
 
 	// Type defines the plugin type.
 	Type string `json:"type"`
+
+	// ComponentList is a list of component names for SpecTypeComponentList.
+	// Each item can be a simple name or "name:param" format.
+	ComponentList []string `json:"component_list,omitempty"`
+
+	// ComponentListFile is a path to a file containing component names for SpecTypeComponentList.
+	// Each line can be a simple name or "name:param" format.
+	ComponentListFile string `json:"component_list_file,omitempty"`
 
 	// RunMode is set to "manual" to run the plugin only when explicitly triggered.
 	// The manual mode plugin is only registered but not run periodically.

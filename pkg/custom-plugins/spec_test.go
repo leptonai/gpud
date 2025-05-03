@@ -1683,3 +1683,245 @@ func TestValidateSpecType(t *testing.T) {
 		})
 	}
 }
+
+func TestComponentListParameterInheritance(t *testing.T) {
+	testCases := []struct {
+		name           string
+		parentSpec     Spec
+		componentList  []string
+		expectedSpecs  []Spec
+		expectError    bool
+	}{
+		{
+			name: "inherit all from parent",
+			parentSpec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				Interval:   metav1.Duration{Duration: 5 * time.Minute},
+			},
+			componentList: []string{"root:/", "home:/home", "var:/var"},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "root",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+				{
+					PluginName: "home",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+				{
+					PluginName: "var",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "override run_mode in components",
+			parentSpec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				Interval:   metav1.Duration{Duration: 5 * time.Minute},
+			},
+			componentList: []string{"root/auto:/", "home/manual:/home", "var:/var"},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "root",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+				{
+					PluginName: "home",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+				{
+					PluginName: "var",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty component list",
+			parentSpec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				Interval:   metav1.Duration{Duration: 5 * time.Minute},
+			},
+			componentList: []string{},
+			expectError:   true,
+		},
+		{
+			name: "invalid component format",
+			parentSpec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				Interval:   metav1.Duration{Duration: 5 * time.Minute},
+			},
+			componentList: []string{"root/auto:/", "home/manual:/home", "invalid/format/here"},
+			expectError:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a copy of the parent spec with the component list
+			spec := tc.parentSpec
+			spec.ComponentList = tc.componentList
+
+			// Validate the spec
+			err := spec.Validate()
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			// Verify the expanded specs
+			assert.Equal(t, len(tc.expectedSpecs), len(spec.ComponentList))
+
+			// For each component in the list, verify its parameters
+			for i, component := range spec.ComponentList {
+				// Split the component string to get name, run_mode, and param
+				parts := strings.SplitN(component, ":", 2)
+				nameParts := strings.SplitN(parts[0], "/", 2)
+				name := nameParts[0]
+
+				// Create a new spec for this component
+				componentSpec := &Spec{
+					PluginName: name,
+					Type:       SpecTypeComponent,
+					RunMode:    tc.expectedSpecs[i].RunMode,
+					Timeout:    tc.expectedSpecs[i].Timeout,
+					Interval:   tc.expectedSpecs[i].Interval,
+				}
+
+				// Validate the component spec
+				err := componentSpec.Validate()
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestComponentListFileParameterInheritance(t *testing.T) {
+	// Create a temporary file for testing
+	tmpFile, err := os.CreateTemp("", "component-list-*.txt")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	// Write test components to the file
+	components := `# This is a comment
+root/auto:/          # Full format with run_mode and param
+home/manual:/home    # Full format with run_mode and param
+var/auto             # Run mode only
+data:param1          # Parameter only
+backup               # Name only
+
+# Another comment
+`
+	_, err = tmpFile.WriteString(components)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	// Create a parent spec
+	parentSpec := Spec{
+		PluginName: "test-plugin",
+		Type:       SpecTypeComponentList,
+		RunMode:    "auto",
+		Timeout:    metav1.Duration{Duration: 30 * time.Second},
+		Interval:   metav1.Duration{Duration: 5 * time.Minute},
+	}
+
+	// Test with the file
+	parentSpec.ComponentListFile = tmpFile.Name()
+	err = parentSpec.Validate()
+	assert.NoError(t, err)
+
+	// Verify the expanded specs
+	expectedSpecs := []Spec{
+		{
+			PluginName: "root",
+			Type:       SpecTypeComponent,
+			RunMode:    "auto",
+			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		},
+		{
+			PluginName: "home",
+			Type:       SpecTypeComponent,
+			RunMode:    "manual",
+			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		},
+		{
+			PluginName: "var",
+			Type:       SpecTypeComponent,
+			RunMode:    "auto",
+			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		},
+		{
+			PluginName: "data",
+			Type:       SpecTypeComponent,
+			RunMode:    "auto",
+			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		},
+		{
+			PluginName: "backup",
+			Type:       SpecTypeComponent,
+			RunMode:    "auto",
+			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		},
+	}
+
+	// Verify each component in the list
+	for i, component := range parentSpec.ComponentList {
+		// Split the component string to get name, run_mode, and param
+		parts := strings.SplitN(component, ":", 2)
+		nameParts := strings.SplitN(parts[0], "/", 2)
+		name := nameParts[0]
+
+		// Create a new spec for this component
+		componentSpec := &Spec{
+			PluginName: name,
+			Type:       SpecTypeComponent,
+			RunMode:    expectedSpecs[i].RunMode,
+			Timeout:    expectedSpecs[i].Timeout,
+			Interval:   expectedSpecs[i].Interval,
+		}
+
+		// Validate the component spec
+		err := componentSpec.Validate()
+		assert.NoError(t, err)
+	}
+}
