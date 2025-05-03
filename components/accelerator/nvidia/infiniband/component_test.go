@@ -800,9 +800,9 @@ func TestLastHealthStates(t *testing.T) {
 
 	// Test with data
 	mockData := &checkResult{
-		health:    apiv1.HealthStateTypeUnhealthy,
-		reason:    "test reason",
-		errIbstat: fmt.Errorf("test error"),
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "test reason",
+		err:    fmt.Errorf("test error"),
 	}
 	c.lastMu.Lock()
 	c.lastCheckResult = mockData
@@ -885,7 +885,7 @@ func TestDataGetError(t *testing.T) {
 	assert.Equal(t, "", cr.getError())
 
 	// Test with error
-	cr = &checkResult{errIbstat: errors.New("test error")}
+	cr = &checkResult{err: errors.New("test error")}
 	assert.Equal(t, "test error", cr.getError())
 }
 
@@ -1407,7 +1407,7 @@ func TestComponentBothOutputFail(t *testing.T) {
 	assert.Equal(t, "missing event storage (skipped evaluation)", data.reason)
 	assert.Nil(t, data.IbstatOutput, "Expected ibstat output to be nil")
 	assert.Nil(t, data.IbstatusOutput, "Expected ibstatus output to be nil")
-	assert.Error(t, data.errIbstat, "Expected ibstat error to be set")
+	assert.Error(t, data.err, "Expected ibstat error to be set")
 	assert.Error(t, data.errIbstatus, "Expected ibstatus error to be set")
 }
 
@@ -1498,7 +1498,7 @@ func TestCheckResultMethodsDirectCoverage(t *testing.T) {
 				},
 			},
 		},
-		errIbstat:   errors.New("test ibstat error"),
+		err:         errors.New("test ibstat error"),
 		errIbstatus: errors.New("test ibstatus error"),
 		reason:      "test reason",
 		health:      apiv1.HealthStateTypeUnhealthy,
@@ -1519,7 +1519,7 @@ func TestCheckResultMethodsDirectCoverage(t *testing.T) {
 
 	// Test with ibstat error nil
 	resultWithoutIbstatError := &checkResult{
-		errIbstat:   nil,
+		err:         nil,
 		errIbstatus: errors.New("ibstatus error"),
 	}
 	assert.Equal(t, "ibstatus error", resultWithoutIbstatError.getError())
@@ -1666,7 +1666,7 @@ func TestComponentStringWithVariousOutputs(t *testing.T) {
 		},
 		reason:      "test both reason",
 		health:      apiv1.HealthStateTypeHealthy,
-		errIbstat:   errors.New("test ibstat error"),
+		err:         errors.New("test ibstat error"),
 		errIbstatus: errors.New("test ibstatus error"),
 		ts:          time.Now().UTC(),
 	}

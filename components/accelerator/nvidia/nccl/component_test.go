@@ -2,6 +2,8 @@ package nccl
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -70,6 +73,9 @@ type MockEventStore struct {
 
 func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(eventstore.Bucket), args.Error(1)
 }
 
@@ -447,4 +453,200 @@ func TestLastHealthStates(t *testing.T) {
 	assert.Equal(t, Name, healthStates[0].Component)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	assert.Equal(t, "no issue", healthStates[0].Reason)
+}
+
+func TestCheckResult_HealthStates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil check result", func(t *testing.T) {
+		var cr *checkResult
+		states := cr.HealthStates()
+		assert.Len(t, states, 1)
+		assert.Equal(t, Name, states[0].Component)
+		assert.Equal(t, Name, states[0].Name)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, "no data yet", states[0].Reason)
+	})
+
+	t.Run("check result with no error", func(t *testing.T) {
+		timestamp := time.Now().UTC()
+		cr := &checkResult{
+			ts:     timestamp,
+			health: apiv1.HealthStateTypeHealthy,
+			reason: "all good",
+		}
+		states := cr.HealthStates()
+		assert.Len(t, states, 1)
+		assert.Equal(t, Name, states[0].Component)
+		assert.Equal(t, Name, states[0].Name)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, "all good", states[0].Reason)
+		assert.Empty(t, states[0].Error)
+		assert.Equal(t, metav1.NewTime(timestamp), states[0].Time)
+	})
+
+	t.Run("check result with error", func(t *testing.T) {
+		timestamp := time.Now().UTC()
+		cr := &checkResult{
+			ts:     timestamp,
+			health: apiv1.HealthStateTypeUnhealthy,
+			reason: "something went wrong",
+			err:    assert.AnError,
+		}
+		states := cr.HealthStates()
+		assert.Len(t, states, 1)
+		assert.Equal(t, Name, states[0].Component)
+		assert.Equal(t, Name, states[0].Name)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, "something went wrong", states[0].Reason)
+		assert.Equal(t, assert.AnError.Error(), states[0].Error)
+		assert.Equal(t, metav1.NewTime(timestamp), states[0].Time)
+	})
+}
+
+func TestCheck_NVML_NotExists(t *testing.T) {
+	t.Parallel()
+
+	mockNvml := new(mockNVMLInstance)
+	mockNvml.On("NVMLExists").Return(false)
+
+	comp := &component{
+		nvmlInstance: mockNvml,
+	}
+	result := comp.Check()
+	assert.NotNil(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "NVIDIA NVML library is not loaded")
+}
+
+func TestCheck_NVML_NoProductName(t *testing.T) {
+	t.Parallel()
+
+	mockNvml := new(mockNVMLInstance)
+	mockNvml.On("NVMLExists").Return(true)
+	mockNvml.On("ProductName").Return("")
+
+	comp := &component{
+		nvmlInstance: mockNvml,
+	}
+	result := comp.Check()
+	assert.NotNil(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "NVIDIA NVML is loaded but GPU is not detected")
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil event store", func(t *testing.T) {
+		instance := &components.GPUdInstance{
+			RootCtx:      context.Background(),
+			NVMLInstance: nil,
+			EventStore:   nil,
+		}
+		comp, err := New(instance)
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+		assert.Equal(t, Name, comp.Name())
+
+		// Clean up
+		err = comp.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("event store bucket error", func(t *testing.T) {
+		// Skip this test on non-Linux platforms as the code has Linux-specific paths
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping on non-Linux platform")
+			return
+		}
+
+		// Create a mock store that returns an error when Bucket is called
+		mockStore := new(MockEventStore)
+		mockStore.On("Bucket", Name).Return(nil, fmt.Errorf("test bucket error"))
+
+		instance := &components.GPUdInstance{
+			RootCtx:      context.Background(),
+			NVMLInstance: nil,
+			EventStore:   mockStore,
+		}
+
+		// Call New - should return an error
+		comp, err := New(instance)
+		assert.Error(t, err)
+		assert.Nil(t, comp)
+		assert.Contains(t, err.Error(), "test bucket error")
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("with event store", func(t *testing.T) {
+		// Skip this test on non-Linux platforms as the code has Linux-specific paths
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping on non-Linux platform")
+		}
+
+		// Create a real instance but with mock event store
+		mockStore := new(MockEventStore)
+		mockBucket := new(mockEventBucket)
+		mockStore.On("Bucket", Name).Return(mockBucket, nil)
+
+		// We won't verify calls to avoid timing issues in tests
+		mockBucket.On("Close").Maybe().Return()
+
+		instance := &components.GPUdInstance{
+			RootCtx:      context.Background(),
+			NVMLInstance: nil,
+			EventStore:   mockStore,
+		}
+
+		// This may create a kmsg.Syncer depending on runtime conditions
+		// so we'll just test that New succeeds and not worry about mocks
+		comp, err := New(instance)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.NotNil(t, comp)
+
+		// Validate the component has expected properties
+		c, ok := comp.(*component)
+		assert.True(t, ok)
+
+		// Based on OS and euid, eventBucket might be set
+		if runtime.GOOS == "linux" {
+			assert.NotNil(t, c.eventBucket)
+		}
+
+		// We won't verify the mock calls as they depend on the runtime environment
+		// Just ensure Close doesn't return an error
+		err = comp.Close()
+		assert.NoError(t, err)
+	})
+}
+
+func TestCheckResult_GetError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil check result", func(t *testing.T) {
+		var cr *checkResult
+		errStr := cr.getError()
+		assert.Empty(t, errStr)
+	})
+
+	t.Run("check result with nil error", func(t *testing.T) {
+		cr := &checkResult{
+			err: nil,
+		}
+		errStr := cr.getError()
+		assert.Empty(t, errStr)
+	})
+
+	t.Run("check result with error", func(t *testing.T) {
+		testErr := fmt.Errorf("test error")
+		cr := &checkResult{
+			err: testErr,
+		}
+		errStr := cr.getError()
+		assert.Equal(t, "test error", errStr)
+	})
 }
