@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/components"
 )
 
 func TestApplyOpts(t *testing.T) {
@@ -80,7 +81,7 @@ func TestNewSession(t *testing.T) {
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
 
-	session, err := NewSession(ctx, endpoint, WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
+	session, err := NewSession(ctx, endpoint, "", WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
 	if err != nil {
 		t.Fatalf("error creating session: %v", err)
 	}
@@ -156,6 +157,7 @@ func TestStartWriterAndReader(t *testing.T) {
 		cancel:       cancel,
 		pipeInterval: 10 * time.Millisecond, // Reduce interval for faster testing
 		endpoint:     server.URL,
+		token:        "testToken",
 		machineID:    "test_machine",
 		writer:       make(chan Body, 100),
 		reader:       make(chan Body, 100),
@@ -327,7 +329,7 @@ func TestCreateSessionRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := createSessionRequest(tt.ctx, tt.endpoint, tt.machineID, tt.sessionType, tt.body)
+			req, err := createSessionRequest(tt.ctx, tt.endpoint, tt.machineID, tt.sessionType, "", tt.body)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("createSessionRequest() error = %v, wantErr %v", err, tt.wantErr)
 				return

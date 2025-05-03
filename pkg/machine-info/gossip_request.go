@@ -7,9 +7,10 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func CreateGossipRequest(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
+func CreateGossipRequest(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error) {
 	req := &apiv1.GossipRequest{
 		MachineID: machineID,
+		Token:     token,
 	}
 
 	var err error
