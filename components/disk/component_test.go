@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -599,4 +601,250 @@ func TestCheckResultString(t *testing.T) {
 		assert.Contains(t, result, "/mnt/data1")
 		assert.NotContains(t, result, "/mnt/data2")
 	})
+}
+
+func TestFindMntRetryLogic(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		failCount         int
+		expectSuccess     bool
+		cancelAfter       time.Duration
+		expectHealthState apiv1.HealthStateType
+	}{
+		{
+			name:              "succeeds first try",
+			failCount:         0,
+			expectSuccess:     true,
+			expectHealthState: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name:              "succeeds after 3 retries",
+			failCount:         3,
+			expectSuccess:     true,
+			expectHealthState: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name:              "fails all 5 attempts",
+			failCount:         5,
+			expectSuccess:     false,
+			expectHealthState: apiv1.HealthStateTypeHealthy, // Component remains healthy even if findMnt fails
+		},
+		{
+			name:              "context canceled during retry",
+			failCount:         3,
+			cancelAfter:       1 * time.Second,
+			expectSuccess:     false,
+			expectHealthState: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Track number of function calls
+			callCount := 0
+
+			mockFindMntFunc := func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+				callCount++
+				if callCount <= tc.failCount {
+					return nil, errors.New("mock error")
+				}
+				return &disk.FindMntOutput{
+					Filesystems: []disk.FoundMnt{
+						{
+							Sources:              []string{"/dev/sda1"},
+							SizeHumanized:        "100G",
+							AvailableHumanized:   "50G",
+							UsedHumanized:        "50G",
+							UsedPercentHumanized: "50%",
+						},
+					},
+				}, nil
+			}
+
+			// Create component with mock functions
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:         ctx,
+				cancel:      cancel,
+				findMntFunc: mockFindMntFunc,
+				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+					return disk.Partitions{
+						{
+							Device:     "/dev/sda1",
+							MountPoint: "/",
+							Usage: &disk.Usage{
+								TotalBytes: 100 * 1024 * 1024 * 1024,
+								UsedBytes:  50 * 1024 * 1024 * 1024,
+								FreeBytes:  50 * 1024 * 1024 * 1024,
+							},
+						},
+					}, nil
+				},
+				mountPointsToTrackUsage: map[string]struct{}{
+					tempDir: {},
+				},
+			}
+
+			// Set up cancellation if needed
+			if tc.cancelAfter > 0 {
+				time.AfterFunc(tc.cancelAfter, cancel)
+			}
+
+			// Run the Check method
+			result := c.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify health state
+			assert.Equal(t, tc.expectHealthState, cr.health)
+
+			// Verify call count
+			if tc.expectSuccess {
+				assert.LessOrEqual(t, tc.failCount+1, callCount, "Expected at least failCount+1 calls")
+				assert.NotNil(t, cr.MountTargetUsages)
+				assert.Contains(t, cr.MountTargetUsages, tempDir)
+			} else if tc.cancelAfter > 0 {
+				assert.LessOrEqual(t, callCount, tc.failCount+1, "Expected at most failCount+1 calls due to cancellation")
+				assert.Equal(t, context.Canceled, cr.err)
+			} else {
+				assert.Equal(t, 5, callCount, "Expected exactly 5 calls for complete failure")
+				// MountTargetUsages may still be nil or not contain the temp dir
+			}
+		})
+	}
+}
+
+func TestMountTargetUsagesInitialization(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	// Test that MountTargetUsages is properly initialized
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			return &disk.FindMntOutput{
+				Filesystems: []disk.FoundMnt{
+					{
+						Sources:              []string{"/dev/sda1"},
+						SizeHumanized:        "100G",
+						AvailableHumanized:   "50G",
+						UsedHumanized:        "50G",
+						UsedPercentHumanized: "50%",
+					},
+				},
+			}, nil
+		},
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/",
+					Usage: &disk.Usage{
+						TotalBytes: 100 * 1024 * 1024 * 1024,
+						UsedBytes:  50 * 1024 * 1024 * 1024,
+						FreeBytes:  50 * 1024 * 1024 * 1024,
+					},
+				},
+			}, nil
+		},
+		mountPointsToTrackUsage: map[string]struct{}{
+			tempDir: {},
+		},
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.NotNil(t, cr.MountTargetUsages, "MountTargetUsages should be initialized")
+	assert.Contains(t, cr.MountTargetUsages, tempDir, "MountTargetUsages should contain the tempDir")
+	assert.Len(t, cr.MountTargetUsages[tempDir].Filesystems, 1, "Should have one filesystem entry")
+	assert.Equal(t, "/dev/sda1", cr.MountTargetUsages[tempDir].Filesystems[0].Sources[0])
+}
+
+func TestFindMntLogging(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	// Test logging on retry success
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	callCount := 0
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, errors.New("mock error")
+			}
+			return &disk.FindMntOutput{
+				Filesystems: []disk.FoundMnt{
+					{
+						Sources:              []string{"/dev/sda1"},
+						SizeHumanized:        "100G",
+						AvailableHumanized:   "50G",
+						UsedHumanized:        "50G",
+						UsedPercentHumanized: "50%",
+					},
+				},
+			}, nil
+		},
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/",
+					Usage: &disk.Usage{
+						TotalBytes: 100 * 1024 * 1024 * 1024,
+						UsedBytes:  50 * 1024 * 1024 * 1024,
+						FreeBytes:  50 * 1024 * 1024 * 1024,
+					},
+				},
+			}, nil
+		},
+		mountPointsToTrackUsage: map[string]struct{}{
+			tempDir: {},
+		},
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, 2, callCount, "Expected 2 calls")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.NotNil(t, cr.MountTargetUsages)
+	assert.Contains(t, cr.MountTargetUsages, tempDir)
 }

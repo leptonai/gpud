@@ -134,6 +134,9 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.getBlockDevicesFunc != nil {
+		// in case the command is flaky with unknown characters
+		// e.g.,
+		// "unexpected end of JSON input"
 		prevFailed := false
 		for i := 0; i < 5; i++ {
 			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
@@ -167,6 +170,9 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	// in case the command is flaky with unknown characters
+	// e.g.,
+	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
 		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
@@ -229,18 +235,38 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		mntOut, err := c.findMntFunc(cctx, target)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("error finding mount target device", "mount_target", target, "error", err)
-			continue
-		}
+		// in case the command is flaky with unknown characters
+		// e.g.,
+		// "unexpected end of JSON input"
+		prevFailed = false
+		for i := 0; i < 5; i++ {
+			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+			mntOut, err := c.findMntFunc(cctx, target)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorw("failed to find mnt", "error", err)
 
-		if cr.MountTargetUsages == nil {
-			cr.MountTargetUsages = make(map[string]disk.FindMntOutput)
+				select {
+				case <-c.ctx.Done():
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.err = c.ctx.Err()
+					return cr
+				case <-time.After(5 * time.Second):
+				}
+
+				prevFailed = true
+				continue
+			}
+
+			if cr.MountTargetUsages == nil {
+				cr.MountTargetUsages = make(map[string]disk.FindMntOutput)
+			}
+			cr.MountTargetUsages[target] = *mntOut
+			if prevFailed {
+				log.Logger.Infow("successfully ran findmnt after retries")
+			}
+			break
 		}
-		cr.MountTargetUsages[target] = *mntOut
 	}
 
 	if len(cr.BlockDevices) > 0 && len(cr.ExtPartitions) > 0 {
