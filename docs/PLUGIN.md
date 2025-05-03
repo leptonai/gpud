@@ -57,7 +57,7 @@ Each component in the list can be specified in one of four formats:
 
 1. **Full Format**: `name#run_mode:param`
    - `name`: Component name
-   - `run_mode`: Optional run mode (auto, manual, once)
+   - `run_mode`: Optional run mode (possible values: auto, manual) -- "once" mode to be supported in the future
    - `param`: Optional parameter
 
 2. **Run Mode Only**: `name#run_mode`
