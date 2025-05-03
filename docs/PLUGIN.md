@@ -134,7 +134,7 @@ steps:
 #### Component List File
 ```yaml
 plugin_name: "multi-disk-check"
-type: "component"
+type: "component_list"
 run_mode: "auto"
 interval: "1m"
 timeout: "30s"
