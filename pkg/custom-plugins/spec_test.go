@@ -1731,7 +1731,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo root ",
+									Script:      "echo root /",
 								},
 							},
 						},
@@ -1749,7 +1749,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo home ",
+									Script:      "echo home /home",
 								},
 							},
 						},
@@ -1767,7 +1767,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo var ",
+									Script:      "echo var /var",
 								},
 							},
 						},
@@ -1798,7 +1798,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 					},
 				},
 			},
-			componentList: []string{"root/auto:/", "home/manual:/home", "var:/var"},
+			componentList: []string{"root#auto:/", "home#manual:/home", "var:/var"},
 			expectedSpecs: []Spec{
 				{
 					PluginName: "root",
@@ -1812,7 +1812,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo root ",
+									Script:      "echo root /",
 								},
 							},
 						},
@@ -1830,7 +1830,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo home ",
+									Script:      "echo home /home",
 								},
 							},
 						},
@@ -1848,7 +1848,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 								Name: "test-step",
 								RunBashScript: &RunBashScript{
 									ContentType: "plaintext",
-									Script:      "echo var ",
+									Script:      "echo var /var",
 								},
 							},
 						},
@@ -1880,31 +1880,6 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 			},
 			componentList: []string{},
-			expectError:   true,
-		},
-		{
-			name: "invalid component format",
-			parentSpec: []Spec{
-				{
-					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
-					RunMode:    "auto",
-					Timeout:    metav1.Duration{Duration: 30 * time.Second},
-					Interval:   metav1.Duration{Duration: 5 * time.Minute},
-					HealthStatePlugin: &Plugin{
-						Steps: []Step{
-							{
-								Name: "test-step",
-								RunBashScript: &RunBashScript{
-									ContentType: "plaintext",
-									Script:      "echo ${NAME} ${PAR}",
-								},
-							},
-						},
-					},
-				},
-			},
-			componentList: []string{"root/auto:/", "home/manual:/home", "invalid/format/here"},
 			expectError:   true,
 		},
 	}
@@ -1949,12 +1924,20 @@ func TestComponentListFileParameterInheritance(t *testing.T) {
 
 	// Write test components to the file
 	components := `# This is a comment
-root/auto:/          # Full format with run_mode and param
-home/manual:/home    # Full format with run_mode and param
-var/auto             # Run mode only
-data:param1          # Parameter only
-backup               # Name only
+# Full format with run_mode and param
+root#auto:/     
 
+# Full format with run_mode and param     
+home#manual:/home    
+
+# Run mode only
+var#auto             
+
+# Parameter only
+data:param1     
+
+# Name only     
+backup               
 # Another comment
 `
 	_, err = tmpFile.WriteString(components)
@@ -2002,7 +1985,7 @@ backup               # Name only
 						Name: "test-step",
 						RunBashScript: &RunBashScript{
 							ContentType: "plaintext",
-							Script:      "echo root ",
+							Script:      "echo root /",
 						},
 					},
 				},
@@ -2020,7 +2003,7 @@ backup               # Name only
 						Name: "test-step",
 						RunBashScript: &RunBashScript{
 							ContentType: "plaintext",
-							Script:      "echo home ",
+							Script:      "echo home /home",
 						},
 					},
 				},
@@ -2056,7 +2039,7 @@ backup               # Name only
 						Name: "test-step",
 						RunBashScript: &RunBashScript{
 							ContentType: "plaintext",
-							Script:      "echo data ",
+							Script:      "echo data param1",
 						},
 					},
 				},

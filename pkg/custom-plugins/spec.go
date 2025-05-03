@@ -99,14 +99,19 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 			spec.ComponentList = make([]string, 0, len(lines))
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
-				if line != "" {
-					spec.ComponentList = append(spec.ComponentList, line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
 				}
+				spec.ComponentList = append(spec.ComponentList, line)
 			}
 
 			if len(spec.ComponentList) == 0 {
 				return nil, fmt.Errorf("component list file %s is empty", spec.ComponentListFile)
 			}
+		}
+
+		if len(spec.ComponentList) == 0 {
+			return nil, fmt.Errorf("component list is empty")
 		}
 
 		// Validate each component name in the list
