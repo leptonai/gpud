@@ -55,7 +55,7 @@ type component struct {
 	kmsgWatcher      kmsg.Watcher
 
 	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
-	extraEventCh chan *apiv1.Event
+	extraEventCh chan *eventstore.Event
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -72,7 +72,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance:     gpudInstance.NVMLInstance,
 		rebootEventStore: gpudInstance.RebootEventStore,
 
-		extraEventCh: make(chan *apiv1.Event, 256),
+		extraEventCh: make(chan *eventstore.Event, 256),
 	}
 
 	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
@@ -150,7 +150,8 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 
 	var ret apiv1.Events
 	for _, event := range events {
-		ret = append(ret, resolveSXIDEvent(event))
+		ev := resolveSXIDEvent(event)
+		ret = append(ret, ev.ToEvent())
 	}
 	return ret, nil
 }
@@ -389,10 +390,10 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			logger := log.Logger.With("id", id, "sxid", sxidErr.SXid, "sxidName", sxidName, "deviceUUID", sxidErr.DeviceUUID)
 			logger.Infow("got sxid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
 
-			event := apiv1.Event{
-				Time: message.Timestamp,
+			event := eventstore.Event{
+				Time: message.Timestamp.Time,
 				Name: EventNameErrorSXid,
-				DeprecatedExtraInfo: map[string]string{
+				ExtraInfo: map[string]string{
 					EventKeyErrorSXidData: strconv.FormatInt(int64(sxidErr.SXid), 10),
 					EventKeyDeviceUUID:    sxidErr.DeviceUUID,
 				},
@@ -423,7 +424,10 @@ var _ components.HealthSettable = &component{}
 
 func (c *component) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")
-	newEvent := &apiv1.Event{Time: metav1.Time{Time: time.Now().UTC()}, Name: "SetHealthy"}
+	newEvent := &eventstore.Event{
+		Time: time.Now().UTC(),
+		Name: "SetHealthy",
+	}
 	select {
 	case c.extraEventCh <- newEvent:
 	default:
@@ -462,17 +466,17 @@ func (c *component) updateCurrentState() error {
 }
 
 // mergeEvents merges two event slices and returns a time descending sorted new slice
-func mergeEvents(a, b apiv1.Events) apiv1.Events {
+func mergeEvents(a, b eventstore.Events) eventstore.Events {
 	totalLen := len(a) + len(b)
 	if totalLen == 0 {
 		return nil
 	}
-	result := make(apiv1.Events, 0, totalLen)
+	result := make(eventstore.Events, 0, totalLen)
 	result = append(result, a...)
 	result = append(result, b...)
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Time.Time.After(result[j].Time.Time)
+		return result[i].Time.After(result[j].Time)
 	})
 
 	return result

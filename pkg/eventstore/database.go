@@ -10,16 +10,13 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-const (
-	schemaVersion = "v0_4_0"
-)
+// TODO: drop tables with "v0_4_0"
+const schemaVersion = "v0_5_0"
 
 const (
 	// columnTimestamp represents the event timestamp in unix seconds.
@@ -43,10 +40,6 @@ const (
 	// event target: "gpu_id", "gpu_uuid".
 	// log detail: "oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0".
 	columnExtraInfo = "extra_info"
-
-	// columnSuggestedActions represents event suggested actions
-	// e.g., "reboot"
-	columnSuggestedActions = "suggested_actions"
 )
 
 var (
@@ -170,22 +163,22 @@ func (t *table) Close() {
 	}
 }
 
-func (t *table) Insert(ctx context.Context, ev apiv1.Event) error {
+func (t *table) Insert(ctx context.Context, ev Event) error {
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
 // Find returns nil if the event is not found.
-func (t *table) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+func (t *table) Find(ctx context.Context, ev Event) (*Event, error) {
 	return findEvent(ctx, t.dbRO, t.table, ev)
 }
 
 // Get queries the event in the descending order of timestamp (latest event first).
-func (t *table) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (t *table) Get(ctx context.Context, since time.Time) (Events, error) {
 	return getEvents(ctx, t.dbRO, t.table, since)
 }
 
 // Latest queries the latest event, returns nil if no event found.
-func (t *table) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (t *table) Latest(ctx context.Context) (*Event, error) {
 	return lastEvent(ctx, t.dbRO, t.table)
 }
 
@@ -205,7 +198,6 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT,
-	%s TEXT,
 	%s TEXT
 );`, tableName,
 		columnTimestamp,
@@ -213,7 +205,6 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 		columnType,
 		columnMessage,
 		columnExtraInfo,
-		columnSuggestedActions,
 	))
 	if err != nil {
 		_ = tx.Rollback()
@@ -244,53 +235,44 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	return tx.Commit()
 }
 
-func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev apiv1.Event) error {
+func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) error {
 	start := time.Now()
-	var extraInfoJSON, suggestedActionsJSON []byte
-	var err error
-	if ev.DeprecatedExtraInfo != nil {
-		extraInfoJSON, err = json.Marshal(ev.DeprecatedExtraInfo)
+	var extraInfoJSON []byte
+	if ev.ExtraInfo != nil {
+		var err error
+		extraInfoJSON, err = json.Marshal(ev.ExtraInfo)
 		if err != nil {
 			return fmt.Errorf("failed to marshal extra info: %w", err)
 		}
 	}
-	if ev.DeprecatedSuggestedActions != nil {
-		suggestedActionsJSON, err = json.Marshal(ev.DeprecatedSuggestedActions)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to marshal suggested actions: %w", err)
-	}
 
-	_, err = db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))",
+	_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))",
 		tableName,
 		columnTimestamp,
 		columnName,
 		columnType,
 		columnMessage,
 		columnExtraInfo,
-		columnSuggestedActions,
 	),
 		ev.Time.Unix(),
 		ev.Name,
 		ev.Type,
 		ev.Message,
 		string(extraInfoJSON),
-		string(suggestedActionsJSON),
 	)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 
 	return err
 }
 
-func findEvent(ctx context.Context, db *sql.DB, tableName string, ev apiv1.Event) (*apiv1.Event, error) {
+func findEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) (*Event, error) {
 	selectStatement := fmt.Sprintf(`
-SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
+SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 		columnTimestamp,
 		columnName,
 		columnType,
 		columnMessage,
 		columnExtraInfo,
-		columnSuggestedActions,
 		tableName,
 		columnTimestamp,
 		columnName,
@@ -299,20 +281,10 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 	if ev.Message != "" {
 		selectStatement += fmt.Sprintf(" AND %s = ?", columnMessage)
 	}
-	if ev.DeprecatedSuggestedActions != nil {
-		selectStatement += fmt.Sprintf(" AND %s = ?", columnSuggestedActions)
-	}
 
 	params := []any{ev.Time.Unix(), ev.Name, ev.Type}
 	if ev.Message != "" {
 		params = append(params, ev.Message)
-	}
-	if ev.DeprecatedSuggestedActions != nil {
-		suggestedActionsJSON, err := json.Marshal(ev.DeprecatedSuggestedActions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal suggested actions: %w", err)
-		}
-		params = append(params, string(suggestedActionsJSON))
 	}
 
 	start := time.Now()
@@ -340,12 +312,12 @@ SELECT %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) (apiv1.Events, error) {
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
+func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) (Events, error) {
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
 WHERE %s > ?
 ORDER BY %s DESC`,
-		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, columnSuggestedActions,
+		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo,
 		tableName,
 		columnTimestamp,
 		columnTimestamp,
@@ -364,7 +336,7 @@ ORDER BY %s DESC`,
 	}
 	defer rows.Close()
 
-	var events apiv1.Events
+	var events Events
 	for rows.Next() {
 		event, err := scanRows(rows)
 		if err != nil {
@@ -378,9 +350,9 @@ ORDER BY %s DESC`,
 	return events, nil
 }
 
-func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*apiv1.Event, error) {
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s FROM %s ORDER BY %s DESC LIMIT 1`,
-		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, columnSuggestedActions, tableName, columnTimestamp)
+func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*Event, error) {
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s FROM %s ORDER BY %s DESC LIMIT 1`,
+		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo, tableName, columnTimestamp)
 
 	start := time.Now()
 	row := db.QueryRowContext(ctx, query)
@@ -397,69 +369,57 @@ func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*apiv1.Event,
 	return &foundEvent, nil
 }
 
-func scanRow(row *sql.Row) (apiv1.Event, error) {
-	var event apiv1.Event
+func scanRow(row *sql.Row) (Event, error) {
+	var event Event
 	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
-	var suggestedActions sql.NullString
 	err := row.Scan(
 		&timestamp,
 		&event.Name,
 		&event.Type,
 		&msg,
 		&extraInfo,
-		&suggestedActions,
 	)
 	if err != nil {
 		return event, err
 	}
 
-	event.Time = metav1.Time{Time: time.Unix(timestamp, 0)}
+	event.Time = time.Unix(timestamp, 0)
 	if msg.Valid {
 		event.Message = msg.String
 	}
 
-	if err := unmarshalIfValid(extraInfo, &event.DeprecatedExtraInfo); err != nil {
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
 		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-	}
-
-	if err := unmarshalIfValid(suggestedActions, &event.DeprecatedSuggestedActions); err != nil {
-		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
 	return event, nil
 }
 
-func scanRows(rows *sql.Rows) (apiv1.Event, error) {
-	var event apiv1.Event
+func scanRows(rows *sql.Rows) (Event, error) {
+	var event Event
 	var timestamp int64
 	var msg sql.NullString
 	var extraInfo sql.NullString
-	var suggestedActions sql.NullString
 	err := rows.Scan(
 		&timestamp,
 		&event.Name,
 		&event.Type,
 		&msg,
 		&extraInfo,
-		&suggestedActions,
 	)
 	if err != nil {
 		return event, err
 	}
 
-	event.Time = metav1.Time{Time: time.Unix(timestamp, 0)}
+	event.Time = time.Unix(timestamp, 0)
 	if msg.Valid {
 		event.Message = msg.String
 	}
 
-	if err := unmarshalIfValid(extraInfo, &event.DeprecatedExtraInfo); err != nil {
+	if err := unmarshalIfValid(extraInfo, &event.ExtraInfo); err != nil {
 		return event, fmt.Errorf("failed to unmarshal extra info: %w", err)
-	}
-
-	if err := unmarshalIfValid(suggestedActions, &event.DeprecatedSuggestedActions); err != nil {
-		return event, fmt.Errorf("failed to unmarshal suggested actions: %w", err)
 	}
 
 	return event, nil
@@ -482,12 +442,12 @@ func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimest
 	return int(affected), nil
 }
 
-func compareEvent(eventA, eventB apiv1.Event) bool {
-	if len(eventA.DeprecatedExtraInfo) != len(eventB.DeprecatedExtraInfo) {
+func compareEvent(eventA, eventB Event) bool {
+	if len(eventA.ExtraInfo) != len(eventB.ExtraInfo) {
 		return false
 	}
-	for key, value := range eventA.DeprecatedExtraInfo {
-		if val, ok := eventB.DeprecatedExtraInfo[key]; !ok || val != value {
+	for key, value := range eventA.ExtraInfo {
+		if val, ok := eventB.ExtraInfo[key]; !ok || val != value {
 			return false
 		}
 	}

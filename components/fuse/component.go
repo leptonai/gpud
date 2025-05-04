@@ -111,7 +111,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -183,12 +187,12 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
-		ev := apiv1.Event{
-			Time:    metav1.Time{Time: now.UTC()},
+		ev := eventstore.Event{
+			Time:    now.UTC(),
 			Name:    "fuse_connections",
-			Type:    apiv1.EventTypeCritical,
+			Type:    string(apiv1.EventTypeCritical),
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"data": string(ib),
 			},
 		}

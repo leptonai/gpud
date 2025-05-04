@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
 // Returns true if clock events is supported by this device.
@@ -70,17 +71,17 @@ type ClockEvents struct {
 
 // Event creates a apiv1.Event from ClockEvents if there are hardware slowdown reasons.
 // Returns nil if there are no hardware slowdown reasons.
-func (evs *ClockEvents) Event() *apiv1.Event {
+func (evs *ClockEvents) Event() *eventstore.Event {
 	if len(evs.HWSlowdownReasons) == 0 {
 		return nil
 	}
 
-	return &apiv1.Event{
-		Time:    evs.Time,
+	return &eventstore.Event{
+		Time:    evs.Time.Time,
 		Name:    "hw_slowdown",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			"data_source": "nvml",
 			"gpu_uuid":    evs.UUID,
 		},

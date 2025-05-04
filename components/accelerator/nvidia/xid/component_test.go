@@ -34,17 +34,14 @@ func TestComponentNameSimple(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
-func createTestEvent(timestamp time.Time) apiv1.Event {
-	return apiv1.Event{
-		Time:    metav1.Time{Time: timestamp},
+func createTestEvent(timestamp time.Time) eventstore.Event {
+	return eventstore.Event{
+		Time:    timestamp,
 		Name:    "test_event",
 		Type:    "test_type",
 		Message: "test message",
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			"key": "value",
-		},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 		},
 	}
 }
@@ -53,8 +50,8 @@ func TestMergeEvents(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name     string
-		a        apiv1.Events
-		b        apiv1.Events
+		a        eventstore.Events
+		b        eventstore.Events
 		expected int
 	}{
 		{
@@ -66,14 +63,14 @@ func TestMergeEvents(t *testing.T) {
 		{
 			name: "a empty",
 			a:    nil,
-			b: apiv1.Events{
+			b: eventstore.Events{
 				createTestEvent(now),
 			},
 			expected: 1,
 		},
 		{
 			name: "b empty",
-			a: apiv1.Events{
+			a: eventstore.Events{
 				createTestEvent(now),
 			},
 			b:        nil,
@@ -81,11 +78,11 @@ func TestMergeEvents(t *testing.T) {
 		},
 		{
 			name: "both non-empty",
-			a: apiv1.Events{
+			a: eventstore.Events{
 				createTestEvent(now.Add(-1 * time.Hour)),
 				createTestEvent(now),
 			},
-			b: apiv1.Events{
+			b: eventstore.Events{
 				createTestEvent(now.Add(-2 * time.Hour)),
 				createTestEvent(now.Add(-30 * time.Minute)),
 			},
@@ -98,8 +95,8 @@ func TestMergeEvents(t *testing.T) {
 			assert.Equal(t, tt.expected, len(result))
 			if len(result) > 1 {
 				for i := 1; i < len(result); i++ {
-					assert.True(t, result[i-1].Time.Time.After(result[i].Time.Time) ||
-						result[i-1].Time.Time.Equal(result[i].Time.Time),
+					assert.True(t, result[i-1].Time.After(result[i].Time) ||
+						result[i-1].Time.Equal(result[i].Time),
 						"events should be sorted by timestamp")
 				}
 			}
@@ -107,11 +104,11 @@ func TestMergeEvents(t *testing.T) {
 	}
 
 	t.Run("verify sorting", func(t *testing.T) {
-		a := apiv1.Events{
+		a := eventstore.Events{
 			createTestEvent(now.Add(2 * time.Hour)),
 			createTestEvent(now.Add(-1 * time.Hour)),
 		}
-		b := apiv1.Events{
+		b := eventstore.Events{
 			createTestEvent(now),
 			createTestEvent(now.Add(-2 * time.Hour)),
 		}
@@ -209,7 +206,7 @@ func TestXIDComponent_Events(t *testing.T) {
 		}
 	}()
 
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		createTestEvent(time.Now()),
 	}
 
@@ -229,12 +226,10 @@ func TestXIDComponent_Events(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, events, len(testEvents))
 	for i, event := range events {
-		assert.Equal(t, testEvents[i].Time.Time.Unix(), event.Time.Time.Unix())
+		assert.Equal(t, testEvents[i].Time.Unix(), event.Time.Unix())
 		assert.Equal(t, testEvents[i].Name, event.Name)
-		assert.Equal(t, testEvents[i].Type, event.Type)
+		assert.Equal(t, testEvents[i].Type, string(event.Type))
 		assert.Equal(t, testEvents[i].Message, event.Message)
-		assert.Equal(t, testEvents[i].DeprecatedExtraInfo, event.DeprecatedExtraInfo)
-		assert.Equal(t, testEvents[i].DeprecatedSuggestedActions, event.DeprecatedSuggestedActions)
 	}
 }
 
@@ -293,18 +288,18 @@ func TestXIDComponent_States(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		events    apiv1.Events
+		events    eventstore.Events
 		wantState []apiv1.HealthState
 	}{
 		{
 			name: "critical xid happened and reboot recovered",
-			events: apiv1.Events{
+			events: eventstore.Events{
 				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				createXidEvent(startTime, 31, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 				createXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
-				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(10 * time.Minute)}},
+				{Name: "reboot", Time: startTime.Add(10 * time.Minute)},
 				createXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
-				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(20 * time.Minute)}},
+				{Name: "reboot", Time: startTime.Add(20 * time.Minute)},
 				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
@@ -552,11 +547,11 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
 
 	warningTime := time.Now().Add(-5 * time.Minute)
-	xid94Event := apiv1.Event{
-		Time: metav1.Time{Time: warningTime},
+	xid94Event := eventstore.Event{
+		Time: warningTime,
 		Name: EventNameErrorXid,
-		Type: apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{
+		Type: string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "94",
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
 		},
@@ -581,11 +576,11 @@ func TestUpdateCurrentState(t *testing.T) {
 
 	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
 	fatalTime := time.Now().Add(-4 * time.Minute)
-	xid79Event := apiv1.Event{
-		Time: metav1.Time{Time: fatalTime},
+	xid79Event := eventstore.Event{
+		Time: fatalTime,
 		Name: EventNameErrorXid,
-		Type: apiv1.EventTypeFatal,
-		DeprecatedExtraInfo: map[string]string{
+		Type: string(apiv1.EventTypeFatal),
+		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "79",
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
 		},
@@ -610,8 +605,8 @@ func TestUpdateCurrentState(t *testing.T) {
 
 	// Insert a reboot event (which should reset the state to healthy)
 	rebootTime := time.Now().Add(-2 * time.Minute)
-	rebootEvent := apiv1.Event{
-		Time: metav1.Time{Time: rebootTime},
+	rebootEvent := eventstore.Event{
+		Time: rebootTime,
 		Name: "reboot",
 	}
 	err = c.eventBucket.Insert(ctx, rebootEvent)
@@ -629,8 +624,8 @@ func TestUpdateCurrentState(t *testing.T) {
 
 	// Insert a SetHealthy event
 	healthyTime := time.Now().Add(-1 * time.Minute)
-	healthyEvent := apiv1.Event{
-		Time: metav1.Time{Time: healthyTime},
+	healthyEvent := eventstore.Event{
+		Time: healthyTime,
 		Name: "SetHealthy",
 	}
 	err = c.eventBucket.Insert(ctx, healthyEvent)
@@ -822,11 +817,11 @@ func TestStart(t *testing.T) {
 func TestResolveXIDEvent(t *testing.T) {
 	// Create a test event
 	now := time.Now()
-	testEvent := apiv1.Event{
-		Time: metav1.Time{Time: now},
+	testEvent := eventstore.Event{
+		Time: now,
 		Name: EventNameErrorXid,
-		Type: apiv1.EventTypeWarning,
-		DeprecatedExtraInfo: map[string]string{
+		Type: string(apiv1.EventTypeWarning),
+		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "31", // GPU_HANG or similar error
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
 		},
@@ -840,17 +835,17 @@ func TestResolveXIDEvent(t *testing.T) {
 	assert.NotEmpty(t, resolvedEvent.Message)
 	assert.Contains(t, resolvedEvent.Message, "31")
 	assert.Contains(t, resolvedEvent.Message, "GPU-12345678-1234-5678-1234-567812345678")
-	assert.NotNil(t, resolvedEvent.DeprecatedExtraInfo)
+	assert.NotNil(t, resolvedEvent.ExtraInfo)
 
 	// Verify the event contains JSON data that can be parsed
-	jsonData := resolvedEvent.DeprecatedExtraInfo[EventKeyErrorXidData]
+	jsonData := resolvedEvent.ExtraInfo[EventKeyErrorXidData]
 	assert.NotEmpty(t, jsonData)
 
 	// Try with invalid XID
-	invalidEvent := apiv1.Event{
-		Time: metav1.Time{Time: now},
+	invalidEvent := eventstore.Event{
+		Time: now,
 		Name: EventNameErrorXid,
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "99999", // Invalid XID
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
 		},
@@ -942,8 +937,8 @@ func TestHandleEventChannel(t *testing.T) {
 	assert.GreaterOrEqual(t, len(events), 1)
 
 	// Send a test event directly to the extraEventCh
-	c.extraEventCh <- &apiv1.Event{
-		Time: metav1.Time{Time: time.Now()},
+	c.extraEventCh <- &eventstore.Event{
+		Time: time.Now(),
 		Name: "SetHealthy",
 	}
 

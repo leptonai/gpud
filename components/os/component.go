@@ -82,7 +82,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.rebootEventStore == nil {
 		return nil, nil
 	}
-	return c.rebootEventStore.GetRebootEvents(ctx, since)
+	evs, err := c.rebootEventStore.GetRebootEvents(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {

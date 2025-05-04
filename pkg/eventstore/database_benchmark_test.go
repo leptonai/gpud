@@ -9,7 +9,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -41,18 +40,13 @@ func TestSimulatedEvents(t *testing.T) {
 
 	now := time.Now()
 	for i := 0; i < eventsN; i++ {
-		ev := apiv1.Event{
-			Time:    metav1.Time{Time: now.Add(time.Duration(i) * time.Minute)},
+		ev := Event{
+			Time:    now.Add(time.Duration(i) * time.Minute),
 			Name:    "test",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "Test message with normal text",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"a": fmt.Sprintf("%d", i),
-			},
-			DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-				RepairActions: []apiv1.RepairActionType{
-					apiv1.RepairActionTypeIgnoreNoActionRequired,
-				},
 			},
 		}
 		if err := bucket.Insert(ctx, ev); err != nil {

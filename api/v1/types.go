@@ -112,10 +112,6 @@ type Event struct {
 
 	// Message represents the detailed message of the event.
 	Message string `json:"message,omitempty"`
-
-	// TO BE DEPRECATED
-	DeprecatedExtraInfo        map[string]string `json:"extra_info,omitempty"`
-	DeprecatedSuggestedActions *SuggestedActions `json:"suggested_actions,omitempty"`
 }
 
 type Events []Event

@@ -87,7 +87,7 @@ func (c *component) Start() error {
 				}
 
 				nowUTC := time.Now().UTC()
-				if lastEvent != nil && nowUTC.Sub(lastEvent.Time.Time) < 24*time.Hour {
+				if lastEvent != nil && nowUTC.Sub(lastEvent.Time) < 24*time.Hour {
 					log.Logger.Debugw("found events thus skipping to not overwrite latest data -- we only check once per day", "since", humanize.Time(nowUTC))
 					continue
 				}
@@ -110,7 +110,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -186,10 +190,10 @@ func (c *component) Check() components.CheckResult {
 
 	if c.eventBucket != nil {
 		cctx, cancel = context.WithTimeout(c.ctx, 15*time.Second)
-		cr.err = c.eventBucket.Insert(cctx, apiv1.Event{
-			Time:    metav1.Time{Time: time.Now().UTC()},
+		cr.err = c.eventBucket.Insert(cctx, eventstore.Event{
+			Time:    time.Now().UTC(),
 			Name:    "acs_enabled",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: fmt.Sprintf("host virt env is %q, ACS is enabled on the following PCI devices: %s (needs to be disabled)", c.currentVirtEnv.Type, strings.Join(acsEnabledDevices, ", ")),
 		})
 		cancel()

@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
@@ -22,7 +23,7 @@ const (
 
 // evolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
-func evolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
+func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
@@ -36,16 +37,16 @@ func evolveHealthyState(events apiv1.Events) (ret apiv1.HealthState) {
 		if event.Name == EventNameErrorXid {
 			resolvedEvent := resolveXIDEvent(event)
 			var currXidErr xidErrorEventDetail
-			if err := json.Unmarshal([]byte(resolvedEvent.DeprecatedExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
+			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
 				continue
 			}
 
 			currEvent := StateHealthy
 			switch resolvedEvent.Type {
-			case apiv1.EventTypeCritical:
+			case string(apiv1.EventTypeCritical):
 				currEvent = StateDegraded
-			case apiv1.EventTypeFatal:
+			case string(apiv1.EventTypeFatal):
 				currEvent = StateUnhealthy
 			}
 			if currEvent < lastHealth {
@@ -114,29 +115,28 @@ func translateToStateHealth(health int) apiv1.HealthStateType {
 	}
 }
 
-func resolveXIDEvent(event apiv1.Event) apiv1.Event {
+func resolveXIDEvent(event eventstore.Event) eventstore.Event {
 	ret := event
-	if event.DeprecatedExtraInfo != nil {
-		if currXid, err := strconv.Atoi(event.DeprecatedExtraInfo[EventKeyErrorXidData]); err == nil {
+	if event.ExtraInfo != nil {
+		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
 			detail, ok := xid.GetDetail(currXid)
 			if !ok {
 				return ret
 			}
-			ret.Type = detail.EventType
-			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.DeprecatedExtraInfo[EventKeyDeviceUUID])
-			ret.DeprecatedSuggestedActions = detail.SuggestedActionsByGPUd
+			ret.Type = string(detail.EventType)
+			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
 
 			xidErr := xidErrorEventDetail{
-				Time:                      event.Time,
+				Time:                      metav1.NewTime(event.Time),
 				DataSource:                "kmsg",
-				DeviceUUID:                event.DeprecatedExtraInfo[EventKeyDeviceUUID],
+				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
 				Xid:                       uint64(currXid),
 				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
 				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
 			}
 
 			raw, _ := json.Marshal(xidErr)
-			ret.DeprecatedExtraInfo[EventKeyErrorXidData] = string(raw)
+			ret.ExtraInfo[EventKeyErrorXidData] = string(raw)
 		}
 	}
 	return ret

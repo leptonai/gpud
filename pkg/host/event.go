@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
@@ -16,7 +14,7 @@ const defaultBucketName = "os"
 
 type RebootEventStore interface {
 	RecordReboot(ctx context.Context) error
-	GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error)
+	GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error)
 }
 
 var _ RebootEventStore = &rebootEventStore{}
@@ -37,7 +35,7 @@ func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, s.getLastRebootTime)
 }
 
-func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 
@@ -53,10 +51,10 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 		return nil
 	}
 
-	rebootEvent := apiv1.Event{
-		Time:    metav1.Time{Time: bootTime},
+	rebootEvent := eventstore.Event{
+		Time:    bootTime,
 		Name:    "reboot",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: fmt.Sprintf("system reboot detected %v", bootTime),
 	}
 
@@ -71,7 +69,7 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 		return err
 	}
 
-	if lastEvent != nil && lastEvent.Time.Time.Sub(bootTime).Abs() < time.Minute {
+	if lastEvent != nil && lastEvent.Time.Sub(bootTime).Abs() < time.Minute {
 		return nil
 	}
 
@@ -79,7 +77,7 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 	return bucket.Insert(ctx, rebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (apiv1.Events, error) {
+func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {
 	bucket, err := eventStore.Bucket(defaultBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return nil, err

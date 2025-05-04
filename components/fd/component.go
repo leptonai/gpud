@@ -135,7 +135,15 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evStoreEvents, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	apiEvents := make(apiv1.Events, len(evStoreEvents))
+	for i, ev := range evStoreEvents {
+		apiEvents[i] = ev.ToEvent()
+	}
+	return apiEvents, nil
 }
 
 func (c *component) Close() error {

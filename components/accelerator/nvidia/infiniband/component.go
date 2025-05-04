@@ -111,7 +111,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -241,20 +245,13 @@ func (c *component) Check() components.CheckResult {
 	// now that event store/bucket is set
 	// now that ibstat output has some issues with its thresholds (unhealthy state)
 	// we persist such unhealthy state event
-	ev := apiv1.Event{
-		Time:    metav1.Time{Time: cr.ts},
+	//
+	// potential infiniband switch/hardware issue needs immediate attention
+	ev := eventstore.Event{
+		Time:    cr.ts,
 		Name:    "ibstat",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: cr.reason,
-
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeHardwareInspection,
-			},
-			DeprecatedDescriptions: []string{
-				"potential infiniband switch/hardware issue needs immediate attention",
-			},
-		},
 	}
 
 	// lookup to prevent duplicate event insertions
