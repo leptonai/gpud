@@ -1883,6 +1883,81 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			componentList: []string{},
 			expectError:   true,
 		},
+		{
+			name: "empty component name in componentlist 1",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{"", "legit"},
+			expectError:   true,
+		},
+		{
+			name: "empty component name in componentlist 2",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{":param1", "legit"},
+			expectError:   true,
+		},
+		{
+			name: "empty component name in componentlist 3",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{"#auto:param1", "legit"},
+			expectError:   true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -2183,13 +2258,13 @@ backup
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			expandedSpecs, err := Specs(tc.parentSpec).ExpandedValidate()
-			assert.NoError(t, err)
 
 			if tc.expectError {
 				assert.Error(t, err)
 				return
 			}
 
+			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expectedSpecs), len(expandedSpecs))
 
 			// For each component in the list, verify its parameters
