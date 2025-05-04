@@ -2032,7 +2032,7 @@ backup
 		expectError   bool
 	}{
 		{
-			name: "basic passing listfile case",
+			name: "basic listfile",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2149,7 +2149,7 @@ backup
 			expectError: false,
 		},
 		{
-			name: "empty listfile filename case",
+			name: "empty listfile filename",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2175,7 +2175,7 @@ backup
 			expectError:   true,
 		},
 		{
-			name: "non-existing listfile case",
+			name: "non-existing listfile",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2201,7 +2201,7 @@ backup
 			expectError:   true,
 		},
 		{
-			name: "empty listfile case",
+			name: "empty listfile",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2227,7 +2227,7 @@ backup
 			expectError:   true,
 		},
 		{
-			name: "componet_list and listfile not allowed",
+			name: "component_list and listfile not allowed",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
