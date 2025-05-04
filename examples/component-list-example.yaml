@@ -1,0 +1,24 @@
+# Example of a component list plugin with different parameter formats
+name: "component-list-example"
+type: "component"
+run_mode: "auto"
+interval: "10s"
+timeout: "5s"
+component_list:
+  - "noparam-plugin"                    # No parameters
+  - "param-plugin-1:-p1"                # Simple parameter
+  - "param-plugin-2:-p 2 --more"        # Complex parameter with spaces
+  - "manual-plugin#manual:-p1"          # Manual run mode with parameter
+  - "auto-plugin#auto:-p2"              # Auto run mode with parameter
+  - "once-plugin#once"                  # Once run mode without parameter
+
+steps:
+  - run_bash_script:
+      script: |
+        #!/bin/bash
+        echo "Running component: ${NAME}"
+        if [ -n "${PAR}" ]; then
+          echo "With parameters: ${PAR}"
+        fi
+        # Your actual monitoring logic here
+        echo "Component ${NAME} completed" 

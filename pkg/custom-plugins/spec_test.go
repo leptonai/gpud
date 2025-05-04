@@ -2,6 +2,7 @@ package customplugins
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -258,7 +259,9 @@ func TestValidate(t *testing.T) {
 			if tc.expectError {
 				assert.Error(t, err)
 				if tc.errorType != nil {
-					assert.Equal(t, tc.errorType, err)
+					fmt.Printf("Expected error: %v\n", tc.errorType)
+					fmt.Printf("Actual error: %v\n", err)
+					assert.ErrorIs(t, err, tc.errorType)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -1680,6 +1683,631 @@ func TestValidateSpecType(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestComponentListParameterInheritance(t *testing.T) {
+	testCases := []struct {
+		name          string
+		parentSpec    []Spec
+		componentList []string
+		expectedSpecs []Spec
+		expectError   bool
+	}{
+		{
+			name: "inherit all from parent",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{"root:/", "home:/home", "var:/var"},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "root",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo root /",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "home",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo home /home",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "var",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo var /var",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "override run_mode in components",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{"root#auto:/", "home#manual:/home", "var:/var"},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "root",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo root /",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "home",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo home /home",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "var",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo var /var",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty component list",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{},
+			expectError:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a copy of the parent spec with the component list
+			specs := make([]Spec, len(tc.parentSpec))
+			copy(specs, tc.parentSpec)
+			specs[0].ComponentList = tc.componentList
+
+			// Expand and validate the specs
+			expandedSpecs, err := Specs(specs).ExpandedValidate()
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expectedSpecs), len(expandedSpecs))
+
+			// For each component in the list, verify its parameters
+			for i, spec := range expandedSpecs {
+				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
+				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
+				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
+				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
+				assert.Equal(t, tc.expectedSpecs[i].HealthStatePlugin.Steps[0].RunBashScript.Script,
+					spec.HealthStatePlugin.Steps[0].RunBashScript.Script)
+			}
+		})
+	}
+}
+
+func TestComponentListFileParameterInheritance(t *testing.T) {
+	// Create a temporary file for testing
+	tmpFile, err := os.CreateTemp("", "component-list-*.txt")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	// Write test components to the file
+	components := `# This is a comment
+# Full format with run_mode and param
+root#auto:/     
+
+# Full format with run_mode and param     
+home#manual:/home    
+
+# Run mode only
+var#auto             
+
+# Parameter only
+data:param1     
+
+# Name only     
+backup               
+# Another comment
+`
+	_, err = tmpFile.WriteString(components)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	testCases := []struct {
+		name          string
+		parentSpec    []Spec
+		expectedSpecs []Spec
+		expectError   bool
+	}{
+		{
+			name: "basic passing listfile case",
+			parentSpec: []Spec{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponentList,
+					ComponentListFile: tmpFile.Name(),
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					Interval:          metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "root",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo root /",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "home",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo home /home",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "var",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo var ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "data",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo data param1",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "backup",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo backup ",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty listfile case",
+			parentSpec: []Spec{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponentList,
+					ComponentListFile: "",
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					Interval:          metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: nil,
+			expectError:   true,
+		},
+		{
+			name: "non-existing listfile case",
+			parentSpec: []Spec{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponentList,
+					ComponentListFile: "non-existing-file:like-really-NOT.txt",
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					Interval:          metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: nil,
+			expectError:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expandedSpecs, err := Specs(tc.parentSpec).ExpandedValidate()
+			assert.NoError(t, err)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.Equal(t, len(tc.expectedSpecs), len(expandedSpecs))
+
+			// For each component in the list, verify its parameters
+			for i, spec := range expandedSpecs {
+				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
+				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
+				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
+				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
+				assert.Equal(t, tc.expectedSpecs[i].HealthStatePlugin.Steps[0].RunBashScript.Script,
+					spec.HealthStatePlugin.Steps[0].RunBashScript.Script)
+			}
+		})
+	}
+}
+
+func TestComponentListWithRunMode(t *testing.T) {
+	testCases := []struct {
+		name          string
+		parentSpec    []Spec
+		componentList []string
+		expectedSpecs []Spec
+		expectError   bool
+	}{
+		{
+			name: "basic run modes",
+			parentSpec: []Spec{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponentList,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			componentList: []string{
+				"component1#manual",
+				"component2#auto",
+				"component3#once",
+				"component4:-p1",
+				"component5#manual:-p2",
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "component1",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo component1 ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "component2",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo component2 ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "component3",
+					Type:       SpecTypeComponent,
+					RunMode:    "once",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo component3 ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "component4",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo component4 -p1",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "component5",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo component5 -p2",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a copy of the parent spec with the component list
+			specs := make([]Spec, len(tc.parentSpec))
+			copy(specs, tc.parentSpec)
+			specs[0].ComponentList = tc.componentList
+
+			// Expand and validate the specs
+			expandedSpecs, err := Specs(specs).ExpandedValidate()
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.expectedSpecs), len(expandedSpecs))
+
+			// For each component in the list, verify its parameters
+			for i, spec := range expandedSpecs {
+				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
+				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
+				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
+				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
+				assert.Equal(t, tc.expectedSpecs[i].HealthStatePlugin.Steps[0].RunBashScript.Script,
+					spec.HealthStatePlugin.Steps[0].RunBashScript.Script)
 			}
 		})
 	}
