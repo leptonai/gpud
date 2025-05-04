@@ -1945,6 +1945,11 @@ backup
 	assert.NoError(t, err)
 	tmpFile.Close()
 
+	emptyFile, err := os.CreateTemp("", "component-list-*.txt")
+	assert.NoError(t, err)
+	defer os.Remove(emptyFile.Name())
+	emptyFile.Close()
+
 	testCases := []struct {
 		name          string
 		parentSpec    []Spec
@@ -2069,7 +2074,7 @@ backup
 			expectError: false,
 		},
 		{
-			name: "empty listfile case",
+			name: "empty listfile filename case",
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2101,6 +2106,59 @@ backup
 					PluginName:        "test-plugin",
 					Type:              SpecTypeComponentList,
 					ComponentListFile: "non-existing-file:like-really-NOT.txt",
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					Interval:          metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: nil,
+			expectError:   true,
+		},
+		{
+			name: "empty listfile case",
+			parentSpec: []Spec{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponentList,
+					ComponentListFile: emptyFile.Name(),
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					Interval:          metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME} ${PAR}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: nil,
+			expectError:   true,
+		},
+		{
+			name: "componet_list and listfile not allowed",
+			parentSpec: []Spec{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponentList,
+					ComponentListFile: tmpFile.Name(),
+					ComponentList:     []string{"component1", "component2"},
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
 					Interval:          metav1.Duration{Duration: 5 * time.Minute},
