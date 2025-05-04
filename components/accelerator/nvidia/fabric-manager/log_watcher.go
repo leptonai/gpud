@@ -55,9 +55,6 @@ func (llp *logLineProcessor) watch() {
 			ev := eventstore.Event{
 				Time: line.ts.UTC(),
 				Type: string(apiv1.EventTypeWarning),
-				ExtraInfo: map[string]string{
-					"log_line": line.content,
-				},
 			}
 			ev.Name, ev.Message = llp.matchFunc(line.content)
 			if ev.Name == "" {

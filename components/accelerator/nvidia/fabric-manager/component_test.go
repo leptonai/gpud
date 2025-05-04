@@ -167,9 +167,6 @@ func TestEventsWithProcessor(t *testing.T) {
 		Name:    "test-error",
 		Message: "This is a test error",
 		Type:    "Warning",
-		ExtraInfo: map[string]string{
-			"log_line": "test-error-line",
-		},
 	}
 	err = bucket.Insert(ctx, testEvent)
 	require.NoError(t, err)

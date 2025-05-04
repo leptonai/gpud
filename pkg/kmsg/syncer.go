@@ -9,10 +9,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-const (
-	eventKeyLogLine = "log_line"
-)
-
 // Syncer syncs kernel message matched by MatchFunc to eventstore bucket
 type Syncer struct {
 	ctx         context.Context
@@ -80,10 +76,6 @@ func (w *Syncer) sync(ch <-chan Message) {
 			}
 			if sameEvent != nil {
 				continue
-			}
-
-			event.ExtraInfo = map[string]string{
-				eventKeyLogLine: kmsg.Message,
 			}
 
 			// insert event
