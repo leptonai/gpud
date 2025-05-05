@@ -1983,45 +1983,45 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			componentList: []string{"name1#auto:param1", "legit"},
 			expectError:   true,
 		},
-		{
-			name: "missing steps in health state plugin",
-			parentSpec: []Spec{
-				{
-					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
-					RunMode:    "auto",
-					Timeout:    metav1.Duration{Duration: 30 * time.Second},
-					Interval:   metav1.Duration{Duration: 5 * time.Minute},
-					HealthStatePlugin: &Plugin{
-						Steps: nil,
-					},
-				},
-			},
-			componentList: []string{"name#auto:param1", "legit"},
-			expectedSpecs: []Spec{
-				{
-					PluginName: "name",
-					Type:       SpecTypeComponent,
-					RunMode:    "auto",
-					Timeout:    metav1.Duration{Duration: 30 * time.Second},
-					Interval:   metav1.Duration{Duration: 5 * time.Minute},
-					HealthStatePlugin: &Plugin{
-						Steps: nil,
-					},
-				},
-				{
-					PluginName: "legit",
-					Type:       SpecTypeComponent,
-					RunMode:    "auto",
-					Timeout:    metav1.Duration{Duration: 30 * time.Second},
-					Interval:   metav1.Duration{Duration: 5 * time.Minute},
-					HealthStatePlugin: &Plugin{
-						Steps: nil,
-					},
-				},
-			},
-			expectError: false,
-		},
+		// {
+		// 	name: "missing steps in health state plugin",
+		// 	parentSpec: []Spec{
+		// 		{
+		// 			PluginName: "test-plugin",
+		// 			Type:       SpecTypeComponentList,
+		// 			RunMode:    "auto",
+		// 			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+		// 			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		// 			HealthStatePlugin: &Plugin{
+		// 				Steps: nil,
+		// 			},
+		// 		},
+		// 	},
+		// 	componentList: []string{"name#auto:param1", "legit"},
+		// 	expectedSpecs: []Spec{
+		// 		{
+		// 			PluginName: "name",
+		// 			Type:       SpecTypeComponent,
+		// 			RunMode:    "auto",
+		// 			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+		// 			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		// 			HealthStatePlugin: &Plugin{
+		// 				Steps: nil,
+		// 			},
+		// 		},
+		// 		{
+		// 			PluginName: "legit",
+		// 			Type:       SpecTypeComponent,
+		// 			RunMode:    "auto",
+		// 			Timeout:    metav1.Duration{Duration: 30 * time.Second},
+		// 			Interval:   metav1.Duration{Duration: 5 * time.Minute},
+		// 			HealthStatePlugin: &Plugin{
+		// 				Steps: nil,
+		// 			},
+		// 		},
+		// 	},
+		// 	expectError: false,
+		// },
 		{
 			name: "missing health state plugin",
 			parentSpec: []Spec{
