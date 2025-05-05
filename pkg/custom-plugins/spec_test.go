@@ -1998,7 +1998,29 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 			},
 			componentList: []string{"name#auto:param1", "legit"},
-			expectError:   true,
+			expectedSpecs: []Spec{
+				{
+					PluginName: "name",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: nil
+					},
+				},
+				{
+					PluginName: "legit",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: nil,
+					},
+				},
+			},
+			expectError:   false,
 		},
 		{
 			name: "missing health state plugin",
