@@ -2006,7 +2006,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
 					HealthStatePlugin: &Plugin{
-						Steps: nil
+						Steps: nil,
 					},
 				},
 				{
@@ -2020,7 +2020,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 					},
 				},
 			},
-			expectError:   false,
+			expectError: false,
 		},
 		{
 			name: "missing health state plugin",
